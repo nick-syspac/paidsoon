@@ -1,0 +1,137 @@
+// Invoice Nudge — Prisma Schema
+// Connection managed via prisma.config.ts (Prisma 6)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// User Profiles
+// ---------------------------------------------------------------------------
+
+model UserProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique // maps to auth.users.id in Supabase
+  stripeCustomerId   String?  @unique
+  subscriptionTier   String   @default("free") // 'free' | 'pro'
+  subscriptionStatus String   @default("active") // 'active' | 'cancelled' | 'past_due'
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  invoiceConnections InvoiceConnection[]
+  schedule           Schedule?
+  emailSettings      EmailSettings?
+  trackedInvoices    TrackedInvoice[]
+
+  @@map("user_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Invoice Connections (provider-agnostic adapter hook)
+// ---------------------------------------------------------------------------
+
+model InvoiceConnection {
+  id                     String   @id @default(cuid())
+  userId                 String
+  provider               String   @default("stripe") // 'stripe' | future providers
+  stripeConnectAccountId String?  // encrypted at app layer
+  isActive               Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  userProfile     UserProfile      @relation(fields: [userId], references: [userId])
+  trackedInvoices TrackedInvoice[]
+
+  @@map("invoice_connections")
+}
+
+// ---------------------------------------------------------------------------
+// Follow-up Schedule
+// ---------------------------------------------------------------------------
+
+model Schedule {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  email1DaysAfterDue  Int      @default(3)
+  email2DaysAfterDue  Int      @default(10)
+  email3DaysAfterDue  Int      @default(21)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@map("schedules")
+}
+
+// ---------------------------------------------------------------------------
+// Email Settings (Pro tier)
+// ---------------------------------------------------------------------------
+
+model EmailSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  fromEmail       String?  // null = use system domain
+  fromName        String?
+  replyTo         String?
+  resendVerified  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@map("email_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Tracked Invoices
+// ---------------------------------------------------------------------------
+
+model TrackedInvoice {
+  id                  String    @id @default(cuid())
+  userId              String
+  invoiceConnectionId String
+  externalId          String    // e.g. Stripe invoice ID
+  provider            String    @default("stripe")
+  clientEmail         String
+  clientName          String
+  amountDue           Int       // in smallest currency unit (cents)
+  currency            String    @default("usd")
+  dueDate             DateTime
+  status              String    @default("pending")
+  // 'pending' | 'paid' | 'paused' | 'snoozed' | 'sequence_complete' | 'manually_resolved'
+  currentStage        Int       @default(0) // 0=not started, 1=email1 sent, 2=email2 sent, 3=email3 sent
+  nextEmailAt         DateTime?
+  snoozedUntil        DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  userProfile       UserProfile       @relation(fields: [userId], references: [userId])
+  invoiceConnection InvoiceConnection @relation(fields: [invoiceConnectionId], references: [id])
+  emailLogs         EmailLog[]
+
+  @@unique([externalId, provider, userId])
+  @@map("tracked_invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Email Logs
+// ---------------------------------------------------------------------------
+
+model EmailLog {
+  id               String   @id @default(cuid())
+  trackedInvoiceId String
+  stage            Int      // 1, 2, or 3
+  sentAt           DateTime @default(now())
+  resendMessageId  String?
+  fromAddress      String
+  subject          String
+
+  trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
+
+  @@map("email_logs")
+}
