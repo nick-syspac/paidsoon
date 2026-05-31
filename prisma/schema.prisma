@@ -1,4 +1,4 @@
-// Invoice Nudge — Prisma Schema
+// PaidSoon — Prisma Schema
 // Connection managed via prisma.config.ts (Prisma 6)
 
 generator client {

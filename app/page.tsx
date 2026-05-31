@@ -6,7 +6,7 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <span className="font-semibold text-gray-900">Invoice Nudge</span>
+          <span className="font-semibold text-gray-900">PaidSoon</span>
           <div className="flex items-center gap-4">
             <Link href="/sign-in" className="text-sm text-gray-600 hover:text-gray-900">
               Sign in
@@ -28,7 +28,7 @@ export default function LandingPage() {
           <span className="text-blue-600">Let software do it for you.</span>
         </h1>
         <p className="mt-6 text-lg text-gray-500 max-w-xl mx-auto">
-          Invoice Nudge connects to your Stripe account and automatically sends
+          PaidSoon connects to your Stripe account and automatically sends
           a polite escalating sequence of follow-up emails when clients are late —
           so you never have to play bad cop again.
         </p>
@@ -145,7 +145,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-gray-100 py-8">
         <p className="text-center text-xs text-gray-400">
-          © {new Date().getFullYear()} Invoice Nudge. Built for freelancers who have better things to do.
+          © {new Date().getFullYear()} PaidSoon. Built for freelancers who have better things to do.
         </p>
       </footer>
     </div>

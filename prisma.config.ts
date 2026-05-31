@@ -9,6 +9,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"]!,
+    // Migrations run as the owner role via a direct (non-pooled) connection.
+    // Runtime DATABASE_URL connects as a non-owner role so RLS applies.
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"]!,
   },
 });

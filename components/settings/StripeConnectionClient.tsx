@@ -29,7 +29,7 @@ export function StripeConnectionClient({
     <div className="max-w-lg space-y-4">
       <h2 className="text-base font-medium text-gray-900">Stripe Connection</h2>
       <p className="text-sm text-gray-500">
-        Connect your Stripe account so Invoice Nudge can detect overdue invoices automatically.
+        Connect your Stripe account so PaidSoon can detect overdue invoices automatically.
       </p>
 
       {successMessage && (

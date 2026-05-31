@@ -5,7 +5,7 @@
 - [ ] 1.3 ~~Grant `app_user` ability to `SET ROLE authenticated`~~ — built in for `authenticator`
 - [ ] 1.4 ~~Add `prisma/grants.sql`~~ — not needed under option A
 - [ ] 1.5 In Vercel + local `.env.local`, set `DATABASE_URL` to the pgBouncer pooler URL using `authenticator` credentials (NOT `postgres`)
-- [ ] 1.6 In Vercel + local `.env.local`, set `DIRECT_URL` to the direct-connection URL using the owner / `postgres` role; update `prisma.config.ts` to use `DIRECT_URL` for migrations (currently reads `DATABASE_URL`)
+- [ ] 1.6 In Vercel + local `.env.local`, set `DIRECT_URL` to the direct-connection URL using the owner / `postgres` role; update `prisma.config.ts` to use `DIRECT_URL` for migrations (currently reads `DATABASE_URL`) — *code change done; env-var configuration pending*
 - [ ] 1.7 Run `prisma migrate status` and `prisma migrate deploy` against `DIRECT_URL` to confirm migrations still work
 
 ## 2. `withUserContext` helper and split clients
@@ -41,7 +41,7 @@
 
 - [x] 6.1 Updated `invoice-nudge-mvp/design.md` D1 with an implementation note referencing this change
 - [x] 6.2 Updated `prisma/rls-policies.sql` header to describe the role / `SET LOCAL` enforcement model
-- [ ] 6.3 Optional: add a note to `README.md` documenting the `withUserContext` / `prismaAdmin` split
+- [x] 6.3 Optional: add a note to `README.md` documenting the `withUserContext` / `prismaAdmin` split
 
 ## 7. Rollout (RUNBOOK)
 

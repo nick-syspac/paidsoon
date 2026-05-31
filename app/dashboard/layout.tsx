@@ -17,7 +17,7 @@ export default async function DashboardLayout({
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/dashboard" className="font-semibold text-gray-900 text-sm">
-            Invoice Nudge
+            PaidSoon
           </Link>
           <div className="flex items-center gap-6">
             <Link

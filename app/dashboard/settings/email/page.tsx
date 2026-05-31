@@ -20,7 +20,7 @@ export default async function EmailSettingsPage() {
     <EmailSettingsClient
       isPro={profile?.subscriptionTier === "pro"}
       settings={emailSettings}
-      systemEmail={process.env.RESEND_FROM_EMAIL ?? "billing@invoicenudge.com"}
+      systemEmail={process.env.RESEND_FROM_EMAIL ?? "billing@paidsoon.com"}
     />
   )
 }

@@ -1,4 +1,4 @@
--- Invoice Nudge — Supabase Row Level Security Policies
+-- PaidSoon — Supabase Row Level Security Policies
 -- Run this in Supabase SQL Editor after running Prisma migrations.
 -- These policies ensure strict tenant isolation: users can only access their own data.
 --
