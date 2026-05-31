@@ -1,5 +1,5 @@
 import { Resend } from "resend"
-import { prisma } from "@/lib/prisma"
+import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { renderTemplate, buildTemplateVars } from "./templates"
 import type { TrackedInvoice } from "@/lib/generated/prisma/client"
 

@@ -1,6 +1,23 @@
 -- Invoice Nudge — Supabase Row Level Security Policies
 -- Run this in Supabase SQL Editor after running Prisma migrations.
 -- These policies ensure strict tenant isolation: users can only access their own data.
+--
+-- Enforcement model
+-- -----------------
+-- The Prisma runtime client connects via DATABASE_URL as a role that does NOT
+-- have BYPASSRLS (Supabase: `authenticator` or a custom role granted
+-- `authenticated`). For each user request, the application wraps queries in
+-- `withUserContext(userId, fn)` (see lib/db/withUserContext.ts), which inside
+-- a transaction runs:
+--   SELECT set_config('request.jwt.claims', '{"sub": "<userId>", "role": "authenticated"}', true);
+--   SET LOCAL ROLE authenticated;
+-- These transaction-scoped settings make auth.uid() resolve to <userId>, so
+-- the policies below fire and queries cannot read or write rows belonging to
+-- other users — even if the application-level WHERE clause is missing.
+--
+-- The owner / migration role uses DIRECT_URL and bypasses RLS. Cron and webhook
+-- code uses `prismaAdmin` (lib/db/admin.ts), which also bypasses RLS by design
+-- and is responsible for scoping its own queries.
 
 -- Enable RLS on all application tables
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;

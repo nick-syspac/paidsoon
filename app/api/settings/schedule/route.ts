@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { prisma } from "@/lib/prisma"
+import { withUserContext } from "@/lib/db/withUserContext"
 import { requirePro } from "@/lib/billing"
 import { NextResponse } from "next/server"
 import { z } from "zod"
@@ -24,9 +24,9 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const schedule = await prisma.schedule.findUnique({
-    where: { userId: user.id },
-  })
+  const schedule = await withUserContext(user.id, (tx) =>
+    tx.schedule.findUnique({ where: { userId: user.id } }),
+  )
 
   return NextResponse.json({ schedule })
 }
@@ -51,11 +51,13 @@ export async function PUT(request: Request) {
   }
 
   // Upsert schedule — does NOT retroactively update nextEmailAt on existing invoices
-  await prisma.schedule.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, ...parsed.data },
-    update: parsed.data,
-  })
+  await withUserContext(user.id, (tx) =>
+    tx.schedule.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, ...parsed.data },
+      update: parsed.data,
+    }),
+  )
 
   return NextResponse.json({ success: true })
 }

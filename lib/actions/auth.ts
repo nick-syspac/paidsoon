@@ -1,6 +1,6 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { prismaAdmin as prisma } from "@/lib/db/admin"
 
 export async function createUserProfile(userId: string) {
   // Creates user_profiles and default schedules record for a new user.

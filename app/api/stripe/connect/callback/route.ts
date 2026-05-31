@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { prisma } from "@/lib/prisma"
+import { withUserContext } from "@/lib/db/withUserContext"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 
@@ -48,29 +48,27 @@ export async function GET(request: Request) {
     )
   }
 
-  // Upsert the connection
-  await prisma.invoiceConnection.upsert({
-    where: {
-      // We use the userId + provider combination; use a findFirst + create/update
-      // since there's no unique constraint on (userId, provider) in schema.
-      // Fall back to create if not found.
-      id: (
-        await prisma.invoiceConnection.findFirst({
-          where: { userId: user.id, provider: "stripe" },
-          select: { id: true },
-        })
-      )?.id ?? "NEW",
-    },
-    create: {
-      userId: user.id,
-      provider: "stripe",
-      stripeConnectAccountId,
-      isActive: true,
-    },
-    update: {
-      stripeConnectAccountId,
-      isActive: true,
-    },
+  await withUserContext(user.id, async (tx) => {
+    const existing = await tx.invoiceConnection.findFirst({
+      where: { userId: user.id, provider: "stripe" },
+      select: { id: true },
+    })
+
+    if (existing) {
+      await tx.invoiceConnection.update({
+        where: { id: existing.id },
+        data: { stripeConnectAccountId, isActive: true },
+      })
+    } else {
+      await tx.invoiceConnection.create({
+        data: {
+          userId: user.id,
+          provider: "stripe",
+          stripeConnectAccountId,
+          isActive: true,
+        },
+      })
+    }
   })
 
   return NextResponse.redirect(

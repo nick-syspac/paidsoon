@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getProvider } from "@/lib/providers"
 import { FREE_TIER_INVOICE_LIMIT } from "@/lib/billing"
 import { computeNextEmailAt } from "@/lib/email/schedule"

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { prisma } from "@/lib/prisma"
+import { withUserContext } from "@/lib/db/withUserContext"
 import { requirePro } from "@/lib/billing"
 import { Resend } from "resend"
 import { NextResponse } from "next/server"
@@ -21,9 +21,9 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const settings = await prisma.emailSettings.findUnique({
-    where: { userId: user.id },
-  })
+  const settings = await withUserContext(user.id, (tx) =>
+    tx.emailSettings.findUnique({ where: { userId: user.id } }),
+  )
 
   return NextResponse.json({ settings })
 }
@@ -49,28 +49,29 @@ export async function PUT(request: Request) {
 
   const { fromEmail, fromName, replyTo } = parsed.data
 
-  // Check if this is a new/changed email — if so, trigger Resend verification
-  const existing = await prisma.emailSettings.findUnique({
-    where: { userId: user.id },
-  })
-  const emailChanged = existing?.fromEmail !== fromEmail
+  const emailChanged = await withUserContext(user.id, async (tx) => {
+    const existing = await tx.emailSettings.findUnique({
+      where: { userId: user.id },
+    })
+    const changed = existing?.fromEmail !== fromEmail
 
-  // Upsert settings with resendVerified: false if email changed
-  await prisma.emailSettings.upsert({
-    where: { userId: user.id },
-    create: {
-      userId: user.id,
-      fromEmail,
-      fromName,
-      replyTo,
-      resendVerified: false,
-    },
-    update: {
-      fromEmail,
-      fromName,
-      replyTo,
-      ...(emailChanged ? { resendVerified: false } : {}),
-    },
+    await tx.emailSettings.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        fromEmail,
+        fromName,
+        replyTo,
+        resendVerified: false,
+      },
+      update: {
+        fromEmail,
+        fromName,
+        replyTo,
+        ...(changed ? { resendVerified: false } : {}),
+      },
+    })
+    return changed
   })
 
   // Trigger Resend sender verification if email changed

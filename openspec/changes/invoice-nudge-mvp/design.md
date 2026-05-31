@@ -41,6 +41,8 @@ Constraints:
 
 **Note:** Prisma + Supabase requires using the pgBouncer pooler `DATABASE_URL` for serverless environments. The direct URL is used for migrations only.
 
+**Implementation note (see change `enforce-rls-via-prisma`):** Making the RLS guarantee actually hold under Prisma required wiring per-request `set_config('request.jwt.claims', ...)` and `SET LOCAL ROLE authenticated` inside a transaction, and splitting the runtime DB client (`withUserContext`) from a clearly-named service client (`prismaAdmin`) used only by cron, webhooks, and the post-signup bootstrap. The connection role configured in `DATABASE_URL` must not have `BYPASSRLS`.
+
 ---
 
 ### D2: Provider Abstraction Layer for Invoice Sources

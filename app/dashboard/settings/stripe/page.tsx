@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { prisma } from "@/lib/prisma"
+import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { StripeConnectionClient } from "@/components/settings/StripeConnectionClient"
 
@@ -13,9 +13,11 @@ export default async function StripeSettingsPage({
   if (!user) redirect("/sign-in")
 
   const params = await searchParams
-  const connection = await prisma.invoiceConnection.findFirst({
-    where: { userId: user.id, provider: "stripe" },
-  })
+  const connection = await withUserContext(user.id, (tx) =>
+    tx.invoiceConnection.findFirst({
+      where: { userId: user.id, provider: "stripe" },
+    }),
+  )
 
   return (
     <StripeConnectionClient

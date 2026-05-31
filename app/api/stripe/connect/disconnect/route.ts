@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { prisma } from "@/lib/prisma"
+import { withUserContext } from "@/lib/db/withUserContext"
 import { NextResponse } from "next/server"
 
 export async function POST() {
@@ -12,28 +12,29 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const connection = await prisma.invoiceConnection.findFirst({
-    where: { userId: user.id, provider: "stripe", isActive: true },
-  })
+  const result = await withUserContext(user.id, async (tx) => {
+    const connection = await tx.invoiceConnection.findFirst({
+      where: { userId: user.id, provider: "stripe", isActive: true },
+    })
+    if (!connection) return { ok: false as const }
 
-  if (!connection) {
-    return NextResponse.json({ error: "No active connection" }, { status: 404 })
-  }
-
-  // Deactivate connection and pause all pending invoices for this connection
-  await prisma.$transaction([
-    prisma.invoiceConnection.update({
+    // Already inside a transaction — sequential awaits replace prisma.$transaction([])
+    await tx.invoiceConnection.update({
       where: { id: connection.id },
       data: { isActive: false },
-    }),
-    prisma.trackedInvoice.updateMany({
+    })
+    await tx.trackedInvoice.updateMany({
       where: {
         invoiceConnectionId: connection.id,
         status: { in: ["pending", "snoozed"] },
       },
       data: { status: "paused" },
-    }),
-  ])
+    })
+    return { ok: true as const }
+  })
 
+  if (!result.ok) {
+    return NextResponse.json({ error: "No active connection" }, { status: 404 })
+  }
   return NextResponse.json({ success: true })
 }

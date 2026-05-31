@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { sendFollowUpEmail } from "@/lib/email/send"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { runCatchUpScan } from "@/lib/email/catchup"

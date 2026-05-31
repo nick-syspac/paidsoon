@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 

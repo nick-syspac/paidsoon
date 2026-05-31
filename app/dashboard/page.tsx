@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { prisma } from "@/lib/prisma"
+import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { FREE_TIER_INVOICE_LIMIT } from "@/lib/billing"
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable"
@@ -21,20 +21,23 @@ export default async function DashboardPage({
   const activeStatuses = ["pending", "paused", "snoozed", "sequence_complete"]
   const resolvedStatuses = ["paid", "manually_resolved"]
 
-  const [profile, invoices, connection] = await Promise.all([
-    prisma.userProfile.findUnique({ where: { userId: user.id } }),
-    prisma.trackedInvoice.findMany({
-      where: {
-        userId: user.id,
-        status: { in: showResolved ? resolvedStatuses : activeStatuses },
-      },
-      orderBy: showResolved ? { updatedAt: "desc" } : { nextEmailAt: "asc" },
-      include: { emailLogs: { orderBy: { sentAt: "asc" } } },
-    }),
-    prisma.invoiceConnection.findFirst({
-      where: { userId: user.id, isActive: true },
-    }),
-  ])
+  const { profile, invoices, connection } = await withUserContext(user.id, async (tx) => {
+    const [profile, invoices, connection] = await Promise.all([
+      tx.userProfile.findUnique({ where: { userId: user.id } }),
+      tx.trackedInvoice.findMany({
+        where: {
+          userId: user.id,
+          status: { in: showResolved ? resolvedStatuses : activeStatuses },
+        },
+        orderBy: showResolved ? { updatedAt: "desc" } : { nextEmailAt: "asc" },
+        include: { emailLogs: { orderBy: { sentAt: "asc" } } },
+      }),
+      tx.invoiceConnection.findFirst({
+        where: { userId: user.id, isActive: true },
+      }),
+    ])
+    return { profile, invoices, connection }
+  })
 
   const isFree = profile?.subscriptionTier !== "pro"
   const atLimit = isFree && !showResolved && invoices.length >= FREE_TIER_INVOICE_LIMIT

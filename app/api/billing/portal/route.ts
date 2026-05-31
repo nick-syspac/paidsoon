@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { prisma } from "@/lib/prisma"
+import { withUserContext } from "@/lib/db/withUserContext"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 
@@ -16,9 +16,9 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId: user.id },
-  })
+  const profile = await withUserContext(user.id, (tx) =>
+    tx.userProfile.findUnique({ where: { userId: user.id } }),
+  )
 
   if (!profile?.stripeCustomerId) {
     return NextResponse.json({ error: "No billing account" }, { status: 404 })

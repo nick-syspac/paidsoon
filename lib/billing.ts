@@ -1,20 +1,24 @@
-import { prisma } from "@/lib/prisma"
+import { withUserContext } from "@/lib/db/withUserContext"
 
 export async function requirePro(userId: string): Promise<boolean> {
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId },
-    select: { subscriptionTier: true },
-  })
+  const profile = await withUserContext(userId, (tx) =>
+    tx.userProfile.findUnique({
+      where: { userId },
+      select: { subscriptionTier: true },
+    }),
+  )
   return profile?.subscriptionTier === "pro"
 }
 
 export async function getSubscriptionTier(
-  userId: string
+  userId: string,
 ): Promise<"free" | "pro"> {
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId },
-    select: { subscriptionTier: true },
-  })
+  const profile = await withUserContext(userId, (tx) =>
+    tx.userProfile.findUnique({
+      where: { userId },
+      select: { subscriptionTier: true },
+    }),
+  )
   return (profile?.subscriptionTier as "free" | "pro") ?? "free"
 }
 
