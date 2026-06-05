@@ -21,9 +21,29 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const settings = await withUserContext(user.id, (tx) =>
+  let settings = await withUserContext(user.id, (tx) =>
     tx.emailSettings.findUnique({ where: { userId: user.id } }),
   )
+
+  // Poll Resend to detect when sender domain verification completes.
+  // Only runs when a custom from-address is configured but not yet verified.
+  if (settings?.fromEmail && !settings.resendVerified) {
+    try {
+      const { data: domains } = await getResend().domains.list()
+      const domainName = settings.fromEmail.split("@")[1]
+      const match = domains?.find((d) => d.name === domainName)
+      if (match?.status === "verified") {
+        settings = await withUserContext(user.id, (tx) =>
+          tx.emailSettings.update({
+            where: { userId: user.id },
+            data: { resendVerified: true },
+          }),
+        )
+      }
+    } catch {
+      // Resend unreachable — return stored settings unchanged
+    }
+  }
 
   return NextResponse.json({ settings })
 }

@@ -64,18 +64,18 @@ Once it's ready, grab the values you'll need:
 | Where to find it | What it is | Env var name |
 |---|---|---|
 | Project Settings → **API** → "Project URL" | Public URL of your Supabase project | `NEXT_PUBLIC_SUPABASE_URL` |
-| Project Settings → **API** → "Project API keys" → `anon` `public` | Public anon key (safe in the browser) | `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| Project Settings → **API** → "Project API keys" → `service_role` `secret` | **SECRET** — server-only | `SUPABASE_SERVICE_ROLE_KEY` |
+| Project Settings → **API Keys** → `publishable` | Public key (safe in the browser) | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| Project Settings → **API Keys** → `secret` | **SECRET** — server-only, bypasses RLS | `SUPABASE_SECRET_KEY` |
 
 Put them in `.env.local`:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
-SUPABASE_SERVICE_ROLE_KEY="eyJ..."
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
+SUPABASE_SECRET_KEY="sb_secret_..."
 ```
 
-> The `service_role` key bypasses Row Level Security. **Never** put it in any file with `NEXT_PUBLIC_` in the name and never log or commit it.
+> The secret key bypasses Row Level Security. **Never** put it in any variable starting with `NEXT_PUBLIC_` (that prefix bundles the value into the browser), and never log or commit it. The previous Supabase API naming used `anon` / `service_role` JWT keys; this project now uses the newer `sb_publishable_...` / `sb_secret_...` keys.
 
 ---
 
@@ -161,7 +161,7 @@ Add **Redirect URLs** (both):
 - `http://localhost:3000/auth/callback`
 - `https://<your-vercel-domain>/auth/callback` (add later)
 
-Under **Authentication → Providers**, the **Email** provider is on by default — that's all this app needs.
+Under **Authentication → Sign In / Providers**, the **Email** provider is on by default — that's all this app needs.
 
 ---
 
@@ -275,8 +275,8 @@ By now your `.env.local` should contain all of these:
 ```bash
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
 
 # Database
 DATABASE_URL=

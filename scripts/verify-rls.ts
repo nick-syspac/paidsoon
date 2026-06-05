@@ -7,10 +7,15 @@
  *   - rls-policies.sql has been applied
  *
  * Run with:  node --import tsx scripts/verify-rls.ts
- * (or whatever TS-on-Node runner the project picks)
+ * (env vars are loaded from .env.local automatically)
  *
  * Exits 0 on PASS, 1 on FAIL.
  */
+
+// Load env BEFORE importing anything that reads process.env at module init
+// (notably lib/db/admin, which constructs the Prisma client immediately).
+// Imports are evaluated in declaration order, so this side-effect import runs first.
+import "./_loadEnv"
 
 import { prismaAdmin } from "../lib/db/admin"
 import { withUserContext } from "../lib/db/withUserContext"

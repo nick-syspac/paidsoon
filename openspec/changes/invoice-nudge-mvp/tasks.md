@@ -83,7 +83,7 @@
 
 - [x] 9.1 Build email settings API (`GET /api/settings/email`, `PUT /api/settings/email`) with Pro-tier enforcement
 - [x] 9.2 Implement from-address verification: call Resend to add sender, store `resendVerified: false`
-- [ ] 9.3 Build a webhook or polling mechanism to detect when Resend sender verification completes and set `resendVerified: true`
+- [x] 9.3 Build a webhook or polling mechanism to detect when Resend sender verification completes and set `resendVerified: true`
 - [x] 9.4 Implement "replace from-address" logic: reset `resendVerified: false` and trigger new verification when address changes
 
 ## 10. Schedule Settings (Pro)
