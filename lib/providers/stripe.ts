@@ -8,7 +8,7 @@ import type {
 
 let _stripe: Stripe | undefined
 function getStripe(): Stripe {
-  return _stripe ?? (_stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-04-22.dahlia" }))
+  return _stripe ?? (_stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-05-27.dahlia" }))
 }
 
 function normalizeStripeInvoice(invoice: Stripe.Invoice): NormalizedInvoice {

@@ -5,7 +5,7 @@ import Stripe from "stripe"
 // Must use raw body for Stripe signature verification
 export async function POST(request: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2026-04-22.dahlia",
+    apiVersion: "2026-05-27.dahlia",
   })
   const payload = await request.text()
   const signature = request.headers.get("stripe-signature") ?? ""

@@ -31,7 +31,7 @@ export async function GET() {
     try {
       const { data: domains } = await getResend().domains.list()
       const domainName = settings.fromEmail.split("@")[1]
-      const match = domains?.find((d) => d.name === domainName)
+      const match = domains?.data?.find((d) => d.name === domainName)
       if (match?.status === "verified") {
         settings = await withUserContext(user.id, (tx) =>
           tx.emailSettings.update({

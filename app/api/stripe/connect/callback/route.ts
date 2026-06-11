@@ -5,7 +5,7 @@ import Stripe from "stripe"
 
 export async function GET(request: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2026-04-22.dahlia",
+    apiVersion: "2026-05-27.dahlia",
   })
   const { searchParams } = new URL(request.url)
   const code = searchParams.get("code")
