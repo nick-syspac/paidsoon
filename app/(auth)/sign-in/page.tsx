@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { Spinner } from "@/components/ui/Spinner"
 
 export default function SignInPage() {
   const router = useRouter()
@@ -93,9 +94,9 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white rounded-md py-2 px-4 text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
+            className="w-full bg-blue-600 text-white rounded-md py-2 px-4 text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? <><Spinner />Signing in…</> : "Sign in"}
           </button>
         </form>
 
