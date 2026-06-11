@@ -18,20 +18,32 @@ export default function SignUpPage() {
     setLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
 
-    setLoading(false)
-    if (error) {
-      setError(error.message)
-    } else {
+      if (error) {
+        setError(error.message)
+        return
+      }
+
+      if (data.session) {
+        router.push("/dashboard")
+        router.refresh()
+        return
+      }
+
       setCheckEmail(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-up failed")
+    } finally {
+      setLoading(false)
     }
   }
 
