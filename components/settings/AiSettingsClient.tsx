@@ -41,8 +41,43 @@ export function AiSettingsClient({ flags }: { flags: AiFlags }) {
       <h2 className="text-base font-medium text-gray-900">AI Message Rewrite</h2>
 
       {!flags.canRewrite ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-          Upgrade to Small Business to use AI rewrite and tone controls.
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Here is a sample rewrite preview. Upgrade to unlock AI rewriting and tone controls.
+          </p>
+
+          <div className="relative space-y-3">
+            <div className="border border-gray-200 rounded-md px-4 py-3 opacity-50 blur-[0.5px] select-none pointer-events-none">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Your draft</p>
+              <p className="text-sm text-gray-700">
+                Hi Jamie, invoice INV-1042 is late. Please pay it now.
+              </p>
+            </div>
+
+            <div className="border border-gray-200 rounded-md px-4 py-3 opacity-50 blur-[0.5px] select-none pointer-events-none">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">AI rewrite (friendly)</p>
+              <p className="text-sm text-gray-700">
+                Hi Jamie, hope you are doing well. Just a quick reminder that invoice INV-1042 is now overdue. If payment has already been sent, please ignore this note. Otherwise, could you confirm when we can expect payment? Thank you.
+              </p>
+            </div>
+
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm px-5 py-4 text-center max-w-xs">
+                <p className="text-sm font-semibold text-gray-900 mb-1">Unlock AI message rewrite</p>
+                <p className="text-xs text-gray-500 mb-3">Available on Small Business</p>
+                <a
+                  href="/dashboard/settings/subscription?recommend=small_business&intent=ai_rewrite"
+                  className="inline-block bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Upgrade now
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-xs text-gray-600">
+            This is a sample preview. Your real draft and rewritten output will appear here after upgrading.
+          </div>
         </div>
       ) : (
         <form onSubmit={handleRewrite} className="space-y-3">
