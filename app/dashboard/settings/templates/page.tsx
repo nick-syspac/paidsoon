@@ -32,7 +32,7 @@ export default async function TemplatesSettingsPage() {
 
         {/* Sample template previews — blurred/locked */}
         <div className="space-y-3 relative">
-          <div className="border border-gray-200 rounded-md px-4 py-3 opacity-50 blur-[1.5px] select-none pointer-events-none">
+          <div className="border border-gray-200 rounded-md px-4 py-3 opacity-40 blur-[0.5px] select-none pointer-events-none">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Gentle Reminder</p>
             <p className="text-sm font-medium text-gray-800">Subject: Friendly reminder — invoice #&#123;invoice_number&#125; due soon</p>
             <p className="text-sm text-gray-600 mt-1">
@@ -41,7 +41,7 @@ export default async function TemplatesSettingsPage() {
             </p>
           </div>
 
-          <div className="border border-gray-200 rounded-md px-4 py-3 opacity-50 blur-[1.5px] select-none pointer-events-none">
+          <div className="border border-gray-200 rounded-md px-4 py-3 opacity-40 blur-[0.5px] select-none pointer-events-none">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Overdue Follow-up</p>
             <p className="text-sm font-medium text-gray-800">Subject: Invoice #&#123;invoice_number&#125; is now overdue</p>
             <p className="text-sm text-gray-600 mt-1">
@@ -50,7 +50,7 @@ export default async function TemplatesSettingsPage() {
             </p>
           </div>
 
-          <div className="border border-gray-200 rounded-md px-4 py-3 opacity-50 blur-[1.5px] select-none pointer-events-none">
+          <div className="border border-gray-200 rounded-md px-4 py-3 opacity-40 blur-[0.5px] select-none pointer-events-none">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Final Notice</p>
             <p className="text-sm font-medium text-gray-800">Subject: Final notice — invoice #&#123;invoice_number&#125;</p>
             <p className="text-sm text-gray-600 mt-1">
