@@ -1,5 +1,52 @@
 import Link from "next/link"
 
+const pricingPlans = [
+  {
+    name: "Starter",
+    price: 9,
+    cta: "Start with Starter",
+    featured: false,
+    description: "For solo operators who want essential chasing on autopilot.",
+    features: [
+      "10 chased invoices per month",
+      "1 user",
+      "1 connected Stripe account",
+      "Basic email reminders",
+      "PaidSoon branding",
+    ],
+  },
+  {
+    name: "Solo",
+    price: 19,
+    cta: "Choose Solo",
+    featured: true,
+    description: "The core plan for consultants and freelancers who need more control.",
+    features: [
+      "30 chased invoices per month",
+      "1 user",
+      "1 connected Stripe account",
+      "Reminder sequence + basic templates",
+      "Use your own email address",
+      "Basic payment status dashboard",
+    ],
+  },
+  {
+    name: "Small Business",
+    price: 39,
+    cta: "Choose Small Business",
+    featured: false,
+    description: "For growing teams that want more volume, more control, and AI help.",
+    features: [
+      "100 chased invoices per month",
+      "Up to 3 users",
+      "Up to 3 connected Stripe accounts",
+      "Custom reminder templates",
+      "Friendly, firm, and final notice tones",
+      "Basic AI rewrite + overdue dashboard",
+    ],
+  },
+] as const
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-white">
@@ -15,7 +62,7 @@ export default function LandingPage() {
               href="/sign-up"
               className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700"
             >
-              Get started free
+              View plans
             </Link>
           </div>
         </div>
@@ -37,7 +84,7 @@ export default function LandingPage() {
             href="/sign-up"
             className="bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-medium hover:bg-blue-700"
           >
-            Get started free
+            Start with Starter
           </Link>
           <a
             href="#how-it-works"
@@ -91,53 +138,48 @@ export default function LandingPage() {
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-12">
             Simple pricing
           </h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Free */}
-            <div className="border border-gray-200 rounded-xl p-6 space-y-4">
-              <div>
-                <p className="text-lg font-semibold text-gray-900">Free</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">
-                  $0<span className="text-base font-normal text-gray-400">/mo</span>
-                </p>
-              </div>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex gap-2"><span className="text-green-500">✓</span> 3 active tracked invoices</li>
-                <li className="flex gap-2"><span className="text-green-500">✓</span> Automatic 3-email sequence</li>
-                <li className="flex gap-2"><span className="text-green-500">✓</span> Emails sent from system address</li>
-                <li className="flex gap-2"><span className="text-green-500">✓</span> Stripe integration</li>
-              </ul>
-              <Link
-                href="/sign-up"
-                className="block text-center border border-gray-300 text-gray-700 text-sm py-2 rounded-md hover:bg-gray-50"
+          <div className="grid lg:grid-cols-3 gap-6">
+            {pricingPlans.map((plan) => (
+              <div
+                key={plan.name}
+                className={`rounded-xl p-6 space-y-4 relative ${
+                  plan.featured
+                    ? "border-2 border-blue-600 shadow-sm"
+                    : "border border-gray-200"
+                }`}
               >
-                Get started free
-              </Link>
-            </div>
-
-            {/* Pro */}
-            <div className="border-2 border-blue-600 rounded-xl p-6 space-y-4 relative">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs px-3 py-0.5 rounded-full">
-                Most popular
+                {plan.featured && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs px-3 py-0.5 rounded-full">
+                    Most popular
+                  </div>
+                )}
+                <div>
+                  <p className="text-lg font-semibold text-gray-900">{plan.name}</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1">
+                    ${plan.price}<span className="text-base font-normal text-gray-400">/mo</span>
+                  </p>
+                  <p className="text-sm text-gray-500 mt-2">{plan.description}</p>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-600">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex gap-2">
+                      <span className="text-green-500">✓</span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/sign-up"
+                  className={`block text-center text-sm py-2 rounded-md ${
+                    plan.featured
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {plan.cta}
+                </Link>
               </div>
-              <div>
-                <p className="text-lg font-semibold text-gray-900">Pro</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">
-                  $19<span className="text-base font-normal text-gray-400">/mo</span>
-                </p>
-              </div>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex gap-2"><span className="text-green-500">✓</span> Unlimited tracked invoices</li>
-                <li className="flex gap-2"><span className="text-green-500">✓</span> Send from your own email</li>
-                <li className="flex gap-2"><span className="text-green-500">✓</span> Custom follow-up schedule</li>
-                <li className="flex gap-2"><span className="text-green-500">✓</span> Pause, snooze, resolve per invoice</li>
-              </ul>
-              <Link
-                href="/sign-up"
-                className="block text-center bg-blue-600 text-white text-sm py-2 rounded-md hover:bg-blue-700"
-              >
-                Start with Pro
-              </Link>
-            </div>
+            ))}
           </div>
         </div>
       </section>
