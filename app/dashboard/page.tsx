@@ -2,14 +2,16 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { getPlanByTier, hasPlanFeature } from "@/lib/subscriptionPlans"
+import { buildDashboardUpsellModel } from "@/lib/dashboardUpsell"
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable"
+import { LockedDashboardPreview } from "@/components/dashboard/LockedDashboardPreview"
 import { UpgradeBanner } from "@/components/dashboard/UpgradeBanner"
 import Link from "next/link"
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ resolved?: string }>
+  searchParams: Promise<{ resolved?: string; intent?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,38 +19,55 @@ export default async function DashboardPage({
 
   const params = await searchParams
   const showResolved = params.resolved === "1"
+  const featureIntent = params.intent ?? null
 
   const activeStatuses = ["pending", "paused", "snoozed", "sequence_complete"]
   const resolvedStatuses = ["paid", "manually_resolved"]
 
-  const { profile, invoices, connection } = await withUserContext(user.id, async (tx) => {
-    const [profile, invoices, connection] = await Promise.all([
-      tx.userProfile.findUnique({ where: { userId: user.id } }),
-      tx.trackedInvoice.findMany({
-        where: {
-          userId: user.id,
-          status: { in: showResolved ? resolvedStatuses : activeStatuses },
-        },
-        orderBy: showResolved ? { updatedAt: "desc" } : { nextEmailAt: "asc" },
-        include: { emailLogs: { orderBy: { sentAt: "asc" } } },
-      }),
-      tx.invoiceConnection.findFirst({
-        where: { userId: user.id, isActive: true },
-      }),
-    ])
-    return { profile, invoices, connection }
-  })
+  const { profile, connection, activeTrackedCount } = await withUserContext(
+    user.id,
+    async (tx) => {
+      const [profile, connection, activeTrackedCount] = await Promise.all([
+        tx.userProfile.findUnique({ where: { userId: user.id } }),
+        tx.invoiceConnection.findFirst({
+          where: { userId: user.id, isActive: true },
+        }),
+        tx.trackedInvoice.count({
+          where: {
+            userId: user.id,
+            status: { in: activeStatuses },
+          },
+        }),
+      ])
+      return { profile, connection, activeTrackedCount }
+    },
+  )
 
   const plan = getPlanByTier(profile?.subscriptionTier)
   const canViewPaymentStatus = hasPlanFeature(plan.id, "payment_status_dashboard")
   const canViewOverdue = hasPlanFeature(plan.id, "overdue_invoice_dashboard")
-  const atLimit = !showResolved && invoices.length >= plan.limits.chasedInvoicesPerMonth
+  const atLimit =
+    !showResolved &&
+    activeTrackedCount >= plan.limits.chasedInvoicesPerMonth
 
   if (showResolved && !canViewPaymentStatus) {
     redirect("/dashboard")
   }
 
   const canShowDashboardModule = showResolved ? canViewPaymentStatus : canViewOverdue
+
+  const invoices = canShowDashboardModule
+    ? await withUserContext(user.id, (tx) =>
+        tx.trackedInvoice.findMany({
+          where: {
+            userId: user.id,
+            status: { in: showResolved ? resolvedStatuses : activeStatuses },
+          },
+          orderBy: showResolved ? { updatedAt: "desc" } : { nextEmailAt: "asc" },
+          include: { emailLogs: { orderBy: { sentAt: "asc" } } },
+        }),
+      )
+    : []
 
   return (
     <div className="space-y-6">
@@ -85,23 +104,22 @@ export default async function DashboardPage({
 
       {atLimit && canShowDashboardModule && (
         <UpgradeBanner
-          trackedCount={invoices.length}
+          trackedCount={activeTrackedCount}
           tierName={plan.name}
           tierLimit={plan.limits.chasedInvoicesPerMonth}
         />
       )}
 
       {!canShowDashboardModule && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-          <p className="text-sm font-medium text-amber-900">
-            {showResolved
-              ? "Payment status dashboard is available on Solo and Small Business."
-              : "Overdue invoice dashboard is available on paid plans."}
-          </p>
-          <p className="text-xs text-amber-700 mt-1">
-            Upgrade your subscription from Settings → Subscription to unlock this module.
-          </p>
-        </div>
+        <LockedDashboardPreview
+          model={buildDashboardUpsellModel({
+            tier: plan.id,
+            usageCount: activeTrackedCount,
+            usageLimit: plan.limits.chasedInvoicesPerMonth,
+            featureIntent,
+            showResolved,
+          })}
+        />
       )}
 
       {canShowDashboardModule && invoices.length === 0 ? (
