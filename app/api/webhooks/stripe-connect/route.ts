@@ -1,6 +1,6 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getProvider } from "@/lib/providers"
-import { FREE_TIER_INVOICE_LIMIT } from "@/lib/billing"
+import { getInvoiceLimitForTier } from "@/lib/billing"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { NextResponse } from "next/server"
 import type { NormalizedInvoice } from "@/lib/providers/types"
@@ -57,24 +57,22 @@ async function handleOverdueInvoice(
   })
   if (existing) return
 
-  // Check free tier limit
+  // Check tier invoice limit
   const profile = await prisma.userProfile.findUnique({
     where: { userId: connection.userId },
     select: { subscriptionTier: true },
   })
-  const isFree = profile?.subscriptionTier !== "pro"
+  const tierLimit = getInvoiceLimitForTier(profile?.subscriptionTier)
 
-  if (isFree) {
-    const activeCount = await prisma.trackedInvoice.count({
-      where: {
-        userId: connection.userId,
-        status: { in: ["pending", "snoozed"] },
-      },
-    })
-    if (activeCount >= FREE_TIER_INVOICE_LIMIT) {
-      // Detected but not tracked — surfaced in dashboard as "untracked"
-      return
-    }
+  const activeCount = await prisma.trackedInvoice.count({
+    where: {
+      userId: connection.userId,
+      status: { in: ["pending", "snoozed"] },
+    },
+  })
+  if (activeCount >= tierLimit) {
+    // Detected but not tracked — surfaced in dashboard as "untracked"
+    return
   }
 
   // Compute first email send date

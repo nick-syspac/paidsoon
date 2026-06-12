@@ -2,8 +2,11 @@ import Link from "next/link"
 
 const TABS = [
   { href: "/dashboard/settings/stripe", label: "Stripe Connection" },
+  { href: "/dashboard/settings/team", label: "Team" },
   { href: "/dashboard/settings/schedule", label: "Schedule" },
   { href: "/dashboard/settings/email", label: "Email" },
+  { href: "/dashboard/settings/templates", label: "Templates" },
+  { href: "/dashboard/settings/ai", label: "AI" },
   { href: "/dashboard/settings/subscription", label: "Subscription" },
 ]
 

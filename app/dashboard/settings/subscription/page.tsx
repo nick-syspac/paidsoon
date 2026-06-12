@@ -2,11 +2,12 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { SubscriptionClient } from "@/components/settings/SubscriptionClient"
+import { getPlanByTier, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 
 export default async function SubscriptionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; cancelled?: string }>
+  searchParams: Promise<{ success?: string; cancelled?: string; tier?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,9 +23,13 @@ export default async function SubscriptionPage({
 
   return (
     <SubscriptionClient
-      tier={(profile?.subscriptionTier as "free" | "pro") ?? "free"}
+      tier={normalizeSubscriptionTier(profile?.subscriptionTier)}
       status={profile?.subscriptionStatus ?? "active"}
-      successMessage={params.success === "upgraded" ? "You're now on Pro!" : null}
+      successMessage={
+        params.success === "upgraded"
+          ? `Subscription updated to ${getPlanByTier(params.tier).name}.`
+          : null
+      }
     />
   )
 }

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { requirePro } from "@/lib/billing"
+import { requireFeature } from "@/lib/billing"
 import { Resend } from "resend"
 import { NextResponse } from "next/server"
 import { z } from "zod"
@@ -53,10 +53,10 @@ export async function PUT(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const isPro = await requirePro(user.id)
-  if (!isPro) {
+  const hasOwnSenderAccess = await requireFeature(user.id, "own_email_address")
+  if (!hasOwnSenderAccess) {
     return NextResponse.json(
-      { error: "Pro subscription required" },
+      { error: "Solo or Small Business subscription required" },
       { status: 403 }
     )
   }

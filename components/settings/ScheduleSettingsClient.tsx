@@ -9,10 +9,10 @@ interface ScheduleConfig {
 }
 
 export function ScheduleSettingsClient({
-  isPro,
+  canCustomizeSequence,
   schedule,
 }: {
-  isPro: boolean
+  canCustomizeSequence: boolean
   schedule: ScheduleConfig
 }) {
   const [values, setValues] = useState(schedule)
@@ -44,12 +44,12 @@ export function ScheduleSettingsClient({
       <h2 className="text-base font-medium text-gray-900">Follow-up Schedule</h2>
       <p className="text-sm text-gray-500">
         Configure when follow-up emails are sent after an invoice becomes overdue.
-        {!isPro && " Custom schedules are available on the Pro plan."}
+        {!canCustomizeSequence && " Custom schedules are available on Solo and Small Business plans."}
       </p>
 
-      {!isPro && (
+      {!canCustomizeSequence && (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-          You&apos;re on the Free plan. Upgrade to Pro to customize your schedule.
+          You&apos;re on Starter. Upgrade to Solo or Small Business to customize your schedule.
         </div>
       )}
 
@@ -68,7 +68,7 @@ export function ScheduleSettingsClient({
                 onChange={(e) =>
                   setValues((v) => ({ ...v, [field]: parseInt(e.target.value) || 1 }))
                 }
-                disabled={!isPro}
+                disabled={!canCustomizeSequence}
                 className="w-32 border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
               />
             </div>
@@ -78,7 +78,7 @@ export function ScheduleSettingsClient({
         {error && <p className="text-sm text-red-600">{error}</p>}
         {saved && <p className="text-sm text-green-600">Saved!</p>}
 
-        {isPro && (
+        {canCustomizeSequence && (
           <button
             type="submit"
             disabled={saving}

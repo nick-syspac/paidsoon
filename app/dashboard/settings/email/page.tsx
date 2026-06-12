@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { EmailSettingsClient } from "@/components/settings/EmailSettingsClient"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
 
 export default async function EmailSettingsPage() {
   const supabase = await createClient()
@@ -18,7 +19,7 @@ export default async function EmailSettingsPage() {
 
   return (
     <EmailSettingsClient
-      isPro={profile?.subscriptionTier === "pro"}
+      canUseOwnEmail={hasPlanFeature(profile?.subscriptionTier, "own_email_address")}
       settings={emailSettings}
       systemEmail={process.env.RESEND_FROM_EMAIL ?? "billing@paidsoon.com"}
     />

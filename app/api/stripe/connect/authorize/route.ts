@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
+import { withUserContext } from "@/lib/db/withUserContext"
+import { getStripeConnectionLimitForTier } from "@/lib/billing"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -10,6 +12,32 @@ export async function GET() {
   if (!user) {
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/sign-in`
+    )
+  }
+
+  const { subscriptionTier, activeConnections } = await withUserContext(
+    user.id,
+    async (tx) => {
+      const [profile, activeConnections] = await Promise.all([
+        tx.userProfile.findUnique({
+          where: { userId: user.id },
+          select: { subscriptionTier: true },
+        }),
+        tx.invoiceConnection.count({
+          where: { userId: user.id, provider: "stripe", isActive: true },
+        }),
+      ])
+      return {
+        subscriptionTier: profile?.subscriptionTier,
+        activeConnections,
+      }
+    },
+  )
+
+  const maxConnections = getStripeConnectionLimitForTier(subscriptionTier)
+  if (activeConnections >= maxConnections) {
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/stripe?error=connection_limit_reached`,
     )
   }
 
