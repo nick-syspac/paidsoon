@@ -119,18 +119,18 @@ export default function LandingPage() {
                 body: "Clear and direct. Sets a deadline before further action.",
               },
               {
-                day: "Day +21",
                 title: "Template tune-up*",
                 body: "Pick from reminder templates to match tone for each client relationship.",
               },
               {
-                day: "Day +21",
                 title: "AI rewrite draft*",
                 body: "Generate a polished follow-up draft while keeping your escalation sequence intact.",
               },
             ].map((step) => (
               <div key={`${step.day}-${step.title}`} className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="text-xs font-medium text-blue-600 mb-1">{step.day}</div>
+                {step.day ? (
+                  <div className="text-xs font-medium text-blue-600 mb-1">{step.day}</div>
+                ) : null}
                 <h3 className="font-semibold text-gray-900 mb-2">{step.title}</h3>
                 <p className="text-sm text-gray-500">{step.body}</p>
               </div>
