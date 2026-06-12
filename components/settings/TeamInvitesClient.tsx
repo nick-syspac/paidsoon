@@ -14,9 +14,16 @@ export function TeamInvitesClient({ initial }: { initial: TeamInfo }) {
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const seatsFull = initial.availableSeats <= 0
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
+
+    if (seatsFull) {
+      setError("Seat limit reached for your current plan")
+      return
+    }
+
     setSubmitting(true)
     setError(null)
     setMessage(null)
@@ -58,8 +65,9 @@ export function TeamInvitesClient({ initial }: { initial: TeamInfo }) {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={seatsFull}
             placeholder="teammate@company.com"
-            className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -68,10 +76,10 @@ export function TeamInvitesClient({ initial }: { initial: TeamInfo }) {
 
         <button
           type="submit"
-          disabled={submitting}
-          className="bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+          disabled={submitting || seatsFull}
+          className="bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {submitting ? "Checking seats..." : "Invite member"}
+          {seatsFull ? "Seat limit reached" : submitting ? "Checking seats..." : "Invite member"}
         </button>
       </form>
     </div>
