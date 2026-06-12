@@ -101,7 +101,7 @@ export default function LandingPage() {
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-12">
             Automatic, escalating follow-ups
           </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             {[
               {
                 day: "Day +3",
@@ -118,6 +118,16 @@ export default function LandingPage() {
                 title: "Final notice",
                 body: "Clear and direct. Sets a deadline before further action.",
               },
+            ].map((step) => (
+              <div key={step.title} className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="text-xs font-medium text-blue-600 mb-1">{step.day}</div>
+                <h3 className="font-semibold text-gray-900 mb-2">{step.title}</h3>
+                <p className="text-sm text-gray-500">{step.body}</p>
+              </div>
+            ))}
+          </div>
+          <div className="grid md:grid-cols-2 gap-6 mt-6">
+            {[
               {
                 title: "Template tune-up*",
                 body: "Pick from reminder templates to match tone for each client relationship.",
@@ -127,10 +137,7 @@ export default function LandingPage() {
                 body: "Generate a polished follow-up draft while keeping your escalation sequence intact.",
               },
             ].map((step) => (
-              <div key={`${step.day}-${step.title}`} className="bg-white rounded-lg border border-gray-200 p-6">
-                {step.day ? (
-                  <div className="text-xs font-medium text-blue-600 mb-1">{step.day}</div>
-                ) : null}
+              <div key={step.title} className="bg-white rounded-lg border border-gray-200 p-6">
                 <h3 className="font-semibold text-gray-900 mb-2">{step.title}</h3>
                 <p className="text-sm text-gray-500">{step.body}</p>
               </div>
