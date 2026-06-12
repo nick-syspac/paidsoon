@@ -2,7 +2,7 @@
 
 Stripe is used **twice** in PaidSoon, for two unrelated purposes:
 
-1. **Stripe Billing** — your customers pay you for the Pro tier (a subscription on your own Stripe account).
+1. **Stripe Billing** — your customers pay for one of the paid tiers (Starter, Solo, Small Business) on your own Stripe account.
 2. **Stripe Connect** — your customers connect *their* Stripe accounts so the app can read *their* invoices and act on them.
 
 Both halves use the same Stripe account, but they have separate API surfaces, separate webhook endpoints, and separate config items in the dashboard.
@@ -61,16 +61,26 @@ Test mode keys start with `sk_test_…`, live mode with `sk_live_…`. Set per t
 
 ---
 
-## 3. Create the Pro product
+## 3. Create the billing products
 
 Stripe dashboard → **Products → Add product**. Do this in **both modes** (test for Local/Preview, live for Production).
 
-- **Name**: `PaidSoon Pro`
+- **Name**: `PaidSoon Starter`
+- **Pricing**: Recurring, monthly, **$9.00 USD / month**
+
+Save, then copy the **Price ID** (starts with `price_…`) and capture it as `STRIPE_STARTER_PRICE_ID` per the matrix.
+
+Repeat for the other paid tiers:
+
+- **Name**: `PaidSoon Solo`
 - **Pricing**: Recurring, monthly, **$19.00 USD / month**
+- Capture the Price ID as `STRIPE_SOLO_PRICE_ID`
 
-Save, then copy the **Price ID** (starts with `price_…`) and capture it as `STRIPE_PRO_PRICE_ID` per the matrix.
+- **Name**: `PaidSoon Small Business`
+- **Pricing**: Recurring, monthly, **$39.00 USD / month**
+- Capture the Price ID as `STRIPE_SMALL_BUSINESS_PRICE_ID`
 
-This is read by [app/api/billing/checkout/route.ts L48](../../app/api/billing/checkout/route.ts#L48) when a user clicks Upgrade.
+These are read by [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts) when a user switches plans. `STRIPE_PRO_PRICE_ID` is now only an optional legacy fallback for Solo; prefer `STRIPE_SOLO_PRICE_ID` in all environments.
 
 ---
 
@@ -136,9 +146,9 @@ The three event branches that **are** handled by the route:
 
 | Event | Effect |
 |---|---|
-| `checkout.session.completed` | Marks the user as Pro |
+| `checkout.session.completed` | Marks the user as the selected paid tier from Checkout metadata |
 | `customer.subscription.updated` | Sync subscription status → tier |
-| `customer.subscription.deleted` | Revert to free; pause invoices over the free-tier limit |
+| `customer.subscription.deleted` | Revert to Starter; pause invoices over the Starter-tier limit |
 
 ### 5.2 Local — Stripe CLI
 
@@ -249,4 +259,4 @@ If you need to reset Stripe configuration:
 - **API keys** are non-rotatable on a free dashboard; if leaked, rotate via dashboard → Developers → API keys.
 - **Webhook endpoint** can be deleted and recreated; you must redo §5 / §6 and capture new `whsec_…` secrets.
 - **Connect Client ID** never changes for the lifetime of the platform.
-- **Product / price**: if you change the price, create a **new** `price_…` and update `STRIPE_PRO_PRICE_ID`. Do not archive the old price until no existing subscriptions reference it.
+- **Products / prices**: if you change a tier price, create a **new** `price_…` and update the matching env var (`STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, or `STRIPE_SMALL_BUSINESS_PRICE_ID`). Do not archive the old price until no existing subscriptions reference it. If you still carry `STRIPE_PRO_PRICE_ID`, treat it as a temporary Solo fallback only.

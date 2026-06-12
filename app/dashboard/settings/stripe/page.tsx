@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { StripeConnectionClient } from "@/components/settings/StripeConnectionClient"
+import { getStripeConnectionLimitForTier } from "@/lib/billing"
 
 export default async function StripeSettingsPage({
   searchParams,
@@ -13,16 +14,29 @@ export default async function StripeSettingsPage({
   if (!user) redirect("/sign-in")
 
   const params = await searchParams
-  const connection = await withUserContext(user.id, (tx) =>
-    tx.invoiceConnection.findFirst({
-      where: { userId: user.id, provider: "stripe" },
-    }),
-  )
+  const { profile, connections } = await withUserContext(user.id, async (tx) => {
+    const [profile, connections] = await Promise.all([
+      tx.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { subscriptionTier: true },
+      }),
+      tx.invoiceConnection.findMany({
+        where: { userId: user.id, provider: "stripe", isActive: true },
+        orderBy: { createdAt: "asc" },
+      }),
+    ])
+    return { profile, connections }
+  })
+
+  const maxConnections = getStripeConnectionLimitForTier(profile?.subscriptionTier)
 
   return (
     <StripeConnectionClient
-      isConnected={!!connection?.isActive}
-      accountId={connection?.stripeConnectAccountId ?? null}
+      connections={connections.map((connection) => ({
+        id: connection.id,
+        accountId: connection.stripeConnectAccountId,
+      }))}
+      maxConnections={maxConnections}
       successMessage={params.success === "connected" ? "Stripe account connected successfully!" : null}
       errorMessage={params.error ?? null}
     />

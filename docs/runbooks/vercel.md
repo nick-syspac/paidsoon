@@ -7,7 +7,7 @@ Vercel hosts the Next.js app and runs the daily cron. This runbook covers the pr
 **Prerequisites:**
 
 - [supabase.md](./supabase.md) — both projects exist; you have all four URL/key values per project.
-- [stripe.md](./stripe.md) §1–§4 — API keys and `STRIPE_PRO_PRICE_ID` exist in both modes; `STRIPE_CONNECT_CLIENT_ID` exists at least in test mode (live mode requires Connect approval).
+- [stripe.md](./stripe.md) §1–§4 — API keys and billing price IDs (`STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, `STRIPE_SMALL_BUSINESS_PRICE_ID`) exist in both modes; `STRIPE_CONNECT_CLIENT_ID` exists at least in test mode (live mode requires Connect approval).
 - [resend.md](./resend.md) — at minimum an API key (production domain verification can finish in parallel).
 
 §5 and §6 here happen **after** the first deploy, because they reference the deployment URL.
@@ -51,7 +51,10 @@ Vercel → Project → **Settings → Environment Variables**. Add every row fro
 | `NEXT_PUBLIC_APP_URL` | ✓ (`https://paidsoon.com`) | ✓ (preview URL — see §2.2) | ✓ (your preference) |
 | `CRON_SECRET` | ✓ (required) | — | — |
 | `STRIPE_SECRET_KEY` | ✓ (`sk_live_…`) | ✓ (`sk_test_…`) | ✓ (`sk_test_…`) |
-| `STRIPE_PRO_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
+| `STRIPE_STARTER_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
+| `STRIPE_SOLO_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
+| `STRIPE_SMALL_BUSINESS_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
+| `STRIPE_PRO_PRICE_ID` | optional legacy Solo fallback | optional legacy Solo fallback | optional legacy Solo fallback |
 | `STRIPE_CONNECT_CLIENT_ID` | ✓ (live `ca_…`) | ✓ (test `ca_…`) | ✓ (test `ca_…`) |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | ✓ (dashboard `whsec_…`) | — | — |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | ✓ (dashboard `whsec_…`) | — | — |

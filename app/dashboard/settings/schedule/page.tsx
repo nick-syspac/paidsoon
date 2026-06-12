@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { ScheduleSettingsClient } from "@/components/settings/ScheduleSettingsClient"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
 
 export default async function ScheduleSettingsPage() {
   const supabase = await createClient()
@@ -18,7 +19,10 @@ export default async function ScheduleSettingsPage() {
 
   return (
     <ScheduleSettingsClient
-      isPro={profile?.subscriptionTier === "pro"}
+      canCustomizeSequence={hasPlanFeature(
+        profile?.subscriptionTier,
+        "email_reminder_sequence",
+      )}
       schedule={schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 }}
     />
   )

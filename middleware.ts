@@ -1,7 +1,16 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { isLiveMode, shouldBlockAuthEntry } from "@/lib/liveMode"
 
 export async function middleware(request: NextRequest) {
+  const liveMode = isLiveMode()
+
+  if (shouldBlockAuthEntry(request.nextUrl.pathname, liveMode)) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/"
+    return NextResponse.redirect(url)
+  }
+
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return NextResponse.next({ request })
   }
@@ -47,8 +56,7 @@ export async function middleware(request: NextRequest) {
   // Redirect authenticated users away from auth pages
   if (
     user &&
-    (request.nextUrl.pathname === "/sign-in" ||
-      request.nextUrl.pathname === "/sign-up")
+    shouldBlockAuthEntry(request.nextUrl.pathname, true)
   ) {
     const url = request.nextUrl.clone()
     url.pathname = "/dashboard"

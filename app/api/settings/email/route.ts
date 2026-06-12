@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { requirePro } from "@/lib/billing"
+import { requireFeature } from "@/lib/billing"
 import { Resend } from "resend"
 import { NextResponse } from "next/server"
 import { z } from "zod"
@@ -31,7 +31,7 @@ export async function GET() {
     try {
       const { data: domains } = await getResend().domains.list()
       const domainName = settings.fromEmail.split("@")[1]
-      const match = domains?.find((d) => d.name === domainName)
+      const match = domains?.data?.find((d) => d.name === domainName)
       if (match?.status === "verified") {
         settings = await withUserContext(user.id, (tx) =>
           tx.emailSettings.update({
@@ -53,10 +53,10 @@ export async function PUT(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const isPro = await requirePro(user.id)
-  if (!isPro) {
+  const hasOwnSenderAccess = await requireFeature(user.id, "own_email_address")
+  if (!hasOwnSenderAccess) {
     return NextResponse.json(
-      { error: "Pro subscription required" },
+      { error: "Solo or Small Business subscription required" },
       { status: 403 }
     )
   }

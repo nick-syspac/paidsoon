@@ -1,5 +1,6 @@
 import { Resend } from "resend"
 import { prismaAdmin as prisma } from "@/lib/db/admin"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import { renderTemplate, buildTemplateVars } from "./templates"
 import type { TrackedInvoice } from "@/lib/generated/prisma/client"
 
@@ -10,8 +11,8 @@ function getResend(): Resend {
 
 /**
  * Resolve the "From" address for a user.
- * Pro users with a verified email use their own address.
- * Free users (or unverified Pro) use the system domain.
+ * Tiers with own_email_address entitlement and a verified sender use custom address.
+ * Other tiers (or unverified sender) use the system domain.
  */
 export async function resolveFromAddress(userId: string): Promise<{
   from: string
@@ -22,7 +23,7 @@ export async function resolveFromAddress(userId: string): Promise<{
     select: { subscriptionTier: true },
   })
 
-  if (profile?.subscriptionTier === "pro") {
+  if (hasPlanFeature(profile?.subscriptionTier, "own_email_address")) {
     const settings = await prisma.emailSettings.findUnique({
       where: { userId },
     })

@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
+import { getStripeConnectionLimitForTier } from "@/lib/billing"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 
 export async function GET(request: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2026-04-22.dahlia",
+    apiVersion: "2026-05-27.dahlia",
   })
   const { searchParams } = new URL(request.url)
   const code = searchParams.get("code")
@@ -48,18 +49,41 @@ export async function GET(request: Request) {
     )
   }
 
-  await withUserContext(user.id, async (tx) => {
-    const existing = await tx.invoiceConnection.findFirst({
-      where: { userId: user.id, provider: "stripe" },
-      select: { id: true },
-    })
+  try {
+    await withUserContext(user.id, async (tx) => {
+      const [profile, existingForAccount, activeConnections] = await Promise.all([
+        tx.userProfile.findUnique({
+          where: { userId: user.id },
+          select: { subscriptionTier: true },
+        }),
+        tx.invoiceConnection.findFirst({
+          where: {
+            userId: user.id,
+            provider: "stripe",
+            stripeConnectAccountId,
+          },
+          select: { id: true },
+        }),
+        tx.invoiceConnection.count({
+          where: { userId: user.id, provider: "stripe", isActive: true },
+        }),
+      ])
 
-    if (existing) {
-      await tx.invoiceConnection.update({
-        where: { id: existing.id },
-        data: { stripeConnectAccountId, isActive: true },
-      })
-    } else {
+      if (existingForAccount) {
+        await tx.invoiceConnection.update({
+          where: { id: existingForAccount.id },
+          data: { isActive: true },
+        })
+        return
+      }
+
+      const maxConnections = getStripeConnectionLimitForTier(
+        profile?.subscriptionTier,
+      )
+      if (activeConnections >= maxConnections) {
+        throw new Error("CONNECTION_LIMIT_REACHED")
+      }
+
       await tx.invoiceConnection.create({
         data: {
           userId: user.id,
@@ -68,8 +92,17 @@ export async function GET(request: Request) {
           isActive: true,
         },
       })
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message === "CONNECTION_LIMIT_REACHED") {
+      return NextResponse.redirect(
+        `${appUrl}/dashboard/settings/stripe?error=connection_limit_reached`,
+      )
     }
-  })
+    return NextResponse.redirect(
+      `${appUrl}/dashboard/settings/stripe?error=connection_failed`,
+    )
+  }
 
   return NextResponse.redirect(
     `${appUrl}/dashboard/settings/stripe?success=connected`

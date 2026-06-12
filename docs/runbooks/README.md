@@ -48,7 +48,7 @@ For a brand-new production setup, work through the runbooks in this order:
 
 1. [resend.md](./resend.md) — start DNS verification first (slow record propagation).
 2. [supabase.md](./supabase.md) — Supabase project and schema.
-3. [stripe.md](./stripe.md) §1–§4 — Stripe Connect application (async), API keys, product.
+3. [stripe.md](./stripe.md) §1–§4 — Stripe Connect application (async), API keys, billing products.
 4. [vercel.md](./vercel.md) — import the project, set env vars, deploy.
 5. [stripe.md](./stripe.md) §5 onward — register webhooks against the deployed URL.
 6. Post-deploy fixups — see the last section of [vercel.md](./vercel.md).
@@ -68,9 +68,13 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `DATABASE_URL` | `paidsoon-dev` `authenticator` pooler URL | `paidsoon-dev` `authenticator` pooler URL | `paidsoon-prod` `authenticator` pooler URL | [supabase.md §2](./supabase.md) |
 | `DIRECT_URL` | `paidsoon-dev` `postgres` direct URL | `paidsoon-dev` `postgres` direct URL | `paidsoon-prod` `postgres` direct URL | [supabase.md §2](./supabase.md) |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | the preview deployment URL (set per deploy if needed) | `https://paidsoon.com` | [vercel.md §2](./vercel.md) |
+| `LIVE` | `false` while pre-launch, `true` at go-live | `false` until launch readiness | `true` once publicly launched | [vercel.md §2](./vercel.md) |
 | `CRON_SECRET` | any `openssl rand -hex 32` | not required (cron does not fire) | `openssl rand -hex 32` | [vercel.md §5](./vercel.md) |
 | `STRIPE_SECRET_KEY` | test `sk_test_…` | test `sk_test_…` | live `sk_live_…` | [stripe.md §2](./stripe.md) |
-| `STRIPE_PRO_PRICE_ID` | test `price_…` | test `price_…` | live `price_…` | [stripe.md §3](./stripe.md) |
+| `STRIPE_STARTER_PRICE_ID` | test `price_…` | test `price_…` | live `price_…` | [stripe.md §3](./stripe.md) |
+| `STRIPE_SOLO_PRICE_ID` | test `price_…` | test `price_…` | live `price_…` | [stripe.md §3](./stripe.md) |
+| `STRIPE_SMALL_BUSINESS_PRICE_ID` | test `price_…` | test `price_…` | live `price_…` | [stripe.md §3](./stripe.md) |
+| `STRIPE_PRO_PRICE_ID` | optional legacy fallback for Solo | optional legacy fallback for Solo | optional legacy fallback for Solo | [stripe.md §3](./stripe.md) |
 | `STRIPE_CONNECT_CLIENT_ID` | test `ca_…` | test `ca_…` | live `ca_…` | [stripe.md §4](./stripe.md) |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | Stripe CLI `whsec_…` | not required (no webhook endpoint) | dashboard `whsec_…` (prod endpoint) | [stripe.md §5](./stripe.md) |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | Stripe CLI `whsec_…` | not required (no webhook endpoint) | dashboard `whsec_…` (prod endpoint) | [stripe.md §6](./stripe.md) |
@@ -90,9 +94,13 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `DATABASE_URL` | [lib/db/admin.ts](../../lib/db/admin.ts) |
 | `DIRECT_URL` | [prisma.config.ts](../../prisma.config.ts) (migrations only) |
 | `NEXT_PUBLIC_APP_URL` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/authorize/route.ts](../../app/api/stripe/connect/authorize/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/auth/sign-out/route.ts](../../app/auth/sign-out/route.ts) |
+| `LIVE` | [lib/liveMode.ts](../../lib/liveMode.ts), [middleware.ts](../../middleware.ts), [app/layout.tsx](../../app/layout.tsx) |
 | `CRON_SECRET` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) |
 | `STRIPE_SECRET_KEY` | [lib/providers/stripe.ts](../../lib/providers/stripe.ts), [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
-| `STRIPE_PRO_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts) |
+| `STRIPE_STARTER_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
+| `STRIPE_SOLO_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
+| `STRIPE_SMALL_BUSINESS_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
+| `STRIPE_PRO_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) (legacy Solo fallback) |
 | `STRIPE_CONNECT_CLIENT_ID` | [app/api/stripe/connect/authorize/route.ts](../../app/api/stripe/connect/authorize/route.ts) |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | [app/api/webhooks/stripe-connect/route.ts](../../app/api/webhooks/stripe-connect/route.ts) |

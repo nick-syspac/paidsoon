@@ -10,11 +10,11 @@ interface EmailSettingsData {
 }
 
 export function EmailSettingsClient({
-  isPro,
+  canUseOwnEmail,
   settings,
   systemEmail,
 }: {
-  isPro: boolean
+  canUseOwnEmail: boolean
   settings: EmailSettingsData | null
   systemEmail: string
 }) {
@@ -49,16 +49,16 @@ export function EmailSettingsClient({
       <h2 className="text-base font-medium text-gray-900">Email Settings</h2>
 
       <div className="border border-gray-200 rounded-md px-4 py-3 text-sm">
-        <p className="font-medium text-gray-700 mb-0.5">System email (Free plan)</p>
+        <p className="font-medium text-gray-700 mb-0.5">System email (Starter plan)</p>
         <p className="text-gray-500">{systemEmail}</p>
         <p className="text-xs text-gray-400 mt-1">
-          All Free plan follow-ups are sent from this address. Replies go to your account email.
+          Starter plan follow-ups are sent from this address. Replies go to your account email.
         </p>
       </div>
 
-      {!isPro ? (
+      {!canUseOwnEmail ? (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-          Upgrade to Pro to send follow-ups from your own email address.
+          Upgrade to Solo or Small Business to send follow-ups from your own email address.
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-4">

@@ -86,7 +86,7 @@ Per the matrix in [README.md](./README.md):
 
 The `(dev)` / `(preview)` suffix on `RESEND_FROM_NAME` is **highly recommended** — it makes test emails visually distinct in the inbox so you don't mistake them for production traffic.
 
-`RESEND_FROM_EMAIL` is also displayed on [app/dashboard/settings/email/page.tsx L23](../../app/dashboard/settings/email/page.tsx#L23) as the fallback "From" address shown to Free-tier users in the Email Settings UI.
+`RESEND_FROM_EMAIL` is also displayed on [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) as the fallback "From" address shown to Starter-tier users in the Email Settings UI.
 
 ### 3.1 Pro-tier custom senders
 

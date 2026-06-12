@@ -23,6 +23,12 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Full local setup (including Supabase, Stripe CLI, and Resend): [docs/runbooks/README.md](docs/runbooks/README.md).
 
+### Launch mode (`LIVE`)
+
+- Set `LIVE=false` to run pre-launch mode: sign-in/sign-up routes are disabled and a top banner indicates the site is not live.
+- Set `LIVE=true` for normal live behavior.
+- Missing or malformed `LIVE` defaults to pre-launch mode (`false`).
+
 ## Database access: `withUserContext` vs `prismaAdmin`
 
 Tenant isolation is enforced at the database layer via Supabase Row Level Security. To make RLS actually fire under Prisma, the codebase exposes two entry points and no default `prisma` client:

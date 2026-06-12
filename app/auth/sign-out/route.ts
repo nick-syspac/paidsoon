@@ -5,12 +5,12 @@ import { redirect } from "next/navigation"
 export async function POST() {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  redirect("/sign-in")
+  redirect("/")
 }
 
 // Handle GET for form submissions without JS
 export async function GET() {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  return NextResponse.redirect(new URL("/sign-in", process.env.NEXT_PUBLIC_APP_URL!))
+  return NextResponse.redirect(new URL("/", process.env.NEXT_PUBLIC_APP_URL!))
 }
