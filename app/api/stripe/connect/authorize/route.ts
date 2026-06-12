@@ -16,7 +16,7 @@ export async function GET() {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: process.env.STRIPE_CONNECT_CLIENT_ID!,
-    scope: "read_only",
+    scope: "read_write",
     redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/stripe/connect/callback`,
     state: user.id, // CSRF protection: we verify this matches the session user in callback
   })
