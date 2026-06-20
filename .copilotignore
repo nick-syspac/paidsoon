@@ -1,0 +1,86 @@
+# .copilotignore — PaidSoon
+# Files and directories that GitHub Copilot should not read or suggest from.
+# Protects secrets, generated files, and non-source content.
+
+# ─── Secrets and Environment Files ───────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Vercel ──────────────────────────────────────────────────────────────────
+.vercel/
+
+# ─── Next.js Build Output ────────────────────────────────────────────────────
+.next/
+out/
+build/
+dist/
+
+# ─── Node ────────────────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Test Coverage ───────────────────────────────────────────────────────────
+coverage/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Certificates and Keys ───────────────────────────────────────────────────
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cert
+
+# ─── Database Dumps and Backups ──────────────────────────────────────────────
+*.sql.gz
+*.dump
+*.bak
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── Supabase Local State ────────────────────────────────────────────────────
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+supabase/seed.local.sql
+
+# ─── Prisma Generated Client ─────────────────────────────────────────────────
+# The generated client is not source — it is rebuilt by `prisma generate`
+lib/generated/
+
+# ─── OS Files ────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── IDE ─────────────────────────────────────────────────────────────────────
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ─── Explicitly NOT Excluded (Copilot should read these) ─────────────────────
+# README.md
+# docs/
+# .github/
+# app/
+# lib/
+# components/
+# prisma/schema.prisma
+# prisma/rls-policies.sql
+# prisma/migrations/
+# tests/
+# scripts/
+# public/
+# middleware.ts
+# next.config.ts
+# vercel.json
+# package.json
+# tsconfig.json
