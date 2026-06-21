@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
-    "verify-rls": "node --import tsx scripts/verify-rls.ts"
+    "verify-rls": "node --import tsx scripts/verify-rls.ts",
+    "seed:local": "SEED_ENV=local node --import tsx scripts/seed-preview.ts",
+    "seed:preview": "SEED_ENV=preview node --import tsx scripts/seed-preview.ts",
+    "verify-seed": "node --import tsx scripts/verify-seed.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
