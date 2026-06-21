@@ -80,10 +80,15 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stage, subject, htmlBody, textBody }),
     })
-    const payload = await res.json()
+    let payload: { error?: unknown; success?: boolean } = {}
+    try {
+      payload = await res.json()
+    } catch {
+      // non-JSON response (e.g. unexpected server error)
+    }
     setSaving(false)
     if (!res.ok) {
-      setError(payload.error ?? "Failed to save template")
+      setError(typeof payload.error === "string" ? payload.error : "Failed to save template")
       return
     }
     setCustomFlags((prev) => ({ ...prev, [stage]: true }))

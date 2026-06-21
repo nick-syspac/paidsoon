@@ -92,67 +92,77 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-  const canCustomize = await requireFeature(user.id, "custom_reminder_templates")
-  if (!canCustomize) {
-    return NextResponse.json(
-      { error: "Small Business subscription required for custom templates" },
-      { status: 403 },
+    const canCustomize = await requireFeature(user.id, "custom_reminder_templates")
+    if (!canCustomize) {
+      return NextResponse.json(
+        { error: "Small Business subscription required for custom templates" },
+        { status: 403 },
+      )
+    }
+
+    const parsed = updateSchema.safeParse(await request.json().catch(() => null))
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    const { stage, subject, htmlBody, textBody } = parsed.data
+
+    const template = await withUserContext(user.id, (tx) =>
+      tx.emailTemplate.upsert({
+        where: { userId_stage: { userId: user.id, stage } },
+        update: { subject, htmlBody, textBody },
+        create: { userId: user.id, stage, subject, htmlBody, textBody },
+      })
     )
+
+    return NextResponse.json({ success: true, template })
+  } catch (err) {
+    console.error("[PUT /api/settings/templates] error:", err)
+    return NextResponse.json({ error: "Failed to save template" }, { status: 500 })
   }
-
-  const parsed = updateSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
-  }
-
-  const { stage, subject, htmlBody, textBody } = parsed.data
-
-  const template = await withUserContext(user.id, (tx) =>
-    tx.emailTemplate.upsert({
-      where: { userId_stage: { userId: user.id, stage } },
-      update: { subject, htmlBody, textBody },
-      create: { userId: user.id, stage, subject, htmlBody, textBody },
-    })
-  )
-
-  return NextResponse.json({ success: true, template })
 }
 
 export async function DELETE(request: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const { searchParams } = new URL(request.url)
-  const stageParsed = stageSchema.safeParse(searchParams.get("stage"))
-  if (!stageParsed.success) {
-    return NextResponse.json({ error: "Invalid stage" }, { status: 422 })
-  }
-
-  const stage = stageParsed.data
-
-  await withUserContext(user.id, async (tx) => {
-    const existing = await tx.emailTemplate.findUnique({
-      where: { userId_stage: { userId: user.id, stage } },
-    })
-    if (existing) {
-      await tx.emailTemplate.delete({ where: { userId_stage: { userId: user.id, stage } } })
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-  })
 
-  return NextResponse.json({ success: true })
+    const { searchParams } = new URL(request.url)
+    const stageParsed = stageSchema.safeParse(searchParams.get("stage"))
+    if (!stageParsed.success) {
+      return NextResponse.json({ error: "Invalid stage" }, { status: 422 })
+    }
+
+    const stage = stageParsed.data
+
+    await withUserContext(user.id, async (tx) => {
+      const existing = await tx.emailTemplate.findUnique({
+        where: { userId_stage: { userId: user.id, stage } },
+      })
+      if (existing) {
+        await tx.emailTemplate.delete({ where: { userId_stage: { userId: user.id, stage } } })
+      }
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error("[DELETE /api/settings/templates] error:", err)
+    return NextResponse.json({ error: "Failed to reset template" }, { status: 500 })
+  }
 }
