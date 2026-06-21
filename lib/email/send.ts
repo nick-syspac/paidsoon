@@ -3,7 +3,6 @@ import sanitizeHtmlLib from "sanitize-html"
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import {
-  renderTemplate,
   buildTemplateVars,
   resolveVars,
   interpolate,

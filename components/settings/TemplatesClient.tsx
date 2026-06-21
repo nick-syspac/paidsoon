@@ -154,7 +154,7 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
               placeholder="Subject line…"
             />
             <p className="mt-1 text-xs text-gray-400">
-              Use the "Insert variable" button in the body editor to add dynamic values like client name or invoice amount.
+              Use the &ldquo;Insert variable&rdquo; button in the body editor to add dynamic values like client name or invoice amount.
             </p>
           </div>
 
