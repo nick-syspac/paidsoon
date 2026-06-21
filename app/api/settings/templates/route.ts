@@ -26,59 +26,69 @@ const BASIC_TEMPLATES = [
 ]
 
 export async function GET(request: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-  const hasBasicTemplates = await requireFeature(user.id, "basic_templates")
-  if (!hasBasicTemplates) {
-    return NextResponse.json(
-      { error: "Your plan does not include templates" },
-      { status: 403 },
-    )
-  }
+    const { searchParams } = new URL(request.url)
+    const stageParsed = stageSchema.safeParse(searchParams.get("stage") ?? "1")
+    const stage: 1 | 2 | 3 = stageParsed.success ? stageParsed.data : 1
 
-  const { searchParams } = new URL(request.url)
-  const stageParsed = stageSchema.safeParse(searchParams.get("stage") ?? "1")
-  const stage: 1 | 2 | 3 = stageParsed.success ? stageParsed.data : 1
+    const [hasBasicTemplates, canCustomize, tier] = await Promise.all([
+      requireFeature(user.id, "basic_templates"),
+      requireFeature(user.id, "custom_reminder_templates"),
+      getSubscriptionTier(user.id),
+    ])
 
-  const canCustomize = await requireFeature(user.id, "custom_reminder_templates")
-  const tier = await getSubscriptionTier(user.id)
+    if (!hasBasicTemplates) {
+      return NextResponse.json(
+        { error: "Your plan does not include templates" },
+        { status: 403 },
+      )
+    }
 
-  // Look up saved custom template for this stage
-  const saved = await withUserContext(user.id, (tx) =>
-    tx.emailTemplate.findUnique({ where: { userId_stage: { userId: user.id, stage } } })
-  )
+    // Look up saved custom template for this stage
+    let saved = null
+    if (canCustomize) {
+      saved = await withUserContext(user.id, (tx) =>
+        tx.emailTemplate.findUnique({ where: { userId_stage: { userId: user.id, stage } } })
+      )
+    }
 
-  if (saved) {
+    if (saved) {
+      return NextResponse.json({
+        tier,
+        templates: BASIC_TEMPLATES,
+        canCustomize,
+        stage,
+        subject: saved.subject,
+        htmlBody: saved.htmlBody,
+        textBody: saved.textBody,
+        isCustom: true,
+      })
+    }
+
+    const defaults = STAGE_DEFAULTS[stage]
     return NextResponse.json({
       tier,
       templates: BASIC_TEMPLATES,
       canCustomize,
       stage,
-      subject: saved.subject,
-      htmlBody: saved.htmlBody,
-      textBody: saved.textBody,
-      isCustom: true,
+      subject: defaults.subject,
+      htmlBody: defaults.htmlBody,
+      textBody: defaults.textBody,
+      isCustom: false,
     })
+  } catch (err) {
+    console.error("[GET /api/settings/templates] error:", err)
+    return NextResponse.json({ error: "Failed to load template" }, { status: 500 })
   }
-
-  const defaults = STAGE_DEFAULTS[stage]
-  return NextResponse.json({
-    tier,
-    templates: BASIC_TEMPLATES,
-    canCustomize,
-    stage,
-    subject: defaults.subject,
-    htmlBody: defaults.htmlBody,
-    textBody: defaults.textBody,
-    isCustom: false,
-  })
 }
 
 export async function PUT(request: Request) {

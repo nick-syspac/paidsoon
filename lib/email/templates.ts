@@ -65,7 +65,7 @@ export const DEFAULT_STAGE_1 = {
   subject: `Quick note on {{invoiceRef}}`,
   htmlBody: `<p>Hi {{clientName}},</p>
 <p>Just a quick heads-up that {{invoiceRef}} for <strong>{{amountDue}}</strong> became due on {{dueDate}}. Things get busy — totally understand!</p>
-{{paymentLink}}
+<p>{{paymentLink}}</p>
 <p>Thanks so much,<br>{{yourName}}</p>`,
   textBody: `Hi {{clientName}},
 
@@ -79,7 +79,7 @@ export const DEFAULT_STAGE_2 = {
   subject: `Following up: {{invoiceRef}} — {{amountDue}} Outstanding`,
   htmlBody: `<p>Hi {{clientName}},</p>
 <p>I'm following up on {{invoiceRef}} for <strong>{{amountDue}}</strong>, which was due on {{dueDate}} and remains outstanding. Could you let me know when we can expect payment, or if there are any questions I can help with?</p>
-{{paymentLink}}
+<p>{{paymentLink}}</p>
 <p>Best,<br>{{yourName}}</p>`,
   textBody: `Hi {{clientName}},
 
@@ -94,7 +94,7 @@ export const DEFAULT_STAGE_3 = {
   htmlBody: `<p>Dear {{clientName}},</p>
 <p>I'm writing regarding {{invoiceRef}} for <strong>{{amountDue}}</strong>, which is now <strong>{{daysOverdue}} days</strong> past its due date of {{dueDate}}. Per our agreement, payment was expected on that date.</p>
 <p>Please arrange payment via the link below by <strong>{{firmDeadline}}</strong>, or contact me immediately to discuss.</p>
-{{paymentLink}}
+<p>{{paymentLink}}</p>
 <p>{{yourName}}</p>`,
   textBody: `Dear {{clientName}},
 

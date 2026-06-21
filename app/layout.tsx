@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { isLiveMode, shouldShowNotLiveBanner } from "@/lib/liveMode";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,6 +41,7 @@ export default function RootLayout({
           </div>
         ) : null}
         {children}
+        <Analytics />
       </body>
     </html>
   );

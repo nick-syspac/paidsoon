@@ -158,12 +158,14 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
             </p>
           </div>
 
-          {/* Body editor */}
+          {/* Body editor — key={stage} forces re-mount on stage change so TipTap
+               re-initialises with the new content rather than keeping stale content */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Email body
             </label>
             <TemplateEditor
+              key={stage}
               stage={stage}
               htmlBody={htmlBody}
               textBody={textBody}
