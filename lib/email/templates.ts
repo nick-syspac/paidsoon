@@ -51,7 +51,7 @@ export function resolveVars(stage: 1 | 2 | 3, vars: TemplateVars): ResolvedTempl
 export function interpolate(template: string, vars: ResolvedTemplateVars): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     return Object.prototype.hasOwnProperty.call(vars, key)
-      ? (vars as Record<string, string>)[key]
+      ? (vars as unknown as Record<string, string>)[key]
       : match
   })
 }
