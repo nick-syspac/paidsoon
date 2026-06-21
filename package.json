@@ -11,7 +11,8 @@
     "verify-rls": "node --import tsx scripts/verify-rls.ts",
     "seed:local": "SEED_ENV=local node --import tsx scripts/seed-preview.ts",
     "seed:preview": "SEED_ENV=preview node --import tsx scripts/seed-preview.ts",
-    "verify-seed": "node --import tsx scripts/verify-seed.ts"
+    "verify-seed": "node --import tsx scripts/verify-seed.ts",
+    "db:reset:local": "SEED_ENV=local node --import tsx scripts/db-reset-local.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
