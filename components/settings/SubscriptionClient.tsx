@@ -14,26 +14,45 @@ export function SubscriptionClient({
 }) {
   const [loading, setLoading] = useState(false)
   const [pendingTier, setPendingTier] = useState<SubscriptionTier | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleCheckout(selectedTier: SubscriptionTier) {
     setLoading(true)
     setPendingTier(selectedTier)
-    const res = await fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tier: selectedTier }),
-    })
-    const data = await res.json()
-    if (data.url) window.location.href = data.url
+    setError(null)
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: selectedTier }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+        return
+      }
+      setError(data.error ?? "Something went wrong. Please try again.")
+    } catch {
+      setError("Something went wrong. Please try again.")
+    }
     setLoading(false)
     setPendingTier(null)
   }
 
   async function handleManage() {
     setLoading(true)
-    const res = await fetch("/api/billing/portal", { method: "POST" })
-    const data = await res.json()
-    if (data.url) window.location.href = data.url
+    setError(null)
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+        return
+      }
+      setError(data.error ?? "Something went wrong. Please try again.")
+    } catch {
+      setError("Something went wrong. Please try again.")
+    }
     setLoading(false)
   }
 
@@ -47,6 +66,12 @@ export function SubscriptionClient({
       {successMessage && (
         <div className="bg-green-50 border border-green-200 rounded-md px-4 py-2 text-sm text-green-800">
           {successMessage}
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md px-4 py-2 text-sm text-red-800">
+          {error}
         </div>
       )}
 

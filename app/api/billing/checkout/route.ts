@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
+import { createUserProfile } from "@/lib/actions/auth"
 import { normalizeSubscriptionTier, type SubscriptionTier } from "@/lib/subscriptionPlans"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
@@ -30,9 +31,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const profile = await withUserContext(user.id, (tx) =>
+  let profile = await withUserContext(user.id, (tx) =>
     tx.userProfile.findUnique({ where: { userId: user.id } }),
   )
+
+  if (!profile) {
+    // Profile missing — bootstrap it now (idempotent upsert) and re-fetch.
+    await createUserProfile(user.id)
+    profile = await withUserContext(user.id, (tx) =>
+      tx.userProfile.findUnique({ where: { userId: user.id } }),
+    )
+  }
 
   if (!profile) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 })

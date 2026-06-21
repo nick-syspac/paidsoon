@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { DEFAULT_STAGE_1 } from "@/lib/email/templates"
 import { TemplatesClient } from "@/components/settings/TemplatesClient"
 
 export default async function TemplatesSettingsPage() {
@@ -86,6 +87,11 @@ export default async function TemplatesSettingsPage() {
           { id: "payment-followup", label: "Payment follow-up" },
         ],
         canCustomize,
+        stage: 1,
+        subject: DEFAULT_STAGE_1.subject,
+        htmlBody: DEFAULT_STAGE_1.htmlBody,
+        textBody: DEFAULT_STAGE_1.textBody,
+        isCustom: false,
       }}
     />
   )

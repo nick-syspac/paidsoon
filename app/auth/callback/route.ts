@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createUserProfile } from "@/lib/actions/auth"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
@@ -8,8 +9,9 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error && data.user) {
+      await createUserProfile(data.user.id)
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
