@@ -26,6 +26,7 @@ ALTER TABLE schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracked_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles
@@ -119,3 +120,22 @@ CREATE POLICY "users can view own email logs"
 CREATE POLICY "service role can insert email logs"
   ON email_logs FOR INSERT
   WITH CHECK (true); -- Cron job uses service role key; RLS bypassed for inserts
+
+-- ---------------------------------------------------------------------------
+-- email_templates
+-- ---------------------------------------------------------------------------
+CREATE POLICY "users can view own email templates"
+  ON email_templates FOR SELECT
+  USING (auth.uid()::text = "userId");
+
+CREATE POLICY "users can insert own email templates"
+  ON email_templates FOR INSERT
+  WITH CHECK (auth.uid()::text = "userId");
+
+CREATE POLICY "users can update own email templates"
+  ON email_templates FOR UPDATE
+  USING (auth.uid()::text = "userId");
+
+CREATE POLICY "users can delete own email templates"
+  ON email_templates FOR DELETE
+  USING (auth.uid()::text = "userId");

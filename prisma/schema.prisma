@@ -8,6 +8,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------
@@ -27,6 +29,7 @@ model UserProfile {
   schedule           Schedule?
   emailSettings      EmailSettings?
   trackedInvoices    TrackedInvoice[]
+  emailTemplates     EmailTemplate[]
 
   @@map("user_profiles")
 }
@@ -134,4 +137,24 @@ model EmailLog {
   trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
 
   @@map("email_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Email Templates (Small Business tier)
+// ---------------------------------------------------------------------------
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  stage     Int      // 1, 2, or 3
+  subject   String
+  htmlBody  String
+  textBody  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId, stage])
+  @@map("email_templates")
 }

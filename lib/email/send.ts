@@ -1,12 +1,50 @@
 import { Resend } from "resend"
+import sanitizeHtmlLib from "sanitize-html"
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
-import { renderTemplate, buildTemplateVars } from "./templates"
+import {
+  renderTemplate,
+  buildTemplateVars,
+  resolveVars,
+  interpolate,
+  DEFAULT_STAGE_1,
+  DEFAULT_STAGE_2,
+  DEFAULT_STAGE_3,
+} from "./templates"
 import type { TrackedInvoice } from "@/lib/generated/prisma/client"
+
+const STAGE_DEFAULTS = {
+  1: DEFAULT_STAGE_1,
+  2: DEFAULT_STAGE_2,
+  3: DEFAULT_STAGE_3,
+} as const
 
 let _resend: Resend | undefined
 function getResend(): Resend {
   return _resend ?? (_resend = new Resend(process.env.RESEND_API_KEY!))
+}
+
+// ---------------------------------------------------------------------------
+// HTML sanitisation — applied to all htmlBody content before sending.
+// Allows safe formatting elements; strips scripts, iframes, event handlers.
+// ---------------------------------------------------------------------------
+
+const SANITIZE_OPTIONS: sanitizeHtmlLib.IOptions = {
+  allowedTags: [
+    "p", "br", "strong", "em", "u", "s", "ul", "ol", "li",
+    "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "a", "span", "div",
+  ],
+  allowedAttributes: {
+    a: ["href", "target", "rel"],
+    span: ["style"],
+    p: ["style"],
+  },
+  allowedSchemes: ["https", "http", "mailto"],
+  disallowedTagsMode: "discard",
+}
+
+export function sanitizeHtml(html: string): string {
+  return sanitizeHtmlLib(html, SANITIZE_OPTIONS)
 }
 
 /**
@@ -54,8 +92,6 @@ export async function sendFollowUpEmail(
 ): Promise<string | null> {
   const { from, replyTo } = await resolveFromAddress(invoice.userId)
 
-  // Fetch the latest invoice details (payment URL) from provider if we have it
-  // For now use what we have stored
   const vars = buildTemplateVars({
     clientName: invoice.clientName,
     amountDue: invoice.amountDue,
@@ -65,7 +101,28 @@ export async function sendFollowUpEmail(
     paymentUrl: undefined, // TODO: enrich from provider.getInvoiceDetails if needed
   })
 
-  const { subject, html, text } = renderTemplate(stage, vars)
+  // Check for a custom template saved by this user for this stage.
+  // prismaAdmin is used here: send path runs in cron context (RLS bypassed by design).
+  const customTemplate = await prisma.emailTemplate.findUnique({
+    where: { userId_stage: { userId: invoice.userId, stage } },
+  })
+
+  let subject: string
+  let html: string
+  let text: string
+
+  if (customTemplate) {
+    const resolved = resolveVars(stage, vars)
+    subject = interpolate(customTemplate.subject, resolved)
+    html = sanitizeHtml(interpolate(customTemplate.htmlBody, resolved))
+    text = interpolate(customTemplate.textBody, resolved)
+  } else {
+    const defaults = STAGE_DEFAULTS[stage]
+    const resolved = resolveVars(stage, vars)
+    subject = interpolate(defaults.subject, resolved)
+    html = sanitizeHtml(interpolate(defaults.htmlBody, resolved))
+    text = interpolate(defaults.textBody, resolved)
+  }
 
   try {
     const result = await getResend().emails.send({

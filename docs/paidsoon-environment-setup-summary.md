@@ -86,7 +86,7 @@ npx prisma migrate deploy          # apply schema to paidsoon-dev
 psql "$DIRECT_URL" -f prisma/rls-policies.sql
 npm run verify-rls
 npm run seed:local
-npm run dev                        # → http://localhost:3000
+npm run dev -- --port 4001                        # → http://localhost:4001
 ```
 
 ---

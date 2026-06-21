@@ -1,5 +1,10 @@
+import { setDefaultResultOrder } from "dns"
 import { PrismaClient } from "@/lib/generated/prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
+
+// Supabase hostnames can resolve to IPv6 addresses unreachable in some
+// local/CI environments. Force IPv4 for the entire process.
+setDefaultResultOrder("ipv4first")
 
 /**
  * prismaAdmin — bypasses Row Level Security.
