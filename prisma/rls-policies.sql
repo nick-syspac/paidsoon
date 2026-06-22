@@ -139,3 +139,14 @@ CREATE POLICY "users can update own email templates"
 CREATE POLICY "users can delete own email templates"
   ON email_templates FOR DELETE
   USING (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
+-- ai_usage_logs
+-- Users may read their own rows. Inserts are performed by the application
+-- via prismaAdmin (service role) only — no INSERT policy for users.
+-- ---------------------------------------------------------------------------
+ALTER TABLE ai_usage_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own AI usage logs"
+  ON ai_usage_logs FOR SELECT
+  USING (auth.uid()::text = user_id);

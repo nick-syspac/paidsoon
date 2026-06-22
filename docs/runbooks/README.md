@@ -52,7 +52,8 @@ For a brand-new production setup, work through the runbooks in this order:
 4. [vercel.md](./vercel.md) — import the project, set env vars, deploy.
 5. [stripe.md](./stripe.md) §5 onward — register webhooks against the deployed URL.
 6. Post-deploy fixups — see the last section of [vercel.md](./vercel.md).
-7. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
+7. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
+8. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
 
 For Local development only, run sections 1–3 against test mode / dev project, then `npm run dev`. See each runbook's "Local" column for the dev posture.
 
@@ -81,6 +82,7 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `RESEND_API_KEY` | dev `re_…` | dev `re_…` | prod `re_…` | [resend.md §2](./resend.md) |
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` | `onboarding@resend.dev` | `billing@paidsoon.com` | [resend.md §3](./resend.md) |
 | `RESEND_FROM_NAME` | `PaidSoon (dev)` | `PaidSoon (preview)` | `PaidSoon` | [resend.md §3](./resend.md) |
+| `OPENAI_API_KEY` | dev `sk-proj-…` | dev `sk-proj-…` | prod `sk-proj-…` | [openai.md §1](./openai.md) |
 | `SEED_ENV` | `local` | `preview` | — (never set in production) | [preview-seed-data.md](../preview-seed-data.md) |
 
 ### Where each var is consumed in code
@@ -108,6 +110,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `RESEND_API_KEY` | [lib/email/send.ts](../../lib/email/send.ts), [app/api/settings/email/route.ts](../../app/api/settings/email/route.ts) |
 | `RESEND_FROM_EMAIL` | [lib/email/send.ts](../../lib/email/send.ts), [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) |
 | `RESEND_FROM_NAME` | [lib/email/send.ts](../../lib/email/send.ts) |
+| `OPENAI_API_KEY` | `lib/email/ai-rewrite.ts` (to be created) — server-side only, never browser |
 | `SEED_ENV` | [scripts/seed-preview.ts](../../scripts/seed-preview.ts) — environment safety gate; never used by the application itself |
 
 ### Things you might expect but won't find

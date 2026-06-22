@@ -28,6 +28,7 @@ model UserProfile {
   emailSettings      EmailSettings?
   trackedInvoices    TrackedInvoice[]
   emailTemplates     EmailTemplate[]
+  aiUsageLogs        AiUsageLog[]
 
   @@map("user_profiles")
 }
@@ -135,6 +136,28 @@ model EmailLog {
   trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
 
   @@map("email_logs")
+}
+
+// ---------------------------------------------------------------------------
+// AI Usage Logs (Small Business tier — ai_rewrite feature)
+// ---------------------------------------------------------------------------
+
+model AiUsageLog {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  model            String   // e.g. "gpt-4o-mini"
+  feature          String   // e.g. "ai_rewrite"
+  promptTokens     Int      @map("prompt_tokens")
+  completionTokens Int      @map("completion_tokens")
+  totalTokens      Int      @map("total_tokens")
+  estimatedCostUsd Decimal  @map("estimated_cost_usd") @db.Decimal(12, 8)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
 }
 
 // ---------------------------------------------------------------------------

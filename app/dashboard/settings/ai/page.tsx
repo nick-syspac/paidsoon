@@ -24,7 +24,6 @@ export default async function AiSettingsPage() {
     <AiSettingsClient
       flags={{
         canRewrite: hasPlanFeature(tier, "ai_rewrite"),
-        canSetTone: hasPlanFeature(tier, "tone_settings"),
       }}
     />
   )
