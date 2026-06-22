@@ -6,7 +6,7 @@ import Underline from "@tiptap/extension-underline"
 import Link from "@tiptap/extension-link"
 import Placeholder from "@tiptap/extension-placeholder"
 import { Node, mergeAttributes } from "@tiptap/core"
-import { useState, useCallback } from "react"
+import { useState, useCallback, forwardRef, useImperativeHandle } from "react"
 
 // ---------------------------------------------------------------------------
 // Variable token definitions
@@ -15,18 +15,19 @@ import { useState, useCallback } from "react"
 export interface TemplateVariable {
   token: string       // e.g. "clientName"
   label: string       // e.g. "Client name"
+  description?: string
   stage3Only?: boolean
 }
 
 export const TEMPLATE_VARIABLES: TemplateVariable[] = [
-  { token: "clientName", label: "Client name" },
-  { token: "invoiceRef", label: "Invoice reference" },
-  { token: "amountDue", label: "Amount due" },
-  { token: "dueDate", label: "Due date" },
-  { token: "paymentLink", label: "Payment link" },
-  { token: "yourName", label: "Your name" },
-  { token: "daysOverdue", label: "Days overdue", stage3Only: true },
-  { token: "firmDeadline", label: "Firm deadline", stage3Only: true },
+  { token: "clientName", label: "Client name", description: "e.g. Jane Smith" },
+  { token: "invoiceRef", label: "Invoice reference", description: "e.g. INV-0042" },
+  { token: "amountDue", label: "Amount due", description: "e.g. £1,250.00" },
+  { token: "dueDate", label: "Due date", description: "e.g. 15 June 2026" },
+  { token: "paymentLink", label: "Payment link", description: "Stripe-hosted payment URL" },
+  { token: "yourName", label: "Your name", description: "your display name" },
+  { token: "daysOverdue", label: "Days overdue", description: "e.g. 12", stage3Only: true },
+  { token: "firmDeadline", label: "Firm deadline", description: "e.g. 30 June 2026", stage3Only: true },
 ]
 
 // ---------------------------------------------------------------------------
@@ -180,13 +181,17 @@ interface TemplateEditorProps {
   onTextChange: (text: string) => void
 }
 
-export function TemplateEditor({
+export interface TemplateEditorHandle {
+  insertVariable: (v: TemplateVariable) => void
+}
+
+export const TemplateEditor = forwardRef<TemplateEditorHandle, TemplateEditorProps>(function TemplateEditor({
   stage,
   htmlBody,
   textBody,
   onHtmlChange,
   onTextChange,
-}: TemplateEditorProps) {
+}, ref) {
   const [activeTab, setActiveTab] = useState<EditorTab>("visual")
   const [rawHtml, setRawHtml] = useState(htmlBody)
 
@@ -243,6 +248,8 @@ export function TemplateEditor({
     },
     [activeTab, editor, rawHtml, onHtmlChange, onTextChange],
   )
+
+  useImperativeHandle(ref, () => ({ insertVariable }), [insertVariable])
 
   const handleTabChange = (tab: EditorTab) => {
     // Sync HTML source → TipTap when switching from html tab
@@ -371,4 +378,4 @@ export function TemplateEditor({
       </div>
     </div>
   )
-}
+})

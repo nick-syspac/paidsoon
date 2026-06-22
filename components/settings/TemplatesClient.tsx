@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { TemplateEditor } from "./TemplateEditor"
+import { useState, useCallback, useRef } from "react"
+import { TemplateEditor, TEMPLATE_VARIABLES, type TemplateEditorHandle, type TemplateVariable } from "./TemplateEditor"
 
 interface StageTemplate {
   subject: string
@@ -27,6 +27,66 @@ const STAGE_LABELS: Record<1 | 2 | 3, string> = {
   3: "Stage 3 – Final Notice",
 }
 
+const STAGE_GUIDANCE: Record<1 | 2 | 3, { tone: string; description: string }> = {
+  1: {
+    tone: "Gentle Reminder",
+    description: "First reminder — keep it friendly and assume the invoice was simply overlooked. Low pressure; give the client the benefit of the doubt.",
+  },
+  2: {
+    tone: "Firm Follow-up",
+    description: "Second reminder — acknowledge the previous email was sent and clearly request action. Remain professional but make the urgency clear.",
+  },
+  3: {
+    tone: "Final Notice",
+    description: "Final reminder — be direct and urgent. You may reference consequences of non-payment. Include days overdue and a firm deadline for maximum impact.",
+  },
+}
+
+function TemplatesSidebar({
+  stage,
+  onInsert,
+}: {
+  stage: 1 | 2 | 3
+  onInsert: (v: TemplateVariable) => void
+}) {
+  const guidance = STAGE_GUIDANCE[stage]
+  const variables = TEMPLATE_VARIABLES.filter((v) => !v.stage3Only || stage === 3)
+
+  return (
+    <div className="sticky top-6 space-y-5">
+      <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 mb-1">
+          {guidance.tone}
+        </p>
+        <p className="text-sm text-blue-800">{guidance.description}</p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          Variables
+        </p>
+        <div className="space-y-2">
+          {variables.map((v) => (
+            <button
+              key={v.token}
+              type="button"
+              onClick={() => onInsert(v)}
+              className="w-full text-left"
+            >
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors">
+                {`{{${v.token}}}`}
+              </span>
+              {v.description && (
+                <span className="ml-2 text-xs text-gray-400">{v.description}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TemplatesClient({ data }: { data: TemplateData }) {
   const [stage, setStage] = useState<1 | 2 | 3>(data.stage)
   const [customFlags, setCustomFlags] = useState<Record<number, boolean>>({
@@ -41,6 +101,7 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
+  const editorRef = useRef<TemplateEditorHandle>(null)
 
   const loadStage = useCallback(async (s: 1 | 2 | 3) => {
     setLoading(true)
@@ -114,7 +175,7 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
   }
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="max-w-4xl space-y-5">
       <h2 className="text-base font-medium text-gray-900">Reminder Templates</h2>
       <p className="text-sm text-gray-500">Plan tier: {data.tier}</p>
 
@@ -135,8 +196,8 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
           ))}
         </select>
       </div>
-
-      {!data.canCustomize ? (
+      <div className="grid grid-cols-[3fr_2fr] gap-8 items-start">
+      <div>      {!data.canCustomize ? (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
           Upgrade to Small Business to edit custom reminder templates.
         </div>
@@ -171,6 +232,7 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
             </label>
             <TemplateEditor
               key={stage}
+              ref={editorRef}
               stage={stage}
               htmlBody={htmlBody}
               textBody={textBody}
@@ -222,6 +284,12 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
           </div>
         </form>
       )}
+      </div>
+      <TemplatesSidebar
+        stage={stage}
+        onInsert={(v) => editorRef.current?.insertVariable(v)}
+      />
+      </div>
     </div>
   )
 }
