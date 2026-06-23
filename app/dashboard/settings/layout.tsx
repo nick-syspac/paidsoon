@@ -6,7 +6,6 @@ const TABS = [
   { href: "/dashboard/settings/schedule", label: "Schedule" },
   { href: "/dashboard/settings/email", label: "Email" },
   { href: "/dashboard/settings/templates", label: "Templates" },
-  { href: "/dashboard/settings/ai", label: "AI" },
   { href: "/dashboard/settings/subscription", label: "Subscription" },
 ]
 

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { createUserProfile } from "@/lib/actions/auth"
-import { normalizeSubscriptionTier, type SubscriptionTier } from "@/lib/subscriptionPlans"
+import { normalizeSubscriptionTier, PLAN_ORDER, type SubscriptionTier } from "@/lib/subscriptionPlans"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 import { z } from "zod"
@@ -83,6 +83,29 @@ export async function POST(request: Request) {
     )
   }
 
+  // Existing subscriber: use subscriptions.update instead of Checkout
+  if (profile.stripeSubscriptionId && customerId) {
+    const currentTierIndex = PLAN_ORDER.indexOf(normalizeSubscriptionTier(profile.subscriptionTier))
+    const requestedTierIndex = PLAN_ORDER.indexOf(requestedTier)
+
+    if (requestedTierIndex < currentTierIndex) {
+      // Downgrade — must use the dedicated downgrade endpoint
+      return NextResponse.json(
+        { error: "Use the downgrade endpoint for plan downgrades" },
+        { status: 400 },
+      )
+    }
+
+    // Upgrade — apply immediately with proration
+    await stripe.subscriptions.update(profile.stripeSubscriptionId, {
+      items: [{ price: priceId }],
+      proration_behavior: "create_prorations",
+    })
+    const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription?success=upgraded&tier=${requestedTier}`
+    return NextResponse.json({ url: successUrl })
+  }
+
+  // New subscriber — create Stripe Checkout session
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",

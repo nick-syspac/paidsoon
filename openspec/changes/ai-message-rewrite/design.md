@@ -8,20 +8,24 @@ The explore phase established:
 - Usage must be logged from day one to support future rate limiting
 - The Vercel AI SDK's `generateObject` is the right integration primitive (structured output via Zod)
 - The tone dropdown becomes redundant and should be removed
+- The standalone AI settings tab creates a broken clipboard-reliant workflow; AI rewrite belongs inside the Templates editor as a contextual action
+- The prompt should be stage-aware — stage and tone are the same concept; knowing the stage produces better rewrites
+- Accepting a rewrite should use a diff view, not silent replacement — the editor must not be overwritten without explicit user confirmation
 
 ## Goals / Non-Goals
 
 **Goals:**
 - Replace the placeholder with a real OpenAI call that returns three tone variants as structured data.
-- Redesign the UI to display all three variants simultaneously with copy buttons.
+- Make the prompt stage-aware: `stage` (1/2/3) is accepted by the API and prefixes the prompt with the stage's context (tone, position in sequence, urgency level).
+- Integrate the AI rewrite trigger into the Templates editor body section as a contextual "AI Rewrite" button — no standalone `/settings/ai` settings page.
+- Show a diff view when the AI suggestion is ready: original on the left, AI suggestion on the right. The user must explicitly Accept or Discard before any editor content changes. The stage-appropriate tone variant is pre-selected; other variants are accessible via tabs.
 - Log every successful call's token usage to `ai_usage_logs` for cost visibility and future rate limiting.
-- Keep the implementation tightly scoped to the existing feature gate and route.
+- Remove the standalone `/settings/ai` settings page and `AiSettingsClient.tsx`.
 
 **Non-Goals:**
 - Streaming output (one-shot response is sufficient; 1–3 second wait is acceptable).
 - Rate limiting enforcement (logging is the prerequisite; enforcement is a separate change).
 - Custom prompt editing by users.
-- Per-variant tone selection before the call.
 - Any changes to the Starter or Solo plan feature sets.
 - Exposing cost data in the UI.
 
@@ -47,7 +51,9 @@ The explore phase established:
 
 **Decision:** One API call returns `{ friendly, firm, final_notice }` as structured output.
 
-**Rationale:** Single call is 3× cheaper, faster, and simpler than three sequential or parallel calls. The prompt already asks for all three variants. Users benefit from seeing all options at once and choosing.
+**Rationale:** Single call is 3× cheaper, faster, and simpler than three sequential or parallel calls. The prompt already asks for all three variants. Users benefit from being able to switch between variants in the diff panel without making additional API calls.
+
+**Updated by D7 and D8:** The call still returns all three variants. D7 makes the prompt stage-aware. D8 determines how the variants are presented (diff panel with tone tabs rather than three copy-button cards).
 
 **Alternative considered:** One call per selected tone (user picks first, then rewrites). Rejected — removes the "see all options" value and costs more.
 
@@ -67,11 +73,45 @@ The explore phase established:
 
 **RLS posture:** `ai_usage_logs` has a SELECT policy (users read own rows) and no INSERT policy for users. Only the service role (via `prismaAdmin`) can insert. This is intentional.
 
-### D6: Remove `tone` from the Zod input schema
+### D6: Add `stage` to Zod input schema; remove `tone`
 
-**Decision:** Drop the `tone` field from the POST body schema entirely.
+**Decision:** Drop the `tone` field from the POST body schema and add `stage: z.union([z.literal(1), z.literal(2), z.literal(3)])`. The `text` field remains.
 
-**Rationale:** The prompt generates all three tones regardless. Accepting a `tone` parameter implies single-tone output, which is no longer the contract. Removing it simplifies the schema and removes dead code. The `canSetTone` feature check also becomes a no-op and can be removed from the route.
+**Rationale:** `tone` implied single-tone output, which is no longer the contract. `stage` replaces it as the caller context: it is used to construct the stage-aware prompt prefix (D7) and to determine the default variant shown in the diff panel (D8). The `canSetTone` feature check also becomes a no-op and is removed from the route.
+
+**Supersedes the original D6** which only removed `tone` without replacing it.
+
+### D7: Stage-aware prompt
+
+**Decision:** `rewriteMessage(text, stage)` receives the stage (1/2/3) and prepends a stage-specific context block to the system prompt before the three-tone instruction.
+
+| Stage | Prompt prefix |
+|-------|---------------|
+| 1     | "This is a first reminder. Keep it gentle and friendly — assume the invoice was simply overlooked." |
+| 2     | "This is a second reminder. Acknowledge the prior email. Be professional but make urgency clear." |
+| 3     | "This is a final notice. Be direct and urgent. Reference days overdue. Include a firm deadline." |
+
+**Rationale:** Stage and tone are the same concept expressed differently. Knowing the stage produces sharper rewrites than a generic "rewrite in three tones" instruction. The model still outputs all three variants (D3), but the prompt anchors it to the correct position in the follow-up sequence.
+
+**Alternative considered:** Keep the prompt stage-agnostic and rely on tone labels alone. Rejected — stage context produces materially better results for invoice follow-up copy, especially for Stage 3 (final notice) where specific urgency cues matter.
+
+### D8: Diff view UX for accepting rewrites
+
+**Decision:** When the AI call returns, show an inline diff panel below the body editor. The left column shows the current `textBody`; the right column shows the selected variant's `message`. Tone tabs (Friendly / Firm / Final Notice) above the right column allow switching between variants — the stage-appropriate tab is active by default. The current stage's variant `subject` is also shown when it differs from the current subject. [Apply] sets the editor content and subject to the selected variant and closes the panel. [Discard] closes the panel with no changes.
+
+**Rationale:** Silent replacement risks destroying a carefully crafted template the user spent time on. The diff makes the change visible and reversible before commit. Pre-selecting the stage-appropriate tone reduces decision fatigue while keeping the other options one click away.
+
+**Alternative considered:** Three variant cards with "Apply" buttons (original AiSettingsClient approach). Rejected — the card layout lacks the original-vs-suggestion comparison that makes a diff valuable, and puts all three options at equal weight rather than surfacing the stage-relevant one first.
+
+**Alternative considered:** Replace editor content immediately, rely on browser undo. Rejected — Undo is not reliable across async operations and breaks the TemplateEditor's controlled state.
+
+### D9: Merge AI rewrite into Templates; remove standalone AI settings tab
+
+**Decision:** `components/settings/AiSettingsClient.tsx` and `app/dashboard/settings/ai/page.tsx` are deleted. The AI nav tab is removed from `app/dashboard/settings/layout.tsx`. All AI rewrite interaction lives in `TemplatesClient.tsx`.
+
+**Rationale:** The standalone AI tab required clipboard-mediated copy-paste between two settings pages — a broken workflow. Contextual placement inside the template editor closes the loop: edit → AI Rewrite → diff → Accept. The backend (`/api/settings/ai`, `lib/email/ai-rewrite.ts`) is unchanged in its role; only the surface that calls it changes. The `canRewrite` flag is passed from the Templates page server component and controls button visibility.
+
+**Alternative considered:** Keep both surfaces (standalone AI tab + in-editor button). Rejected — two ways to do the same thing creates confusion and doubles the maintenance surface.
 
 ## Risks / Trade-offs
 

@@ -183,6 +183,7 @@ interface TemplateEditorProps {
 
 export interface TemplateEditorHandle {
   insertVariable: (v: TemplateVariable) => void
+  setContent: (html: string) => void
 }
 
 export const TemplateEditor = forwardRef<TemplateEditorHandle, TemplateEditorProps>(function TemplateEditor({
@@ -249,7 +250,19 @@ export const TemplateEditor = forwardRef<TemplateEditorHandle, TemplateEditorPro
     [activeTab, editor, rawHtml, onHtmlChange, onTextChange],
   )
 
-  useImperativeHandle(ref, () => ({ insertVariable }), [insertVariable])
+  const setContent = useCallback(
+    (html: string) => {
+      if (editor) {
+        editor.commands.setContent(html)
+        const stored = editorHtmlToStorage(editor)
+        setRawHtml(stored)
+        onHtmlChange(stored)
+      }
+    },
+    [editor, onHtmlChange],
+  )
+
+  useImperativeHandle(ref, () => ({ insertVariable, setContent }), [insertVariable, setContent])
 
   const handleTabChange = (tab: EditorTab) => {
     // Sync HTML source → TipTap when switching from html tab

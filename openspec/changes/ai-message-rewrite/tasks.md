@@ -20,31 +20,49 @@
 
 ## 4. API route update
 
-- [x] 4.1 In `app/api/settings/ai/route.ts`, remove `tone` from the Zod `rewriteSchema` (field no longer accepted)
+- [x] 4.1 In `app/api/settings/ai/route.ts`, remove `tone` from the Zod `rewriteSchema` and add `stage: z.union([z.literal(1), z.literal(2), z.literal(3)])`
 - [x] 4.2 Remove the `canSetTone` feature check and the related 403 branch from the POST handler
-- [x] 4.3 Replace the placeholder `rewrittenText` line with a call to `rewriteMessage(parsed.data.text)` from `lib/email/ai-rewrite.ts`
+- [x] 4.3 Replace the placeholder `rewrittenText` line with a call to `rewriteMessage(parsed.data.text, parsed.data.stage)` from `lib/email/ai-rewrite.ts`
 - [x] 4.4 After a successful `rewriteMessage` call, write a row to `ai_usage_logs` via `prismaAdmin` with `userId`, `model` (`"gpt-4o-mini"`), `feature` (`"ai_rewrite"`), `promptTokens`, `completionTokens`, `totalTokens`, and `estimatedCostUsd` (calculated from token counts and pricing constants)
 - [x] 4.5 Update the POST response shape to `{ success: true, friendly, firm, final_notice }` (three variant objects instead of single `rewrittenText`)
 - [x] 4.6 Add a code comment on the `prismaAdmin` usage log write documenting it as a documented RLS bypass (token counts only available post-call, userId derived from server-side auth)
 - [x] 4.7 Wrap the `rewriteMessage` call in try/catch; return HTTP 500 with `{ error: "Rewrite failed" }` on OpenAI errors (do not leak model error details to the client)
 
-## 5. UI redesign
+## 5. AI rewrite helper — stage awareness
 
-- [x] 5.1 In `components/settings/AiSettingsClient.tsx`, replace the `rewritten: string | null` state with `variants: { friendly, firm, final_notice } | null` where each variant is `{ subject: string, message: string }`
-- [x] 5.2 Remove the `tone` state variable and the tone selector `<select>` element
-- [x] 5.3 Update the `handleRewrite` fetch call to remove the `tone` field from the request body and destructure the new `{ friendly, firm, final_notice }` response shape
-- [x] 5.4 Replace the single rewritten text output panel with three variant cards rendered in a row (or responsive column on mobile): Friendly, Firm, Final Notice
-- [x] 5.5 Each card shows the variant label, subject line, and message body
-- [x] 5.6 Add a Copy button to each card that writes `variant.message` to the clipboard using `navigator.clipboard.writeText`
-- [x] 5.7 Update the loading state to disable the Rewrite button and show the `<Spinner />` component during the API call
-- [x] 5.8 Update the error state to display the error below the textarea (existing pattern)
-- [x] 5.9 Remove the `flags.canSetTone` branch entirely — tone gating is no longer relevant in the UI (all three tones are always returned)
+- [x] 5.1 Update `lib/email/ai-rewrite.ts` — change `rewriteMessage(text: string)` signature to `rewriteMessage(text: string, stage: 1 | 2 | 3)`
+- [x] 5.2 Add a `STAGE_PROMPT_PREFIX` map in `lib/email/ai-rewrite.ts` keyed by stage:
+  - Stage 1: `"This is a first reminder email. Keep it gentle and friendly — assume the invoice was simply overlooked."`
+  - Stage 2: `"This is a second reminder email. Acknowledge that a prior message was sent. Be professional but make urgency clear."`
+  - Stage 3: `"This is a final notice email. Be direct and urgent. Reference days overdue if present. Specify a firm deadline for payment."`
+- [x] 5.3 Prepend the stage prefix to the system prompt before the three-tone instruction; keep the rest of the prompt unchanged
 
-## 6. Verification
+## 6. UI — merge AI into Templates, remove standalone AI tab
 
-- [x] 6.1 Run `npm run test` — confirm existing tests still pass
-- [x] 6.2 Run `npm run verify-rls` — confirm `ai_usage_logs` RLS policies are enforced correctly
-- [ ] 6.3 Manual smoke test (local): sign in as a Small Business user, navigate to Settings → AI, enter a sample invoice message, click Rewrite, verify all three variant cards render with subject and message
-- [ ] 6.4 Manual smoke test (local): sign in as a Starter user, confirm the upgrade prompt renders and no rewrite call is made
-- [ ] 6.5 Confirm a row appears in `ai_usage_logs` after a successful rewrite with correct token counts and non-zero `estimatedCostUsd`
-- [ ] 6.6 Set `OPENAI_API_KEY` in Vercel Preview and Production environments per `docs/runbooks/openai.md`
+- [x] 6.1 Delete `app/dashboard/settings/ai/page.tsx`
+- [x] 6.2 Delete `components/settings/AiSettingsClient.tsx`
+- [x] 6.3 Remove the `{ href: "/dashboard/settings/ai", label: "AI" }` entry from the `TABS` array in `app/dashboard/settings/layout.tsx`
+- [x] 6.4 In `app/dashboard/settings/templates/page.tsx`, compute `canRewrite: hasPlanFeature(tier, "ai_rewrite")` and pass it as a prop to `TemplatesClient`
+- [x] 6.5 Add `canRewrite: boolean` to the `TemplateData` interface (or as a separate prop) in `TemplatesClient.tsx`
+- [x] 6.6 Add AI rewrite state to `TemplatesClient.tsx`: `aiVariants: RewriteOutput | null`, `aiLoading: boolean`, `aiError: string | null`, `aiDiffTone: "friendly" | "firm" | "final_notice"` (active tab in diff panel)
+- [x] 6.7 Add `STAGE_TO_TONE` map: `{ 1: "friendly", 2: "firm", 3: "final_notice" }` — used to set the default diff tab when variants arrive
+- [x] 6.8 Add `handleAiRewrite()` async function: POSTs `{ text: textBody, stage }` to `/api/settings/ai`; on success stores result in `aiVariants` and sets `aiDiffTone` to `STAGE_TO_TONE[stage]`; on failure sets `aiError`
+- [x] 6.9 Add "AI Rewrite" button below the `TemplateEditor` inside the body editor section, visible only when `canRewrite && data.canCustomize`; disabled while `aiLoading` or `saving`; shows `<Spinner />` while `aiLoading`; clears `aiError` on click before calling `handleAiRewrite()`
+- [x] 6.10 Build the diff panel (rendered when `aiVariants !== null`):
+  - Left column header: "Current"; left column body: `textBody` as plain text in a scrollable `<pre>` or `<div>`
+  - Right column header: tone tab group (Friendly / Firm / Final Notice), active tab = `aiDiffTone`
+  - Right column body: `aiVariants[aiDiffTone].message` as plain text
+  - Show a "Subject will change to: …" note below the right column when `aiVariants[aiDiffTone].subject !== subject`
+  - [Apply] button: sets `textBody` to `aiVariants[aiDiffTone].message`; sets `subject` to `aiVariants[aiDiffTone].subject`; clears `aiVariants` and `aiError`
+  - [Discard] button: clears `aiVariants` and `aiError`
+- [x] 6.11 Reset `aiVariants` and `aiError` on stage change (`handleStageChange`)
+
+## 7. Verification
+
+- [x] 7.1 Run `npm run test` — confirm existing tests still pass
+- [x] 7.2 Run `npm run verify-rls` — confirm `ai_usage_logs` RLS policies are enforced correctly
+- [ ] 7.3 Manual smoke test: sign in as a Small Business user → Settings → Templates → select Stage 2 → edit body → click "AI Rewrite" → verify diff panel opens with original on the left and the Firm variant on the right pre-selected → verify tone tabs switch to Friendly / Final Notice → click Apply → confirm editor updates → save template
+- [ ] 7.4 Manual smoke test: sign in as a Starter user → Settings → Templates → confirm "AI Rewrite" button is not visible
+- [ ] 7.5 Confirm a row appears in `ai_usage_logs` after a successful rewrite with correct `stage`-driven prompt token count and non-zero `estimatedCostUsd`
+- [ ] 7.6 Confirm Settings navigation no longer shows the AI tab for any user
+- [ ] 7.7 Set `OPENAI_API_KEY` in Vercel Preview and Production environments per `docs/runbooks/openai.md`

@@ -1,19 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai"
-import { generateObject } from "ai"
-import { z } from "zod"
-
-// ---------------------------------------------------------------------------
-// Config guard
-// ---------------------------------------------------------------------------
-
-const apiKey = process.env.OPENAI_API_KEY
-if (!apiKey) {
-  throw new Error(
-    "OPENAI_API_KEY is not set. Add it to .env.local (dev) or Vercel environment variables (production). See docs/runbooks/openai.md §1.",
-  )
-}
-
-const openai = createOpenAI({ apiKey })
+import { generateObject, jsonSchema } from "ai"
 
 // ---------------------------------------------------------------------------
 // Model and pricing constants (gpt-4o-mini, as of June 2026)
@@ -29,29 +15,63 @@ export const INPUT_COST_PER_TOKEN_USD = 0.15 / 1_000_000
 export const OUTPUT_COST_PER_TOKEN_USD = 0.60 / 1_000_000
 
 // ---------------------------------------------------------------------------
-// Output schema
+// Output types
 // ---------------------------------------------------------------------------
 
-export const rewriteVariantSchema = z.object({
-  subject: z.string(),
-  message: z.string(),
+export interface RewriteVariant {
+  subject: string
+  message: string
+}
+
+export interface RewriteOutput {
+  friendly: RewriteVariant
+  firm: RewriteVariant
+  final_notice: RewriteVariant
+}
+
+// ---------------------------------------------------------------------------
+// Output schema (JSON Schema — avoids Zod v4 incompatibility with AI SDK)
+// ---------------------------------------------------------------------------
+
+const variantShape = {
+  type: "object" as const,
+  properties: {
+    subject: { type: "string" as const },
+    message: { type: "string" as const },
+  },
+  required: ["subject", "message"],
+  additionalProperties: false,
+}
+
+const rewriteOutputJsonSchema = jsonSchema<RewriteOutput>({
+  type: "object",
+  properties: {
+    friendly: variantShape,
+    firm: variantShape,
+    final_notice: variantShape,
+  },
+  required: ["friendly", "firm", "final_notice"],
+  additionalProperties: false,
 })
 
-export const rewriteOutputSchema = z.object({
-  friendly: rewriteVariantSchema,
-  firm: rewriteVariantSchema,
-  final_notice: rewriteVariantSchema,
-})
+// ---------------------------------------------------------------------------
+// Stage-aware prompt prefix
+// ---------------------------------------------------------------------------
 
-export type RewriteVariant = z.infer<typeof rewriteVariantSchema>
-export type RewriteOutput = z.infer<typeof rewriteOutputSchema>
+const STAGE_PROMPT_PREFIX: Record<1 | 2 | 3, string> = {
+  1: "This is a first reminder email. Keep it gentle and friendly — assume the invoice was simply overlooked.",
+  2: "This is a second reminder email. Acknowledge that a prior message was sent. Be professional but make urgency clear.",
+  3: "This is a final notice email. Be direct and urgent. Reference days overdue if present. Specify a firm deadline for payment.",
+}
 
 // ---------------------------------------------------------------------------
 // Prompt
 // ---------------------------------------------------------------------------
 
-function buildPrompt(text: string): string {
+function buildPrompt(text: string, stage: 1 | 2 | 3): string {
   return `You are an expert business communications assistant for an invoice follow-up application.
+
+Stage context: ${STAGE_PROMPT_PREFIX[stage]}
 
 Your task is to rewrite the supplied message into three versions:
 
@@ -110,23 +130,35 @@ export interface RewriteResult {
 
 /**
  * Rewrite an invoice follow-up message into three professionally toned variants.
- * Uses OpenAI GPT-4o-mini with structured output (generateObject).
+ * Uses OpenAI GPT-4o-mini with structured output (generateObject + jsonSchema).
  *
  * Throws on API errors — callers should wrap in try/catch and return HTTP 500.
  */
-export async function rewriteMessage(text: string): Promise<RewriteResult> {
+export async function rewriteMessage(text: string, stage: 1 | 2 | 3): Promise<RewriteResult> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    throw new Error(
+      "OPENAI_API_KEY is not set. Add it to .env.local (dev) or Vercel environment variables (production). See docs/runbooks/openai.md §1.",
+    )
+  }
+
+  const client = createOpenAI({ apiKey })
+
   const result = await generateObject({
-    model: openai(AI_REWRITE_MODEL),
-    schema: rewriteOutputSchema,
-    prompt: buildPrompt(text),
+    model: client(AI_REWRITE_MODEL),
+    schema: rewriteOutputJsonSchema,
+    prompt: buildPrompt(text, stage),
   })
 
+  const inputTokens = result.usage.inputTokens ?? 0
+  const outputTokens = result.usage.outputTokens ?? 0
   return {
     output: result.object,
     usage: {
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      totalTokens: result.usage.totalTokens,
+      promptTokens: inputTokens,
+      completionTokens: outputTokens,
+      totalTokens: inputTokens + outputTokens,
     },
   }
 }
+

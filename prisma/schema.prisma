@@ -15,13 +15,17 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model UserProfile {
-  id                 String   @id @default(cuid())
-  userId             String   @unique // maps to auth.users.id in Supabase
-  stripeCustomerId   String?  @unique
-  subscriptionTier   String   @default("free") // 'free' | 'pro'
-  subscriptionStatus String   @default("active") // 'active' | 'cancelled' | 'past_due'
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                           String    @id @default(cuid())
+  userId                       String    @unique // maps to auth.users.id in Supabase
+  stripeCustomerId             String?   @unique
+  stripeSubscriptionId         String?   @map("stripe_subscription_id")
+  subscriptionCurrentPeriodEnd DateTime? @map("subscription_current_period_end")
+  pendingDowngradeTier         String?   @map("pending_downgrade_tier")
+  stripeScheduleId             String?   @map("stripe_schedule_id")
+  subscriptionTier             String    @default("free") // 'free' | 'pro'
+  subscriptionStatus           String    @default("active") // 'active' | 'cancelled' | 'past_due'
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
 
   invoiceConnections InvoiceConnection[]
   schedule           Schedule?

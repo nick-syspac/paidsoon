@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef } from "react"
 import { TemplateEditor, TEMPLATE_VARIABLES, type TemplateEditorHandle, type TemplateVariable } from "./TemplateEditor"
+import { Spinner } from "@/components/ui/Spinner"
+import type { RewriteOutput } from "@/lib/email/ai-rewrite"
 
 interface StageTemplate {
   subject: string
@@ -87,7 +89,7 @@ function TemplatesSidebar({
   )
 }
 
-export function TemplatesClient({ data }: { data: TemplateData }) {
+export function TemplatesClient({ data, canRewrite }: { data: TemplateData; canRewrite: boolean }) {
   const [stage, setStage] = useState<1 | 2 | 3>(data.stage)
   const [customFlags, setCustomFlags] = useState<Record<number, boolean>>({
     [data.stage]: data.isCustom,
@@ -102,6 +104,35 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
   const [error, setError] = useState<string | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
   const editorRef = useRef<TemplateEditorHandle>(null)
+
+  // AI rewrite state
+  const [aiVariants, setAiVariants] = useState<RewriteOutput | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+
+  const STAGE_TO_TONE: Record<1 | 2 | 3, keyof RewriteOutput> = {
+    1: "friendly",
+    2: "firm",
+    3: "final_notice",
+  }
+
+  async function handleAiRewrite() {
+    setAiLoading(true)
+    setAiError(null)
+    setAiVariants(null)
+    const res = await fetch("/api/settings/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: textBody, stage }),
+    })
+    const payload = await res.json().catch(() => ({}))
+    setAiLoading(false)
+    if (!res.ok) {
+      setAiError(payload.error ?? "Rewrite failed")
+      return
+    }
+    setAiVariants({ friendly: payload.friendly, firm: payload.firm, final_notice: payload.final_notice })
+  }
 
   const loadStage = useCallback(async (s: 1 | 2 | 3) => {
     setLoading(true)
@@ -124,6 +155,8 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
 
   async function handleStageChange(s: 1 | 2 | 3) {
     setStage(s)
+    setAiVariants(null)
+    setAiError(null)
     await loadStage(s)
   }
 
@@ -239,7 +272,78 @@ export function TemplatesClient({ data }: { data: TemplateData }) {
               onHtmlChange={setHtmlBody}
               onTextChange={setTextBody}
             />
+            {canRewrite && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => { setAiError(null); handleAiRewrite() }}
+                  disabled={aiLoading || saving || loading}
+                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 disabled:opacity-50 transition-colors"
+                >
+                  {aiLoading ? <><Spinner /><span>Rewriting…</span></> : "✦ AI Rewrite"}
+                </button>
+                {aiError && <p className="mt-1 text-xs text-red-600">{aiError}</p>}
+              </div>
+            )}
           </div>
+
+          {/* AI diff panel */}
+          {aiVariants && (() => {
+            const tone = STAGE_TO_TONE[stage]
+            const variant = aiVariants[tone]
+            const aiHtml = variant.message
+              .split(/\n{2,}/)
+              .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
+              .join("")
+            return (
+              <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">AI Rewrite Suggestion</p>
+                  <button
+                    type="button"
+                    onClick={() => { setAiVariants(null); setAiError(null) }}
+                    className="text-xs text-purple-500 hover:text-purple-700"
+                  >
+                    ✕ Discard
+                  </button>
+                </div>
+
+                {/* Side-by-side diff */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">Current</p>
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white border border-gray-200 rounded p-2 max-h-48 overflow-y-auto">{textBody}</pre>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-purple-600 mb-1">Suggestion</p>
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white border border-purple-200 rounded p-2 max-h-48 overflow-y-auto">{variant.message}</pre>
+                  </div>
+                </div>
+
+                {/* Subject change note */}
+                {variant.subject !== subject && (
+                  <p className="text-xs text-purple-700 bg-purple-100 rounded px-2 py-1">
+                    Subject will change to: <span className="font-medium">{variant.subject}</span>
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    editorRef.current?.setContent(aiHtml)
+                    setHtmlBody(aiHtml)
+                    setTextBody(variant.message)
+                    setSubject(variant.subject)
+                    setAiVariants(null)
+                    setAiError(null)
+                  }}
+                  className="text-xs px-3 py-1.5 rounded bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                >
+                  Apply this suggestion
+                </button>
+              </div>
+            )
+          })()}
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           {message && <p className="text-sm text-green-600">{message}</p>}
