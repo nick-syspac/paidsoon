@@ -330,6 +330,7 @@ export function TemplatesClient({ data, canRewrite }: { data: TemplateData; canR
                 <button
                   type="button"
                   onClick={() => {
+                    // eslint-disable-next-line react-hooks/refs
                     editorRef.current?.setContent(aiHtml)
                     setHtmlBody(aiHtml)
                     setTextBody(variant.message)
