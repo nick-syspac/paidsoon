@@ -23,7 +23,9 @@ model UserProfile {
   pendingDowngradeTier         String?   @map("pending_downgrade_tier")
   stripeScheduleId             String?   @map("stripe_schedule_id")
   subscriptionTier             String    @default("free") // 'free' | 'pro'
-  subscriptionStatus           String    @default("active") // 'active' | 'cancelled' | 'past_due'
+  subscriptionStatus           String    @default("active") // 'active' | 'trialing' | 'cancelled' | 'past_due'
+  trialEndsAt                  DateTime? @map("trial_ends_at")
+  onboardingCompletedAt        DateTime? @map("onboarding_completed_at")
   createdAt                    DateTime  @default(now())
   updatedAt                    DateTime  @updatedAt
 

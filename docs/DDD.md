@@ -222,6 +222,8 @@ erDiagram
         string stripeCustomerId UK
         string subscriptionTier
         string subscriptionStatus
+        datetime trialEndsAt
+        datetime onboardingCompletedAt
     }
     INVOICE_CONNECTION {
         string id PK
@@ -280,7 +282,7 @@ erDiagram
 
 | Model | Path | Purpose | Key fields | Relationships | Tenant scoped? | Notes |
 |---|---|---|---|---|---|---|
-| `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `subscriptionTier`, `subscriptionStatus` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | Default tier `"free"` in schema; normalised to `starter` |
+| `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `subscriptionTier`, `subscriptionStatus`, `trialEndsAt`, `onboardingCompletedAt` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | New users start with `subscriptionStatus: "trialing"` and `trialEndsAt: now + 14 days`; `onboardingCompletedAt` is null until plan is chosen on `/onboarding` |
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
 | `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `own_email_address` |
@@ -303,6 +305,7 @@ because the cron worker inserts via the RLS-bypassing service role.
 
 | Route | Handler | Validation | Permission | Tenant scoping | Request → Response | Status |
 |---|---|---|---|---|---|---|
+| `PATCH /api/onboarding` | `app/api/onboarding/route.ts` | `zod` `{tier}` | session | `withUserContext` profile | `{tier}` → `{ok}` | Implemented |
 | `POST /api/billing/checkout` | `app/api/billing/checkout/route.ts` | `zod` `{tier?}` | session | `withUserContext` profile | `{tier}` → `{url}` | Implemented |
 | `POST /api/billing/portal` | `app/api/billing/portal/route.ts` | — | session | `withUserContext` | `{}` → `{url}` | Implemented |
 | `GET /api/stripe/connect/authorize` | `.../authorize/route.ts` | — | session | `withUserContext` count | → redirect to Stripe | Implemented |

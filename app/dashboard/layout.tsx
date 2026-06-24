@@ -1,6 +1,9 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { withUserContext } from "@/lib/db/withUserContext"
+import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { TrialBanner } from "@/components/dashboard/TrialBanner"
 
 export default async function DashboardLayout({
   children,
@@ -12,8 +15,36 @@ export default async function DashboardLayout({
 
   if (!user) redirect("/sign-in")
 
+  const profile = await withUserContext(user.id, (tx) =>
+    tx.userProfile.findUnique({
+      where: { userId: user.id },
+      select: { subscriptionStatus: true, trialEndsAt: true, subscriptionTier: true },
+    }),
+  )
+
+  const isTrialing = profile?.subscriptionStatus === "trialing"
+  const trialEndsAt = profile?.trialEndsAt ?? null
+  const tier = normalizeSubscriptionTier(profile?.subscriptionTier)
+
+  // Gate: trial has expired → force checkout
+  if (isTrialing && trialEndsAt !== null && trialEndsAt < new Date()) {
+    redirect(`/billing/checkout?plan=${tier}&reason=trial_expired`)
+  }
+
+  // Banner: trial still active
+  const daysRemaining =
+    isTrialing && trialEndsAt !== null
+      ? Math.max(0, Math.ceil((trialEndsAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
+      : null
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {daysRemaining !== null && (
+        <TrialBanner
+          daysRemaining={daysRemaining}
+          checkoutUrl={`/dashboard/settings/subscription?plan=${tier}`}
+        />
+      )}
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/dashboard" className="font-semibold text-gray-900 text-sm">

@@ -73,6 +73,7 @@ export async function POST(request: Request) {
           data: {
             subscriptionTier: checkoutTier,
             subscriptionStatus: "active",
+            trialEndsAt: null,
             stripeCustomerId: session.customer as string,
             stripeSubscriptionId: subscriptionId,
             subscriptionCurrentPeriodEnd: periodEnd,
