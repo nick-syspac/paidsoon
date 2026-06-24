@@ -1,9 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Spinner } from "@/components/ui/Spinner"
 import type { SubscriptionTier } from "@/lib/subscriptionPlans"
+
+const VALID_TIERS: SubscriptionTier[] = ["starter", "solo", "small_business"]
+
+function getPreselectedTier(): SubscriptionTier {
+  try {
+    const stored = localStorage.getItem("preselectedPlan")
+    localStorage.removeItem("preselectedPlan")
+    if (stored && (VALID_TIERS as string[]).includes(stored)) {
+      return stored as SubscriptionTier
+    }
+  } catch {
+    // localStorage unavailable (e.g. private browsing restrictions)
+  }
+  return "solo"
+}
 
 interface Plan {
   id: SubscriptionTier
@@ -58,6 +73,10 @@ const PLANS: Plan[] = [
 export function OnboardingPlanPicker() {
   const router = useRouter()
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier>("solo")
+
+  useEffect(() => {
+    setSelectedTier(getPreselectedTier())
+  }, [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

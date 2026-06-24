@@ -59,7 +59,7 @@ export default function LandingPage() {
               Sign in
             </Link>
             <Link
-              href="/sign-up"
+              href="/pricing"
               className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700"
             >
               View plans
@@ -81,10 +81,10 @@ export default function LandingPage() {
         </p>
         <div className="mt-8 flex items-center justify-center gap-4">
           <Link
-            href="/sign-up"
+            href="/pricing"
             className="bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-medium hover:bg-blue-700"
           >
-            Start with Starter
+            View plans
           </Link>
           <a
             href="#how-it-works"
@@ -189,7 +189,7 @@ export default function LandingPage() {
                   ))}
                 </ul>
                 <Link
-                  href="/sign-up"
+                  href="/pricing"
                   className={`block text-center text-sm py-2 rounded-md ${
                     plan.featured
                       ? "bg-blue-600 text-white hover:bg-blue-700"
