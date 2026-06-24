@@ -132,7 +132,7 @@ export function buildDashboardUpsellModel({
     description: `${baseDescription} ${nearLimitDescription}`,
     sampleRows: LOCKED_DASHBOARD_SAMPLE_ROWS,
     recommendedTier: nextTier,
-    ctaLabel: `Upgrade to ${recommendedPlan.name} — $${recommendedPlan.monthlyPriceUsd}/mo`,
+    ctaLabel: `Upgrade to ${recommendedPlan.name} — A$${recommendedPlan.monthlyPriceAud}/mo`,
     ctaHref: `/dashboard/settings/subscription?recommend=${nextTier}`,
     nearLimit,
   }

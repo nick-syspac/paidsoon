@@ -268,7 +268,7 @@ export function SubscriptionClient({
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-900">{plan.name}</span>
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">
-                  ${plan.monthlyPriceUsd}/mo
+                  A${plan.monthlyPriceAud}/mo
                 </span>
               </div>
               <ul className="text-xs text-gray-600 space-y-0.5">

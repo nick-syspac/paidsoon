@@ -28,8 +28,8 @@ user-configurable schedule. The product's value proposition is removing the
 emotional friction of chasing payment: the freelancer "hides behind" a neutral
 automated system (`openspec/changes/invoice-nudge-mvp/proposal.md`).
 
-The platform is monetised through tiered subscriptions (Starter $9 / Solo $19 /
-Small Business $39 per month) billed via **Stripe Billing**. Subscription tier
+The platform is monetised through tiered subscriptions (Starter A$9 / Solo A$19 /
+Small Business A$39 per month) billed via **Stripe Billing**. Subscription tier
 gates feature access and usage limits (number of chased invoices, connected
 Stripe accounts, user seats, custom from-address, templates, AI rewrite)
 (`lib/subscriptionPlans.ts`).
@@ -68,8 +68,7 @@ endpoint (`app/api/settings/team/invite/route.ts`).
 | Invoice client (recipient) | Receives reminder emails; not a system user | `lib/email/templates.ts` |
 
 There is **no** dedicated support/helpdesk integration, no object/file storage
-provider, no analytics provider, and no AI provider wired into the code (the
-"AI rewrite" endpoint returns a string placeholder — see §5).
+provider, and no analytics provider.
 
 ### Context diagram
 
@@ -127,7 +126,7 @@ by Vercel Cron.
 | Billing provider | Stripe Billing (subscriptions + portal) | Implemented |
 | Invoice source | Stripe Connect (provider-abstraction layer) | Implemented |
 | Email provider | Resend | Implemented |
-| AI provider gateway | **None** — `/api/settings/ai` returns a placeholder string | Stub only |
+| AI provider gateway | GPT-4o-mini via Vercel AI SDK (`@ai-sdk/openai`); `lib/email/ai-rewrite.ts` | Implemented |
 | CI/CD | **No `.github/workflows/**`** present; deploy via Vercel Git integration | See §10 |
 | Environments | Local, Vercel Preview, Production (`docs/runbooks/README.md`) | Implemented (operator-configured) |
 
@@ -168,7 +167,7 @@ no `apps/*` or `packages/*` workspaces.
 | Invoice providers | `lib/providers/**` | Provider abstraction; Stripe implementation | In-process | `stripe` only today |
 | Email | `lib/email/**` | Templates, schedule math, send, catch-up scan | In-process | Resend |
 | Cron handler | `app/api/cron/send-emails/route.ts` | Catch-up + dispatch sequence | Vercel serverless | Triggered by `vercel.json` cron |
-| Prisma schema | `prisma/schema.prisma` | 6 application models | Build/migrate | Generated client → `lib/generated/prisma` |
+| Prisma schema | `prisma/schema.prisma` | 8 application models | Build/migrate | Generated client → `lib/generated/prisma` |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation policies (applied manually in Supabase) | Postgres | Not run by `prisma migrate` |
 | Generated Prisma client | `lib/generated/prisma/**` | Generated at `prisma generate` (build step) | In-process | Git-ignored output |
 | Runbooks | `docs/runbooks/**` | Operator setup (Supabase, Stripe, Resend, Vercel) | Docs | Canonical env-var matrix |
@@ -198,9 +197,9 @@ what is actually present, and explicitly marks absent capabilities.
 | Dashboard | Overdue + resolved views, upsell | Implemented | `app/dashboard/page.tsx`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell/specs/...` | Feature-gated modules |
 | Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/update-subscription-plan-tiers/specs/...` | 3 tiers |
 | Live-mode gating | Pre-launch auth lockout + banner | Implemented | `lib/liveMode.ts`, `middleware.ts`, `app/layout.tsx` | `changes/live-mode-auth-gate-banner/specs/...` | `LIVE` env var |
-| Templates (basic) | List basic templates | Implemented (read) | `app/api/settings/templates/route.ts` | — | Built-in list only |
-| Custom templates | Persist custom reminder copy | **Scaffold only** | `app/api/settings/templates/route.ts` (PUT) | — | Returns payload; no persistence model |
-| AI rewrite / tone | Rewrite reminder text | **Stub only** | `app/api/settings/ai/route.ts` | — | Returns `` `[tone] text` `` placeholder; no AI provider |
+| Templates | Read/write per-stage reminder templates | Implemented | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite`, `changes/templates-sidebar-help` | GET/PUT/DELETE; persists to `email_templates`; sidebar with variable chips |
+| AI rewrite | GPT-4o-mini rewrite of reminder text | Implemented | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | Three tone variants; usage logged; embedded in templates page |
+| Subscription plan switching | Upgrade mid-cycle; deferred downgrade | Implemented | `app/api/billing/{checkout,downgrade}/route.ts` | `changes/subscription-plan-switching` | Upgrade via Stripe sub update; downgrade via Stripe Schedule |
 | Team seats / invites | Invite teammates | **Scaffold only** | `app/api/settings/team/invite/route.ts` | — | Limit-checked; no membership model/persistence |
 | Payment-failed handling | Mark `past_due` on failed charge | **Proposed, not implemented** | (would be `app/api/webhooks/stripe-billing/route.ts`) | `changes/handle-billing-payment-failed-webhook/proposal.md` | No `invoice.payment_failed` case in code |
 | Env-var drift CI check | Assert runbook matrix matches code | **Proposed, not implemented** | (would be `scripts/check-runbook-envvars.ts`) | `changes/ci-runbook-envvar-drift-check/proposal.md` | No script, no CI workflow |

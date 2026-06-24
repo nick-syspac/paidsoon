@@ -160,13 +160,19 @@ subsection documents a functional module.
   inside `withUserContext` and re-check ownership via `findFirst` with
   `userId: user.id`, returning 404 when not found/ineligible.
 
-### 4.8 Settings scaffolds (templates / AI / team)
+### 4.8 Settings (templates / AI / team)
 
-- `settings/templates` — GET returns a fixed `BASIC_TEMPLATES` list (gated by
-  `basic_templates`); PUT is gated by `custom_reminder_templates` but **does not
-  persist** (returns the payload).
-- `settings/ai` — GET reports `canRewrite`/`canSetTone`; POST returns
-  `` `[tone] text` `` — **a placeholder, not a real AI call**.
+- `settings/templates` — GET returns the saved or default template for a stage
+  (gated by `basic_templates`); PUT is gated by `custom_reminder_templates` and
+  persists to the `email_templates` table via `withUserContext`; DELETE resets a
+  stage to the system default.
+- `settings/ai` — GET reports `canRewrite`; POST accepts `{ text, stage }`,
+  calls GPT-4o-mini via the Vercel AI SDK (`lib/email/ai-rewrite.ts`), and
+  returns three tone variants (`friendly`, `firm`, `final_notice`). Token usage
+  and estimated cost are written to `ai_usage_logs` via `prismaAdmin`
+  (documented RLS bypass: token counts are only available after the call).
+  **There is no standalone AI settings page** — AI controls are embedded in the
+  Templates settings page (`app/dashboard/settings/templates`).
 - `settings/team/invite` — GET reports seats; POST validates email and seat
   limit but **does not persist** (no membership model).
 
@@ -186,7 +192,7 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 | Sign out | `app/auth/sign-out/route.ts` | `signOut()` → redirect `/` |
 | Dashboard shell | `app/dashboard/layout.tsx` | Nav + sign-out; redirects unauthenticated to `/sign-in` |
 | Dashboard page | `app/dashboard/page.tsx` | Overdue/resolved tables; feature-gated modules + upsell |
-| Settings pages | `app/dashboard/settings/{schedule,email,templates,ai,team,stripe,subscription}/page.tsx` | Each pairs with a `*Client.tsx` |
+| Settings pages | `app/dashboard/settings/{schedule,email,templates,team,stripe,subscription}/page.tsx` | Each pairs with a `*Client.tsx`; AI controls are embedded in the templates page |
 | Dashboard components | `components/dashboard/{InvoiceTable,LockedDashboardPreview,UpgradeBanner}.tsx` | Table + locked preview + banner |
 | Settings clients | `components/settings/*Client.tsx` | Client-side forms calling the settings APIs |
 | Shared UI | `components/ui/Spinner.tsx` | Only shared primitive |
@@ -203,8 +209,8 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 
 ## 6. Database Design
 
-Six application tables, all owned by a single user (tenant = `userId`). All FKs
-reference `user_profiles.userId` (or parent rows) with `ON DELETE RESTRICT`.
+Eight application tables, all owned by a single user (tenant = `userId`). All
+FKs reference `user_profiles.userId` (or parent rows) with `ON DELETE RESTRICT`.
 
 ### 6.1 Tenancy / profile / connections / config
 
@@ -220,6 +226,10 @@ erDiagram
         string id PK
         string userId UK
         string stripeCustomerId UK
+        string stripeSubscriptionId
+        datetime subscriptionCurrentPeriodEnd
+        string pendingDowngradeTier
+        string stripeScheduleId
         string subscriptionTier
         string subscriptionStatus
         datetime trialEndsAt
@@ -276,18 +286,40 @@ erDiagram
         string fromAddress
         string subject
     }
+    EMAIL_TEMPLATE {
+        string id PK
+        string userId FK
+        int stage
+        string subject
+        string htmlBody
+        string textBody
+    }
+    AI_USAGE_LOG {
+        string id PK
+        string userId FK
+        string model
+        string feature
+        int promptTokens
+        int completionTokens
+        decimal estimatedCostUsd
+    }
 ```
+
+`USER_PROFILE ||--o{ EMAIL_TEMPLATE : has`
+`USER_PROFILE ||--o{ AI_USAGE_LOG : logs`
 
 ### 6.3 Model reference
 
 | Model | Path | Purpose | Key fields | Relationships | Tenant scoped? | Notes |
 |---|---|---|---|---|---|---|
-| `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `subscriptionTier`, `subscriptionStatus`, `trialEndsAt`, `onboardingCompletedAt` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | New users start with `subscriptionStatus: "trialing"` and `trialEndsAt: now + 14 days`; `onboardingCompletedAt` is null until plan is chosen on `/onboarding` |
+| `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `stripeSubscriptionId`, `subscriptionCurrentPeriodEnd`, `pendingDowngradeTier`, `stripeScheduleId`, `subscriptionTier`, `subscriptionStatus`, `trialEndsAt`, `onboardingCompletedAt` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | New users start with `subscriptionStatus: "trialing"` and `trialEndsAt: now + 14 days`; `onboardingCompletedAt` is null until plan is chosen on `/onboarding` |
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
 | `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `own_email_address` |
 | `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil` | N—1 profile/connection; 1—N logs | Yes | Unique `(externalId, provider, userId)` |
 | `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject` | N—1 tracked invoice | Yes (via join policy) | Insert via service role |
+| `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
+| `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
 
 > ERDs for RBAC, compliance/controls/obligations/evidence, workflow,
 > integrations registry, audit, AI policy, and vertical models are **not
@@ -295,11 +327,15 @@ erDiagram
 
 ### 6.4 RLS design
 
-`prisma/rls-policies.sql` enables RLS on all six tables. Policies key on
-`auth.uid()::text = "userId"` for SELECT/INSERT/UPDATE (no DELETE policies — the
-app does not delete rows; FKs are `RESTRICT`). `email_logs` SELECT uses an
-`EXISTS` join to `tracked_invoices`; its INSERT policy is `WITH CHECK (true)`
-because the cron worker inserts via the RLS-bypassing service role.
+`prisma/rls-policies.sql` enables RLS on all eight tables. Policies key on
+`auth.uid()::text = "userId"` for SELECT/INSERT/UPDATE. `email_templates` has a
+DELETE policy (users reset a stage to defaults). Other tables have no DELETE
+policy (app never hard-deletes rows; FKs are `RESTRICT`). `email_logs` SELECT
+and INSERT both use a join-based `EXISTS` check against `tracked_invoices`
+(ownership via `userId`); the cron worker bypasses RLS entirely via `prismaAdmin`
+(service role), so the tightened INSERT policy does not affect it. `ai_usage_logs`
+has a SELECT policy for own rows; INSERTs are `prismaAdmin`-only (no user INSERT
+policy).
 
 ## 7. API Design
 
@@ -320,8 +356,10 @@ because the cron worker inserts via the RLS-bypassing service role.
 | `POST /api/invoices/[id]/resolve` | `.../resolve/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `GET/PUT /api/settings/schedule` | `.../schedule/route.ts` | `zod` ascending offsets | session + `email_reminder_sequence` | `withUserContext` upsert | → `{schedule}` / `{success}` | Implemented |
 | `GET/PUT /api/settings/email` | `.../email/route.ts` | `zod` email/name | session + `own_email_address` (PUT) | `withUserContext` | → `{settings}` / `{success}` | Implemented |
-| `GET/PUT /api/settings/templates` | `.../templates/route.ts` | `zod` subject/body | session + template features | (none) | → `{templates}` / `{template}` | GET impl; **PUT not persisted** |
-| `GET/POST /api/settings/ai` | `.../ai/route.ts` | `zod` text/tone | session + `ai_rewrite`/`tone_settings` | (none) | → caps / `{rewrittenText}` | **Stub (placeholder)** |
+| `GET/PUT/DELETE /api/settings/templates` | `.../templates/route.ts` | `zod` subject/body | session + template features | `withUserContext` (PUT/DELETE) | → `{...template}` / `{success}` | Implemented |
+| `GET/POST /api/settings/ai` | `.../ai/route.ts` | `zod` text/stage | session + `ai_rewrite` | `prismaAdmin` (`ai_usage_logs`) | → `{canRewrite}` / `{success, friendly, firm, final_notice}` | Implemented (GPT-4o-mini) |
+| `POST /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | `zod` `{tier}` | session | `withUserContext` profile | `{tier}` → `{scheduledAt}` | Implemented |
+| `DELETE /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | — | session | `withUserContext` profile | → `{cancelled}` | Implemented |
 | `GET/POST /api/settings/team/invite` | `.../team/invite/route.ts` | `zod` email | session | (none) | → seats / `{success}` | **Scaffold (not persisted)** |
 
 Canonical vs deprecated: there are no deprecated API aliases. The only
@@ -413,9 +451,9 @@ stateDiagram-v2
 
 | Tier | Price/mo | Chased invoices | Seats | Stripe accounts | Notable features |
 |---|---|---|---|---|---|
-| `starter` | $9 | 10 | 1 | 1 | basic reminders, branding |
-| `solo` | $19 | 30 | 1 | 1 | sequence, basic templates, own email, payment+overdue dashboards |
-| `small_business` | $39 | 100 | 3 | 3 | + custom templates, AI rewrite, tone settings |
+| `starter` | A$9 | 10 | 1 | 1 | basic reminders, branding |
+| `solo` | A$19 | 30 | 1 | 1 | sequence, basic templates, own email, payment+overdue dashboards |
+| `small_business` | A$39 | 100 | 3 | 3 | + custom templates, AI rewrite, tone settings |
 
 - **Features** are a `Record<SubscriptionFeature, boolean>` per plan; checked via
   `hasPlanFeature`/`requireFeature`.
@@ -434,14 +472,29 @@ stateDiagram-v2
 - **Not implemented:** `invoice.payment_failed` → `past_due`
   (`changes/handle-billing-payment-failed-webhook`); add-ons; usage events.
 
-## 12. AI Gateway and Policy Design
+## 12. AI Rewrite Design
 
-**No AI gateway exists.** `app/api/settings/ai/route.ts` gates on the
-`ai_rewrite`/`tone_settings` plan features and returns
-`` `[tone] text` `` — a literal placeholder, **not** a model call. There is no
-AI provider abstraction, no allowed-model list, no budgets/rate limits, no
-RAG/vector store, and no local LLM/Ollama in the dev stack. Any "AI rewrite"
-product copy describes intended, not implemented, behaviour.
+`app/api/settings/ai/route.ts` gates on the `ai_rewrite` plan feature
+(`small_business` tier only).
+
+**GET** returns `{ canRewrite: boolean }`.
+
+**POST** accepts `{ text, stage: 1|2|3 }` and calls GPT-4o-mini via the Vercel
+AI SDK (`lib/email/ai-rewrite.ts`). The model produces three tone variants —
+`friendly`, `firm`, and `final_notice` — each with a rewritten `subject` and
+`message`. A stage-specific prompt prefix guides tone (stage 1 = friendly;
+stage 2 = professional + urgent; stage 3 = direct + firm deadline). After a
+successful call, token counts and estimated cost (USD) are written to
+`ai_usage_logs` via `prismaAdmin` (documented RLS bypass: token counts are only
+available after the call completes, outside any user-context transaction).
+
+**UI integration:** the AI Rewrite button lives in the Templates settings page
+(`app/dashboard/settings/templates`). The standalone `/dashboard/settings/ai`
+page was removed as part of `changes/ai-message-rewrite`.
+
+**No AI gateway abstraction** — one hardcoded `gpt-4o-mini` model call via
+`@ai-sdk/openai`. No allowed-model registry, no budget enforcement, no
+RAG/vector store, no LLM fallback.
 
 ## 13. Notifications and Messaging Design
 
@@ -546,8 +599,9 @@ automated tests; only pure helpers are unit-tested.
 - **Service-role escalation:** `prismaAdmin` bypasses RLS; restricted by
   convention to cron, webhooks, and post-signup bootstrap
   (`lib/actions/auth.ts`); imports are grep-able by design.
-- **Data access controls:** RLS policies on all six tables; no DELETE policies
-  (app never deletes; FKs `RESTRICT`).
+- **Data access controls:** RLS policies on all eight tables; `email_templates`
+  has a DELETE policy (users reset a stage to defaults); other tables have no
+  DELETE policy (FKs `RESTRICT`).
 - **Storage access controls:** N/A (no object storage).
 - **Encryption:** delegated to managed platforms. **Gap:**
   `stripeConnectAccountId` is documented as app-encrypted but stored in plaintext
@@ -555,7 +609,9 @@ automated tests; only pure helpers are unit-tested.
 - **Secrets:** environment variables only; no secrets manager.
 - **Webhook/cron auth:** Stripe signatures; `CRON_SECRET` bearer.
 - **OAuth CSRF:** Stripe Connect `state == user.id` check.
-- **AI governance:** N/A (no AI calls).
+- **AI governance:** `ai_usage_logs` records model name, feature, token counts,
+  and estimated cost per call; gated to `small_business` tier via
+  `requireFeature`.
 - **PII handling:** client name/email and invoice amounts are stored; **no
   documented retention, minimisation, or deletion** policy. RLS prevents
   cross-tenant exposure.
@@ -597,9 +653,10 @@ automated tests; only pure helpers are unit-tested.
 | Rename to PaidSoon | Yes | Specified | `app/layout.tsx`, `lib/email/send.ts` | `changes/rename-to-paidsoon` | Brand flip |
 | How-it-works gating | Yes | Specified | `app/page.tsx` | `changes/expand-how-it-works-with-plan-gated-features` | Tasks all checked |
 | Environment runbooks | Yes (docs) | Specified | `docs/runbooks/**` | `changes/build-environment-runbooks` | Replaces old SETUP/GO-LIVE |
-| Basic templates (read) | Partial | Not specified | `app/api/settings/templates/route.ts` | — | PUT not persisted |
-| Custom templates | Partially implemented | Not specified | `app/api/settings/templates/route.ts` | — | Scaffold |
-| AI rewrite / tone | Partially implemented | Not specified | `app/api/settings/ai/route.ts` | — | Placeholder string |
+| Basic templates | Yes | Specified | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite`, `changes/templates-sidebar-help` | GET/PUT/DELETE; persists to `email_templates`; sidebar with variable chips |
+| Custom templates | Yes | Specified | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite` | Persisted via `withUserContext`; gated to `small_business` |
+| AI rewrite | Yes | Specified | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | GPT-4o-mini; usage logged; UI embedded in templates page |
+| Subscription plan switching | Yes | Specified | `app/api/billing/{checkout,downgrade}/route.ts` | `changes/subscription-plan-switching` | Upgrade mid-cycle; deferred downgrade via Stripe Schedule |
 | Team seats / invites | Partially implemented | Not specified | `app/api/settings/team/invite/route.ts` | — | No persistence |
 | `invoice.payment_failed` | No | Proposed | (`app/api/webhooks/stripe-billing/route.ts`) | `changes/handle-billing-payment-failed-webhook` | Not in code |
 | Env-var drift CI check | No | Proposed | (`scripts/check-runbook-envvars.ts`) | `changes/ci-runbook-envvar-drift-check` | No CI at all |
@@ -621,7 +678,7 @@ automated tests; only pure helpers are unit-tested.
 
 **Code gaps**
 - `invoice.payment_failed` handler missing (proposed).
-- Custom templates / AI rewrite / team invites are non-functional scaffolds.
+- Team invites are a non-functional scaffold (no membership model or persistence).
 - Cron `send-emails` loops sequentially over all due invoices with no
   pagination/batching — a scaling risk.
 
@@ -678,7 +735,9 @@ automated tests; only pure helpers are unit-tested.
 `enforce-rls-via-prisma`, `update-subscription-plan-tiers`, `rename-to-paidsoon`,
 `live-mode-auth-gate-banner`, `login-loading-spinner`, `logout-redirect-homepage`,
 `sample-overdue-preview-upsell`, `build-environment-runbooks`,
-`expand-how-it-works-with-plan-gated-features`.
+`expand-how-it-works-with-plan-gated-features`, `signup-trial-onboarding`,
+`email-settings-field-hints`, `templates-sidebar-help`, `ai-message-rewrite`,
+`subscription-plan-switching`.
 
 **Proposed / not implemented:** `handle-billing-payment-failed-webhook`
 (no `invoice.payment_failed` case in code), `ci-runbook-envvar-drift-check`

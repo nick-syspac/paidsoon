@@ -119,7 +119,13 @@ CREATE POLICY "users can view own email logs"
 
 CREATE POLICY "service role can insert email logs"
   ON email_logs FOR INSERT
-  WITH CHECK (true); -- Cron job uses service role key; RLS bypassed for inserts
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM tracked_invoices
+      WHERE tracked_invoices.id = email_logs."trackedInvoiceId"
+        AND tracked_invoices."userId" = auth.uid()::text
+    )
+  ); -- Cron job uses prismaAdmin (service role) which bypasses RLS entirely
 
 -- ---------------------------------------------------------------------------
 -- email_templates

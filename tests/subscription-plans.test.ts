@@ -9,9 +9,9 @@ import {
 } from "@/lib/subscriptionPlans"
 
 test("plan catalog includes Starter, Solo, and Small Business pricing", () => {
-  assert.equal(PLAN_CATALOG.starter.monthlyPriceUsd, 9)
-  assert.equal(PLAN_CATALOG.solo.monthlyPriceUsd, 19)
-  assert.equal(PLAN_CATALOG.small_business.monthlyPriceUsd, 39)
+  assert.equal(PLAN_CATALOG.starter.monthlyPriceAud, 9)
+  assert.equal(PLAN_CATALOG.solo.monthlyPriceAud, 19)
+  assert.equal(PLAN_CATALOG.small_business.monthlyPriceAud, 39)
 })
 
 test("invoice limits are tier-specific", () => {

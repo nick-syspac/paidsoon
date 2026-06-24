@@ -17,7 +17,7 @@ export default async function OnboardingPage() {
     select: { onboardingCompletedAt: true },
   })
 
-  if (profile?.onboardingCompletedAt !== null) {
+  if (profile?.onboardingCompletedAt != null) {
     redirect("/dashboard")
   }
 

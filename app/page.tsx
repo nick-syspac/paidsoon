@@ -176,7 +176,7 @@ export default function LandingPage() {
                 <div>
                   <p className="text-lg font-semibold text-gray-900">{plan.name}</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">
-                    ${plan.price}<span className="text-base font-normal text-gray-400">/mo</span>
+                    A${plan.price}<span className="text-base font-normal text-gray-400">/mo</span>
                   </p>
                   <p className="text-sm text-gray-500 mt-2">{plan.description}</p>
                 </div>
