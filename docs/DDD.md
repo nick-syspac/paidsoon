@@ -190,6 +190,7 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 | Auth pages | `app/(auth)/sign-in/page.tsx`, `app/(auth)/sign-up/page.tsx` | Client components; email/pw + Google OAuth; `Spinner` loading state |
 | Auth callback | `app/auth/callback/route.ts` | `exchangeCodeForSession` → `/dashboard` |
 | Sign out | `app/auth/sign-out/route.ts` | `signOut()` → redirect `/` |
+| Trial checkout gateway | `app/billing/checkout/page.tsx` | Server component; reads `?plan` param (falls back to profile tier), POSTs to `/api/billing/checkout`, and redirects to the Stripe Checkout URL. Entry point for both the trial-expired gate and the TrialBanner "Add payment" CTA. Renders an error UI if checkout session creation fails. |
 | Dashboard shell | `app/dashboard/layout.tsx` | Nav + sign-out; redirects unauthenticated to `/sign-in` |
 | Dashboard page | `app/dashboard/page.tsx` | Overdue/resolved tables; feature-gated modules + upsell |
 | Settings pages | `app/dashboard/settings/{schedule,email,templates,team,stripe,subscription}/page.tsx` | Each pairs with a `*Client.tsx`; AI controls are embedded in the templates page |

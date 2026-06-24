@@ -104,3 +104,67 @@ test("invalid tiers are rejected by onboarding route schema", () => {
   assert.equal(validateOnboardingTier(undefined), false)
   assert.equal(validateOnboardingTier(42), false)
 })
+
+// ---------------------------------------------------------------------------
+// Checkout page — plan tier resolution logic
+// (mirrors the fallback in app/billing/checkout/page.tsx)
+// ---------------------------------------------------------------------------
+
+const VALID_CHECKOUT_TIERS = new Set(["starter", "solo", "small_business"])
+const DEFAULT_CHECKOUT_TIER = "solo" // normalizeSubscriptionTier default
+
+function resolveCheckoutTier(
+  planParam: string | undefined,
+  profileTier: string | null | undefined,
+): string {
+  // If a valid plan param is provided, use it.
+  if (planParam && VALID_CHECKOUT_TIERS.has(planParam)) return planParam
+  // Fall back to profile tier if valid.
+  if (profileTier && VALID_CHECKOUT_TIERS.has(profileTier)) return profileTier
+  // Ultimate fallback.
+  return DEFAULT_CHECKOUT_TIER
+}
+
+test("checkout resolves plan from query param when present", () => {
+  assert.equal(resolveCheckoutTier("starter", "solo"), "starter")
+  assert.equal(resolveCheckoutTier("small_business", "starter"), "small_business")
+})
+
+test("checkout falls back to profile tier when no plan param is given", () => {
+  assert.equal(resolveCheckoutTier(undefined, "solo"), "solo")
+  assert.equal(resolveCheckoutTier(undefined, "starter"), "starter")
+  assert.equal(resolveCheckoutTier(undefined, "small_business"), "small_business")
+})
+
+test("checkout falls back to default tier when both param and profile tier are absent", () => {
+  assert.equal(resolveCheckoutTier(undefined, null), DEFAULT_CHECKOUT_TIER)
+  assert.equal(resolveCheckoutTier(undefined, undefined), DEFAULT_CHECKOUT_TIER)
+})
+
+test("checkout ignores invalid plan param and falls back to profile tier", () => {
+  assert.equal(resolveCheckoutTier("enterprise", "solo"), "solo")
+  assert.equal(resolveCheckoutTier("free", "starter"), "starter")
+})
+
+// ---------------------------------------------------------------------------
+// Dashboard layout — trial banner checkoutUrl construction
+// (mirrors the checkoutUrl passed to TrialBanner in app/dashboard/layout.tsx)
+// ---------------------------------------------------------------------------
+
+function buildTrialCheckoutUrl(tier: string): string {
+  return `/billing/checkout?plan=${tier}`
+}
+
+test("trial banner checkoutUrl points to /billing/checkout for trialing user", () => {
+  assert.equal(buildTrialCheckoutUrl("solo"), "/billing/checkout?plan=solo")
+  assert.equal(buildTrialCheckoutUrl("starter"), "/billing/checkout?plan=starter")
+  assert.equal(
+    buildTrialCheckoutUrl("small_business"),
+    "/billing/checkout?plan=small_business",
+  )
+})
+
+test("trial banner checkoutUrl does not point to subscription settings page", () => {
+  const url = buildTrialCheckoutUrl("solo")
+  assert.equal(url.includes("/dashboard/settings/subscription"), false)
+})

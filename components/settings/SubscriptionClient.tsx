@@ -62,12 +62,14 @@ export function SubscriptionClient({
   status,
   currentPeriodEnd,
   pendingDowngradeTier: initialPendingTier,
+  preselectedTier,
   successMessage,
 }: {
   tier: SubscriptionTier
   status: string
   currentPeriodEnd: Date | null
   pendingDowngradeTier: SubscriptionTier | null
+  preselectedTier?: SubscriptionTier
   successMessage: string | null
 }) {
   const [loading, setLoading] = useState(false)
@@ -258,11 +260,16 @@ export function SubscriptionClient({
         {PLAN_ORDER.map((planId) => {
           const plan = PLAN_CATALOG[planId]
           const isCurrent = tier === planId
+          const isPreselected = !isCurrent && preselectedTier === planId
           return (
             <div
               key={plan.id}
               className={`border rounded-lg p-4 space-y-2 ${
-                isCurrent ? "border-blue-300 bg-blue-50/50" : "border-gray-200"
+                isCurrent
+                  ? "border-blue-300 bg-blue-50/50"
+                  : isPreselected
+                    ? "border-violet-300 bg-violet-50/40"
+                    : "border-gray-200"
               }`}
             >
               <div className="flex items-center justify-between">
@@ -304,6 +311,17 @@ export function SubscriptionClient({
                       </button>
                     </div>
                   )}
+                </div>
+              ) : isPreselected ? (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-violet-700">Your trial plan</p>
+                  <button
+                    onClick={() => handlePlanClick(plan.id)}
+                    disabled={loading}
+                    className="bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading && pendingTier === plan.id ? "Loading…" : `Subscribe to ${plan.name}`}
+                  </button>
                 </div>
               ) : (
                 <button

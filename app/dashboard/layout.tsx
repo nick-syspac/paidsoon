@@ -42,7 +42,7 @@ export default async function DashboardLayout({
       {daysRemaining !== null && (
         <TrialBanner
           daysRemaining={daysRemaining}
-          checkoutUrl={`/dashboard/settings/subscription?plan=${tier}`}
+          checkoutUrl={`/billing/checkout?plan=${tier}`}
         />
       )}
       <nav className="bg-white border-b border-gray-200">
