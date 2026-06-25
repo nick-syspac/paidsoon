@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { Turnstile } from "@marsidev/react-turnstile"
 import { createClient } from "@/lib/supabase/client"
 import { Spinner } from "@/components/ui/Spinner"
 
@@ -13,39 +14,42 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [checkEmail, setCheckEmail] = useState(false)
+  const [cfToken, setCfToken] = useState<string | null>(null)
 
   async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
+    const res = await fetch("/api/auth/sign-up", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, cfToken }),
+    })
 
-      if (error) {
-        setError(error.message)
-        return
-      }
+    setLoading(false)
 
-      if (data.session) {
-        router.push("/dashboard")
-        router.refresh()
-        return
-      }
-
-      setCheckEmail(true)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-up failed")
-    } finally {
-      setLoading(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setError(
+        typeof data?.error === "string"
+          ? data.error
+          : "Sign up failed. Please try again."
+      )
+      // Reset token so the widget can issue a fresh one
+      setCfToken(null)
+      return
     }
+
+    const data = await res.json().catch(() => ({}))
+
+    if (data.status === "session") {
+      router.push("/dashboard")
+      router.refresh()
+      return
+    }
+
+    setCheckEmail(true)
   }
 
   async function handleGoogleSignUp() {
@@ -124,9 +128,17 @@ export default function SignUpPage() {
             <p className="text-sm text-red-600">{error}</p>
           )}
 
+          <Turnstile
+            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""}
+            options={{ size: "invisible" }}
+            onSuccess={setCfToken}
+            onExpire={() => setCfToken(null)}
+            onError={() => setCfToken(null)}
+          />
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || cfToken === null}
             className="w-full bg-blue-600 text-white rounded-md py-2 px-4 text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <><Spinner />Creating account…</> : "Create account"}

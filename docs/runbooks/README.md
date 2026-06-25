@@ -84,6 +84,8 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `RESEND_FROM_NAME` | `PaidSoon (dev)` | `PaidSoon (preview)` | `PaidSoon` | [resend.md §3](./resend.md) |
 | `OPENAI_API_KEY` | dev `sk-proj-…` | dev `sk-proj-…` | prod `sk-proj-…` | [openai.md §1](./openai.md) |
 | `SEED_ENV` | `local` | `preview` | — (never set in production) | [preview-seed-data.md](../preview-seed-data.md) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `1x00000000000000000000AA` (CF test key — always passes) | `1x00000000000000000000AA` (CF test key) | real site key from [Cloudflare Turnstile dashboard](https://dash.cloudflare.com/) | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |
+| `TURNSTILE_SECRET_KEY` | `1x0000000000000000000000000000000AA` (CF test secret) | `1x0000000000000000000000000000000AA` (CF test secret) | real secret key from Cloudflare Turnstile dashboard | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |
 
 ### Where each var is consumed in code
 
@@ -112,6 +114,8 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `RESEND_FROM_NAME` | [lib/email/send.ts](../../lib/email/send.ts) |
 | `OPENAI_API_KEY` | `lib/email/ai-rewrite.ts` (to be created) — server-side only, never browser |
 | `SEED_ENV` | [scripts/seed-preview.ts](../../scripts/seed-preview.ts) — environment safety gate; never used by the application itself |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | [app/(auth)/sign-in/page.tsx](../../app/(auth)/sign-in/page.tsx), [app/(auth)/sign-up/page.tsx](../../app/(auth)/sign-up/page.tsx) — widget site key (browser-safe) |
+| `TURNSTILE_SECRET_KEY` | [lib/auth/verifyTurnstile.ts](../../lib/auth/verifyTurnstile.ts) — server-side Siteverify API secret; never expose to browser |
 
 ### Things you might expect but won't find
 
