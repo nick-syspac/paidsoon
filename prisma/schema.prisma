@@ -26,6 +26,7 @@ model UserProfile {
   subscriptionStatus           String    @default("active") // 'active' | 'trialing' | 'cancelled' | 'past_due'
   trialEndsAt                  DateTime? @map("trial_ends_at")
   onboardingCompletedAt        DateTime? @map("onboarding_completed_at")
+  displayName                  String?   @map("display_name")
   createdAt                    DateTime  @default(now())
   updatedAt                    DateTime  @updatedAt
 

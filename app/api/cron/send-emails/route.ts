@@ -1,5 +1,5 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
-import { sendFollowUpEmail } from "@/lib/email/send"
+import { sendFollowUpEmail, resolveFreelancerName } from "@/lib/email/send"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { runCatchUpScan } from "@/lib/email/catchup"
 import { NextResponse } from "next/server"
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       currentStage: { lt: 3 },
     },
     include: {
-      userProfile: { select: { subscriptionTier: true, userId: true } },
+      userProfile: { select: { subscriptionTier: true, userId: true, displayName: true } },
     },
   })
 
@@ -53,10 +53,11 @@ export async function GET(request: Request) {
     // Get freelancer's name and email from Supabase auth
     const { data: userData } = await supabaseAdmin.auth.admin.getUserById(invoice.userId)
     const freelancerEmail = userData?.user?.email ?? ""
-    const freelancerName =
-      userData?.user?.user_metadata?.full_name ??
-      userData?.user?.email?.split("@")[0] ??
-      "Your freelancer"
+    const freelancerName = resolveFreelancerName(
+      invoice.userProfile.displayName,
+      userData?.user?.user_metadata?.full_name,
+      userData?.user?.email,
+    )
 
     const messageId = await sendFollowUpEmail(invoice, stage, freelancerEmail, freelancerName)
 

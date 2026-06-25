@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
+import { UserMenu } from "@/components/dashboard/UserMenu"
 
 export default async function DashboardLayout({
   children,
@@ -18,7 +19,7 @@ export default async function DashboardLayout({
   const profile = await withUserContext(user.id, (tx) =>
     tx.userProfile.findUnique({
       where: { userId: user.id },
-      select: { subscriptionStatus: true, trialEndsAt: true, subscriptionTier: true },
+      select: { subscriptionStatus: true, trialEndsAt: true, subscriptionTier: true, displayName: true },
     }),
   )
 
@@ -63,14 +64,12 @@ export default async function DashboardLayout({
             >
               Settings
             </Link>
-            <form action="/auth/sign-out" method="POST">
-              <button
-                type="submit"
-                className="text-sm text-gray-400 hover:text-gray-600"
-              >
-                Sign out
-              </button>
-            </form>
+            <UserMenu
+              email={user.email ?? ""}
+              displayName={profile?.displayName ?? null}
+              tier={tier}
+              status={profile?.subscriptionStatus ?? "active"}
+            />
           </div>
         </div>
       </nav>
