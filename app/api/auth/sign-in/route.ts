@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { verifyTurnstile } from "@/lib/auth/verifyTurnstile"
 
 const signInSchema = z.object({
   email: z.string().email(),
@@ -24,13 +23,13 @@ export async function POST(request: Request) {
 
   const { email, password, cfToken } = parsed.data
 
-  const turnstile = await verifyTurnstile(cfToken)
-  if (!turnstile.success) {
-    return NextResponse.json({ error: turnstile.error }, { status: turnstile.status })
-  }
-
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  // captchaToken is verified by Supabase against the configured Turnstile provider
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    options: { captchaToken: cfToken },
+  })
 
   if (error) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })

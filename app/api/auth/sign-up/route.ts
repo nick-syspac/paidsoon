@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { verifyTurnstile } from "@/lib/auth/verifyTurnstile"
 
 const signUpSchema = z.object({
   email: z.string().email(),
@@ -24,16 +23,13 @@ export async function POST(request: Request) {
 
   const { email, password, cfToken } = parsed.data
 
-  const turnstile = await verifyTurnstile(cfToken)
-  if (!turnstile.success) {
-    return NextResponse.json({ error: turnstile.error }, { status: turnstile.status })
-  }
-
   const supabase = await createClient()
+  // captchaToken is verified by Supabase against the configured Turnstile provider
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
+      captchaToken: cfToken,
       emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/auth/callback`,
     },
   })
