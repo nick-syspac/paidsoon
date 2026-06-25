@@ -107,7 +107,7 @@ export default function SignInPage() {
 
           <Turnstile
             siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""}
-            options={{ size: "invisible" }}
+            options={{ size: "normal" }}
             onSuccess={setCfToken}
             onExpire={() => setCfToken(null)}
             onError={() => setCfToken(null)}
