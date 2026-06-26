@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { PricingCTA } from "@/components/pricing/PricingCTA"
 
 const pricingPlans = [
@@ -56,7 +57,7 @@ export default function PricingPage() {
       {/* Nav */}
       <nav className="border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <a href="/" className="font-semibold text-gray-900">PaidSoon</a>
+          <Link href="/" className="font-semibold text-gray-900">PaidSoon</Link>
           <div className="flex items-center gap-4">
             <a href="/sign-in" className="text-sm text-gray-600 hover:text-gray-900">
               Sign in

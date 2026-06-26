@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Spinner } from "@/components/ui/Spinner"
 import type { SubscriptionTier } from "@/lib/subscriptionPlans"
@@ -72,11 +72,7 @@ const PLANS: Plan[] = [
 
 export function OnboardingPlanPicker() {
   const router = useRouter()
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>("solo")
-
-  useEffect(() => {
-    setSelectedTier(getPreselectedTier())
-  }, [])
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(getPreselectedTier)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
