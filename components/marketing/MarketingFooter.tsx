@@ -70,7 +70,7 @@ export function MarketingFooter() {
               </p>
               <p>Australian owned and operated</p>
               <a
-                href="https://www.linkedin.com/company/paidsoon"
+                href="https://www.linkedin.com/company/syspac"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block hover:text-gray-900"
