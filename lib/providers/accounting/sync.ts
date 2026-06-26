@@ -312,7 +312,7 @@ async function upsertInvoice(params: {
         currentStage: 0,
         // Only schedule reminders for open invoices
         nextEmailAt: invoiceStatus === "pending" ? inv.dueDate : null,
-        providerMetadata: inv.rawMetadata ?? Prisma.DbNull,
+        providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
       },
     })
 
@@ -323,7 +323,7 @@ async function upsertInvoice(params: {
         accountingConnectionId: connection.id,
         providerInvoiceId: inv.providerInvoiceId,
         providerUpdatedAt: inv.providerUpdatedAt ?? null,
-        providerMetadata: inv.rawMetadata ?? Prisma.DbNull,
+        providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
       },
     })
 
@@ -339,14 +339,14 @@ async function upsertInvoice(params: {
         update: {
           contactName: clientName || null,
           contactEmail: clientEmail || null,
-          providerMetadata: contact?.rawMetadata ?? null,
+          providerMetadata: contact?.rawMetadata != null ? (contact.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
         },
         create: {
           accountingConnectionId: connection.id,
           providerContactId: inv.providerContactId,
           contactName: clientName || null,
           contactEmail: clientEmail || null,
-          providerMetadata: contact?.rawMetadata ?? null,
+          providerMetadata: contact?.rawMetadata != null ? (contact.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
         },
       })
     }
@@ -367,7 +367,7 @@ async function upsertInvoice(params: {
         status: invoiceStatus,
         // Cancel reminders when invoice transitions to paid/voided
         ...(wasOpen && nowClosed ? { nextEmailAt: null, currentStage: 0 } : {}),
-        providerMetadata: inv.rawMetadata ?? Prisma.DbNull,
+        providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
       },
     })
 
@@ -379,7 +379,7 @@ async function upsertInvoice(params: {
       },
       data: {
         providerUpdatedAt: inv.providerUpdatedAt ?? null,
-        providerMetadata: inv.rawMetadata ?? Prisma.DbNull,
+        providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
       },
     })
 
@@ -399,7 +399,6 @@ function mapProviderStatusToTracked(
     case "paid":
       return "paid"
     case "voided":
-    case "deleted":
       return "manually_resolved"
     case "draft":
       return "paused"
