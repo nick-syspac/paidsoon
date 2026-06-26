@@ -5,7 +5,6 @@
 import { test, describe, before, after, beforeEach } from "node:test"
 import assert from "node:assert/strict"
 import { XeroProvider } from "@/lib/providers/accounting/xero"
-import { AccountingProviderError } from "@/lib/providers/accounting/types"
 
 // Minimal env setup
 before(() => {
@@ -88,8 +87,7 @@ describe("XeroProvider", () => {
             code: "bad-code",
             redirectUri: "http://localhost:3000/api/integrations/xero/callback",
           }),
-        (err: unknown) =>
-          err instanceof AccountingProviderError && err.kind === "unauthorized"
+        { name: "AccountingProviderError", kind: "unauthorized" }
       )
     })
   })

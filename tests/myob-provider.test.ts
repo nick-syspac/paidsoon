@@ -5,7 +5,6 @@
 import { test, describe, before, after } from "node:test"
 import assert from "node:assert/strict"
 import { MyobProvider } from "@/lib/providers/accounting/myob"
-import { AccountingProviderError } from "@/lib/providers/accounting/types"
 
 before(() => {
   process.env.MYOB_CLIENT_ID = "test-myob-client"
@@ -77,8 +76,7 @@ describe("MyobProvider", () => {
             code: "bad",
             redirectUri: "http://localhost:3000/api/integrations/myob/callback",
           }),
-        (err: unknown) =>
-          err instanceof AccountingProviderError && err.kind === "unauthorized"
+        { name: "AccountingProviderError", kind: "unauthorized" }
       )
     })
   })
