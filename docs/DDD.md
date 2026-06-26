@@ -321,6 +321,11 @@ erDiagram
 | `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject` | N—1 tracked invoice | Yes (via join policy) | Insert via service role |
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
+| `AccountingConnection` | `prisma/schema.prisma` | OAuth connection to Xero or MYOB | `userId`, `provider`, `organisationId`, `organisationName`, `encryptedAccessToken`, `encryptedRefreshToken`, `tokenExpiresAt`, `scopes`, `status`, `lastSyncedAt` | N—1 profile; 1—N sync runs, provider mappings | Yes (RLS) | Unique `(userId, provider, organisationId)`; tokens encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY` |
+| `AccountingSyncRun` | `prisma/schema.prisma` | Sync run history per accounting connection | `accountingConnectionId`, `provider`, `userId`, `startedAt`, `completedAt`, `status`, `invoicesCreated`, `invoicesUpdated`, `invoicesSkipped`, `errorMessage` | N—1 connection | Yes (SELECT only; writes via `prismaAdmin` in cron) | Index on `(accountingConnectionId, startedAt)` |
+| `ProviderInvoiceMapping` | `prisma/schema.prisma` | Maps provider invoice IDs to `TrackedInvoice` | `trackedInvoiceId`, `accountingConnectionId`, `providerInvoiceId`, `providerUpdatedAt`, `providerMetadata` | 1—1 tracked invoice; N—1 connection | Yes (SELECT via JOIN on tracked_invoices.userId) | Unique `(providerInvoiceId, accountingConnectionId)`; `providerUpdatedAt` drives incremental sync |
+| `ProviderContactMapping` | `prisma/schema.prisma` | Maps provider customer/contact IDs for deduplication | `accountingConnectionId`, `providerContactId`, `contactName`, `contactEmail`, `providerMetadata` | N—1 connection | Yes (SELECT via JOIN on accounting_connections.userId) | Unique `(providerContactId, accountingConnectionId)`; `contactEmail` is PII |
+| `OauthState` | `prisma/schema.prisma` | CSRF nonce for accounting OAuth callbacks (10-min TTL) | `userId`, `provider`, `nonce`, `expiresAt` | — | Yes (by userId; SELECT/INSERT/DELETE) | Unique `(nonce)`; expired rows cleaned up by `/api/cron/sync-accounting` |
 
 > ERDs for RBAC, compliance/controls/obligations/evidence, workflow,
 > integrations registry, audit, AI policy, and vertical models are **not
@@ -362,8 +367,15 @@ policy).
 | `GET/POST /api/settings/ai` | `.../ai/route.ts` | `zod` text/stage | session + `ai_rewrite` | `prismaAdmin` (`ai_usage_logs`) | → `{canRewrite}` / `{success, friendly, firm, final_notice}` | Implemented (GPT-4o-mini) |
 | `POST /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | `zod` `{tier}` | session | `withUserContext` profile | `{tier}` → `{scheduledAt}` | Implemented |
 | `DELETE /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | — | session | `withUserContext` profile | → `{cancelled}` | Implemented |
-| `GET/POST /api/settings/team/invite` | `.../team/invite/route.ts` | `zod` email | session | (none) | → seats / `{success}` | **Scaffold (not persisted)** |
-
+| `GET/POST /api/settings/team/invite` | `.../team/invite/route.ts` | `zod` email | session | (none) | → seats / `{success}` | **Scaffold (not persisted)** || `GET /api/integrations/xero/connect` | `.../xero/connect/route.ts` | — | session + `accounting_integrations` feature | `prismaAdmin` oauth_state insert | → redirect to Xero OAuth | Implemented |
+| `GET /api/integrations/xero/callback` | `.../xero/callback/route.ts` | query `code,state` | session + nonce validation | `withUserContext` upsert accounting_connections | → redirect to settings | Implemented |
+| `POST /api/integrations/xero/disconnect` | `.../xero/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
+| `POST /api/integrations/xero/sync` | `.../xero/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
+| `GET /api/integrations/myob/connect` | `.../myob/connect/route.ts` | — | session + `accounting_integrations` feature | `prismaAdmin` oauth_state insert | → redirect to MYOB OAuth | Implemented |
+| `GET /api/integrations/myob/callback` | `.../myob/callback/route.ts` | query `code,state,businessId` | session + nonce validation | `withUserContext` upsert accounting_connections | → redirect to settings | Implemented |
+| `POST /api/integrations/myob/disconnect` | `.../myob/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
+| `POST /api/integrations/myob/sync` | `.../myob/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
+| `GET /api/cron/sync-accounting` | `.../cron/sync-accounting/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{totalConnections,succeeded,failed,invoicesCreated,invoicesUpdated}` | Implemented |
 Canonical vs deprecated: there are no deprecated API aliases. The only
 backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
 
@@ -520,12 +532,40 @@ RAG/vector store, no LLM fallback.
   - **Stripe Billing** — subscriptions/portal (`app/api/billing/**`).
   - **Resend** — email + domain verification.
   - **Supabase** — auth + DB.
+  - **Xero** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/xero.ts`). Solo+ tier.
+  - **MYOB Business** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/myob.ts`). Solo+ tier.
+
+### Accounting Provider Architecture
+
+All accounting integrations implement the `AccountingProvider` interface (`lib/providers/accounting/types.ts`). This is separate from the `InvoiceProvider` interface (which is event/webhook-driven for Stripe Connect).
+
+```
+AccountingProvider (interface)
+├── XeroProvider       — lib/providers/accounting/xero.ts
+└── MyobProvider       — lib/providers/accounting/myob.ts
+```
+
+The factory function `getAccountingProvider(providerName)` from `lib/providers/accounting/index.ts` returns the correct implementation.
+
+**Token encryption:** OAuth access/refresh tokens are encrypted at rest using AES-256-GCM via `lib/providers/accounting/crypto.ts`. The `TOKEN_ENCRYPTION_KEY` environment variable (64-char hex = 32 bytes) is required.
+
+**Sync model:** Pull-based polling (no webhooks). A Vercel Cron job (`GET /api/cron/sync-accounting`) at 02:00 UTC calls `syncAllActiveConnections()`. Users can also trigger manual syncs.
+
+**Incremental sync:** On subsequent syncs, `modifiedAfter = connection.lastSyncedAt` is passed to the provider. Xero uses the `If-Modified-Since` HTTP header; MYOB uses the `$filter=LastModified gt datetime'...'` OData query parameter.
+
+**Invoice import flow:**
+1. Provider invoice fetched → normalised to `ProviderInvoice` type
+2. `TrackedInvoice` upserted (unique on `externalId + provider + userId`)
+3. `ProviderInvoiceMapping` and `ProviderContactMapping` rows upserted
+4. When provider status transitions to `paid`/`voided` → `nextEmailAt` cleared (reminder cancelled)
+5. `AccountingSyncRun` row written with counts and any error
+
+**CSRF protection:** OAuth connect flows use a nonce stored in `oauth_states` (10-min TTL). Expired nonces are cleaned up by the sync cron job.
+
 - **Connectivity probes:** none, except the implicit Resend domain-status poll in
   the email settings GET.
-- **MYOB / other integrations:** not present (the provider interface allows
-  future sources, but only `stripe` is registered).
 - **Error handling:** webhook signature failures → 400; provider list/retrieve
-  failures are caught and skipped.
+  failures are caught and skipped; `AccountingProviderError({ kind: 'unauthorized' })` marks connection as `revoked`.
 
 ## 15. Reporting, Audit and Export Design
 

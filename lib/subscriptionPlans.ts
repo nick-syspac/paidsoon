@@ -11,6 +11,7 @@ export type SubscriptionFeature =
   | "tone_settings"
   | "payment_status_dashboard"
   | "overdue_invoice_dashboard"
+  | "accounting_integrations"
 
 export interface PlanLimits {
   chasedInvoicesPerMonth: number
@@ -54,6 +55,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tone_settings: false,
       payment_status_dashboard: false,
       overdue_invoice_dashboard: false,
+      accounting_integrations: false,
     },
   },
   solo: {
@@ -76,6 +78,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tone_settings: false,
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
+      accounting_integrations: true,
     },
   },
   small_business: {
@@ -98,6 +101,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tone_settings: true,
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
+      accounting_integrations: true,
     },
   },
 }

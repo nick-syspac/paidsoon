@@ -83,6 +83,13 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` | `onboarding@resend.dev` | `billing@paidsoon.com` | [resend.md §3](./resend.md) |
 | `RESEND_FROM_NAME` | `PaidSoon (dev)` | `PaidSoon (preview)` | `PaidSoon` | [resend.md §3](./resend.md) |
 | `OPENAI_API_KEY` | dev `sk-proj-…` | dev `sk-proj-…` | prod `sk-proj-…` | [openai.md §1](./openai.md) |
+| `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` (64 hex chars) | `openssl rand -hex 32` | `openssl rand -hex 32` — never share with Xero/MYOB or frontend |
+| `XERO_CLIENT_ID` | Xero developer app client ID | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) |
+| `XERO_CLIENT_SECRET` | Xero developer app client secret | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) — server-side only |
+| `XERO_REDIRECT_URI` | `http://localhost:3000/api/integrations/xero/callback` | preview deployment URL + `/api/integrations/xero/callback` | `https://paidsoon.com/api/integrations/xero/callback` | Must be registered in Xero developer portal |
+| `MYOB_CLIENT_ID` | MYOB developer app API key | same | same | From [MYOB developer portal](https://developer.myob.com) |
+| `MYOB_CLIENT_SECRET` | MYOB developer app API secret | same | same | From [MYOB developer portal](https://developer.myob.com) — server-side only |
+| `MYOB_REDIRECT_URI` | `http://localhost:3000/api/integrations/myob/callback` | preview deployment URL + `/api/integrations/myob/callback` | `https://paidsoon.com/api/integrations/myob/callback` | Must be registered in MYOB developer portal |
 | `SEED_ENV` | `local` | `preview` | — (never set in production) | [preview-seed-data.md](../preview-seed-data.md) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `1x00000000000000000000AA` (CF test key — always passes) | `1x00000000000000000000AA` (CF test key) | real site key from [Cloudflare Turnstile dashboard](https://dash.cloudflare.com/) | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |
 | `TURNSTILE_SECRET_KEY` | `1x0000000000000000000000000000000AA` (CF test secret) | `1x0000000000000000000000000000000AA` (CF test secret) | real secret key from Cloudflare Turnstile dashboard | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |
@@ -116,6 +123,13 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `SEED_ENV` | [scripts/seed-preview.ts](../../scripts/seed-preview.ts) — environment safety gate; never used by the application itself |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | [app/(auth)/sign-in/page.tsx](../../app/(auth)/sign-in/page.tsx), [app/(auth)/sign-up/page.tsx](../../app/(auth)/sign-up/page.tsx) — widget site key (browser-safe) |
 | `TURNSTILE_SECRET_KEY` | [lib/auth/verifyTurnstile.ts](../../lib/auth/verifyTurnstile.ts) — server-side Siteverify API secret; never expose to browser |
+| `TOKEN_ENCRYPTION_KEY` | [lib/providers/accounting/crypto.ts](../../lib/providers/accounting/crypto.ts) — AES-256-GCM key for encrypting OAuth tokens at rest; server-side only; never expose to browser |
+| `XERO_CLIENT_ID` | [lib/providers/accounting/xero.ts](../../lib/providers/accounting/xero.ts), [app/api/integrations/xero/connect/route.ts](../../app/api/integrations/xero/connect/route.ts), [app/api/integrations/xero/callback/route.ts](../../app/api/integrations/xero/callback/route.ts) |
+| `XERO_CLIENT_SECRET` | [lib/providers/accounting/xero.ts](../../lib/providers/accounting/xero.ts) — server-side only; never expose to browser |
+| `XERO_REDIRECT_URI` | [app/api/integrations/xero/connect/route.ts](../../app/api/integrations/xero/connect/route.ts), [app/api/integrations/xero/callback/route.ts](../../app/api/integrations/xero/callback/route.ts) |
+| `MYOB_CLIENT_ID` | [lib/providers/accounting/myob.ts](../../lib/providers/accounting/myob.ts), [app/api/integrations/myob/connect/route.ts](../../app/api/integrations/myob/connect/route.ts), [app/api/integrations/myob/callback/route.ts](../../app/api/integrations/myob/callback/route.ts) |
+| `MYOB_CLIENT_SECRET` | [lib/providers/accounting/myob.ts](../../lib/providers/accounting/myob.ts) — server-side only; never expose to browser |
+| `MYOB_REDIRECT_URI` | [app/api/integrations/myob/connect/route.ts](../../app/api/integrations/myob/connect/route.ts), [app/api/integrations/myob/callback/route.ts](../../app/api/integrations/myob/callback/route.ts) |
 
 ### Things you might expect but won't find
 

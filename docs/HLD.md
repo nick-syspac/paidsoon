@@ -64,6 +64,8 @@ endpoint (`app/api/settings/team/invite/route.ts`).
 | Stripe Connect | Read freelancer invoices; OAuth connection | `app/api/stripe/connect/**`, `lib/providers/stripe.ts` |
 | Stripe Billing | Platform subscription billing + customer portal | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts` |
 | Resend | Transactional email delivery + sender-domain verification | `lib/email/send.ts`, `app/api/settings/email/route.ts` |
+| Xero | Read accounts-receivable invoices and contacts via OAuth 2.0 | `lib/providers/accounting/xero.ts`, `app/api/integrations/xero/**` |
+| MYOB Business | Read accounts-receivable invoices and contacts via OAuth 2.0 | `lib/providers/accounting/myob.ts`, `app/api/integrations/myob/**` |
 | Vercel | Hosting + Cron scheduler | `vercel.json`, `docs/runbooks/vercel.md` |
 | Invoice client (recipient) | Receives reminder emails; not a system user | `lib/email/templates.ts` |
 
@@ -189,6 +191,7 @@ what is actually present, and explicitly marks absent capabilities.
 | User auth | Account creation, sign-in, session | Implemented | `app/(auth)/**`, `lib/supabase/**`, `app/auth/callback/route.ts` | `changes/invoice-nudge-mvp/specs/user-auth/spec.md` | Supabase Auth; email/pw + Google |
 | Tenant isolation | One user = one tenant via RLS | Implemented | `lib/db/withUserContext.ts`, `prisma/rls-policies.sql` | `changes/enforce-rls-via-prisma/specs/user-auth/spec.md` | See §9 |
 | Invoice connection | Connect Stripe via OAuth; provider abstraction | Implemented | `app/api/stripe/connect/**`, `lib/providers/**` | `changes/invoice-nudge-mvp/specs/invoice-connection/spec.md` | Stripe only |
+| Accounting integrations | Connect Xero/MYOB via OAuth; pull-based invoice sync | Implemented | `app/api/integrations/**`, `lib/providers/accounting/**`, `app/api/cron/sync-accounting/route.ts` | `changes/add-accounting-integrations` | Solo+ tier; AES-256-GCM token encryption; incremental sync; `AccountingProvider` interface |
 | Invoice tracking | Detect & track overdue invoices | Implemented | `lib/email/catchup.ts`, `app/api/webhooks/stripe-connect/route.ts` | `.../specs/invoice-tracking/spec.md` | Webhook + cron catch-up |
 | Follow-up sequences | 3-stage escalating reminders | Implemented | `app/api/cron/send-emails/route.ts`, `lib/email/**` | `.../specs/follow-up-sequences/spec.md` | Stages 1/2/3 |
 | Schedule config | Per-user day offsets | Implemented | `app/api/settings/schedule/route.ts`, `lib/email/schedule.ts` | `.../specs/schedule-config/spec.md` | Gated to sequence feature |

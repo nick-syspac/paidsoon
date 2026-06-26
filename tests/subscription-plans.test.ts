@@ -32,3 +32,11 @@ test("feature access matches tier expectations", () => {
   assert.equal(hasPlanFeature("small_business", "ai_rewrite"), true)
   assert.equal(hasPlanFeature("solo", "ai_rewrite"), false)
 })
+
+test("accounting_integrations feature is gated at Solo+ tier", () => {
+  assert.equal(hasPlanFeature("starter", "accounting_integrations"), false)
+  assert.equal(hasPlanFeature("free", "accounting_integrations"), false) // legacy alias
+  assert.equal(hasPlanFeature("solo", "accounting_integrations"), true)
+  assert.equal(hasPlanFeature("pro", "accounting_integrations"), true) // legacy alias → solo
+  assert.equal(hasPlanFeature("small_business", "accounting_integrations"), true)
+})
