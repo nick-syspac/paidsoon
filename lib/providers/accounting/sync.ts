@@ -23,6 +23,7 @@
  *   - All other errors → records in sync run error_message, does not crash cron
  */
 
+import { Prisma } from "@/lib/generated/prisma"
 import { prismaAdmin } from "@/lib/db/admin"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import {
@@ -311,7 +312,7 @@ async function upsertInvoice(params: {
         currentStage: 0,
         // Only schedule reminders for open invoices
         nextEmailAt: invoiceStatus === "pending" ? inv.dueDate : null,
-        providerMetadata: inv.rawMetadata ?? null,
+        providerMetadata: inv.rawMetadata ?? Prisma.DbNull,
       },
     })
 
@@ -322,7 +323,7 @@ async function upsertInvoice(params: {
         accountingConnectionId: connection.id,
         providerInvoiceId: inv.providerInvoiceId,
         providerUpdatedAt: inv.providerUpdatedAt ?? null,
-        providerMetadata: inv.rawMetadata ?? null,
+        providerMetadata: inv.rawMetadata ?? Prisma.DbNull,
       },
     })
 
@@ -366,7 +367,7 @@ async function upsertInvoice(params: {
         status: invoiceStatus,
         // Cancel reminders when invoice transitions to paid/voided
         ...(wasOpen && nowClosed ? { nextEmailAt: null, currentStage: 0 } : {}),
-        providerMetadata: inv.rawMetadata ?? null,
+        providerMetadata: inv.rawMetadata ?? Prisma.DbNull,
       },
     })
 
@@ -378,7 +379,7 @@ async function upsertInvoice(params: {
       },
       data: {
         providerUpdatedAt: inv.providerUpdatedAt ?? null,
-        providerMetadata: inv.rawMetadata ?? null,
+        providerMetadata: inv.rawMetadata ?? Prisma.DbNull,
       },
     })
 
