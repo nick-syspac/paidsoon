@@ -23,7 +23,7 @@
  *   - All other errors → records in sync run error_message, does not crash cron
  */
 
-import { Prisma } from "@/lib/generated/prisma"
+import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import {
