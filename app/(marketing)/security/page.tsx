@@ -54,7 +54,7 @@ export default function SecurityPage() {
               <a href="mailto:security@paidsoon.com.au" className="text-blue-600 hover:underline">
                 security@paidsoon.com.au
               </a>
-              . Do not disclose vulnerabilities publicly before we've had a chance to respond.
+              . Do not disclose vulnerabilities publicly before we&apos;ve had a chance to respond.
             </p>
           </section>
         </div>

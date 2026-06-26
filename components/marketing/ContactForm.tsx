@@ -40,7 +40,7 @@ export function ContactForm() {
     return (
       <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
         <p className="font-semibold text-green-800 mb-2">Message received!</p>
-        <p className="text-sm text-green-700">We'll get back to you within one business day.</p>
+        <p className="text-sm text-green-700">We&apos;ll get back to you within one business day.</p>
       </div>
     )
   }

@@ -2,7 +2,7 @@
  * Unit tests for XeroProvider.
  * All fetch calls are mocked — no real network requests.
  */
-import { test, describe, before, after, beforeEach } from "node:test"
+import { test, describe, before, after } from "node:test"
 import assert from "node:assert/strict"
 import { XeroProvider } from "@/lib/providers/accounting/xero"
 

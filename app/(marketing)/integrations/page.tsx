@@ -70,7 +70,7 @@ export default function IntegrationsPage() {
         </div>
 
         <div className="mt-12 text-center border border-gray-200 rounded-xl p-8">
-          <h2 className="font-semibold text-gray-900 mb-2">Don't see your accounting software?</h2>
+          <h2 className="font-semibold text-gray-900 mb-2">Don&apos;t see your accounting software?</h2>
           <p className="text-sm text-gray-500 mb-5">
             Let us know which integration would be most useful for you — we prioritise based on demand.
           </p>

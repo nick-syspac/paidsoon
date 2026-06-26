@@ -15,7 +15,7 @@ export default function ContactPage() {
         <div className="text-center mb-12">
           <h1 className="text-3xl font-bold text-gray-900">Get in touch</h1>
           <p className="mt-3 text-lg text-gray-500">
-            We'd love to hear from you. Sales, support, or partnership — we're here to help.
+            We&apos;d love to hear from you. Sales, support, or partnership — we&apos;re here to help.
           </p>
         </div>
 
@@ -32,7 +32,7 @@ export default function ContactPage() {
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-6">
               <h3 className="font-semibold text-gray-900 mb-2">Request a demo</h3>
               <p className="text-sm text-gray-600 mb-4">
-                Want to see PaidSoon in action before signing up? We'll walk you through the product
+                Want to see PaidSoon in action before signing up? We&apos;ll walk you through the product
                 and answer your questions live.
               </p>
               <Link

@@ -3,54 +3,8 @@
  * All external dependencies (prismaAdmin, AccountingProvider) are mocked.
  * No real DB or provider API calls are made.
  */
-import { test, describe, beforeEach } from "node:test"
+import { test, describe } from "node:test"
 import assert from "node:assert/strict"
-
-// ---------------------------------------------------------------------------
-// Helpers: minimal mock factories
-// ---------------------------------------------------------------------------
-
-function makeConnection(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "conn-1",
-    userId: "user-1",
-    provider: "xero",
-    organisationId: "tenant-1",
-    organisationName: "Acme Ltd",
-    encryptedAccessToken: encryptToken("at123"),
-    encryptedRefreshToken: encryptToken("rt123"),
-    tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1h from now
-    lastSyncedAt: null,
-    status: "active",
-    ...overrides,
-  }
-}
-
-function makeInvoice(overrides: Record<string, unknown> = {}) {
-  return {
-    providerInvoiceId: "inv-1",
-    invoiceNumber: "INV-001",
-    providerContactId: "con-1",
-    clientName: "Client A",
-    clientEmail: "a@example.com",
-    amountDue: 500.0,
-    currency: "AUD",
-    dueDate: new Date("2025-12-31"),
-    status: "open" as const,
-    providerUpdatedAt: new Date("2025-06-01"),
-    rawMetadata: {},
-    ...overrides,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Inline crypto for testing (avoids needing TOKEN_ENCRYPTION_KEY in env)
-// ---------------------------------------------------------------------------
-
-function encryptToken(plaintext: string): string {
-  // Simple reversible encoding for test purposes — NOT for production
-  return "test:" + Buffer.from(plaintext).toString("base64")
-}
 
 // ---------------------------------------------------------------------------
 // Test doubles

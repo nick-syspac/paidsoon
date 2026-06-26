@@ -68,7 +68,6 @@ export default async function DashboardLayout({
               email={user.email ?? ""}
               displayName={profile?.displayName ?? null}
               tier={tier}
-              status={profile?.subscriptionStatus ?? "active"}
             />
           </div>
         </div>

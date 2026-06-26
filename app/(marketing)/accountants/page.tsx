@@ -50,7 +50,7 @@ export default function AccountantsPage() {
             Accountant Partner Programme
           </h2>
           <p className="text-center text-gray-500 mb-8">
-            PaidSoon's Accountant Partner plan is designed for bookkeepers and accountants who want to
+            PaidSoon&apos;s Accountant Partner plan is designed for bookkeepers and accountants who want to
             offer automated invoice follow-up as a value-added service for their clients. Benefits include:
           </p>
           <ul className="max-w-xl mx-auto space-y-3 text-sm text-gray-700">

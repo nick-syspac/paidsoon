@@ -8,7 +8,6 @@
  * - Redirects the user to the Xero authorisation URL
  */
 import { createClient } from "@/lib/supabase/server"
-import { withUserContext } from "@/lib/db/withUserContext"
 import { prismaAdmin } from "@/lib/db/admin"
 import { requireFeature } from "@/lib/billing"
 import { getAccountingProvider } from "@/lib/providers/accounting"

@@ -26,12 +26,10 @@ export function UserMenu({
   email,
   displayName,
   tier,
-  status,
 }: {
   email: string
   displayName: string | null
   tier: string
-  status: string
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
