@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { createUserProfile } from "@/lib/actions/auth"
+import { prismaAdmin } from "@/lib/db/admin"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
@@ -12,7 +13,16 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error && data.user) {
       await createUserProfile(data.user.id)
-      return NextResponse.redirect(`${origin}${next}`)
+      // Route new users (trialing, onboarding not yet complete) to /onboarding.
+      const profile = await prismaAdmin.userProfile.findUnique({
+        where: { userId: data.user.id },
+        select: { subscriptionStatus: true, onboardingCompletedAt: true },
+      })
+      const isNewTrialUser =
+        profile?.subscriptionStatus === "trialing" &&
+        profile?.onboardingCompletedAt === null
+      const redirectTo = isNewTrialUser ? "/onboarding" : next
+      return NextResponse.redirect(`${origin}${redirectTo}`)
     }
   }
 

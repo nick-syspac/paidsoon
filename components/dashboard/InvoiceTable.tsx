@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { useRouter } from "next/navigation"
 import type { TrackedInvoice, EmailLog } from "@/lib/generated/prisma/client"
 
@@ -85,9 +85,8 @@ export function InvoiceTable({
             const isLoading = loadingId === inv.id
 
             return (
-              <>
+              <React.Fragment key={inv.id}>
                 <tr
-                  key={inv.id}
                   className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                   onClick={() => setExpandedId(isExpanded ? null : inv.id)}
                 >
@@ -176,7 +175,7 @@ export function InvoiceTable({
                 </tr>
 
                 {isExpanded && (
-                  <tr key={`${inv.id}-expanded`} className="bg-gray-50">
+                  <tr className="bg-gray-50">
                     <td colSpan={7} className="px-4 py-3">
                       <p className="text-xs font-medium text-gray-500 mb-2">Email history</p>
                       {inv.emailLogs.length === 0 ? (
@@ -198,7 +197,7 @@ export function InvoiceTable({
                     </td>
                   </tr>
                 )}
-              </>
+              </React.Fragment>
             )
           })}
         </tbody>

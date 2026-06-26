@@ -22,6 +22,7 @@ export default async function TemplatesSettingsPage() {
   const tier = normalizeSubscriptionTier(profile?.subscriptionTier)
   const hasBasic = hasPlanFeature(tier, "basic_templates")
   const canCustomize = hasPlanFeature(tier, "custom_reminder_templates")
+  const canRewrite = hasPlanFeature(tier, "ai_rewrite")
 
   if (!hasBasic) {
     return (
@@ -80,6 +81,7 @@ export default async function TemplatesSettingsPage() {
 
   return (
     <TemplatesClient
+      canRewrite={canRewrite}
       data={{
         tier,
         templates: [

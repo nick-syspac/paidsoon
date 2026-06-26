@@ -15,19 +15,28 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model UserProfile {
-  id                 String   @id @default(cuid())
-  userId             String   @unique // maps to auth.users.id in Supabase
-  stripeCustomerId   String?  @unique
-  subscriptionTier   String   @default("free") // 'free' | 'pro'
-  subscriptionStatus String   @default("active") // 'active' | 'cancelled' | 'past_due'
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                           String    @id @default(cuid())
+  userId                       String    @unique // maps to auth.users.id in Supabase
+  stripeCustomerId             String?   @unique
+  stripeSubscriptionId         String?   @map("stripe_subscription_id")
+  subscriptionCurrentPeriodEnd DateTime? @map("subscription_current_period_end")
+  pendingDowngradeTier         String?   @map("pending_downgrade_tier")
+  stripeScheduleId             String?   @map("stripe_schedule_id")
+  subscriptionTier             String    @default("free") // 'free' | 'pro'
+  subscriptionStatus           String    @default("active") // 'active' | 'trialing' | 'cancelled' | 'past_due'
+  trialEndsAt                  DateTime? @map("trial_ends_at")
+  onboardingCompletedAt        DateTime? @map("onboarding_completed_at")
+  displayName                  String?   @map("display_name")
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
 
-  invoiceConnections InvoiceConnection[]
-  schedule           Schedule?
-  emailSettings      EmailSettings?
-  trackedInvoices    TrackedInvoice[]
-  emailTemplates     EmailTemplate[]
+  invoiceConnections    InvoiceConnection[]
+  schedule              Schedule?
+  emailSettings         EmailSettings?
+  trackedInvoices       TrackedInvoice[]
+  emailTemplates        EmailTemplate[]
+  aiUsageLogs           AiUsageLog[]
+  accountingConnections AccountingConnection[]
 
   @@map("user_profiles")
 }
@@ -108,12 +117,14 @@ model TrackedInvoice {
   currentStage        Int       @default(0) // 0=not started, 1=email1 sent, 2=email2 sent, 3=email3 sent
   nextEmailAt         DateTime?
   snoozedUntil        DateTime?
+  providerMetadata    Json?     @map("provider_metadata") // provider-specific fields, not part of core model
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  userProfile       UserProfile       @relation(fields: [userId], references: [userId])
-  invoiceConnection InvoiceConnection @relation(fields: [invoiceConnectionId], references: [id])
-  emailLogs         EmailLog[]
+  userProfile            UserProfile             @relation(fields: [userId], references: [userId])
+  invoiceConnection      InvoiceConnection       @relation(fields: [invoiceConnectionId], references: [id])
+  emailLogs              EmailLog[]
+  providerInvoiceMapping ProviderInvoiceMapping?
 
   @@unique([externalId, provider, userId])
   @@map("tracked_invoices")
@@ -138,6 +149,28 @@ model EmailLog {
 }
 
 // ---------------------------------------------------------------------------
+// AI Usage Logs (Small Business tier — ai_rewrite feature)
+// ---------------------------------------------------------------------------
+
+model AiUsageLog {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  model            String   // e.g. "gpt-4o-mini"
+  feature          String   // e.g. "ai_rewrite"
+  promptTokens     Int      @map("prompt_tokens")
+  completionTokens Int      @map("completion_tokens")
+  totalTokens      Int      @map("total_tokens")
+  estimatedCostUsd Decimal  @map("estimated_cost_usd") @db.Decimal(12, 8)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
+}
+
+// ---------------------------------------------------------------------------
 // Email Templates (Small Business tier)
 // ---------------------------------------------------------------------------
 
@@ -155,4 +188,114 @@ model EmailTemplate {
 
   @@unique([userId, stage])
   @@map("email_templates")
+}
+
+// ---------------------------------------------------------------------------
+// Accounting Connections (Xero / MYOB)
+// ---------------------------------------------------------------------------
+
+model AccountingConnection {
+  id                     String    @id @default(cuid())
+  userId                 String
+  provider               String    // 'xero' | 'myob'
+  organisationId         String    @map("organisation_id")  // tenantId (Xero) or businessId/cf_uri (MYOB)
+  organisationName       String    @map("organisation_name")
+  encryptedAccessToken   String    @map("encrypted_access_token")
+  encryptedRefreshToken  String    @map("encrypted_refresh_token")
+  tokenExpiresAt         DateTime  @map("token_expires_at")
+  scopes                 String    // space-separated scope list as requested
+  status                 String    @default("active") // 'active' | 'disconnected' | 'revoked' | 'error'
+  lastSyncedAt           DateTime? @map("last_synced_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile            UserProfile              @relation(fields: [userId], references: [userId])
+  syncRuns               AccountingSyncRun[]
+  providerInvoiceMappings ProviderInvoiceMapping[]
+  providerContactMappings ProviderContactMapping[]
+
+  @@unique([userId, provider, organisationId])
+  @@map("accounting_connections")
+}
+
+// ---------------------------------------------------------------------------
+// Accounting Sync Runs
+// ---------------------------------------------------------------------------
+
+model AccountingSyncRun {
+  id                     String    @id @default(cuid())
+  accountingConnectionId String    @map("accounting_connection_id")
+  provider               String    // 'xero' | 'myob'
+  userId                 String
+  startedAt              DateTime  @default(now()) @map("started_at")
+  completedAt            DateTime? @map("completed_at")
+  status                 String    @default("running") // 'running' | 'success' | 'partial' | 'failed'
+  invoicesCreated        Int       @default(0) @map("invoices_created")
+  invoicesUpdated        Int       @default(0) @map("invoices_updated")
+  invoicesSkipped        Int       @default(0) @map("invoices_skipped")
+  errorMessage           String?   @map("error_message") // sanitised, no PII or tokens
+
+  accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+
+  @@index([accountingConnectionId, startedAt])
+  @@index([userId, startedAt])
+  @@map("accounting_sync_runs")
+}
+
+// ---------------------------------------------------------------------------
+// Provider Invoice Mappings
+// ---------------------------------------------------------------------------
+
+model ProviderInvoiceMapping {
+  id                     String    @id @default(cuid())
+  trackedInvoiceId       String    @unique @map("tracked_invoice_id")
+  accountingConnectionId String    @map("accounting_connection_id")
+  providerInvoiceId      String    @map("provider_invoice_id") // e.g. Xero InvoiceID or MYOB UID
+  providerUpdatedAt      DateTime? @map("provider_updated_at") // used for incremental sync
+  providerMetadata       Json?     @map("provider_metadata")   // provider-specific fields
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  trackedInvoice       TrackedInvoice       @relation(fields: [trackedInvoiceId], references: [id])
+  accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+
+  @@unique([providerInvoiceId, accountingConnectionId])
+  @@map("provider_invoice_mappings")
+}
+
+// ---------------------------------------------------------------------------
+// Provider Contact Mappings
+// ---------------------------------------------------------------------------
+
+model ProviderContactMapping {
+  id                     String   @id @default(cuid())
+  accountingConnectionId String   @map("accounting_connection_id")
+  providerContactId      String   @map("provider_contact_id") // e.g. Xero ContactID or MYOB Customer UID
+  contactName            String?  @map("contact_name")
+  contactEmail           String?  @map("contact_email")
+  providerMetadata       Json?    @map("provider_metadata")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+
+  @@unique([providerContactId, accountingConnectionId])
+  @@map("provider_contact_mappings")
+}
+
+// ---------------------------------------------------------------------------
+// OAuth States (CSRF nonce for accounting OAuth callbacks)
+// ---------------------------------------------------------------------------
+
+model OauthState {
+  id        String   @id @default(cuid())
+  userId    String
+  provider  String   // 'xero' | 'myob'
+  nonce     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([nonce])
+  @@index([expiresAt])
+  @@map("oauth_states")
 }

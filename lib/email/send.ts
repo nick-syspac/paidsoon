@@ -12,6 +12,18 @@ import {
 } from "./templates"
 import type { TrackedInvoice } from "@/lib/generated/prisma/client"
 
+/**
+ * Resolve the display name to use as {{yourName}} in reminder emails.
+ * Priority: UserProfile.displayName → user_metadata.full_name → email prefix → fallback
+ */
+export function resolveFreelancerName(
+  displayName: string | null | undefined,
+  metadataFullName: string | null | undefined,
+  email: string | null | undefined,
+): string {
+  return displayName ?? metadataFullName ?? email?.split("@")[0] ?? "Your freelancer"
+}
+
 const STAGE_DEFAULTS = {
   1: DEFAULT_STAGE_1,
   2: DEFAULT_STAGE_2,

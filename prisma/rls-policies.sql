@@ -119,7 +119,13 @@ CREATE POLICY "users can view own email logs"
 
 CREATE POLICY "service role can insert email logs"
   ON email_logs FOR INSERT
-  WITH CHECK (true); -- Cron job uses service role key; RLS bypassed for inserts
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM tracked_invoices
+      WHERE tracked_invoices.id = email_logs."trackedInvoiceId"
+        AND tracked_invoices."userId" = auth.uid()::text
+    )
+  ); -- Cron job uses prismaAdmin (service role) which bypasses RLS entirely
 
 -- ---------------------------------------------------------------------------
 -- email_templates
@@ -138,4 +144,108 @@ CREATE POLICY "users can update own email templates"
 
 CREATE POLICY "users can delete own email templates"
   ON email_templates FOR DELETE
+  USING (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
+-- ai_usage_logs
+-- Users may read their own rows. Inserts are performed by the application
+-- via prismaAdmin (service role) only — no INSERT policy for users.
+-- ---------------------------------------------------------------------------
+ALTER TABLE ai_usage_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own AI usage logs"
+  ON ai_usage_logs FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- accounting_connections
+-- Users can read/write their own connections. Cron and webhook code uses
+-- prismaAdmin (service role) which bypasses RLS by design.
+-- ---------------------------------------------------------------------------
+ALTER TABLE accounting_connections ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own accounting connections"
+  ON accounting_connections FOR SELECT
+  USING (auth.uid()::text = "userId");
+
+CREATE POLICY "users can insert own accounting connections"
+  ON accounting_connections FOR INSERT
+  WITH CHECK (auth.uid()::text = "userId");
+
+CREATE POLICY "users can update own accounting connections"
+  ON accounting_connections FOR UPDATE
+  USING (auth.uid()::text = "userId");
+
+CREATE POLICY "users can delete own accounting connections"
+  ON accounting_connections FOR DELETE
+  USING (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
+-- accounting_sync_runs
+-- Users can read their own sync run history. Writes are performed by the
+-- sync cron/manual route via prismaAdmin (service role).
+-- ---------------------------------------------------------------------------
+ALTER TABLE accounting_sync_runs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own sync runs"
+  ON accounting_sync_runs FOR SELECT
+  USING (auth.uid()::text = "userId");
+
+-- No user INSERT/UPDATE policy — cron uses prismaAdmin (service role)
+
+-- ---------------------------------------------------------------------------
+-- provider_invoice_mappings
+-- Accessed via trackedInvoice which belongs to userId. Users can read their
+-- own mappings. Writes are performed by the sync orchestrator via prismaAdmin.
+-- ---------------------------------------------------------------------------
+ALTER TABLE provider_invoice_mappings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own provider invoice mappings"
+  ON provider_invoice_mappings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM tracked_invoices
+      WHERE tracked_invoices.id = provider_invoice_mappings."tracked_invoice_id"
+        AND tracked_invoices."userId" = auth.uid()::text
+    )
+  );
+
+-- No user INSERT/UPDATE policy — sync orchestrator uses prismaAdmin (service role)
+
+-- ---------------------------------------------------------------------------
+-- provider_contact_mappings
+-- Scoped via accounting_connections which belongs to userId.
+-- ---------------------------------------------------------------------------
+ALTER TABLE provider_contact_mappings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own provider contact mappings"
+  ON provider_contact_mappings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM accounting_connections
+      WHERE accounting_connections.id = provider_contact_mappings."accounting_connection_id"
+        AND accounting_connections."userId" = auth.uid()::text
+    )
+  );
+
+-- No user INSERT/UPDATE policy — sync orchestrator uses prismaAdmin (service role)
+
+-- ---------------------------------------------------------------------------
+-- oauth_states
+-- Short-lived CSRF nonces for OAuth callbacks. Users can read their own
+-- states. Insert/delete is performed by the connect route (uses withUserContext).
+-- Expired rows are cleaned up by the sync cron (prismaAdmin).
+-- ---------------------------------------------------------------------------
+ALTER TABLE oauth_states ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own oauth states"
+  ON oauth_states FOR SELECT
+  USING (auth.uid()::text = "userId");
+
+CREATE POLICY "users can insert own oauth states"
+  ON oauth_states FOR INSERT
+  WITH CHECK (auth.uid()::text = "userId");
+
+CREATE POLICY "users can delete own oauth states"
+  ON oauth_states FOR DELETE
   USING (auth.uid()::text = "userId");

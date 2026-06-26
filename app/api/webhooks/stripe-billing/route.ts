@@ -2,6 +2,7 @@ import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getInvoiceLimitForTier } from "@/lib/billing"
 import {
   DEFAULT_SUBSCRIPTION_TIER,
+  PLAN_ORDER,
   normalizeSubscriptionTier,
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans"
@@ -59,12 +60,23 @@ export async function POST(request: Request) {
       const userId = session.metadata?.userId
       if (userId && session.subscription) {
         const checkoutTier = normalizeSubscriptionTier(session.metadata?.selectedTier)
+        const subscriptionId = session.subscription as string
+        // Fetch subscription and expand latest_invoice to get period_end
+        // (current_period_end was removed from Subscription in API 2026-05-27)
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+          expand: ["latest_invoice"],
+        })
+        const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null
+        const periodEnd = latestInvoice?.period_end ? new Date(latestInvoice.period_end * 1000) : null
         await prisma.userProfile.update({
           where: { userId },
           data: {
             subscriptionTier: checkoutTier,
             subscriptionStatus: "active",
+            trialEndsAt: null,
             stripeCustomerId: session.customer as string,
+            stripeSubscriptionId: subscriptionId,
+            subscriptionCurrentPeriodEnd: periodEnd,
           },
         })
       }
@@ -81,11 +93,31 @@ export async function POST(request: Request) {
           subscription.status === "active" || subscription.status === "trialing"
             ? resolveTierFromSubscription(subscription, profile.subscriptionTier)
             : DEFAULT_SUBSCRIPTION_TIER
+
+        // Detect if a pending downgrade schedule has just executed:
+        // the landed tier matches pendingDowngradeTier → clear pending fields.
+        const pendingTier = normalizeSubscriptionTier(profile.pendingDowngradeTier)
+        const scheduleExecuted =
+          profile.pendingDowngradeTier !== null &&
+          PLAN_ORDER.indexOf(tier) === PLAN_ORDER.indexOf(pendingTier)
+
+        // Fetch latest invoice to get period_end
+        // (current_period_end was removed from Subscription in API 2026-05-27)
+        const subExpanded = await stripe.subscriptions.retrieve(subscription.id, {
+          expand: ["latest_invoice"],
+        })
+        const latestInv = subExpanded.latest_invoice as Stripe.Invoice | null
+        const periodEnd = latestInv?.period_end ? new Date(latestInv.period_end * 1000) : null
         await prisma.userProfile.update({
           where: { userId: profile.userId },
           data: {
             subscriptionTier: tier,
             subscriptionStatus: subscription.status,
+            stripeSubscriptionId: subscription.id,
+            subscriptionCurrentPeriodEnd: periodEnd,
+            ...(scheduleExecuted
+              ? { pendingDowngradeTier: null, stripeScheduleId: null }
+              : {}),
           },
         })
       }
@@ -129,6 +161,21 @@ export async function POST(request: Request) {
           })
         }
         void toKeep // suppress unused warning
+      }
+      break
+    }
+
+    case "subscription_schedule.released": {
+      // Fired when a schedule is released (cancelled) — clear pending downgrade state.
+      const schedule = event.data.object as Stripe.SubscriptionSchedule
+      const profile = await prisma.userProfile.findFirst({
+        where: { stripeScheduleId: schedule.id },
+      })
+      if (profile) {
+        await prisma.userProfile.update({
+          where: { userId: profile.userId },
+          data: { pendingDowngradeTier: null, stripeScheduleId: null },
+        })
       }
       break
     }

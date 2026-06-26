@@ -63,7 +63,7 @@ export function EmailSettingsClient({
       ) : (
         <form onSubmit={handleSave} className="space-y-4">
           <p className="text-sm text-gray-500">
-            Set a custom from-address. You&apos;ll need to verify the email before it&apos;s used.
+            Set a custom from-address.
             {settings?.fromEmail && !settings.resendVerified && (
               <span className="text-amber-600 font-medium"> Verification pending for {settings.fromEmail}.</span>
             )}
@@ -82,6 +82,7 @@ export function EmailSettingsClient({
               placeholder="you@yourcompany.com"
               className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <p className="text-xs text-gray-400 mt-1">Use a dedicated address like collections@yourcompany.com. We&apos;ll send a verification link when you save.</p>
           </div>
 
           <div>
@@ -94,6 +95,7 @@ export function EmailSettingsClient({
               placeholder="Your Name"
               className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <p className="text-xs text-gray-400 mt-1">Your business name as it appears to clients — e.g. &quot;Acme Ltd&quot; or &quot;Acme Consulting&quot;.</p>
           </div>
 
           <div>
@@ -107,6 +109,7 @@ export function EmailSettingsClient({
               placeholder="replies@yourcompany.com"
               className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <p className="text-xs text-gray-400 mt-1">Optional. Client replies land here instead of your From address.</p>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

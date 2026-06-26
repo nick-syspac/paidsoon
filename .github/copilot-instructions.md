@@ -146,7 +146,7 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 
 ## Billing and Subscription Rules
 
-- Three tiers: `starter` (£9/mo), `solo` (£19/mo), `small_business` (£39/mo).
+- Three tiers: `starter` (A$9/mo), `solo` (A$19/mo), `small_business` (A$39/mo).
 - Legacy tier names: `free` → `starter`, `pro` → `solo`. Supported via backward-compat mapping in `lib/subscriptionPlans.ts`.
 - All feature checks use `hasPlanFeature(tier, feature)` or `requireFeature(userId, feature)` from `lib/billing.ts`.
 - Stripe Price IDs are stored in env vars: `STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, `STRIPE_SMALL_BUSINESS_PRICE_ID`.

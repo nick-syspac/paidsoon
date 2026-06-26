@@ -11,6 +11,7 @@ export type SubscriptionFeature =
   | "tone_settings"
   | "payment_status_dashboard"
   | "overdue_invoice_dashboard"
+  | "accounting_integrations"
 
 export interface PlanLimits {
   chasedInvoicesPerMonth: number
@@ -21,7 +22,7 @@ export interface PlanLimits {
 export interface PlanDefinition {
   id: SubscriptionTier
   name: string
-  monthlyPriceUsd: number
+  monthlyPriceAud: number
   limits: PlanLimits
   features: Record<SubscriptionFeature, boolean>
 }
@@ -37,7 +38,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   starter: {
     id: "starter",
     name: "Starter",
-    monthlyPriceUsd: 9,
+    monthlyPriceAud: 9,
     limits: {
       chasedInvoicesPerMonth: 10,
       userSeats: 1,
@@ -54,12 +55,13 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tone_settings: false,
       payment_status_dashboard: false,
       overdue_invoice_dashboard: false,
+      accounting_integrations: false,
     },
   },
   solo: {
     id: "solo",
     name: "Solo",
-    monthlyPriceUsd: 19,
+    monthlyPriceAud: 19,
     limits: {
       chasedInvoicesPerMonth: 30,
       userSeats: 1,
@@ -76,12 +78,13 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tone_settings: false,
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
+      accounting_integrations: true,
     },
   },
   small_business: {
     id: "small_business",
     name: "Small Business",
-    monthlyPriceUsd: 39,
+    monthlyPriceAud: 39,
     limits: {
       chasedInvoicesPerMonth: 100,
       userSeats: 3,
@@ -98,6 +101,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tone_settings: true,
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
+      accounting_integrations: true,
     },
   },
 }

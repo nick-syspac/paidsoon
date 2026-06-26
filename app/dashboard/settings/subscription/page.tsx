@@ -7,7 +7,7 @@ import { getPlanByTier, normalizeSubscriptionTier } from "@/lib/subscriptionPlan
 export default async function SubscriptionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; cancelled?: string; tier?: string }>
+  searchParams: Promise<{ success?: string; cancelled?: string; tier?: string; plan?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,7 +17,12 @@ export default async function SubscriptionPage({
   const profile = await withUserContext(user.id, (tx) =>
     tx.userProfile.findUnique({
       where: { userId: user.id },
-      select: { subscriptionTier: true, subscriptionStatus: true },
+      select: {
+        subscriptionTier: true,
+        subscriptionStatus: true,
+        subscriptionCurrentPeriodEnd: true,
+        pendingDowngradeTier: true,
+      },
     }),
   )
 
@@ -25,6 +30,9 @@ export default async function SubscriptionPage({
     <SubscriptionClient
       tier={normalizeSubscriptionTier(profile?.subscriptionTier)}
       status={profile?.subscriptionStatus ?? "active"}
+      currentPeriodEnd={profile?.subscriptionCurrentPeriodEnd ?? null}
+      pendingDowngradeTier={normalizeSubscriptionTier(profile?.pendingDowngradeTier ?? undefined) ?? null}
+      preselectedTier={normalizeSubscriptionTier(params.plan ?? null) ?? undefined}
       successMessage={
         params.success === "upgraded"
           ? `Subscription updated to ${getPlanByTier(params.tier).name}.`
