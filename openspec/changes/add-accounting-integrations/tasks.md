@@ -117,3 +117,15 @@
 - [x] 14.2 Update `docs/DDD.md` API routes section with all new routes from tasks 7.1–7.4, 9.1, 10.1
 - [x] 14.3 Update `docs/runbooks/README.md` with all new environment variables from tasks 3.3, 5.10, 6.10
 - [x] 14.4 Update `docs/HLD.md` to reflect the new `AccountingProvider` abstraction and pull-based sync architecture
+
+## 15. MYOB API Correctness Fixes
+
+Identified during post-implementation review against live MYOB developer documentation.
+
+- [x] 15.1 Add missing `x-myobapi-key: ${clientId}` header to `_fetchInvoiceType` in `lib/providers/accounting/myob.ts` — required by MYOB for all authenticated API calls; its absence will cause 401s against real company files
+- [x] 15.2 Add missing `x-myobapi-version: v2` header to `_fetchInvoiceType` in `lib/providers/accounting/myob.ts` — required by MYOB API; undocumented behaviour without it
+- [x] 15.3 Add the same two headers (`x-myobapi-key`, `x-myobapi-version: v2`) to the `getContacts` method in `lib/providers/accounting/myob.ts`
+- [x] 15.4 Fix company file name derivation in `app/api/integrations/myob/callback/route.ts`: `businessId.split("/").pop()` returns `""` for trailing-slash URIs — call `GET https://api.myob.com/accountright/` after token exchange to find the matching company file name by URI; fall back to the GUID if the call fails
+- [x] 15.5 Fix token expiry during long sync runs in `lib/providers/accounting/sync.ts`: the access token is refreshed once at the start of `syncConnection` but MYOB tokens expire in 20 minutes — if a sync spans multiple invoice type fetches that exceed the token lifetime, the connection is incorrectly marked `revoked`; check and refresh the token between `MYOB_INVOICE_TYPES` iterations in `_fetchInvoiceType` or pass a token-refresh callback into the provider
+- [x] 15.6 Clarify the `x-myobapi-cftoken: ""` comment in `_fetchInvoiceType` — update to document that empty string is intentional for online/cloud company files (MYOB Business); desktop/AccountRight Live files require `Base64(username:password)` but are out of scope for PaidSoon
+- [ ] 15.7 End-to-end integration test against a real MYOB developer sandbox: verify all 5 invoice types are accessible under `sme-sales` scope, confirm `BalanceDue` field is present and correct, confirm `x-myobapi-key` and `x-myobapi-version` headers resolve the 401

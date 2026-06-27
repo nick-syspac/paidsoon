@@ -45,10 +45,10 @@ export function MarketingNav() {
             Log In
           </Link>
           <Link
-            href="/pricing"
+            href="/contact"
             className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
-            Start Free Trial
+            Request early access
           </Link>
         </div>
 
@@ -98,11 +98,11 @@ export function MarketingNav() {
             Log In
           </Link>
           <Link
-            href="/pricing"
+            href="/contact"
             className="text-sm bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-center"
             onClick={() => setMobileOpen(false)}
           >
-            Start Free Trial
+            Request early access
           </Link>
         </nav>
       )}

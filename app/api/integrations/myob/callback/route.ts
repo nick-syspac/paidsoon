@@ -89,9 +89,20 @@ export async function GET(request: Request) {
   const scopes = tokens.scope ?? "sme-sales sme-contacts-customer"
 
   // businessId from MYOB is the cf_uri used for all subsequent API calls.
-  // Use the URI as both organisationId and derive a display name from it.
+  // Resolve the human-readable company file name by calling the MYOB company
+  // file list endpoint. Falls back to the GUID segment of the URI on failure.
   const organisationId = businessId
-  const organisationName = businessId.split("/").pop() ?? "MYOB Company File"
+  let organisationName = businessId.replace(/\/$/, "").split("/").pop() ?? "MYOB Company File"
+
+  try {
+    const orgs = await provider.getOrganisations(tokens.accessToken)
+    const match = orgs.find(
+      (o) => o.id === businessId || o.id.replace(/\/$/, "") === businessId.replace(/\/$/, "")
+    )
+    if (match?.name) organisationName = match.name
+  } catch {
+    // Non-fatal — proceed with GUID-based name
+  }
 
   try {
     await withUserContext(user.id, async (tx) => {

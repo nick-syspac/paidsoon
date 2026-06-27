@@ -63,10 +63,10 @@ export default function HomePage() {
         </p>
         <div className="mt-8 flex items-center justify-center gap-4">
           <Link
-            href="/pricing"
+            href="/contact"
             className="bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-medium hover:bg-blue-700"
           >
-            Start Free Trial
+            Request early access
           </Link>
           <Link href="/how-it-works" className="text-sm text-gray-500 hover:text-gray-900">
             How it works →

@@ -198,8 +198,10 @@ export class MyobProvider implements AccountingProvider {
    * in the `businessId` query parameter on the callback URL.
    */
   async getOrganisations(_accessToken: string): Promise<Organisation[]> {
-    // Organisations are determined during the OAuth callback (cf_uri from
-    // the businessId query param). No additional API call is needed.
+    // MYOB company file selection happens during the OAuth redirect flow.
+    // The selected file's URI is returned as the `businessId` query parameter
+    // on the callback URL. There is no separate API call required to discover
+    // company files at the getOrganisations step.
     return []
   }
 
@@ -244,10 +246,17 @@ export class MyobProvider implements AccountingProvider {
         url.searchParams.set("$filter", `LastModified gt datetime'${iso}'`)
       }
 
+      const { clientId } = getConfig()
       const res = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${params.accessToken}`,
-          "x-myobapi-cftoken": "", // populated per-user from session; empty here triggers user-level auth
+          // x-myobapi-cftoken: empty string is correct for MYOB Business online/cloud
+          // company files — ownership is established via OAuth Bearer token.
+          // Desktop/AccountRight Live files require Base64(username:password) but are
+          // out of scope for PaidSoon (cloud-only target).
+          "x-myobapi-cftoken": "",
+          "x-myobapi-key": clientId,
+          "x-myobapi-version": "v2",
           Accept: "application/json",
         },
       })
@@ -310,9 +319,12 @@ export class MyobProvider implements AccountingProvider {
       const url = new URL(`${params.organisationId}/Contact/Customer`)
       url.searchParams.set("$filter", filterExpr)
 
+      const { clientId } = getConfig()
       const res = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${params.accessToken}`,
+          "x-myobapi-key": clientId,
+          "x-myobapi-version": "v2",
           Accept: "application/json",
         },
       })

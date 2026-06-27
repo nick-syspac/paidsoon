@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { PlaceholderPage } from "@/components/marketing/PlaceholderPage"
 
 export const metadata: Metadata = {
   title: "Frequently Asked Questions — PaidSoon",
@@ -8,28 +7,69 @@ export const metadata: Metadata = {
 }
 
 const faqs = [
-  { q: "What accounting software does PaidSoon support?", a: "Currently Stripe Connect. MYOB, Xero, and QuickBooks integrations are coming soon." },
-  { q: "Does PaidSoon send emails in my name?", a: "Yes. On paid plans you can use your own email address and domain. On the free trial, emails come from PaidSoon's domain with your name in the sender field." },
-  { q: "What happens when an invoice is paid?", a: "PaidSoon detects the payment via your connected account and automatically stops the reminder sequence. No manual action required." },
-  { q: "Can I pause reminders for a specific invoice?", a: "Yes. You can pause, snooze, or manually resolve any invoice at any time from your dashboard." },
-  { q: "Is there a free trial?", a: "Yes. You can start with a free trial — no credit card required." },
-  { q: "Can I cancel at any time?", a: "Yes. No lock-in contracts. Cancel your subscription at any time from your account settings." },
+  {
+    q: "What does PaidSoon do?",
+    a: "PaidSoon helps businesses follow up overdue invoices automatically. It monitors unpaid invoices, sends polite reminder emails, tracks promises to pay, pauses reminders for disputes and gives you a clear debtor dashboard.",
+  },
+  {
+    q: "What accounting software does PaidSoon support?",
+    a: "PaidSoon currently supports Stripe Connect in private beta. MYOB Business, Xero and QuickBooks Online integrations are planned.",
+  },
+  {
+    q: "Does PaidSoon send emails in my name?",
+    a: "Yes. Paid plans may support your own sender name and email domain. During private beta, some emails may be sent from a PaidSoon-managed domain while deliverability and domain settings are finalised.",
+  },
+  {
+    q: "What happens when an invoice is paid?",
+    a: "PaidSoon detects the payment through the connected account and automatically stops the reminder sequence.",
+  },
+  {
+    q: "Can I pause reminders for a specific invoice?",
+    a: "Yes. You can pause, snooze or manually resolve any invoice from your dashboard.",
+  },
+  {
+    q: "What if a customer promises to pay?",
+    a: "You can record the promise-to-pay date. PaidSoon pauses reminders until that date passes, helping you avoid unnecessary follow-ups.",
+  },
+  {
+    q: "What if an invoice is disputed?",
+    a: "Mark the invoice as disputed and PaidSoon will pause the reminder sequence. You can resume reminders when the dispute is resolved.",
+  },
+  {
+    q: "Is there a free trial?",
+    a: "PaidSoon plans to offer a free trial. During private beta, access may be limited to invited users and early access customers.",
+  },
+  {
+    q: "Can I cancel at any time?",
+    a: "Yes. PaidSoon is designed with no lock-in contracts. Subscription cancellation details will be available in account settings once public billing is enabled.",
+  },
+  {
+    q: "Is PaidSoon a debt collector?",
+    a: "No. PaidSoon is an invoice reminder and workflow automation tool. It helps you send professional follow-ups but does not provide legal advice, debt collection services or credit reporting services.",
+  },
 ]
 
 export default function FaqPage() {
   return (
-    <PlaceholderPage
-      title="Frequently Asked Questions"
-      description="Common questions about PaidSoon — how it works, pricing, integrations, and getting started."
-    >
-      <div className="space-y-6">
-        {faqs.map((faq) => (
-          <div key={faq.q} className="border-b border-gray-100 pb-6">
-            <h2 className="font-semibold text-gray-900 mb-2">{faq.q}</h2>
-            <p className="text-sm text-gray-500">{faq.a}</p>
-          </div>
-        ))}
-      </div>
-    </PlaceholderPage>
+    <div className="min-h-screen bg-white">
+      <section className="max-w-3xl mx-auto px-4 pt-16 pb-10">
+        <h1 className="text-3xl font-bold text-gray-900">Frequently Asked Questions</h1>
+        <p className="mt-4 text-lg text-gray-500">
+          Common questions about PaidSoon — how it works, pricing, integrations and getting started.
+        </p>
+      </section>
+
+      <section className="max-w-3xl mx-auto px-4 pb-16">
+        <div className="space-y-6">
+          {faqs.map((faq) => (
+            <div key={faq.q} className="border-b border-gray-100 pb-6">
+              <h2 className="font-semibold text-gray-900 mb-2">{faq.q}</h2>
+              <p className="text-sm text-gray-500">{faq.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
   )
 }
+

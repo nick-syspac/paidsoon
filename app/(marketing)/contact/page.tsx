@@ -36,10 +36,10 @@ export default function ContactPage() {
                 and answer your questions live.
               </p>
               <Link
-                href="/contact?type=Sales"
+                href="/contact?type=demo"
                 className="inline-block text-sm bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               >
-                Book a demo →
+                Request a demo →
               </Link>
             </div>
 
