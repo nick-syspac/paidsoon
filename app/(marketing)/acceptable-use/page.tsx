@@ -8,10 +8,11 @@ export const metadata: Metadata = {
 
 function LegalDisclaimer() {
   return (
-    <div className="bg-amber-50 border border-amber-300 rounded-lg px-5 py-4 mb-10 text-sm text-amber-900">
-      <strong>[PLACEHOLDER — requires professional legal review before production launch]</strong>
+    <div className="bg-blue-50 border border-blue-200 rounded-lg px-5 py-4 mb-10 text-sm text-blue-900">
+      <strong>Draft Acceptable Use Policy — pending legal review</strong>
       <br />
-      This content is draft placeholder material. It is <strong>not legally binding</strong>.
+      This policy is provided as draft guidance for PaidSoon users and should be reviewed before
+      production launch.
     </div>
   )
 }
@@ -52,7 +53,34 @@ export default function AcceptableUsePage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Enforcement</h2>
-            <p>[PLACEHOLDER — describe consequences of policy violations and account termination process.]</p>
+            <p className="mb-3">
+              If we believe this policy has been breached, we may take action to protect PaidSoon,
+              our users, invoice recipients and third-party providers.
+            </p>
+            <p className="mb-2">Actions may include:</p>
+            <ul className="list-disc pl-5 space-y-1 mb-3">
+              <li>warning the account owner</li>
+              <li>pausing or limiting reminder sending</li>
+              <li>requiring templates, schedules or account settings to be changed</li>
+              <li>suspending access to some or all features</li>
+              <li>disconnecting an integration</li>
+              <li>terminating an account</li>
+              <li>reporting unlawful activity where required or appropriate</li>
+            </ul>
+            <p>
+              Where practical, we will try to contact the account owner before taking action.
+              However, we may act immediately where there is a security risk, legal risk, suspected
+              spam, unauthorised access, harassment, fraud or misuse of the platform.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Email reminder rules</h2>
+            <p>
+              PaidSoon must only be used to send invoice reminders connected to genuine business
+              transactions. Users must not use PaidSoon to send marketing campaigns, unsolicited
+              promotional messages or reminders for debts they are not authorised to manage.
+            </p>
           </section>
 
           <section>

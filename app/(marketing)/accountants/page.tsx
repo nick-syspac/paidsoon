@@ -58,7 +58,7 @@ export default function AccountantsPage() {
               "Unlimited clients under one account",
               "Multi-client debtor dashboard",
               "Dedicated onboarding and setup support",
-              "Partner benefits and referral programme (details TBA)",
+              "Partner benefits for accountants and bookkeepers, including onboarding support, client rollout guidance and future referral options.",
               "Priority support channel",
             ].map((benefit) => (
               <li key={benefit} className="flex gap-2">

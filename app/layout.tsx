@@ -37,7 +37,7 @@ export default function RootLayout({
             className="w-full bg-amber-100 border-b border-amber-300 text-amber-900 text-center text-sm font-medium py-2 px-4"
             role="status"
           >
-            This site is not live yet. Sign in and sign up are currently disabled.
+            PaidSoon is currently in private beta. Public sign-up is opening soon — contact us if you would like early access.
           </div>
         ) : null}
         {children}

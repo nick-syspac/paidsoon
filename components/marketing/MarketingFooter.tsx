@@ -66,7 +66,7 @@ export function MarketingFooter() {
               <p>
                 {abn
                   ? `ABN: ${abn}`
-                  : "ABN: [PLACEHOLDER — configure NEXT_PUBLIC_COMPANY_ABN]"}
+                  : "ABN: 12 657 226 125"}
               </p>
               <p>Australian owned and operated</p>
               <a

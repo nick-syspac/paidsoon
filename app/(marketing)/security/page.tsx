@@ -8,10 +8,11 @@ export const metadata: Metadata = {
 
 function LegalDisclaimer() {
   return (
-    <div className="bg-amber-50 border border-amber-300 rounded-lg px-5 py-4 mb-10 text-sm text-amber-900">
-      <strong>[PLACEHOLDER — requires professional review before production launch]</strong>
+    <div className="bg-blue-50 border border-blue-200 rounded-lg px-5 py-4 mb-10 text-sm text-blue-900">
+      <strong>Draft Security Overview — subject to review</strong>
       <br />
-      This content is draft placeholder material. It is subject to change.
+      This page summarises PaidSoon&apos;s current security approach. It is provided for
+      transparency and may change as the product develops.
     </div>
   )
 }
@@ -44,17 +45,51 @@ export default function SecurityPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Infrastructure</h2>
-            <p>[PLACEHOLDER — describe hosting provider (Vercel), database provider (Supabase), and data residency.]</p>
+            <p className="mb-3">
+              PaidSoon is built using modern managed cloud services, including:
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Vercel for hosting the web application</li>
+              <li>Supabase for database, authentication and storage services</li>
+              <li>Stripe Connect for secure payment account authorisation</li>
+              <li>
+                email delivery infrastructure for transactional invoice reminders and account
+                notifications
+              </li>
+            </ul>
+            <p className="mt-3">
+              We use managed providers so that security updates, availability controls and platform
+              monitoring can be handled using established cloud infrastructure. Data residency and
+              provider-region details may vary depending on the services used and will be reviewed as
+              PaidSoon moves from private beta to production.
+            </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Reporting a security issue</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Access control</h2>
             <p>
-              If you discover a security vulnerability, please report it privately to{" "}
+              Access to PaidSoon systems is limited to authorised personnel. Administrative access is
+              protected using strong authentication and least-privilege principles wherever practical.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Audit logging</h2>
+            <p>
+              PaidSoon records key events such as account connection, invoice sync, reminder sends,
+              promise-to-pay updates, dispute pauses and manual workflow actions.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Responsible disclosure</h2>
+            <p>
+              If you believe you have found a vulnerability, contact{" "}
               <a href="mailto:security@paidsoon.com.au" className="text-blue-600 hover:underline">
                 security@paidsoon.com.au
               </a>
-              . Do not disclose vulnerabilities publicly before we&apos;ve had a chance to respond.
+              . Please include enough detail for us to reproduce the issue and do not publicly
+              disclose the issue until we have had a reasonable opportunity to investigate.
             </p>
           </section>
         </div>
