@@ -48,9 +48,19 @@ function toCents(amount: number): number {
   return Math.round(amount * 100)
 }
 
-/** Check if access token should be refreshed (< 5 min to expiry) */
-function shouldRefresh(tokenExpiresAt: Date): boolean {
-  const BUFFER_MS = 5 * 60 * 1000
+/** Check if access token should be refreshed before a sync run.
+ *
+ * MYOB tokens expire in 20 minutes (1200 s). To prevent a long paginated
+ * fetch from exhausting the token mid-run, always refresh for MYOB when
+ * less than 21 minutes remain — effectively guaranteeing a fresh token at
+ * the start of every MYOB sync.
+ *
+ * Xero tokens last 30 minutes; a 5-minute buffer is sufficient.
+ */
+function shouldRefresh(tokenExpiresAt: Date, provider: string): boolean {
+  const BUFFER_MS = provider === "myob"
+    ? 21 * 60 * 1000  // 21 min — always refresh before a MYOB sync
+    : 5 * 60 * 1000   // 5 min — standard buffer for Xero (30 min tokens)
   return tokenExpiresAt.getTime() - Date.now() < BUFFER_MS
 }
 
@@ -141,7 +151,7 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     let refreshToken = decryptToken(connection.encryptedRefreshToken)
     let tokenExpiresAt = connection.tokenExpiresAt
 
-    if (shouldRefresh(tokenExpiresAt)) {
+    if (shouldRefresh(tokenExpiresAt, connection.provider)) {
       const newTokens = await withRetry(() => provider.refreshTokens(refreshToken))
       accessToken = newTokens.accessToken
       refreshToken = newTokens.refreshToken

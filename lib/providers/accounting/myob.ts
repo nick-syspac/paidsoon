@@ -197,10 +197,37 @@ export class MyobProvider implements AccountingProvider {
    * company file as part of the OAuth flow. The selected file's URI is returned
    * in the `businessId` query parameter on the callback URL.
    */
-  async getOrganisations(_accessToken: string): Promise<Organisation[]> {
-    // Organisations are determined during the OAuth callback (cf_uri from
-    // the businessId query param). No additional API call is needed.
-    return []
+  async getOrganisations(accessToken: string): Promise<Organisation[]> {
+    // Fetches the list of accessible MYOB company files from the top-level
+    // accountright endpoint. Used during the OAuth callback to resolve a
+    // human-readable company name from the cf_uri returned as `businessId`.
+    const { clientId } = getConfig()
+    const res = await fetch("https://api.myob.com/accountright/", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-myobapi-key": clientId,
+        "x-myobapi-version": "v2",
+        Accept: "application/json",
+      },
+    })
+
+    if (!res.ok) {
+      // Non-fatal: caller falls back to URI-based name
+      return []
+    }
+
+    const files = (await res.json()) as Array<{
+      Id?: string
+      Name?: string
+      Uri?: string
+      Country?: string
+    }>
+
+    return files.map((f) => ({
+      id: f.Uri ?? f.Id ?? "",
+      name: f.Name ?? f.Uri ?? "",
+      countryCode: f.Country,
+    }))
   }
 
   async getInvoices(params: {
@@ -244,10 +271,17 @@ export class MyobProvider implements AccountingProvider {
         url.searchParams.set("$filter", `LastModified gt datetime'${iso}'`)
       }
 
+      const { clientId } = getConfig()
       const res = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${params.accessToken}`,
-          "x-myobapi-cftoken": "", // populated per-user from session; empty here triggers user-level auth
+          // x-myobapi-cftoken: empty string is correct for MYOB Business online/cloud
+          // company files — ownership is established via OAuth Bearer token.
+          // Desktop/AccountRight Live files require Base64(username:password) but are
+          // out of scope for PaidSoon (cloud-only target).
+          "x-myobapi-cftoken": "",
+          "x-myobapi-key": clientId,
+          "x-myobapi-version": "v2",
           Accept: "application/json",
         },
       })
@@ -310,9 +344,12 @@ export class MyobProvider implements AccountingProvider {
       const url = new URL(`${params.organisationId}/Contact/Customer`)
       url.searchParams.set("$filter", filterExpr)
 
+      const { clientId } = getConfig()
       const res = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${params.accessToken}`,
+          "x-myobapi-key": clientId,
+          "x-myobapi-version": "v2",
           Accept: "application/json",
         },
       })
