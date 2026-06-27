@@ -6,23 +6,11 @@ export const metadata: Metadata = {
     "PaidSoon Cookie Policy — how Syspac Pty Ltd uses cookies and similar tracking technologies on the PaidSoon platform.",
 }
 
-function LegalDisclaimer() {
-  return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg px-5 py-4 mb-10 text-sm text-blue-900">
-      <strong>Draft Cookie Policy — pending legal review</strong>
-      <br />
-      This Cookie Policy is provided as draft information and should be reviewed before production
-      launch.
-    </div>
-  )
-}
-
 export default function CookiesPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-4 py-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Cookie Policy</h1>
-        <LegalDisclaimer />
 
         <div className="prose prose-gray max-w-none text-sm text-gray-600 space-y-8">
           <section>

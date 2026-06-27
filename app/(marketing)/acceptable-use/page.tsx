@@ -6,23 +6,11 @@ export const metadata: Metadata = {
     "PaidSoon Acceptable Use Policy — the rules governing permitted and prohibited use of the PaidSoon platform, operated by Syspac Pty Ltd.",
 }
 
-function LegalDisclaimer() {
-  return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg px-5 py-4 mb-10 text-sm text-blue-900">
-      <strong>Draft Acceptable Use Policy — pending legal review</strong>
-      <br />
-      This policy is provided as draft guidance for PaidSoon users and should be reviewed before
-      production launch.
-    </div>
-  )
-}
-
 export default function AcceptableUsePage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-4 py-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Acceptable Use Policy</h1>
-        <LegalDisclaimer />
 
         <div className="prose prose-gray max-w-none text-sm text-gray-600 space-y-8">
           <section>

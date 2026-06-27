@@ -6,23 +6,11 @@ export const metadata: Metadata = {
     "How PaidSoon (Syspac Pty Ltd) keeps your invoice data and account secure.",
 }
 
-function LegalDisclaimer() {
-  return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg px-5 py-4 mb-10 text-sm text-blue-900">
-      <strong>Draft Security Overview — subject to review</strong>
-      <br />
-      This page summarises PaidSoon&apos;s current security approach. It is provided for
-      transparency and may change as the product develops.
-    </div>
-  )
-}
-
 export default function SecurityPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-4 py-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Security</h1>
-        <LegalDisclaimer />
 
         <div className="prose prose-gray max-w-none text-sm text-gray-600 space-y-8">
           <section>
