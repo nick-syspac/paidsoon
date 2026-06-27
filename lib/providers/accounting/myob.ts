@@ -197,37 +197,12 @@ export class MyobProvider implements AccountingProvider {
    * company file as part of the OAuth flow. The selected file's URI is returned
    * in the `businessId` query parameter on the callback URL.
    */
-  async getOrganisations(accessToken: string): Promise<Organisation[]> {
-    // Fetches the list of accessible MYOB company files from the top-level
-    // accountright endpoint. Used during the OAuth callback to resolve a
-    // human-readable company name from the cf_uri returned as `businessId`.
-    const { clientId } = getConfig()
-    const res = await fetch("https://api.myob.com/accountright/", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-myobapi-key": clientId,
-        "x-myobapi-version": "v2",
-        Accept: "application/json",
-      },
-    })
-
-    if (!res.ok) {
-      // Non-fatal: caller falls back to URI-based name
-      return []
-    }
-
-    const files = (await res.json()) as Array<{
-      Id?: string
-      Name?: string
-      Uri?: string
-      Country?: string
-    }>
-
-    return files.map((f) => ({
-      id: f.Uri ?? f.Id ?? "",
-      name: f.Name ?? f.Uri ?? "",
-      countryCode: f.Country,
-    }))
+  async getOrganisations(_accessToken: string): Promise<Organisation[]> {
+    // MYOB company file selection happens during the OAuth redirect flow.
+    // The selected file's URI is returned as the `businessId` query parameter
+    // on the callback URL. There is no separate API call required to discover
+    // company files at the getOrganisations step.
+    return []
   }
 
   async getInvoices(params: {
