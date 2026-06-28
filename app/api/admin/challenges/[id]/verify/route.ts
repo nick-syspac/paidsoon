@@ -25,12 +25,6 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  // Safety: ADMIN_REQUIRE_DEVICE_KEY must never be false in production.
-  // Check is here (not at module scope) to avoid throwing during the Next.js build.
-  if (process.env.NODE_ENV === "production" && !REQUIRE_DEVICE_KEY) {
-    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
-  }
-
   const { id: challengeId } = await params
   const ipAddress = getIpAddress(req)
   const userAgent = getUserAgent(req)
