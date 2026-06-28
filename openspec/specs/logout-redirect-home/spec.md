@@ -4,11 +4,10 @@
 TBD - created by archiving change logout-redirect-homepage. Update Purpose after archive.
 ## Requirements
 ### Requirement: User is redirected to homepage after logout
+The system SHALL redirect an authenticated user to the main homepage (`/`) when they initiate logout via the user menu or endpoint. The sign-out trigger SHALL be located inside the user menu dropdown (not as a standalone nav button).
 
-The system SHALL redirect an authenticated user to the main homepage (`/`) when they initiate logout via the logout button or endpoint.
-
-#### Scenario: User logs out via logout button
-- **WHEN** a user clicks the logout button in the authenticated dashboard
+#### Scenario: User logs out via user menu
+- **WHEN** a user clicks "Sign out" in the user menu dropdown in the authenticated dashboard
 - **THEN** the system clears their session and redirects them to the main homepage (`/`)
 
 #### Scenario: User accesses logout endpoint directly
