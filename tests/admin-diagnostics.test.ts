@@ -15,7 +15,7 @@ import { checkSyncStale } from "@/lib/admin/diagnostics/checks/sync-stale"
 import { checkNoInvoicesTracked } from "@/lib/admin/diagnostics/checks/no-invoices-tracked"
 import { runDiagnostics } from "@/lib/admin/diagnostics"
 import type { TenantSnapshot } from "@/lib/admin/tenantSnapshot"
-import type { UserProfile, Schedule, EmailSettings, InvoiceConnection, AccountingConnection } from "@/lib/generated/prisma/client"
+import type { UserProfile, EmailSettings, InvoiceConnection, AccountingConnection } from "@/lib/generated/prisma/client"
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { prismaAdmin } from "@/lib/db/admin"
 
 interface Props {
@@ -46,12 +47,12 @@ export default async function AdminTenantsPage({ searchParams }: Props) {
           Search
         </button>
         {query && (
-          <a
+          <Link
             href="/admin/tenants"
             className="bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm px-3 py-2 rounded"
           >
             Clear
-          </a>
+          </Link>
         )}
       </form>
 

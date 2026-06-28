@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getRunbook } from "@/lib/admin/runbooks"
 
@@ -20,9 +21,9 @@ export default async function AdminRunbookDetailPage({ params }: Props) {
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-center gap-3">
-        <a href="/admin/runbooks" className="text-gray-500 hover:text-gray-300 text-sm">
+        <Link href="/admin/runbooks" className="text-gray-500 hover:text-gray-300 text-sm">
           ← Runbooks
-        </a>
+        </Link>
         <span className={`text-xs px-2 py-0.5 rounded font-medium ${SEVERITY_BADGE[runbook.severity] ?? "bg-gray-800 text-gray-400"}`}>
           {runbook.severity}
         </span>

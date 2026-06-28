@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { notFound } from "next/navigation"
 import { fetchTenantSnapshot } from "@/lib/admin/tenantSnapshot"
 import { runDiagnostics } from "@/lib/admin/diagnostics"
@@ -25,9 +26,9 @@ export default async function AdminTenantDetailPage({ params }: Props) {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <a href="/admin/tenants" className="text-gray-500 hover:text-gray-300 text-sm">
+        <Link href="/admin/tenants" className="text-gray-500 hover:text-gray-300 text-sm">
           ← Tenants
-        </a>
+        </Link>
         <h1 className="text-2xl font-bold text-white">
           {snapshot.profile.displayName ?? (snapshot.supabaseEmail || userId)}
         </h1>
