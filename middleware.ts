@@ -4,8 +4,9 @@ import { isLiveMode, shouldBlockAuthEntry } from "@/lib/liveMode"
 
 export async function middleware(request: NextRequest) {
   const liveMode = isLiveMode()
+  const { pathname } = request.nextUrl
 
-  if (shouldBlockAuthEntry(request.nextUrl.pathname, liveMode)) {
+  if (shouldBlockAuthEntry(pathname, liveMode)) {
     const url = request.nextUrl.clone()
     url.pathname = "/"
     return NextResponse.redirect(url)
@@ -43,21 +44,43 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect /dashboard routes
-  if (
-    !user &&
-    request.nextUrl.pathname.startsWith("/dashboard")
-  ) {
+  // ---------------------------------------------------------------------------
+  // Admin route protection (Layer 1: Supabase auth only — Edge-compatible)
+  // Layers 2 (PlatformRole) and 3 (AdminSession) are enforced in route handlers
+  // and the admin layout server component via lib/admin/guard.ts.
+  // ---------------------------------------------------------------------------
+
+  const isAdminApiPath = pathname.startsWith("/api/admin")
+  const isAdminUiPath = pathname.startsWith("/admin")
+
+  if (isAdminApiPath || isAdminUiPath) {
+    if (!user) {
+      if (isAdminApiPath) {
+        return NextResponse.json(
+          { error: "Unauthenticated", code: "unauthenticated" },
+          { status: 401 }
+        )
+      }
+      const url = request.nextUrl.clone()
+      url.pathname = "/sign-in"
+      return NextResponse.redirect(url)
+    }
+    // Authenticated users pass through to the layout / route handler for role + session checks.
+    return supabaseResponse
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dashboard route protection
+  // ---------------------------------------------------------------------------
+
+  if (!user && pathname.startsWith("/dashboard")) {
     const url = request.nextUrl.clone()
     url.pathname = "/sign-in"
     return NextResponse.redirect(url)
   }
 
   // Redirect authenticated users away from auth pages
-  if (
-    user &&
-    shouldBlockAuthEntry(request.nextUrl.pathname, true)
-  ) {
+  if (user && shouldBlockAuthEntry(pathname, true)) {
     const url = request.nextUrl.clone()
     url.pathname = "/dashboard"
     return NextResponse.redirect(url)

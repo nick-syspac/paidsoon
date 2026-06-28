@@ -334,10 +334,14 @@ erDiagram
 | `ProviderInvoiceMapping` | `prisma/schema.prisma` | Maps provider invoice IDs to `TrackedInvoice` | `trackedInvoiceId`, `accountingConnectionId`, `providerInvoiceId`, `providerUpdatedAt`, `providerMetadata` | 1—1 tracked invoice; N—1 connection | Yes (SELECT via JOIN on tracked_invoices.userId) | Unique `(providerInvoiceId, accountingConnectionId)`; `providerUpdatedAt` drives incremental sync |
 | `ProviderContactMapping` | `prisma/schema.prisma` | Maps provider customer/contact IDs for deduplication | `accountingConnectionId`, `providerContactId`, `contactName`, `contactEmail`, `providerMetadata` | N—1 connection | Yes (SELECT via JOIN on accounting_connections.userId) | Unique `(providerContactId, accountingConnectionId)`; `contactEmail` is PII |
 | `OauthState` | `prisma/schema.prisma` | CSRF nonce for accounting OAuth callbacks (10-min TTL) | `userId`, `provider`, `nonce`, `expiresAt` | — | Yes (by userId; SELECT/INSERT/DELETE) | Unique `(nonce)`; expired rows cleaned up by `/api/cron/sync-accounting` |
+| `PlatformRole` | `prisma/schema.prisma` | Platform staff membership | `userId`, `role` (`platform_owner`/`platform_admin`/`platform_support`), `status` (`active`/`disabled`), `grantedBy` | — | No (deny-all RLS; `prismaAdmin` only) | Max one active role per user; `grantedBy` = granting user id |
+| `AdminDevice` | `prisma/schema.prisma` | Enrolled SSH Ed25519 public keys | `userId`, `name`, `publicKeyBytes`, `fingerprint` (UK), `status` (`pending`/`active`/`revoked`/`expired`) | N—1 platform role user; 1—N challenges/sessions | No (deny-all RLS) | `publicKeyBytes` = 32-byte Ed25519 raw key; `fingerprint` = `SHA256:<base64>` |
+| `AdminChallenge` | `prisma/schema.prisma` | Single-use SSH signing nonce | `userId`, `adminDeviceId`, `nonce` (UK), `expiresAt`, `usedAt` | N—1 device | No (deny-all RLS) | Nonce is 32 bytes / 64 hex chars; `usedAt` marks replay prevention |
+| `AdminSession` | `prisma/schema.prisma` | Elevated admin session after key verification | `userId`, `adminDeviceId`, `sessionToken` (UK), `expiresAt`, `revokedAt`, `ipAddress`, `userAgent` | N—1 device | No (deny-all RLS) | Token stored as `admin_session` cookie (HttpOnly/Secure/SameSite=Strict); `revokedAt` enables soft revocation |
+| `AdminAuditEvent` | `prisma/schema.prisma` | Append-only admin action log | `actorUserId`, `action` (enum, 22 values), `targetUserId`, `tenantId`, `success`, `metadata`, `ipAddress`, `requestId` | — | No (deny-all RLS; `prismaAdmin` only) | Never deleted; no UPDATE policy; fire-and-forget write via `logAdminEvent()` |
+| `StaffInvitation` | `prisma/schema.prisma` | Pending platform staff invite | `invitedEmail`, `role`, `token` (UK), `invitedBy`, `status` (`pending`/`accepted`/`expired`/`revoked`), `expiresAt`, `acceptedBy` | — | No (deny-all RLS) | Token is 32 bytes / 64 hex chars; accepted by matching Supabase user email |
 
-> ERDs for RBAC, compliance/controls/obligations/evidence, workflow,
-> integrations registry, audit, AI policy, and vertical models are **not
-> applicable** — no such tables exist.
+> ERDs for compliance/controls/obligations/evidence, workflow, and vertical models are **not applicable** — no such tables exist.
 
 ### 6.4 RLS design
 
@@ -350,6 +354,13 @@ and INSERT both use a join-based `EXISTS` check against `tracked_invoices`
 (service role), so the tightened INSERT policy does not affect it. `ai_usage_logs`
 has a SELECT policy for own rows; INSERTs are `prismaAdmin`-only (no user INSERT
 policy).
+
+The six **platform admin tables** (`platform_roles`, `admin_devices`,
+`admin_challenges`, `admin_sessions`, `admin_audit_events`, `staff_invitations`)
+all have deny-all RLS — no `anon` or `authenticated` role may SELECT, INSERT,
+UPDATE, or DELETE from them. All reads and writes go through `prismaAdmin`
+(service role) in admin route handlers that have first passed the three-layer
+admin guard. See `prisma/rls-policies.sql`.
 
 ## 7. API Design
 
@@ -385,6 +396,26 @@ policy).
 | `POST /api/integrations/myob/disconnect` | `.../myob/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
 | `POST /api/integrations/myob/sync` | `.../myob/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
 | `GET /api/cron/sync-accounting` | `.../cron/sync-accounting/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{totalConnections,succeeded,failed,invoicesCreated,invoicesUpdated}` | Implemented |
+| `POST /api/admin/challenges` | `app/api/admin/challenges/route.ts` | `zod` `{deviceId}` | Layer 1+2 (Supabase session + PlatformRole) | `prismaAdmin` | → `{challengeId, nonce}` | Implemented |
+| `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{signature, publicKeyFingerprint}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{ok}` | Implemented |
+| `POST /api/admin/sessions/revoke` | `app/api/admin/sessions/revoke/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `admin_session` cookie; `{ok}` | Implemented |
+| `GET /api/admin/audit-events` | `app/api/admin/audit-events/route.ts` | query filters + cursor | All 3 layers | `prismaAdmin` | → `{events, nextCursor}` | Implemented |
+| `GET /api/admin/devices` | `app/api/admin/devices/route.ts` | — | All 3 layers | `prismaAdmin` | → `{devices}` (no publicKeyBytes) | Implemented |
+| `POST /api/admin/devices` | `app/api/admin/devices/route.ts` | `zod` `{name, publicKey}` | All 3 layers | `prismaAdmin` | → `{device}` | Implemented |
+| `POST /api/admin/devices/[id]/revoke` | `.../revoke/route.ts` | path `id` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{ok}` | Implemented |
+| `GET /api/admin/staff` | `app/api/admin/staff/route.ts` | — | All 3 layers | `prismaAdmin` | → `{staff}` | Implemented |
+| `POST /api/admin/staff/invitations` | `.../invitations/route.ts` | `zod` `{email, role}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{invitation}` | Implemented |
+| `POST /api/admin/staff/invitations/accept` | `.../accept/route.ts` | `zod` `{token}` | Layer 1+2 (email must match) | `prismaAdmin` | → `{ok}` | Implemented |
+| `POST /api/admin/staff/[userId]/role` | `.../role/route.ts` | `zod` `{role}` | All 3 layers; `minRole: platform_owner` | `prismaAdmin` | → `{ok}` | Implemented |
+| `POST /api/admin/staff/[userId]/disable` | `.../disable/route.ts` | path `userId` | All 3 layers; `minRole: platform_owner` | `prismaAdmin` | → `{ok}` | Implemented |
+| `GET /api/admin/tenants` | `app/api/admin/tenants/route.ts` | query `cursor,limit` | All 3 layers | `prismaAdmin` | → `{tenants, nextCursor}` (safe fields) | Implemented |
+| `GET /api/admin/tenants/[id]` | `.../[id]/route.ts` | path `id` | All 3 layers | `prismaAdmin` | → `{tenant}` (safe fields); logs `tenant_viewed` | Implemented |
+| `GET /api/admin/users` | `app/api/admin/users/route.ts` | query `search,cursor,limit` | All 3 layers | `prismaAdmin` | → `{users, nextCursor}` | Implemented |
+| `GET /api/admin/subscriptions` | `app/api/admin/subscriptions/route.ts` | — | All 3 layers | `prismaAdmin` | → `{tiers}` (counts, no Stripe IDs) | Implemented |
+| `GET /api/admin/integrations` | `app/api/admin/integrations/route.ts` | — | All 3 layers | `prismaAdmin` | → `{byProvider}` (no tokens) | Implemented |
+| `GET /api/admin/email-jobs` | `app/api/admin/email-jobs/route.ts` | query `cursor,limit` | All 3 layers | `prismaAdmin` | → `{jobs}` (no clientEmail) | Implemented |
+| `POST /api/admin/impersonation/start` | `.../start/route.ts` | `zod` `{tenantId}` | All 3 layers; cannot impersonate other admin | `prismaAdmin` | → updates `AdminSession.impersonatedTenantId`; `{ok}` | Implemented |
+| `POST /api/admin/impersonation/end` | `.../end/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `impersonatedTenantId`; `{ok}` | Implemented |
 Canonical vs deprecated: there are no deprecated API aliases. The only
 backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
 
@@ -409,6 +440,32 @@ backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
   transaction.
 - **Cross-tenant enforcement:** Postgres RLS policies; `scripts/verify-rls.ts`
   proves user A cannot read user B's rows even with the `where` clause omitted.
+
+### 8.1 Platform admin authentication
+
+The `/admin` route group adds a **three-layer elevated-privilege guard** on top of normal Supabase auth:
+
+| Layer | Mechanism | Where enforced |
+|---|---|---|
+| 1 | Supabase session — same as `/dashboard` | `middleware.ts` |
+| 2 | `PlatformRole` row in `platform_roles` with `status = active` | `lib/admin/guard.ts` |
+| 3 | `AdminSession` row linked to a verified `AdminDevice` (Ed25519 SSH public key challenge-response) | `lib/admin/guard.ts` + `app/api/admin/challenges/` |
+
+**Challenge-response flow** (browser → server; private key never leaves the device):
+
+1. Browser POSTs `deviceId` to `/api/admin/challenges` → server stores a 32-byte nonce and returns `{challengeId, nonce}`.
+2. Operator runs: `echo "<nonce>" | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n paidsoon-admin-auth` and pastes the armoured signature.
+3. Browser POSTs signature to `/api/admin/challenges/[id]/verify` → server verifies the Ed25519 signature with the stored public key bytes, marks the challenge used, creates an `AdminSession`, and sets the `admin_session` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
+
+**Key observation:** the server stores only the 32-byte Ed25519 *public* key. The *private* key never leaves the operator's machine. For production, a hardware-backed key (YubiKey resident key, macOS Secure Enclave key via `ssh-keygen -t ecdsa-sk`) is strongly recommended because a software private key file can be exfiltrated if the machine is compromised.
+
+**Role hierarchy:** `platform_support < platform_admin < platform_owner`
+
+- `platform_support` — read-only tenant/subscription/email-job views
+- `platform_admin` — all of the above + device revocation + staff invitations
+- `platform_owner` — all of the above + role changes + disable staff
+
+All six admin DB tables have deny-all RLS. Every admin route handler calls `requireAdminElevation()` (all 3 layers) or `requirePlatformRole()` (layers 1+2, for the `/admin/verify` challenge page). Session signing-out revokes the `AdminSession` row and clears the cookie.
 
 ```mermaid
 sequenceDiagram

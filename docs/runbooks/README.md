@@ -94,6 +94,14 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `NEXT_PUBLIC_COMPANY_ABN` | omit or set to company ABN | omit or set to company ABN | ABN of Syspac Pty Ltd (e.g., `12 345 678 901`) | [MarketingFooter](../../components/marketing/MarketingFooter.tsx) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `1x00000000000000000000AA` (CF test key — always passes) | `1x00000000000000000000AA` (CF test key) | real site key from [Cloudflare Turnstile dashboard](https://dash.cloudflare.com/) | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |
 | `TURNSTILE_SECRET_KEY` | `1x0000000000000000000000000000000AA` (CF test secret) | `1x0000000000000000000000000000000AA` (CF test secret) | real secret key from Cloudflare Turnstile dashboard | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |
+| `ADMIN_ENABLED` | `false` | `false` | `true` (set explicitly to enable the `/admin` routes) | [docs/admin-security.md](../admin-security.md) — if unset the platform admin UI is inaccessible |
+| `ADMIN_REQUIRE_DEVICE_KEY` | `false` (dev convenience) | `false` | **`true`** — must be `true` in production; enforces SSH key challenge before issuing an AdminSession | [lib/admin/guard.ts](../../lib/admin/guard.ts) |
+| `ADMIN_REQUIRE_MFA` | `false` | `false` | `true` — reserved for future TOTP second-factor enforcement | [lib/admin/guard.ts](../../lib/admin/guard.ts) |
+| `ADMIN_SESSION_TTL_MINUTES` | `480` (8 h) | `480` | `60` (1 h) — how long an AdminSession cookie remains valid | [lib/admin/guard.ts](../../lib/admin/guard.ts) |
+| `ADMIN_CHALLENGE_TTL_SECONDS` | `300` | `300` | `120` — window in which a signed SSH challenge must be submitted | [app/api/admin/challenges/route.ts](../../app/api/admin/challenges/route.ts) |
+| `ADMIN_MAX_FAILED_ATTEMPTS` | `10` | `10` | `5` — failed challenge attempts before temporary lockout | [app/api/admin/challenges/route.ts](../../app/api/admin/challenges/route.ts) |
+| `PLATFORM_OWNER_EMAIL` | Supabase user email of first platform owner | — | Supabase user email of first platform owner | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only; never read at runtime |
+| `ADMIN_SSH_PUBLIC_KEY` | contents of `~/.ssh/id_ed25519.pub` (optional device enrol) | — | contents of operator public key (optional first-device enrol) | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only; server never stores or uses the private key |
 
 ### Where each var is consumed in code
 
@@ -132,6 +140,14 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `MYOB_CLIENT_ID` | [lib/providers/accounting/myob.ts](../../lib/providers/accounting/myob.ts), [app/api/integrations/myob/connect/route.ts](../../app/api/integrations/myob/connect/route.ts), [app/api/integrations/myob/callback/route.ts](../../app/api/integrations/myob/callback/route.ts) |
 | `MYOB_CLIENT_SECRET` | [lib/providers/accounting/myob.ts](../../lib/providers/accounting/myob.ts) — server-side only; never expose to browser |
 | `MYOB_REDIRECT_URI` | [app/api/integrations/myob/connect/route.ts](../../app/api/integrations/myob/connect/route.ts), [app/api/integrations/myob/callback/route.ts](../../app/api/integrations/myob/callback/route.ts) |
+| `ADMIN_ENABLED` | [lib/admin/guard.ts](../../lib/admin/guard.ts) |
+| `ADMIN_REQUIRE_DEVICE_KEY` | [app/api/admin/challenges/[id]/verify/route.ts](../../app/api/admin/challenges/[id]/verify/route.ts) |
+| `ADMIN_REQUIRE_MFA` | [lib/admin/guard.ts](../../lib/admin/guard.ts) |
+| `ADMIN_SESSION_TTL_MINUTES` | [lib/admin/guard.ts](../../lib/admin/guard.ts) |
+| `ADMIN_CHALLENGE_TTL_SECONDS` | [app/api/admin/challenges/route.ts](../../app/api/admin/challenges/route.ts) |
+| `ADMIN_MAX_FAILED_ATTEMPTS` | [app/api/admin/challenges/route.ts](../../app/api/admin/challenges/route.ts) |
+| `PLATFORM_OWNER_EMAIL` | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only |
+| `ADMIN_SSH_PUBLIC_KEY` | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only |
 
 ### Things you might expect but won't find
 

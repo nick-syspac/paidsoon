@@ -266,3 +266,70 @@ CREATE POLICY "users can view own promises to pay"
 
 -- No user INSERT/UPDATE/DELETE policy — public endpoint and cron use
 -- prismaAdmin (service role) which bypasses RLS by design.
+
+-- ---------------------------------------------------------------------------
+-- Platform Admin Tables (deny-all for anon and authenticated roles)
+-- These tables are ONLY accessible via prismaAdmin (service role / BYPASSRLS).
+-- No tenant-level Supabase client may read, insert, update, or delete rows.
+-- ---------------------------------------------------------------------------
+ALTER TABLE platform_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_challenges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_audit_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_invitations ENABLE ROW LEVEL SECURITY;
+
+-- Deny all SELECT for anon and authenticated roles
+CREATE POLICY "admin deny select anon"       ON platform_roles     FOR SELECT TO anon          USING (false);
+CREATE POLICY "admin deny select auth"       ON platform_roles     FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "admin deny insert anon"       ON platform_roles     FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "admin deny insert auth"       ON platform_roles     FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "admin deny update anon"       ON platform_roles     FOR UPDATE TO anon           USING (false);
+CREATE POLICY "admin deny update auth"       ON platform_roles     FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "admin deny delete anon"       ON platform_roles     FOR DELETE TO anon           USING (false);
+CREATE POLICY "admin deny delete auth"       ON platform_roles     FOR DELETE TO authenticated  USING (false);
+
+CREATE POLICY "devices deny select anon"     ON admin_devices      FOR SELECT TO anon          USING (false);
+CREATE POLICY "devices deny select auth"     ON admin_devices      FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "devices deny insert anon"     ON admin_devices      FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "devices deny insert auth"     ON admin_devices      FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "devices deny update anon"     ON admin_devices      FOR UPDATE TO anon           USING (false);
+CREATE POLICY "devices deny update auth"     ON admin_devices      FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "devices deny delete anon"     ON admin_devices      FOR DELETE TO anon           USING (false);
+CREATE POLICY "devices deny delete auth"     ON admin_devices      FOR DELETE TO authenticated  USING (false);
+
+CREATE POLICY "challenges deny select anon"  ON admin_challenges   FOR SELECT TO anon          USING (false);
+CREATE POLICY "challenges deny select auth"  ON admin_challenges   FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "challenges deny insert anon"  ON admin_challenges   FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "challenges deny insert auth"  ON admin_challenges   FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "challenges deny update anon"  ON admin_challenges   FOR UPDATE TO anon           USING (false);
+CREATE POLICY "challenges deny update auth"  ON admin_challenges   FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "challenges deny delete anon"  ON admin_challenges   FOR DELETE TO anon           USING (false);
+CREATE POLICY "challenges deny delete auth"  ON admin_challenges   FOR DELETE TO authenticated  USING (false);
+
+CREATE POLICY "sessions deny select anon"    ON admin_sessions     FOR SELECT TO anon          USING (false);
+CREATE POLICY "sessions deny select auth"    ON admin_sessions     FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "sessions deny insert anon"    ON admin_sessions     FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "sessions deny insert auth"    ON admin_sessions     FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "sessions deny update anon"    ON admin_sessions     FOR UPDATE TO anon           USING (false);
+CREATE POLICY "sessions deny update auth"    ON admin_sessions     FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "sessions deny delete anon"    ON admin_sessions     FOR DELETE TO anon           USING (false);
+CREATE POLICY "sessions deny delete auth"    ON admin_sessions     FOR DELETE TO authenticated  USING (false);
+
+CREATE POLICY "audit deny select anon"       ON admin_audit_events FOR SELECT TO anon          USING (false);
+CREATE POLICY "audit deny select auth"       ON admin_audit_events FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "audit deny insert anon"       ON admin_audit_events FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "audit deny insert auth"       ON admin_audit_events FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "audit deny update anon"       ON admin_audit_events FOR UPDATE TO anon           USING (false);
+CREATE POLICY "audit deny update auth"       ON admin_audit_events FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "audit deny delete anon"       ON admin_audit_events FOR DELETE TO anon           USING (false);
+CREATE POLICY "audit deny delete auth"       ON admin_audit_events FOR DELETE TO authenticated  USING (false);
+
+CREATE POLICY "invites deny select anon"     ON staff_invitations  FOR SELECT TO anon          USING (false);
+CREATE POLICY "invites deny select auth"     ON staff_invitations  FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "invites deny insert anon"     ON staff_invitations  FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "invites deny insert auth"     ON staff_invitations  FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "invites deny update anon"     ON staff_invitations  FOR UPDATE TO anon           USING (false);
+CREATE POLICY "invites deny update auth"     ON staff_invitations  FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "invites deny delete anon"     ON staff_invitations  FOR DELETE TO anon           USING (false);
+CREATE POLICY "invites deny delete auth"     ON staff_invitations  FOR DELETE TO authenticated  USING (false);

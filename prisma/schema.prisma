@@ -49,7 +49,7 @@ model InvoiceConnection {
   id                     String   @id @default(cuid())
   userId                 String
   provider               String   @default("stripe") // 'stripe' | future providers
-  stripeConnectAccountId String?  // encrypted at app layer
+  stripeConnectAccountId String? // encrypted at app layer
   isActive               Boolean  @default(true)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
@@ -65,13 +65,13 @@ model InvoiceConnection {
 // ---------------------------------------------------------------------------
 
 model Schedule {
-  id                  String   @id @default(cuid())
-  userId              String   @unique
-  email1DaysAfterDue  Int      @default(3)
-  email2DaysAfterDue  Int      @default(10)
-  email3DaysAfterDue  Int      @default(21)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  email1DaysAfterDue Int      @default(3)
+  email2DaysAfterDue Int      @default(10)
+  email3DaysAfterDue Int      @default(21)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   userProfile UserProfile @relation(fields: [userId], references: [userId])
 
@@ -83,14 +83,14 @@ model Schedule {
 // ---------------------------------------------------------------------------
 
 model EmailSettings {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  fromEmail       String?  // null = use system domain
-  fromName        String?
-  replyTo         String?
-  resendVerified  Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  fromEmail      String? // null = use system domain
+  fromName       String?
+  replyTo        String?
+  resendVerified Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   userProfile UserProfile @relation(fields: [userId], references: [userId])
 
@@ -105,11 +105,11 @@ model TrackedInvoice {
   id                  String    @id @default(cuid())
   userId              String
   invoiceConnectionId String
-  externalId          String    // e.g. Stripe invoice ID
+  externalId          String // e.g. Stripe invoice ID
   provider            String    @default("stripe")
   clientEmail         String
   clientName          String
-  amountDue           Int       // in smallest currency unit (cents)
+  amountDue           Int // in smallest currency unit (cents)
   currency            String    @default("usd")
   dueDate             DateTime
   status              String    @default("pending")
@@ -137,21 +137,21 @@ model TrackedInvoice {
 // ---------------------------------------------------------------------------
 
 model PromiseToPay {
-  id               String    @id @default(cuid())
-  trackedInvoiceId String    @map("tracked_invoice_id")
-  userId           String    @map("user_id") // for RLS scoping
+  id               String @id @default(cuid())
+  trackedInvoiceId String @map("tracked_invoice_id")
+  userId           String @map("user_id") // for RLS scoping
 
-  promisedPayBy    DateTime  @map("promised_pay_by")
-  promisedAmount   Int?      @map("promised_amount") // null = full invoice amount; in cents
-  clientNotes      String?   @map("client_notes")   // optional free-text note from client
+  promisedPayBy  DateTime @map("promised_pay_by")
+  promisedAmount Int?     @map("promised_amount") // null = full invoice amount; in cents
+  clientNotes    String?  @map("client_notes") // optional free-text note from client
 
   status           String    @default("active") // 'active' | 'kept' | 'broken' | 'superseded'
   breachNotifiedAt DateTime? @map("breach_notified_at")
 
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  trackedInvoice   TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
+  trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
 
   @@index([trackedInvoiceId, createdAt])
   @@index([status, promisedPayBy])
@@ -165,7 +165,7 @@ model PromiseToPay {
 model EmailLog {
   id               String   @id @default(cuid())
   trackedInvoiceId String
-  stage            Int      // 1, 2, or 3
+  stage            Int // 1, 2, or 3
   sentAt           DateTime @default(now())
   resendMessageId  String?
   fromAddress      String
@@ -183,8 +183,8 @@ model EmailLog {
 model AiUsageLog {
   id               String   @id @default(cuid())
   userId           String   @map("user_id")
-  model            String   // e.g. "gpt-4o-mini"
-  feature          String   // e.g. "ai_rewrite"
+  model            String // e.g. "gpt-4o-mini"
+  feature          String // e.g. "ai_rewrite"
   promptTokens     Int      @map("prompt_tokens")
   completionTokens Int      @map("completion_tokens")
   totalTokens      Int      @map("total_tokens")
@@ -205,7 +205,7 @@ model AiUsageLog {
 model EmailTemplate {
   id        String   @id @default(cuid())
   userId    String
-  stage     Int      // 1, 2, or 3
+  stage     Int // 1, 2, or 3
   subject   String
   htmlBody  String
   textBody  String
@@ -223,22 +223,22 @@ model EmailTemplate {
 // ---------------------------------------------------------------------------
 
 model AccountingConnection {
-  id                     String    @id @default(cuid())
-  userId                 String
-  provider               String    // 'xero' | 'myob'
-  organisationId         String    @map("organisation_id")  // tenantId (Xero) or businessId/cf_uri (MYOB)
-  organisationName       String    @map("organisation_name")
-  encryptedAccessToken   String    @map("encrypted_access_token")
-  encryptedRefreshToken  String    @map("encrypted_refresh_token")
-  tokenExpiresAt         DateTime  @map("token_expires_at")
-  scopes                 String    // space-separated scope list as requested
-  status                 String    @default("active") // 'active' | 'disconnected' | 'revoked' | 'error'
-  lastSyncedAt           DateTime? @map("last_synced_at")
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
+  id                    String    @id @default(cuid())
+  userId                String
+  provider              String // 'xero' | 'myob'
+  organisationId        String    @map("organisation_id") // tenantId (Xero) or businessId/cf_uri (MYOB)
+  organisationName      String    @map("organisation_name")
+  encryptedAccessToken  String    @map("encrypted_access_token")
+  encryptedRefreshToken String    @map("encrypted_refresh_token")
+  tokenExpiresAt        DateTime  @map("token_expires_at")
+  scopes                String // space-separated scope list as requested
+  status                String    @default("active") // 'active' | 'disconnected' | 'revoked' | 'error'
+  lastSyncedAt          DateTime? @map("last_synced_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  userProfile            UserProfile              @relation(fields: [userId], references: [userId])
-  syncRuns               AccountingSyncRun[]
+  userProfile             UserProfile              @relation(fields: [userId], references: [userId])
+  syncRuns                AccountingSyncRun[]
   providerInvoiceMappings ProviderInvoiceMapping[]
   providerContactMappings ProviderContactMapping[]
 
@@ -253,7 +253,7 @@ model AccountingConnection {
 model AccountingSyncRun {
   id                     String    @id @default(cuid())
   accountingConnectionId String    @map("accounting_connection_id")
-  provider               String    // 'xero' | 'myob'
+  provider               String // 'xero' | 'myob'
   userId                 String
   startedAt              DateTime  @default(now()) @map("started_at")
   completedAt            DateTime? @map("completed_at")
@@ -280,7 +280,7 @@ model ProviderInvoiceMapping {
   accountingConnectionId String    @map("accounting_connection_id")
   providerInvoiceId      String    @map("provider_invoice_id") // e.g. Xero InvoiceID or MYOB UID
   providerUpdatedAt      DateTime? @map("provider_updated_at") // used for incremental sync
-  providerMetadata       Json?     @map("provider_metadata")   // provider-specific fields
+  providerMetadata       Json?     @map("provider_metadata") // provider-specific fields
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
@@ -318,7 +318,7 @@ model ProviderContactMapping {
 model OauthState {
   id        String   @id @default(cuid())
   userId    String
-  provider  String   // 'xero' | 'myob'
+  provider  String // 'xero' | 'myob'
   nonce     String   @unique
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
@@ -326,4 +326,176 @@ model OauthState {
   @@index([nonce])
   @@index([expiresAt])
   @@map("oauth_states")
+}
+
+// ---------------------------------------------------------------------------
+// Platform Admin Models
+// ---------------------------------------------------------------------------
+
+enum PlatformRoleType {
+  platform_owner
+  platform_admin
+  platform_support
+}
+
+enum PlatformRoleStatus {
+  active
+  disabled
+}
+
+enum AdminDeviceStatus {
+  pending
+  active
+  revoked
+  expired
+}
+
+enum AdminAuditAction {
+  admin_challenge_created
+  admin_challenge_verified
+  admin_challenge_failed
+  admin_session_started
+  admin_session_expired
+  admin_session_revoked
+  device_enrolled
+  device_revoked
+  staff_invited
+  role_assigned
+  role_changed
+  staff_disabled
+  tenant_viewed
+  impersonation_started
+  impersonation_ended
+  impersonation_destructive_action
+  subscription_changed
+  integration_action
+  email_job_retried
+  email_job_paused
+  email_job_resumed
+  system_setting_changed
+}
+
+enum StaffInvitationStatus {
+  pending
+  accepted
+  expired
+  revoked
+}
+
+model PlatformRole {
+  id        String             @id @default(cuid())
+  userId    String             @unique @map("user_id")
+  role      PlatformRoleType
+  status    PlatformRoleStatus @default(active)
+  createdAt DateTime           @default(now()) @map("created_at")
+  createdBy String             @map("created_by")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  adminDevices    AdminDevice[]
+  adminSessions   AdminSession[]
+  adminChallenges AdminChallenge[]
+
+  @@map("platform_roles")
+}
+
+model AdminDevice {
+  id                   String            @id @default(cuid())
+  adminUserId          String            @map("admin_user_id")
+  label                String
+  publicKeyBytes       Bytes             @map("public_key_bytes")
+  publicKeyFingerprint String            @unique @map("public_key_fingerprint")
+  keyType              String            @default("ssh-ed25519") @map("key_type")
+  status               AdminDeviceStatus @default(pending)
+  createdAt            DateTime          @default(now()) @map("created_at")
+  createdBy            String            @map("created_by")
+  revokedAt            DateTime?         @map("revoked_at")
+  revokedBy            String?           @map("revoked_by")
+  lastVerifiedAt       DateTime?         @map("last_verified_at")
+  lastUsedIp           String?           @map("last_used_ip")
+  lastUserAgent        String?           @map("last_user_agent")
+
+  platformRole  PlatformRole   @relation(fields: [adminUserId], references: [userId])
+  adminSessions AdminSession[]
+
+  @@index([adminUserId])
+  @@map("admin_devices")
+}
+
+model AdminChallenge {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  nonce     String    @unique
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  ipAddress String    @map("ip_address")
+  userAgent String    @map("user_agent")
+
+  adminSession AdminSession?
+  platformRole PlatformRole  @relation(fields: [userId], references: [userId])
+
+  @@index([userId, createdAt])
+  @@map("admin_challenges")
+}
+
+model AdminSession {
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  adminDeviceId        String    @map("admin_device_id")
+  adminChallengeId     String    @unique @map("admin_challenge_id")
+  sessionToken         String    @unique @map("session_token")
+  expiresAt            DateTime  @map("expires_at")
+  revokedAt            DateTime? @map("revoked_at")
+  impersonatedTenantId String?   @map("impersonated_tenant_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  ipAddress            String    @map("ip_address")
+  userAgent            String    @map("user_agent")
+
+  platformRole   PlatformRole   @relation(fields: [userId], references: [userId])
+  adminDevice    AdminDevice    @relation(fields: [adminDeviceId], references: [id])
+  adminChallenge AdminChallenge @relation(fields: [adminChallengeId], references: [id])
+
+  @@index([userId, expiresAt])
+  @@map("admin_sessions")
+}
+
+model AdminAuditEvent {
+  id                     String           @id @default(cuid())
+  actorUserId            String           @map("actor_user_id")
+  actorEmail             String           @map("actor_email")
+  platformRole           PlatformRoleType @map("platform_role")
+  adminDeviceId          String?          @map("admin_device_id")
+  adminDeviceFingerprint String?          @map("admin_device_fingerprint")
+  action                 AdminAuditAction
+  targetType             String?          @map("target_type")
+  targetId               String?          @map("target_id")
+  tenantId               String?          @map("tenant_id")
+  ipAddress              String           @map("ip_address")
+  userAgent              String           @map("user_agent")
+  requestId              String           @map("request_id")
+  success                Boolean
+  reason                 String?
+  createdAt              DateTime         @default(now()) @map("created_at")
+
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("admin_audit_events")
+}
+
+model StaffInvitation {
+  id               String                @id @default(cuid())
+  email            String
+  role             PlatformRoleType
+  token            String                @unique
+  status           StaffInvitationStatus @default(pending)
+  createdAt        DateTime              @default(now()) @map("created_at")
+  createdBy        String                @map("created_by")
+  expiresAt        DateTime              @map("expires_at")
+  acceptedAt       DateTime?             @map("accepted_at")
+  acceptedByUserId String?               @map("accepted_by_user_id")
+
+  @@index([token])
+  @@index([email, status])
+  @@map("staff_invitations")
 }
