@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { requireAdminElevation, AdminGuardError } from "@/lib/admin/guard"
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner"
+import { AdminSessionTimer } from "@/components/admin/AdminSessionTimer"
 
 /**
  * Protected admin layout — enforces all three guard layers:
@@ -27,11 +28,6 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
     throw err
   }
 
-  const timeRemaining = Math.max(
-    0,
-    Math.floor((ctx.adminSession.expiresAt.getTime() - Date.now()) / 60000)
-  )
-
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       {/* Admin session status bar */}
@@ -52,7 +48,7 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
           </div>
           <div className="flex items-center gap-4 text-sm text-gray-400">
             <span className="capitalize">{ctx.platformRole.role.replace(/_/g, " ")}</span>
-            <span>{timeRemaining}m remaining</span>
+            <AdminSessionTimer expiresAtIso={ctx.adminSession.expiresAt.toISOString()} />
             <form action="/api/admin/sessions/revoke" method="POST">
               <button type="submit" className="text-red-400 hover:text-red-300 text-xs">
                 End session

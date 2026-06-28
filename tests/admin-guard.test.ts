@@ -5,7 +5,7 @@
  * No DB connection or real auth is required.
  */
 
-import { test, describe, mock, beforeEach } from "node:test"
+import { test, describe } from "node:test"
 import assert from "node:assert/strict"
 
 // ---------------------------------------------------------------------------

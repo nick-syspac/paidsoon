@@ -1,5 +1,4 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
-import { notFound } from "next/navigation"
 import PromiseForm from "./PromiseForm"
 
 function formatCurrency(cents: number, currency: string) {

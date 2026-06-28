@@ -9,7 +9,7 @@ import { parseOpenSshEd25519PublicKey, computeKeyFingerprint } from "@/lib/admin
 
 describe("Device enrolment key validation", () => {
   function makeOpenSshKey() {
-    const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519")
+    const { privateKey: _privateKey, publicKey } = crypto.generateKeyPairSync("ed25519")
     const spki = publicKey.export({ format: "der", type: "spki" })
     const rawPubKeyBytes = Buffer.from(spki.subarray(spki.length - 32))
 

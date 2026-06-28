@@ -21,6 +21,7 @@ export default async function AdminOverviewPage() {
       },
     }),
     prismaAdmin.emailLog.count({
+      // eslint-disable-next-line react-hooks/purity
       where: { sentAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
     }),
   ])

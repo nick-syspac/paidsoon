@@ -60,8 +60,6 @@ function signNonce(nonce: string, namespace: string, privateKey: crypto.KeyObjec
   const msgData = Buffer.from(nonce + "\n", "utf8")
   const hashedMsg = crypto.createHash(hashAlgorithm).update(msgData).digest()
 
-  // Export raw public key to reconstruct OpenSSH public key blob for embedding
-  const spki = (privateKey as unknown as { asymmetricKeyDetails?: unknown })
   // Get the public key from the private key
   const pubKey = crypto.createPublicKey(privateKey)
   const spkiDer = pubKey.export({ format: "der", type: "spki" })
@@ -201,7 +199,7 @@ describe("computeKeyFingerprint", () => {
 
 describe("verifySshKeySig", () => {
   test("valid signature verifies successfully", () => {
-    const { privateKey, rawPubKey, rawPubKeyBytes } = generateTestKeyPair()
+    const { privateKey, rawPubKey: _rawPubKey, rawPubKeyBytes } = generateTestKeyPair()
     const nonce = "abc123-test-nonce"
     const sig = signNonce(nonce, "paidsoon-admin-auth", privateKey)
 
@@ -215,7 +213,7 @@ describe("verifySshKeySig", () => {
   })
 
   test("invalid signature is rejected", () => {
-    const { rawPubKey, rawPubKeyBytes } = generateTestKeyPair()
+    const { rawPubKey: _rawPubKey, rawPubKeyBytes } = generateTestKeyPair()
     const { privateKey: otherKey } = generateTestKeyPair()
     const nonce = "abc123-test-nonce"
     // Sign with a different key

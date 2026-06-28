@@ -6,7 +6,7 @@ import { requireAdminElevation, AdminGuardError } from "@/lib/admin/guard"
  * GET /api/admin/staff
  * List all platform staff members with their roles.
  */
-export async function GET(req: NextRequest): Promise<NextResponse> {
+export async function GET(_req: NextRequest): Promise<NextResponse> {
   try {
     await requireAdminElevation()
   } catch (err) {

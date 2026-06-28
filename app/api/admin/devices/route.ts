@@ -15,7 +15,7 @@ const EnrolSchema = z.object({
  * GET /api/admin/devices
  * List admin devices for the current admin user.
  */
-export async function GET(req: NextRequest): Promise<NextResponse> {
+export async function GET(_req: NextRequest): Promise<NextResponse> {
   let ctx: Awaited<ReturnType<typeof requireAdminElevation>>
   try {
     ctx = await requireAdminElevation()

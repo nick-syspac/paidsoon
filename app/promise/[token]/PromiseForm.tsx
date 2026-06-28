@@ -4,7 +4,7 @@ import { useState } from "react"
 
 export default function PromiseForm({
   token,
-  invoiceId,
+  invoiceId: _invoiceId,
   existingDate,
 }: {
   token: string
