@@ -58,7 +58,7 @@ export function EmailSettingsClient({
 
       {!canUseOwnEmail ? (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-          Upgrade to Solo or Small Business to send follow-ups from your own email address.
+          Upgrade to Business or Accounting to send follow-ups from your own email address.
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-4">
