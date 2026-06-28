@@ -11,11 +11,6 @@ import { getIpAddress, getUserAgent, generateRequestId } from "@/lib/admin/reque
 const SESSION_TTL_MINUTES = parseInt(process.env.ADMIN_SESSION_TTL_MINUTES ?? "30", 10)
 const REQUIRE_DEVICE_KEY = process.env.ADMIN_REQUIRE_DEVICE_KEY !== "false"
 
-// Safety: ADMIN_REQUIRE_DEVICE_KEY must never be false in production.
-if (process.env.NODE_ENV === "production" && !REQUIRE_DEVICE_KEY) {
-  throw new Error("ADMIN_REQUIRE_DEVICE_KEY cannot be false in production")
-}
-
 const RequestSchema = z.object({
   deviceId: z.string().min(1),
   signature: z.string().min(1),
@@ -30,6 +25,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  // Safety: ADMIN_REQUIRE_DEVICE_KEY must never be false in production.
+  // Check is here (not at module scope) to avoid throwing during the Next.js build.
+  if (process.env.NODE_ENV === "production" && !REQUIRE_DEVICE_KEY) {
+    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
+  }
+
   const { id: challengeId } = await params
   const ipAddress = getIpAddress(req)
   const userAgent = getUserAgent(req)
