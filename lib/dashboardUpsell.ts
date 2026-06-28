@@ -63,8 +63,8 @@ const FEATURE_INTENT_SET = new Set<UpsellFeatureIntent>([
 export function getNextTierRecommendation(
   tier: SubscriptionTier,
 ): SubscriptionTier | null {
-  if (tier === "starter") return "solo"
-  if (tier === "solo") return "small_business"
+  if (tier === "starter") return "business"
+  if (tier === "business") return "accountant_partner"
   return null
 }
 

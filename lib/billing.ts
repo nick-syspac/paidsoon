@@ -34,16 +34,20 @@ export async function requirePro(userId: string): Promise<boolean> {
   return requireFeature(userId, "own_email_address")
 }
 
+/** Returns the effective invoice limit for a tier. -1 in the plan catalog means unlimited; this returns Number.MAX_SAFE_INTEGER in that case. */
 export function getInvoiceLimitForTier(tier?: string | null): number {
-  return getPlanByTier(tier).limits.chasedInvoicesPerMonth
+  const limit = getPlanByTier(tier).limits.chasedInvoicesPerMonth
+  return limit === -1 ? Number.MAX_SAFE_INTEGER : limit
 }
 
 export function getStripeConnectionLimitForTier(tier?: string | null): number {
-  return getPlanByTier(tier).limits.connectedStripeAccounts
+  const limit = getPlanByTier(tier).limits.connectedStripeAccounts
+  return limit === -1 ? Number.MAX_SAFE_INTEGER : limit
 }
 
 export function getUserSeatLimitForTier(tier?: string | null): number {
-  return getPlanByTier(tier).limits.userSeats
+  const limit = getPlanByTier(tier).limits.userSeats
+  return limit === -1 ? Number.MAX_SAFE_INTEGER : limit
 }
 
 export const DEFAULT_INVOICE_LIMIT =

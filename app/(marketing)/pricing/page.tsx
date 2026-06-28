@@ -26,7 +26,7 @@ const pricingPlans = [
     ],
   },
   {
-    id: "solo" as const,
+    id: "business" as const,
     name: "Business",
     price: "A$49/mo",
     cta: "Start with Business",

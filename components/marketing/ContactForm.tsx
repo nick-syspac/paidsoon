@@ -125,11 +125,11 @@ export function ContactForm() {
       </button>
 
       <p className="text-xs text-center text-gray-400">
-        Coming soon — contact{" "}
+        For urgent queries, email{" "}
         <a href="mailto:support@paidsoon.com.au" className="underline">
           support@paidsoon.com.au
         </a>{" "}
-        directly in the meantime.
+        directly.
       </p>
     </form>
   )

@@ -14,8 +14,8 @@ const bodySchema = z
 
 const PRICE_ID_BY_TIER: Record<SubscriptionTier, string | undefined> = {
   starter: process.env.STRIPE_STARTER_PRICE_ID,
-  solo: process.env.STRIPE_SOLO_PRICE_ID ?? process.env.STRIPE_PRO_PRICE_ID,
-  small_business: process.env.STRIPE_SMALL_BUSINESS_PRICE_ID,
+  business: process.env.STRIPE_BUSINESS_PRICE_ID ?? process.env.STRIPE_SMALL_BUSINESS_PRICE_ID,
+  accountant_partner: undefined,  // contact-us pricing; not via Stripe Checkout
 }
 
 export async function POST(request: Request) {

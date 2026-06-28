@@ -13,14 +13,18 @@ const PRICE_ID_TO_TIER: Record<string, SubscriptionTier> = {
   ...(process.env.STRIPE_STARTER_PRICE_ID
     ? { [process.env.STRIPE_STARTER_PRICE_ID]: "starter" as const }
     : {}),
+  ...(process.env.STRIPE_BUSINESS_PRICE_ID
+    ? { [process.env.STRIPE_BUSINESS_PRICE_ID]: "business" as const }
+    : {}),
+  // Legacy price IDs — kept so existing subscriptions resolve correctly
+  ...(process.env.STRIPE_SMALL_BUSINESS_PRICE_ID
+    ? { [process.env.STRIPE_SMALL_BUSINESS_PRICE_ID]: "business" as const }
+    : {}),
   ...(process.env.STRIPE_SOLO_PRICE_ID
-    ? { [process.env.STRIPE_SOLO_PRICE_ID]: "solo" as const }
+    ? { [process.env.STRIPE_SOLO_PRICE_ID]: "starter" as const }
     : {}),
   ...(process.env.STRIPE_PRO_PRICE_ID
-    ? { [process.env.STRIPE_PRO_PRICE_ID]: "solo" as const }
-    : {}),
-  ...(process.env.STRIPE_SMALL_BUSINESS_PRICE_ID
-    ? { [process.env.STRIPE_SMALL_BUSINESS_PRICE_ID]: "small_business" as const }
+    ? { [process.env.STRIPE_PRO_PRICE_ID]: "starter" as const }
     : {}),
 }
 

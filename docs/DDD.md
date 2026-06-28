@@ -138,9 +138,10 @@ subsection documents a functional module.
 
 ### 4.6 Billing & entitlements (`app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts`)
 
-- **Plan catalog:** `PLAN_CATALOG` defines `starter`/`solo`/`small_business`
-  with `limits` (chased invoices, seats, connected accounts) and a
-  `features` map. `LEGACY_TIER_MAP` maps `free→starter`, `pro→solo`.
+- **Plan catalog:** `PLAN_CATALOG` defines `starter`/`business`/`accountant_partner`
+  with `limits` (chased invoices, seats, connected accounts; `-1` = unlimited) and a
+  `features` map. `LEGACY_TIER_MAP` maps `free→starter`, `pro→starter`, `solo→starter`,
+  `small_business→business`.
 - **Entitlement checks:** `requireFeature(userId, feature)` reads the tier via
   `withUserContext` and consults `hasPlanFeature`. Limit helpers:
   `getInvoiceLimitForTier`, `getStripeConnectionLimitForTier`,
@@ -463,22 +464,49 @@ stateDiagram-v2
 
 - **Plans** (`lib/subscriptionPlans.ts`):
 
-| Tier | Price/mo | Chased invoices | Seats | Stripe accounts | Notable features |
-|---|---|---|---|---|---|
-| `starter` | A$9 | 10 | 1 | 1 | basic reminders, branding |
-| `solo` | A$19 | 30 | 1 | 1 | sequence, basic templates, own email, payment+overdue dashboards |
-| `small_business` | A$39 | 100 | 3 | 3 | + custom templates, AI rewrite, tone settings |
+| Tier | Price/mo | Chased invoices | Seats | Stripe accounts |
+|---|---|---|---|---|
+| `starter` | A$19 | 20 | 1 | 1 |
+| `business` | A$49 | 100 | 1 | 3 |
+| `accountant_partner` | Contact us | Unlimited | Unlimited | Unlimited |
+
+  Feature matrix (✓ = enabled, — = disabled, ◷ = planned/not yet implemented):
+
+| Feature (`SubscriptionFeature`) | Starter | Business | Accountant Partner |
+|---|---|---|---|
+| `basic_email_reminders` | ✓ | ✓ | ✓ |
+| `email_reminder_sequence` | ✓ | ✓ | ✓ |
+| `basic_templates` | ✓ | ✓ | ✓ |
+| `custom_reminder_templates` | — | ✓ | ✓ |
+| `paid_soon_branding` | ✓ | ✓ | ✓ |
+| `own_email_address` | — | ✓ | ✓ |
+| `ai_rewrite` | — | ✓ | ✓ |
+| `tone_settings` | — | ✓ | ✓ |
+| `payment_status_dashboard` | ✓ | ✓ | ✓ |
+| `overdue_invoice_dashboard` | ✓ | ✓ | ✓ |
+| `accounting_integrations` | — | ✓ | ✓ |
+| `promise_to_pay_tracking` ◷ | — | ◷ | ◷ |
+| `weekly_summary_email` ◷ | — | ◷ | ◷ |
+| `multi_client_management` ◷ | — | — | ◷ |
 
 - **Features** are a `Record<SubscriptionFeature, boolean>` per plan; checked via
   `hasPlanFeature`/`requireFeature`.
-- **Legacy mapping:** `free→starter`, `pro→solo` via `LEGACY_TIER_MAP` +
-  `normalizeSubscriptionTier`.
+- **Legacy mapping:** `free→starter`, `pro→starter`, `solo→starter`, `small_business→business`
+  via `LEGACY_TIER_MAP` + `normalizeSubscriptionTier`.
+- **Accountant Partner checkout:** `accountant_partner` has `monthlyPriceAud: null` (contact-us
+  pricing); the Stripe Checkout route returns an error for this tier. Provisioning is manual.
+- **Unlimited limits:** `accountant_partner` has `-1` for all limits in `PlanLimits`; the
+  `getInvoiceLimitForTier` / `getStripeConnectionLimitForTier` / `getUserSeatLimitForTier`
+  helpers in `lib/billing.ts` normalise -1 to `Number.MAX_SAFE_INTEGER` for comparisons.
 - **Checkout → activation:** `POST /api/billing/checkout` → Stripe Checkout →
   `checkout.session.completed` webhook sets `subscriptionTier` (from
   `selectedTier` metadata) and `subscriptionStatus = active`.
 - **Updates/cancellation:** `customer.subscription.updated` resolves tier from
   the price id (`PRICE_ID_TO_TIER`); `customer.subscription.deleted` reverts to
   `starter`, sets `cancelled`, and pauses invoices exceeding the starter limit.
+- **Legacy price IDs:** the webhook's `PRICE_ID_TO_TIER` map includes
+  `STRIPE_SOLO_PRICE_ID→starter` and `STRIPE_SMALL_BUSINESS_PRICE_ID→business`
+  so existing active subscriptions resolve correctly after the tier rename.
 - **Portal:** `POST /api/billing/portal` → Stripe billing portal.
 - **Trial/free handling:** `trialing` is treated as active; there is no separate
   free plan — `starter` is the paid entry tier (schema's `"free"` default maps
@@ -489,7 +517,7 @@ stateDiagram-v2
 ## 12. AI Rewrite Design
 
 `app/api/settings/ai/route.ts` gates on the `ai_rewrite` plan feature
-(`small_business` tier only).
+(`business` tier and above).
 
 **GET** returns `{ canRewrite: boolean }`.
 
@@ -532,8 +560,8 @@ RAG/vector store, no LLM fallback.
   - **Stripe Billing** — subscriptions/portal (`app/api/billing/**`).
   - **Resend** — email + domain verification.
   - **Supabase** — auth + DB.
-  - **Xero** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/xero.ts`). Solo+ tier.
-  - **MYOB Business** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/myob.ts`). Solo+ tier.
+  - **Xero** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/xero.ts`). Business+ tier.
+  - **MYOB Business** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/myob.ts`). Business+ tier.
 
 ### Accounting Provider Architecture
 
@@ -614,7 +642,7 @@ The exhaustive, code-checked list lives in `docs/runbooks/README.md`
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
 `SUPABASE_SECRET_KEY`, `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`,
 `LIVE`, `CRON_SECRET`, `STRIPE_SECRET_KEY`,
-`STRIPE_{STARTER,SOLO,SMALL_BUSINESS,PRO}_PRICE_ID`,
+`STRIPE_{STARTER,BUSINESS,SOLO,SMALL_BUSINESS,PRO}_PRICE_ID`,
 `STRIPE_CONNECT_CLIENT_ID`, `STRIPE_BILLING_WEBHOOK_SECRET`,
 `STRIPE_CONNECT_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
 `RESEND_FROM_NAME`.
@@ -652,7 +680,7 @@ automated tests; only pure helpers are unit-tested.
 - **Webhook/cron auth:** Stripe signatures; `CRON_SECRET` bearer.
 - **OAuth CSRF:** Stripe Connect `state == user.id` check.
 - **AI governance:** `ai_usage_logs` records model name, feature, token counts,
-  and estimated cost per call; gated to `small_business` tier via
+  and estimated cost per call; gated to `business` tier and above via
   `requireFeature`.
 - **PII handling:** client name/email and invoice amounts are stored; **no
   documented retention, minimisation, or deletion** policy. RLS prevents
@@ -696,7 +724,7 @@ automated tests; only pure helpers are unit-tested.
 | How-it-works gating | Yes | Specified | `app/page.tsx` | `changes/expand-how-it-works-with-plan-gated-features` | Tasks all checked |
 | Environment runbooks | Yes (docs) | Specified | `docs/runbooks/**` | `changes/build-environment-runbooks` | Replaces old SETUP/GO-LIVE |
 | Basic templates | Yes | Specified | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite`, `changes/templates-sidebar-help` | GET/PUT/DELETE; persists to `email_templates`; sidebar with variable chips |
-| Custom templates | Yes | Specified | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite` | Persisted via `withUserContext`; gated to `small_business` |
+| Custom templates | Yes | Specified | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite` | Persisted via `withUserContext`; gated to `business`+ |
 | AI rewrite | Yes | Specified | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | GPT-4o-mini; usage logged; UI embedded in templates page |
 | Subscription plan switching | Yes | Specified | `app/api/billing/{checkout,downgrade}/route.ts` | `changes/subscription-plan-switching` | Upgrade mid-cycle; deferred downgrade via Stripe Schedule |
 | Team seats / invites | Partially implemented | Not specified | `app/api/settings/team/invite/route.ts` | — | No persistence |

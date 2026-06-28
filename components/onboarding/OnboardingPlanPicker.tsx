@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Spinner } from "@/components/ui/Spinner"
 import type { SubscriptionTier } from "@/lib/subscriptionPlans"
 
-const VALID_TIERS: SubscriptionTier[] = ["starter", "solo", "small_business"]
+const VALID_TIERS: SubscriptionTier[] = ["starter", "business", "accountant_partner"]
 
 function getPreselectedTier(): SubscriptionTier {
   try {
@@ -17,7 +17,7 @@ function getPreselectedTier(): SubscriptionTier {
   } catch {
     // localStorage unavailable (e.g. private browsing restrictions)
   }
-  return "solo"
+  return "starter"
 }
 
 interface Plan {
@@ -33,40 +33,29 @@ const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    price: 9,
-    invoicesPerMonth: 10,
-    highlights: [
-      "Up to 10 invoices/month",
-      "Automated email reminders",
-      "Single Stripe account",
-    ],
-  },
-  {
-    id: "solo",
-    name: "Solo",
     price: 19,
-    invoicesPerMonth: 30,
+    invoicesPerMonth: 20,
     highlights: [
-      "Up to 30 invoices/month",
-      "3-stage follow-up sequence",
-      "Custom email templates",
-      "Send from your own address",
-      "Payment status dashboard",
+      "Up to 20 invoices/month",
+      "Automated 3-stage reminder sequence",
+      "Reminder templates",
+      "Debtor dashboard",
+      "PaidSoon branding on emails",
     ],
-    recommended: true,
   },
   {
-    id: "small_business",
-    name: "Small Business",
-    price: 39,
+    id: "business",
+    name: "Business",
+    price: 49,
     invoicesPerMonth: 100,
     highlights: [
       "Up to 100 invoices/month",
-      "3 team seats",
-      "3 connected Stripe accounts",
-      "AI message rewrite",
-      "Tone settings",
+      "Up to 3 connected Stripe accounts",
+      "Custom email address (your domain)",
+      "AI-assisted reminder wording",
+      "Promise-to-pay & dispute tracking",
     ],
+    recommended: true,
   },
 ]
 
