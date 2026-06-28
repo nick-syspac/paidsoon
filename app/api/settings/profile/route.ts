@@ -20,9 +20,16 @@ export async function PATCH(request: Request) {
 
   try {
     const updated = await withUserContext(user.id, (tx) =>
-      tx.userProfile.update({
+      tx.userProfile.upsert({
         where: { userId: user.id },
-        data: { displayName: parsed.data.displayName },
+        update: { displayName: parsed.data.displayName },
+        create: {
+          userId: user.id,
+          displayName: parsed.data.displayName,
+          subscriptionTier: "starter",
+          subscriptionStatus: "trialing",
+          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        },
         select: { displayName: true },
       }),
     )
