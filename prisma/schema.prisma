@@ -373,6 +373,7 @@ enum AdminAuditAction {
   email_job_paused
   email_job_resumed
   system_setting_changed
+  admin_tenant_action
 }
 
 enum StaffInvitationStatus {
@@ -475,6 +476,7 @@ model AdminAuditEvent {
   requestId              String           @map("request_id")
   success                Boolean
   reason                 String?
+  metadata               Json?
   createdAt              DateTime         @default(now()) @map("created_at")
 
   @@index([actorUserId, createdAt])

@@ -6,6 +6,7 @@
  */
 
 import { prismaAdmin } from "@/lib/db/admin"
+import { Prisma } from "@/lib/generated/prisma/client"
 import { AdminAuditAction, PlatformRoleType } from "@/lib/generated/prisma/enums"
 
 export interface AdminAuditEventInput {
@@ -23,6 +24,7 @@ export interface AdminAuditEventInput {
   requestId: string
   success: boolean
   reason?: string
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -47,6 +49,7 @@ export async function logAdminEvent(event: AdminAuditEventInput): Promise<void> 
         requestId: event.requestId,
         success: event.success,
         reason: event.reason ?? null,
+        metadata: event.metadata != null ? (event.metadata as Prisma.InputJsonValue) : undefined,
       },
     })
   } catch (err) {

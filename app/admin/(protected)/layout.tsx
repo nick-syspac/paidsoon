@@ -38,12 +38,12 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
             <nav className="flex gap-3 text-sm">
               <a href="/admin/overview" className="text-gray-300 hover:text-white">Overview</a>
               <a href="/admin/tenants" className="text-gray-300 hover:text-white">Tenants</a>
-              <a href="/admin/users" className="text-gray-300 hover:text-white">Users</a>
               <a href="/admin/subscriptions" className="text-gray-300 hover:text-white">Subscriptions</a>
               <a href="/admin/integrations" className="text-gray-300 hover:text-white">Integrations</a>
               <a href="/admin/email-jobs" className="text-gray-300 hover:text-white">Email Jobs</a>
               <a href="/admin/admin-devices" className="text-gray-300 hover:text-white">Devices</a>
               <a href="/admin/staff" className="text-gray-300 hover:text-white">Staff</a>
+              <a href="/admin/runbooks" className="text-gray-300 hover:text-white">Runbooks</a>
             </nav>
           </div>
           <div className="flex items-center gap-4 text-sm text-gray-400">

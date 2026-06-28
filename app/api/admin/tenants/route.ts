@@ -27,11 +27,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl
   const cursor = searchParams.get("cursor") ?? undefined
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10), 100)
+  const search = searchParams.get("search")?.trim() || undefined
 
   const tenants = await prismaAdmin.userProfile.findMany({
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    where: search
+      ? { displayName: { contains: search, mode: "insensitive" } }
+      : undefined,
     select: {
       id: true,
       userId: true,
