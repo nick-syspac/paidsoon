@@ -22,7 +22,7 @@ export interface TemplateVariable {
 export const TEMPLATE_VARIABLES: TemplateVariable[] = [
   { token: "clientName", label: "Client name", description: "e.g. Jane Smith" },
   { token: "invoiceRef", label: "Invoice reference", description: "e.g. INV-0042" },
-  { token: "amountDue", label: "Amount due", description: "e.g. £1,250.00" },
+  { token: "amountDue", label: "Amount due", description: "e.g. $1,250.00" },
   { token: "dueDate", label: "Due date", description: "e.g. 15 June 2026" },
   { token: "paymentLink", label: "Payment link", description: "Stripe-hosted payment URL" },
   { token: "yourName", label: "Your name", description: "your display name" },
