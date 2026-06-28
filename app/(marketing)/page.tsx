@@ -42,8 +42,8 @@ const steps = [
 ]
 
 const pricingPreview = [
-  { name: "Starter", price: "A$19/mo", featured: false },
-  { name: "Business", price: "A$49/mo", featured: true },
+  { name: "Starter", price: "$19/mo", featured: false },
+  { name: "Business", price: "$49/mo", featured: true },
   { name: "Accountant Partner", price: "Contact us", featured: false },
 ]
 

@@ -5,14 +5,14 @@ import { PricingCTA } from "@/components/pricing/PricingCTA"
 export const metadata: Metadata = {
   title: "Pricing — PaidSoon",
   description:
-    "Simple, transparent pricing for PaidSoon. Start a free trial with Starter at A$19/mo, Business at A$49/mo, or contact us for the Accountant Partner plan.",
+    "Simple, transparent pricing for PaidSoon. Start a free trial with Starter at $19/mo AUD, Business at $49/mo AUD, or contact us for the Accountant Partner plan.",
 }
 
 const pricingPlans = [
   {
     id: "starter" as const,
     name: "Starter",
-    price: "A$19/mo",
+    price: "$19/mo",
     cta: "Start with Starter",
     featured: false,
     description: "For freelancers and sole traders who want automated invoice chasing on autopilot.",
@@ -28,7 +28,7 @@ const pricingPlans = [
   {
     id: "business" as const,
     name: "Business",
-    price: "A$49/mo",
+    price: "$49/mo",
     cta: "Start with Business",
     featured: true,
     description: "For growing businesses that need more volume, custom branding, and AI-assisted reminders.",

@@ -72,7 +72,7 @@ export function SubscriptionClient({
             <p className="text-xl font-bold text-gray-900">{plan.name}</p>
             <p className="text-sm text-gray-500 mt-0.5">
               {plan.monthlyPriceAud != null && plan.monthlyPriceAud > 0
-                ? `A$${plan.monthlyPriceAud}/month`
+                ? `$${plan.monthlyPriceAud}/month`
                 : plan.monthlyPriceAud === null
                   ? "Contact us"
                   : "Free trial"}
