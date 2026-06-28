@@ -207,10 +207,10 @@ export function AccountingConnectionsClient({
       <div className="max-w-lg space-y-4">
         <h2 className="text-base font-medium text-gray-900">Accounting Integrations</h2>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
-          <p className="text-sm font-medium text-amber-900">Solo plan required</p>
+          <p className="text-sm font-medium text-amber-900">Business plan required</p>
           <p className="text-sm text-amber-800">
             Connect Xero or MYOB Business to automatically import overdue invoices.
-            Available on the Solo and Small Business plans.
+            Available on the Business and Accounting plans.
           </p>
           <a
             href="/dashboard/settings/subscription"
@@ -244,7 +244,7 @@ export function AccountingConnectionsClient({
       {errorMessage && (
         <div className="bg-red-50 border border-red-200 rounded-md px-4 py-2 text-sm text-red-700">
           {errorMessage === "upgrade_required"
-            ? "Accounting integrations require the Solo plan or above."
+            ? "Accounting integrations require the Business plan or above."
             : errorMessage === "xero_cancelled" || errorMessage === "myob_cancelled"
             ? "Connection was cancelled."
             : errorMessage === "no_organisations"
