@@ -53,7 +53,8 @@ For a brand-new production setup, work through the runbooks in this order:
 5. [stripe.md](./stripe.md) §5 onward — register webhooks against the deployed URL.
 6. Post-deploy fixups — see the last section of [vercel.md](./vercel.md).
 7. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
-8. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
+8. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
+9. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
 
 For Local development only, run sections 1–3 against test mode / dev project, then `npm run dev`. See each runbook's "Local" column for the dev posture.
 

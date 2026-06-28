@@ -186,7 +186,6 @@ export function verifySshKeySig(opts: VerifySshKeySigOpts): boolean {
   //   sha512(message)
   // where message = nonce + "\n" (ssh-keygen -Y sign reads from stdin which includes trailing newline via echo)
   const message = buildSshSigMessage({
-    version: parsed.version,
     namespace: parsed.namespace,
     hashAlgorithm: parsed.hashAlgorithm,
     nonce,
@@ -299,23 +298,24 @@ function parseSshSigBlob(blob: Buffer): ParsedSshSig {
 }
 
 interface SshSigMessageOpts {
-  version: number
   namespace: string
   hashAlgorithm: string
   nonce: string
 }
 
 function buildSshSigMessage(opts: SshSigMessageOpts): Buffer {
-  // The data that ssh-keygen signs is:
-  //   "SSHSIG" (6 bytes)
-  //   uint32(version)
+  // The data that ssh-keygen signs is defined in PROTOCOL.sshsig §3:
+  //   "SSHSIG" (6 bytes, no length prefix)
   //   string(namespace)         <- with length prefix
   //   string(reserved = "")     <- with length prefix
   //   string(hash_algorithm)    <- with length prefix
   //   string(H(message))        <- H is the hash algorithm applied to the message data
   //
+  // NOTE: SIG_VERSION is NOT included in the signed data — it is only in the outer
+  // blob envelope (PROTOCOL.sshsig §2). Including it here was a bug.
+  //
   // The message data is what was piped via stdin: echo "<nonce>" produces "<nonce>\n"
-  const { version, namespace, hashAlgorithm, nonce } = opts
+  const { namespace, hashAlgorithm, nonce } = opts
 
   if (hashAlgorithm !== "sha512" && hashAlgorithm !== "sha256") {
     throw new Error(`Unsupported hash algorithm in signature: ${hashAlgorithm}`)
@@ -326,13 +326,8 @@ function buildSshSigMessage(opts: SshSigMessageOpts): Buffer {
 
   const parts: Buffer[] = []
 
-  // Magic
+  // Magic (raw bytes, no length prefix)
   parts.push(Buffer.from("SSHSIG"))
-
-  // Version
-  const versionBuf = Buffer.allocUnsafe(4)
-  versionBuf.writeUInt32BE(version)
-  parts.push(versionBuf)
 
   // namespace string
   parts.push(encodeString(namespace))

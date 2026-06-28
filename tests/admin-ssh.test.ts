@@ -86,9 +86,9 @@ function signNonce(nonce: string, namespace: string, privateKey: crypto.KeyObjec
     return b
   }
 
+  // PROTOCOL.sshsig §3: signed data does NOT include SIG_VERSION — only the outer blob does.
   const toSign = Buffer.concat([
     Buffer.from("SSHSIG"),
-    encodeUint32(1),
     encodeStr(namespace),
     encodeStr(""),
     encodeStr(hashAlgorithm),
