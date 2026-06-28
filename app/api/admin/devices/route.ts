@@ -81,10 +81,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { label, publicKey } = parsed.data
 
   // Parse and validate the SSH public key
-  let pubKeyBytes: Buffer
+  let pubKeyBytes: Uint8Array<ArrayBuffer>
   let fingerprint: string
   try {
-    pubKeyBytes = parseOpenSshEd25519PublicKey(publicKey)
+    pubKeyBytes = parseOpenSshEd25519PublicKey(publicKey) as Uint8Array<ArrayBuffer>
     fingerprint = computeKeyFingerprint(publicKey)
   } catch (err) {
     return NextResponse.json(
