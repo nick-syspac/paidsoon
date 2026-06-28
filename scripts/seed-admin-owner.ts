@@ -89,11 +89,11 @@ async function main() {
 
   // Optionally enrol first admin device
   if (ADMIN_SSH_PUBLIC_KEY) {
-    let pubKeyBytes: Buffer
+    let pubKeyBytes: Uint8Array<ArrayBuffer>
     let fingerprint: string
 
     try {
-      pubKeyBytes = parseOpenSshEd25519PublicKey(ADMIN_SSH_PUBLIC_KEY)
+      pubKeyBytes = parseOpenSshEd25519PublicKey(ADMIN_SSH_PUBLIC_KEY) as Uint8Array<ArrayBuffer>
       fingerprint = computeKeyFingerprint(ADMIN_SSH_PUBLIC_KEY)
     } catch (err) {
       console.error("Error: Invalid ADMIN_SSH_PUBLIC_KEY:", err instanceof Error ? err.message : err)
