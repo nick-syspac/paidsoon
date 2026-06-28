@@ -44,7 +44,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const { actorUserId, action, tenantId, success, from, to, cursor, limit } = parsed.data
 
-  const where: Parameters<typeof prismaAdmin.adminAuditEvent.findMany>[0]["where"] = {}
+  const where: NonNullable<Parameters<typeof prismaAdmin.adminAuditEvent.findMany>[0]>["where"] = {}
 
   if (actorUserId) where.actorUserId = actorUserId
   if (action) where.action = action
