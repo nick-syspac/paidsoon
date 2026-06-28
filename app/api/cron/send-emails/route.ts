@@ -1,5 +1,5 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
-import { sendFollowUpEmail, resolveFreelancerName } from "@/lib/email/send"
+import { sendFollowUpEmail, sendP2PNotification, resolveFreelancerName } from "@/lib/email/send"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { runCatchUpScan } from "@/lib/email/catchup"
 import { NextResponse } from "next/server"
@@ -24,13 +24,88 @@ export async function GET(request: Request) {
     data: { status: "pending", snoozedUntil: null },
   })
 
-  // 3. Find all invoices ready for their next email
+  // 3. Detect broken promises: active promises whose date has passed and the
+  //    invoice is not yet paid or resolved. Mark broken and notify freelancer.
+  const brokenPromises = await prisma.promiseToPay.findMany({
+    where: {
+      status: "active",
+      promisedPayBy: { lt: new Date() },
+      trackedInvoice: {
+        status: { notIn: ["paid", "manually_resolved"] },
+      },
+    },
+    include: {
+      trackedInvoice: {
+        include: {
+          userProfile: { select: { userId: true, displayName: true } },
+        },
+      },
+    },
+  })
+
+  if (brokenPromises.length > 0) {
+    const supabaseAdminBreach = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SECRET_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    for (const bp of brokenPromises) {
+      await prisma.promiseToPay.update({
+        where: { id: bp.id },
+        data: { status: "broken", breachNotifiedAt: new Date() },
+      })
+
+      // Count total broken promises for this client email (for the notification)
+      const brokenCount = await prisma.promiseToPay.count({
+        where: {
+          status: "broken",
+          trackedInvoice: { clientEmail: bp.trackedInvoice.clientEmail },
+        },
+      })
+
+      try {
+        const { data: ud } = await supabaseAdminBreach.auth.admin.getUserById(
+          bp.trackedInvoice.userId
+        )
+        const freelancerEmail = ud?.user?.email ?? ""
+        const freelancerName = resolveFreelancerName(
+          bp.trackedInvoice.userProfile.displayName,
+          ud?.user?.user_metadata?.full_name,
+          ud?.user?.email,
+        )
+        await sendP2PNotification(
+          "promise_broken",
+          bp.trackedInvoice,
+          bp,
+          freelancerEmail,
+          freelancerName,
+          brokenCount,
+        )
+      } catch (err) {
+        console.error(`Breach notification failed for promise ${bp.id}:`, err)
+      }
+    }
+  }
+
+  // 4. Find invoices with active promises — these must not receive emails this cycle.
+  const activePromiseInvoiceIds = (
+    await prisma.promiseToPay.findMany({
+      where: { status: "active" },
+      select: { trackedInvoiceId: true },
+    })
+  ).map((p) => p.trackedInvoiceId)
+
+  // 5. Find all invoices ready for their next email (excluding those with active promises)
   const now = new Date()
   const pendingInvoices = await prisma.trackedInvoice.findMany({
     where: {
       status: "pending",
       nextEmailAt: { lte: now },
       currentStage: { lt: 3 },
+      ...(activePromiseInvoiceIds.length > 0
+        ? { id: { notIn: activePromiseInvoiceIds } }
+        : {}),
     },
     include: {
       userProfile: { select: { subscriptionTier: true, userId: true, displayName: true } },

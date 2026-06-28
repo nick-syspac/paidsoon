@@ -27,6 +27,7 @@ ALTER TABLE email_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracked_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles
@@ -249,3 +250,19 @@ CREATE POLICY "users can insert own oauth states"
 CREATE POLICY "users can delete own oauth states"
   ON oauth_states FOR DELETE
   USING (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
+-- promise_to_pay
+-- Users can read their own promise records. Inserts and updates are
+-- performed via prismaAdmin (service role): the public promise endpoint uses
+-- prismaAdmin with userId sourced from the DB lookup, not the request body.
+-- This is a documented RLS bypass — see design.md Decision #4.
+-- ---------------------------------------------------------------------------
+ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own promises to pay"
+  ON promise_to_pay FOR SELECT
+  USING (auth.uid()::text = "user_id");
+
+-- No user INSERT/UPDATE/DELETE policy — public endpoint and cron use
+-- prismaAdmin (service role) which bypasses RLS by design.

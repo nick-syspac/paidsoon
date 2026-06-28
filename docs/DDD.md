@@ -115,13 +115,19 @@ subsection documents a functional module.
 
 - **Responsibility:** advance each tracked invoice through stages 1→3 and send.
 - **Flow (cron GET):** auth via `Bearer CRON_SECRET` → `runCatchUpScan()` →
-  resume snoozed invoices whose `snoozedUntil` elapsed → select `pending`
+  resume snoozed invoices whose `snoozedUntil` elapsed → **detect broken promises**
+  (active promises whose `promisedPayBy` has passed; mark `broken`, notify freelancer) →
+  **exclude invoices with active promises** from the email queue → select `pending`
   invoices with `nextEmailAt <= now` and `currentStage < 3` → for each, resolve
   freelancer email/name via Supabase admin, `sendFollowUpEmail`, then advance
   `currentStage`/`nextEmailAt` or mark `sequence_complete` after stage 3.
 - **Services:**
   - `sendFollowUpEmail` (`lib/email/send.ts`) — resolves from-address, renders
-    template, sends via Resend, writes an `EmailLog`.
+    template (including `{{promiseToPayLink}}` for Business+ users), sends via Resend,
+    writes an `EmailLog`. Generates and persists `p2pToken` on first send for Business+ users.
+  - `sendP2PNotification` (`lib/email/send.ts`) — sends freelancer notifications for
+    promise received and promise broken events. Goes to the freelancer (not the client).
+  - `generateP2PToken` (`lib/email/send.ts`) — 32-byte cryptographically random hex token.
   - `resolveFromAddress` — uses custom verified sender when the tier has
     `own_email_address` and Resend is verified; else system domain.
   - `computeNextEmailAt` (`lib/email/schedule.ts`) — `dueDate + dayOffset`.
@@ -318,10 +324,11 @@ erDiagram
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
 | `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `own_email_address` |
-| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil` | N—1 profile/connection; 1—N logs | Yes | Unique `(externalId, provider, userId)` |
+| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `p2pToken` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated for Business+ users |
 | `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject` | N—1 tracked invoice | Yes (via join policy) | Insert via service role |
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
+| `PromiseToPay` | `prisma/schema.prisma` | Client payment commitment history per invoice | `trackedInvoiceId`, `userId`, `promisedPayBy`, `promisedAmount`, `clientNotes`, `status`, `breachNotifiedAt` | N—1 tracked invoice | Yes (SELECT only; INSERT/UPDATE via `prismaAdmin`) | `status`: `active` → `kept` / `broken` / `superseded`; indexes on `(trackedInvoiceId, createdAt)` and `(status, promisedPayBy)` |
 | `AccountingConnection` | `prisma/schema.prisma` | OAuth connection to Xero or MYOB | `userId`, `provider`, `organisationId`, `organisationName`, `encryptedAccessToken`, `encryptedRefreshToken`, `tokenExpiresAt`, `scopes`, `status`, `lastSyncedAt` | N—1 profile; 1—N sync runs, provider mappings | Yes (RLS) | Unique `(userId, provider, organisationId)`; tokens encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY` |
 | `AccountingSyncRun` | `prisma/schema.prisma` | Sync run history per accounting connection | `accountingConnectionId`, `provider`, `userId`, `startedAt`, `completedAt`, `status`, `invoicesCreated`, `invoicesUpdated`, `invoicesSkipped`, `errorMessage` | N—1 connection | Yes (SELECT only; writes via `prismaAdmin` in cron) | Index on `(accountingConnectionId, startedAt)` |
 | `ProviderInvoiceMapping` | `prisma/schema.prisma` | Maps provider invoice IDs to `TrackedInvoice` | `trackedInvoiceId`, `accountingConnectionId`, `providerInvoiceId`, `providerUpdatedAt`, `providerMetadata` | 1—1 tracked invoice; N—1 connection | Yes (SELECT via JOIN on tracked_invoices.userId) | Unique `(providerInvoiceId, accountingConnectionId)`; `providerUpdatedAt` drives incremental sync |
@@ -361,6 +368,7 @@ policy).
 | `POST /api/invoices/[id]/resume` | `.../resume/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/snooze` | `.../snooze/route.ts` | path `id` | session | `withUserContext` | → `{success,snoozedUntil}` | Implemented |
 | `POST /api/invoices/[id]/resolve` | `.../resolve/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
+| `POST /api/promise/[token]` | `.../promise/[token]/route.ts` | path `token`; body `{promisedPayBy, promisedAmount?, clientNotes?}` | none (public) | `prismaAdmin` | → `{ok}` | Implemented — client-initiated P2P; supersedes any active promise; notifies freelancer |
 | `GET/PUT /api/settings/schedule` | `.../schedule/route.ts` | `zod` ascending offsets | session + `email_reminder_sequence` | `withUserContext` upsert | → `{schedule}` / `{success}` | Implemented |
 | `GET/PUT /api/settings/email` | `.../email/route.ts` | `zod` email/name | session + `own_email_address` (PUT) | `withUserContext` | → `{settings}` / `{success}` | Implemented |
 | `PATCH /api/settings/profile` | `.../profile/route.ts` | `zod` `{displayName}` 1–100 chars | session | `withUserContext` profile update | → `{displayName}` | Implemented |
@@ -485,7 +493,7 @@ stateDiagram-v2
 | `payment_status_dashboard` | ✓ | ✓ | ✓ |
 | `overdue_invoice_dashboard` | ✓ | ✓ | ✓ |
 | `accounting_integrations` | — | ✓ | ✓ |
-| `promise_to_pay_tracking` ◷ | — | ◷ | ◷ |
+| `promise_to_pay_tracking` | — | ✓ | ✓ |
 | `weekly_summary_email` ◷ | — | ◷ | ◷ |
 | `multi_client_management` ◷ | — | — | ◷ |
 

@@ -123,4 +123,16 @@ async function handleInvoicePaid(
     },
     data: { status: "paid" },
   })
+
+  // Mark any active promise as kept — the client followed through.
+  const paidInvoice = await prisma.trackedInvoice.findFirst({
+    where: { externalId, provider: "stripe", userId: connection.userId },
+    select: { id: true },
+  })
+  if (paidInvoice) {
+    await prisma.promiseToPay.updateMany({
+      where: { trackedInvoiceId: paidInvoice.id, status: "active" },
+      data: { status: "kept" },
+    })
+  }
 }

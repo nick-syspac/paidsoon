@@ -118,6 +118,7 @@ model TrackedInvoice {
   nextEmailAt         DateTime?
   snoozedUntil        DateTime?
   providerMetadata    Json?     @map("provider_metadata") // provider-specific fields, not part of core model
+  p2pToken            String?   @unique @map("p2p_token") // generated for Business+ users; client uses to submit a promise to pay
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -125,9 +126,36 @@ model TrackedInvoice {
   invoiceConnection      InvoiceConnection       @relation(fields: [invoiceConnectionId], references: [id])
   emailLogs              EmailLog[]
   providerInvoiceMapping ProviderInvoiceMapping?
+  promisesToPay          PromiseToPay[]
 
   @@unique([externalId, provider, userId])
   @@map("tracked_invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Promise to Pay
+// ---------------------------------------------------------------------------
+
+model PromiseToPay {
+  id               String    @id @default(cuid())
+  trackedInvoiceId String    @map("tracked_invoice_id")
+  userId           String    @map("user_id") // for RLS scoping
+
+  promisedPayBy    DateTime  @map("promised_pay_by")
+  promisedAmount   Int?      @map("promised_amount") // null = full invoice amount; in cents
+  clientNotes      String?   @map("client_notes")   // optional free-text note from client
+
+  status           String    @default("active") // 'active' | 'kept' | 'broken' | 'superseded'
+  breachNotifiedAt DateTime? @map("breach_notified_at")
+
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  trackedInvoice   TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
+
+  @@index([trackedInvoiceId, createdAt])
+  @@index([status, promisedPayBy])
+  @@map("promise_to_pay")
 }
 
 // ---------------------------------------------------------------------------

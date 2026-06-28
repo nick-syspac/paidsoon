@@ -27,6 +27,7 @@ describe("interpolate", () => {
       yourName: "John",
       daysOverdue: "",
       firmDeadline: "",
+      promiseToPayLink: "",
     }
     const result = interpolate("Hi {{clientName}}, your {{invoiceRef}} is due.", vars)
     assert.equal(result, "Hi Sarah, your Invoice INV-042 is due.")
@@ -42,6 +43,7 @@ describe("interpolate", () => {
       yourName: "John",
       daysOverdue: "",
       firmDeadline: "",
+      promiseToPayLink: "",
     }
     const result = interpolate("Hello {{clientName}} and {{unknownToken}}", vars)
     assert.equal(result, "Hello Sarah and {{unknownToken}}")

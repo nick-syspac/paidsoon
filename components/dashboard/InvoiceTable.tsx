@@ -2,9 +2,9 @@
 
 import React, { useState } from "react"
 import { useRouter } from "next/navigation"
-import type { TrackedInvoice, EmailLog } from "@/lib/generated/prisma/client"
+import type { TrackedInvoice, EmailLog, PromiseToPay } from "@/lib/generated/prisma/client"
 
-type InvoiceWithLogs = TrackedInvoice & { emailLogs: EmailLog[] }
+type InvoiceWithLogs = TrackedInvoice & { emailLogs: EmailLog[]; promisesToPay: PromiseToPay[] }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   pending: { label: "Active", color: "bg-green-100 text-green-800" },
@@ -44,6 +44,19 @@ function daysOverdue(dueDate: Date | string) {
   return Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+function getP2PStatus(promises: PromiseToPay[]) {
+  const active = promises.find((p) => p.status === "active")
+  if (active) return { type: "active" as const, promise: active }
+  const broken = promises.find(
+    (p) => p.status === "broken" && !promises.some((q) => q.status === "active")
+  )
+  if (broken) {
+    const brokenCount = promises.filter((p) => p.status === "broken").length
+    return { type: "broken" as const, promise: broken, brokenCount }
+  }
+  return null
+}
+
 export function InvoiceTable({
   invoices,
   showResolved = false,
@@ -75,6 +88,7 @@ export function InvoiceTable({
             <th className="text-left px-4 py-3 font-medium text-gray-600">Stage</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Next email</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600">Promise</th>
             {!showResolved && <th className="px-4 py-3" />}
           </tr>
         </thead>
@@ -83,6 +97,7 @@ export function InvoiceTable({
             const status = STATUS_LABELS[inv.status] ?? { label: inv.status, color: "bg-gray-100 text-gray-600" }
             const isExpanded = expandedId === inv.id
             const isLoading = loadingId === inv.id
+            const p2p = getP2PStatus(inv.promisesToPay)
 
             return (
               <React.Fragment key={inv.id}>
@@ -114,6 +129,21 @@ export function InvoiceTable({
                     <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${status.color}`}>
                       {status.label}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {p2p?.type === "active" && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        🤝 Pays {formatDate(p2p.promise.promisedPayBy)}
+                      </span>
+                    )}
+                    {p2p?.type === "broken" && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-100"
+                        title={`Promised ${formatDate(p2p.promise.promisedPayBy)} — not paid`}
+                      >
+                        ⚠️ Missed{p2p.brokenCount > 1 ? ` (${p2p.brokenCount}×)` : ""}
+                      </span>
+                    )}
                   </td>
                   {!showResolved && (
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -176,7 +206,7 @@ export function InvoiceTable({
 
                 {isExpanded && (
                   <tr className="bg-gray-50">
-                    <td colSpan={7} className="px-4 py-3">
+                  <td colSpan={8} className="px-4 py-3">
                       <p className="text-xs font-medium text-gray-500 mb-2">Email history</p>
                       {inv.emailLogs.length === 0 ? (
                         <p className="text-xs text-gray-400">No emails sent yet.</p>

@@ -64,7 +64,12 @@ export default async function DashboardPage({
             status: { in: showResolved ? resolvedStatuses : activeStatuses },
           },
           orderBy: showResolved ? { updatedAt: "desc" } : { nextEmailAt: "asc" },
-          include: { emailLogs: { orderBy: { sentAt: "asc" } } },
+          include: {
+            emailLogs: { orderBy: { sentAt: "asc" } },
+            promisesToPay: {
+              orderBy: { createdAt: "desc" },
+            },
+          },
         }),
       )
     : []

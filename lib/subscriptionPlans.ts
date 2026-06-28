@@ -91,7 +91,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
-      promise_to_pay_tracking: false,  // not yet implemented
+      promise_to_pay_tracking: true,
       weekly_summary_email: false,     // not yet implemented
       multi_client_management: false,
     },
@@ -117,7 +117,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
-      promise_to_pay_tracking: false,  // not yet implemented
+      promise_to_pay_tracking: true,
       weekly_summary_email: false,     // not yet implemented
       multi_client_management: false,  // not yet implemented
     },
