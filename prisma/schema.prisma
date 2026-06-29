@@ -374,6 +374,16 @@ enum AdminAuditAction {
   email_job_resumed
   system_setting_changed
   admin_tenant_action
+  customer_search
+  impersonate_start
+  impersonate_end
+  impersonate_timeout
+  impersonate_conflict
+  update_schedule
+  pause_invoices
+  resume_invoices
+  trigger_email
+  mark_invoice_paid
 }
 
 enum StaffInvitationStatus {
@@ -448,15 +458,23 @@ model AdminSession {
   expiresAt            DateTime  @map("expires_at")
   revokedAt            DateTime? @map("revoked_at")
   impersonatedTenantId String?   @map("impersonated_tenant_id")
+  impersonatedUserId   String?   @map("impersonated_user_id") // customer being impersonated (support console)
+  notifyCustomer       Boolean   @default(false) @map("notify_customer") // whether to notify customer after impersonation
   createdAt            DateTime  @default(now()) @map("created_at")
+  startedAt            DateTime  @default(now()) @map("started_at") // when support session started
+  endedAt              DateTime? @map("ended_at") // when support session ended
+  duration             Int?      @map("duration") // seconds (calculated on end)
+  actionCount          Int       @default(0) @map("action_count") // count of linked audit events
   ipAddress            String    @map("ip_address")
   userAgent            String    @map("user_agent")
 
-  platformRole   PlatformRole   @relation(fields: [userId], references: [userId])
-  adminDevice    AdminDevice    @relation(fields: [adminDeviceId], references: [id])
-  adminChallenge AdminChallenge @relation(fields: [adminChallengeId], references: [id])
+  platformRole       PlatformRole       @relation(fields: [userId], references: [userId])
+  adminDevice        AdminDevice        @relation(fields: [adminDeviceId], references: [id])
+  adminChallenge     AdminChallenge     @relation(fields: [adminChallengeId], references: [id])
+  adminAuditEvents   AdminAuditEvent[] // link to audit events created during this session
 
   @@index([userId, expiresAt])
+  @@index([impersonatedUserId, startedAt])
   @@map("admin_sessions")
 }
 
@@ -467,9 +485,12 @@ model AdminAuditEvent {
   platformRole           PlatformRoleType @map("platform_role")
   adminDeviceId          String?          @map("admin_device_id")
   adminDeviceFingerprint String?          @map("admin_device_fingerprint")
+  adminSessionId         String?          @map("admin_session_id") // link to impersonation session if event occurred during one
   action                 AdminAuditAction
   targetType             String?          @map("target_type")
   targetId               String?          @map("target_id")
+  targetUserId           String?          @map("target_user_id") // customer being acted upon (support console)
+  resourceId             String?          @map("resource_id") // specific resource (invoiceId, scheduleId, etc.)
   tenantId               String?          @map("tenant_id")
   ipAddress              String           @map("ip_address")
   userAgent              String           @map("user_agent")
@@ -477,11 +498,16 @@ model AdminAuditEvent {
   success                Boolean
   reason                 String?
   metadata               Json?
+  details                Json?            // context-specific data (old/new values, counts, etc.)
   createdAt              DateTime         @default(now()) @map("created_at")
+
+  adminSession AdminSession? @relation(fields: [adminSessionId], references: [id])
 
   @@index([actorUserId, createdAt])
   @@index([action, createdAt])
   @@index([tenantId, createdAt])
+  @@index([adminSessionId])
+  @@index([targetUserId, createdAt])
   @@map("admin_audit_events")
 }
 
@@ -500,4 +526,22 @@ model StaffInvitation {
   @@index([token])
   @@index([email, status])
   @@map("staff_invitations")
+}
+
+// ---------------------------------------------------------------------------
+// Audit Log Retention (Archival tracking for 7-year compliance)
+// ---------------------------------------------------------------------------
+
+model AuditRetentionLog {
+  id               String    @id @default(cuid())
+  timestamp        DateTime  @default(now())
+  recordsArchived  Int       @map("records_archived")
+  s3Path           String?   @map("s3_path")
+  success          Boolean   @default(true)
+  errorMessage     String?   @map("error_message")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([timestamp])
+  @@index([success])
+  @@map("audit_retention_logs")
 }

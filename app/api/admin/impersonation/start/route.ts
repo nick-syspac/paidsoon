@@ -5,14 +5,32 @@ import { requireAdminElevation, AdminGuardError } from "@/lib/admin/guard"
 import { logAdminEvent } from "@/lib/admin/audit"
 import { getIpAddress, getUserAgent, generateRequestId } from "@/lib/admin/request"
 
-const RequestSchema = z.object({
-  tenantId: z.string().min(1),
-})
+// ---------------------------------------------------------------------------
+// Schema: support both legacy tenantId and new userId (support console)
+// ---------------------------------------------------------------------------
+
+const RequestSchema = z
+  .object({
+    tenantId: z.string().min(1).optional(),
+    userId: z.string().min(1).optional(),
+    notifyCustomer: z.boolean().optional().default(false),
+  })
+  .refine((data) => data.tenantId != null || data.userId != null, {
+    message: "Either tenantId or userId is required",
+  })
 
 /**
  * POST /api/admin/impersonation/start
  *
- * Begin impersonating a tenant. Sets AdminSession.impersonatedTenantId.
+ * Two modes:
+ *
+ * Legacy — tenant sidebar impersonation:
+ *   { tenantId } → sets AdminSession.impersonatedTenantId
+ *
+ * Support console — read-only customer view:
+ *   { userId, notifyCustomer? } → sets AdminSession.impersonatedUserId
+ *   Returns a redirectUrl to /dashboard?support_view=true
+ *
  * Requires full admin elevation.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -43,9 +61,66 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 })
   }
 
-  const { tenantId } = parsed.data
+  const { tenantId, userId, notifyCustomer } = parsed.data
 
-  // Validate tenant exists
+  // ---------------------------------------------------------------------------
+  // Support console mode: { userId, notifyCustomer }
+  // ---------------------------------------------------------------------------
+  if (userId != null) {
+    const targetProfile = await prismaAdmin.userProfile.findUnique({
+      where: { userId },
+      select: { userId: true, displayName: true },
+    })
+
+    if (!targetProfile) {
+      return NextResponse.json({ error: "Customer not found", code: "not_found" }, { status: 404 })
+    }
+
+    // Cannot impersonate a platform admin
+    const targetRole = await prismaAdmin.platformRole.findUnique({ where: { userId } })
+    if (targetRole) {
+      return NextResponse.json(
+        { error: "Cannot impersonate a platform admin user", code: "forbidden" },
+        { status: 403 }
+      )
+    }
+
+    await prismaAdmin.adminSession.update({
+      where: { id: ctx.adminSession.id },
+      data: {
+        impersonatedUserId: userId,
+        notifyCustomer: notifyCustomer ?? false,
+        startedAt: new Date(),
+      },
+    })
+
+    await logAdminEvent({
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      platformRole: ctx.platformRole.role,
+      adminDeviceId: ctx.adminSession.adminDeviceId,
+      adminSessionId: ctx.adminSession.id,
+      action: "impersonate_start",
+      targetType: "user_profile",
+      targetId: userId,
+      targetUserId: userId,
+      ipAddress,
+      userAgent,
+      requestId,
+      success: true,
+      details: {
+        targetDisplayName: targetProfile.displayName,
+        notifyCustomer: notifyCustomer ?? false,
+      },
+    })
+
+    const redirectUrl = `/dashboard?support_view=true&support_session=${ctx.adminSession.id}`
+    return NextResponse.json({ impersonating: userId, redirectUrl })
+  }
+
+  // ---------------------------------------------------------------------------
+  // Legacy mode: { tenantId }
+  // ---------------------------------------------------------------------------
   const tenant = await prismaAdmin.userProfile.findUnique({
     where: { userId: tenantId },
     select: { userId: true },

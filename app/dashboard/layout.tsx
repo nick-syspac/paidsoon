@@ -5,6 +5,7 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
 import { UserMenu } from "@/components/dashboard/UserMenu"
+import { SupportBanner } from "@/components/dashboard/SupportBanner"
 
 export default async function DashboardLayout({
   children,
@@ -40,6 +41,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SupportBanner />
       {daysRemaining !== null && (
         <TrialBanner
           daysRemaining={daysRemaining}

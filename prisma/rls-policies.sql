@@ -333,3 +333,18 @@ CREATE POLICY "invites deny update anon"     ON staff_invitations  FOR UPDATE TO
 CREATE POLICY "invites deny update auth"     ON staff_invitations  FOR UPDATE TO authenticated  USING (false);
 CREATE POLICY "invites deny delete anon"     ON staff_invitations  FOR DELETE TO anon           USING (false);
 CREATE POLICY "invites deny delete auth"     ON staff_invitations  FOR DELETE TO authenticated  USING (false);
+
+-- ---------------------------------------------------------------------------
+-- Audit Retention Logs (archival tracking)
+-- Deny-all for anon and authenticated roles (prismaAdmin only)
+-- ---------------------------------------------------------------------------
+ALTER TABLE audit_retention_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "retention deny select anon"   ON audit_retention_logs FOR SELECT TO anon          USING (false);
+CREATE POLICY "retention deny select auth"   ON audit_retention_logs FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "retention deny insert anon"   ON audit_retention_logs FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "retention deny insert auth"   ON audit_retention_logs FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "retention deny update anon"   ON audit_retention_logs FOR UPDATE TO anon           USING (false);
+CREATE POLICY "retention deny update auth"   ON audit_retention_logs FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "retention deny delete anon"   ON audit_retention_logs FOR DELETE TO anon           USING (false);
+CREATE POLICY "retention deny delete auth"   ON audit_retention_logs FOR DELETE TO authenticated  USING (false);

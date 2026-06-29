@@ -15,9 +15,12 @@ export interface AdminAuditEventInput {
   platformRole: PlatformRoleType
   adminDeviceId?: string
   adminDeviceFingerprint?: string
+  adminSessionId?: string // link to impersonation session (support console)
   action: AdminAuditAction
   targetType?: string
   targetId?: string
+  targetUserId?: string // customer being acted upon (support console)
+  resourceId?: string // specific resource being modified (support console)
   tenantId?: string
   ipAddress: string
   userAgent: string
@@ -25,6 +28,7 @@ export interface AdminAuditEventInput {
   success: boolean
   reason?: string
   metadata?: Record<string, unknown>
+  details?: Record<string, unknown> // context-specific data (support console)
 }
 
 /**
@@ -40,9 +44,12 @@ export async function logAdminEvent(event: AdminAuditEventInput): Promise<void> 
         platformRole: event.platformRole,
         adminDeviceId: event.adminDeviceId ?? null,
         adminDeviceFingerprint: event.adminDeviceFingerprint ?? null,
+        adminSessionId: event.adminSessionId ?? null,
         action: event.action,
         targetType: event.targetType ?? null,
         targetId: event.targetId ?? null,
+        targetUserId: event.targetUserId ?? null,
+        resourceId: event.resourceId ?? null,
         tenantId: event.tenantId ?? null,
         ipAddress: event.ipAddress,
         userAgent: event.userAgent,
@@ -50,6 +57,7 @@ export async function logAdminEvent(event: AdminAuditEventInput): Promise<void> 
         success: event.success,
         reason: event.reason ?? null,
         metadata: event.metadata != null ? (event.metadata as Prisma.InputJsonValue) : undefined,
+        details: event.details != null ? (event.details as Prisma.InputJsonValue) : undefined,
       },
     })
   } catch (err) {
