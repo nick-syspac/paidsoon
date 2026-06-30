@@ -77,7 +77,10 @@ export async function GET(request: NextRequest) {
     const q = searchParams.get("q")
     const limit = searchParams.get("limit")
 
-    const parsed = CustomerSearchQuerySchema.safeParse({ q, limit })
+    const parsed = CustomerSearchQuerySchema.safeParse({
+      q,
+      ...(limit != null && { limit }),
+    })
     if (!parsed.success) {
       // Log failed search attempt
       await logAdminEvent({
