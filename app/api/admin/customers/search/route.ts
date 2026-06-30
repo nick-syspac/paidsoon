@@ -13,7 +13,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminElevation } from "@/lib/admin/guard"
 import { logAdminEvent } from "@/lib/admin/audit"
 import { prismaAdmin } from "@/lib/db/admin"
-import { createClient } from "@/lib/supabase/server"
 import { getIpAddress, getUserAgent, generateRequestId } from "@/lib/admin/request"
 
 // ---------------------------------------------------------------------------
@@ -108,24 +107,19 @@ export async function GET(request: NextRequest) {
 
     const { q: query, limit: queryLimit } = parsed.data
 
-    // Search in Supabase Auth
-    const supabase = await createClient()
-    const {
-      data: { users: authUsers },
-      error: authError,
-    } = await supabase.auth.admin.listUsers()
+    // Get all users from auth.users table via Prisma (admin can query this)
+    const authUsers = await prismaAdmin.$queryRaw`
+      SELECT id, email FROM auth.users
+      WHERE LOWER(email) LIKE LOWER(${'%' + query + '%'})
+      LIMIT ${queryLimit}
+    ` as Array<{ id: string; email: string }>
 
-    if (authError) {
-      throw new Error(`Failed to list users from auth: ${authError.message}`)
+    if (!authUsers) {
+      throw new Error("Failed to query auth users from database")
     }
 
-    // Filter by email (case-insensitive partial match)
-    const matchedAuthUsers = (authUsers || []).filter((user) =>
-      user.email?.toLowerCase().includes(query)
-    )
-
     // Look up UserProfiles for matched users
-    const userIds = matchedAuthUsers.map((u) => u.id)
+    const userIds = authUsers.map((u) => u.id)
     const profiles = await prismaAdmin.userProfile.findMany({
       where: { userId: { in: userIds } },
       take: queryLimit,
@@ -135,7 +129,7 @@ export async function GET(request: NextRequest) {
     const results: CustomerSearchResult[] = await Promise.all(
       profiles.map(async (profile) => ({
         userId: profile.userId,
-        email: matchedAuthUsers.find((u) => u.id === profile.userId)?.email || "",
+        email: authUsers.find((u) => u.id === profile.userId)?.email || "",
         displayName: profile.displayName,
         subscriptionTier: profile.subscriptionTier,
         subscriptionStatus: profile.subscriptionStatus,

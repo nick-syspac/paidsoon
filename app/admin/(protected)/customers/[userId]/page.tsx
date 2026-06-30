@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation"
 import { requireAdminElevation } from "@/lib/admin/guard"
 import { prismaAdmin } from "@/lib/db/admin"
-import { createClient } from "@/lib/supabase/server"
 import { ImpersonateButton } from "@/components/admin/ImpersonateButton"
 
 const TIER_LABELS: Record<string, string> = {
@@ -105,9 +104,10 @@ export default async function AdminCustomerDetailPage({
     }),
   ])
 
-  const supabase = await createClient()
-  const { data: authData } = await supabase.auth.admin.getUserById(userId)
-  const email = authData?.user?.email ?? "Unknown"
+  const authUser = await prismaAdmin.$queryRaw`
+    SELECT email FROM auth.users WHERE id = ${userId}
+  ` as Array<{ email: string }>
+  const email = authUser?.[0]?.email ?? "Unknown"
 
   const activeInvoices = invoices.filter((inv) => inv.status !== "paid" && inv.status !== "cancelled")
   const overdueInvoices = activeInvoices.filter(

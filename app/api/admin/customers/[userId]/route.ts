@@ -15,7 +15,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdminElevation } from "@/lib/admin/guard"
 import { prismaAdmin } from "@/lib/db/admin"
-import { createClient } from "@/lib/supabase/server"
 
 export async function GET(
   request: NextRequest,
@@ -39,10 +38,11 @@ export async function GET(
       return NextResponse.json({ error: "Customer not found" }, { status: 404 })
     }
 
-    // Email from Supabase auth
-    const supabase = await createClient()
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId)
-    const email = !authError ? authUser?.user?.email || null : null
+    // Email from auth.users table
+    const authUser = await prismaAdmin.$queryRaw`
+      SELECT email FROM auth.users WHERE id = $1
+    ` as Array<{ email: string }>
+    const email = authUser?.[0]?.email || null
 
     // Invoice summary
     const invoices = await prismaAdmin.trackedInvoice.findMany({
