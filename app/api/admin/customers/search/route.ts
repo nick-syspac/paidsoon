@@ -25,8 +25,7 @@ const CustomerSearchQuerySchema = z.object({
     .string()
     .min(3, "Search query must be at least 3 characters")
     .max(255, "Search query must be at most 255 characters")
-    .toLowerCase()
-    .trim(),
+    .transform((s) => s.toLowerCase().trim()),
   limit: z.coerce.number().int().min(1).max(100).default(50).optional(),
 })
 
