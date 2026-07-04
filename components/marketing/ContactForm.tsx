@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-const enquiryTypes = ["Sales", "Support", "Accountant Partnership"] as const
+const enquiryTypes = ["Sales", "Support", "Accounting Partnerships"] as const
 
 type FormState = "idle" | "submitting" | "success" | "error"
 
@@ -109,7 +109,7 @@ export function ContactForm() {
 
       {formState === "error" && (
         <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-sm text-amber-800">
-          The contact form is not yet available. Please email us directly at{" "}
+          We could not send your message right now. Please email us directly at{" "}
           <a href="mailto:support@paidsoon.com.au" className="underline font-medium">
             support@paidsoon.com.au
           </a>

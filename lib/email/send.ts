@@ -11,6 +11,10 @@ import {
   DEFAULT_STAGE_2,
   DEFAULT_STAGE_3,
 } from "./templates"
+import {
+  CONTACT_ENQUIRY_RECIPIENTS,
+  type ContactEnquiryType,
+} from "./contactEnquiryRouting"
 import type { TrackedInvoice, PromiseToPay } from "@/lib/generated/prisma/client"
 
 /**
@@ -64,6 +68,53 @@ const SANITIZE_OPTIONS: sanitizeHtmlLib.IOptions = {
 
 export function sanitizeHtml(html: string): string {
   return sanitizeHtmlLib(html, SANITIZE_OPTIONS)
+}
+
+function sanitizeHeaderText(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim().slice(0, 200)
+}
+
+export type ContactEnquiryEmailInput = {
+  name: string
+  email: string
+  enquiryType: ContactEnquiryType
+  message: string
+}
+
+/**
+ * Send a contact enquiry email to the internal team mailbox for the selected type.
+ * Returns Resend message ID on success, null on failure.
+ */
+export async function sendContactEnquiryEmail(input: ContactEnquiryEmailInput): Promise<string | null> {
+  const recipient = CONTACT_ENQUIRY_RECIPIENTS[input.enquiryType]
+  const from = `${process.env.RESEND_FROM_NAME!} <${process.env.RESEND_FROM_EMAIL!}>`
+  const subject = `[Contact] ${input.enquiryType} enquiry from ${sanitizeHeaderText(input.name)}`
+  const safeName = sanitizeHtml(input.name)
+  const safeEmail = sanitizeHtml(input.email)
+  const safeMessage = sanitizeHtml(input.message).replace(/\n/g, "<br>")
+
+  try {
+    const result = await getResend().emails.send({
+      from,
+      to: recipient,
+      replyTo: input.email,
+      subject,
+      html: `<p><strong>Name:</strong> ${safeName}</p>
+<p><strong>Email:</strong> ${safeEmail}</p>
+<p><strong>Enquiry type:</strong> ${input.enquiryType}</p>
+<p><strong>Message:</strong></p>
+<p>${safeMessage}</p>`,
+      text: `Name: ${input.name}\nEmail: ${input.email}\nEnquiry type: ${input.enquiryType}\n\nMessage:\n${input.message}`,
+    })
+
+    return result.data?.id ?? null
+  } catch (err) {
+    console.error("Failed to send contact enquiry email", {
+      enquiryType: input.enquiryType,
+      error: err,
+    })
+    return null
+  }
 }
 
 /**
