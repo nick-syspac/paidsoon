@@ -7,10 +7,12 @@ TBD - created by archiving change promise-to-pay-tracking. Update Purpose after 
 
 The system SHALL allow a client to self-commit to a payment date by visiting a unique token-based URL included in their follow-up email. The URL SHALL require no authentication. The token SHALL be a 32-byte cryptographically random hex string stored on the `TrackedInvoice` and generated on the first Business+ follow-up email sent for that invoice. The token SHALL remain stable for the lifetime of the invoice. A client-originated promise SHALL apply to exactly one invoice and SHALL represent a commitment to pay the full outstanding amount for that invoice.
 
+The public promise flow SHALL be limited to a single invoice and SHALL not create partial-payment, instalment, or multi-invoice arrangements.
+
 #### Scenario: Client visits promise page with valid token
 
 - **WHEN** a client visits `/promise/[token]` with a valid token for an unpaid invoice
-- **THEN** the system displays the invoice reference and a form to enter a commitment date and optional note for full payment of that invoice
+- **THEN** the system displays the invoice reference and a single-invoice commitment form
 
 #### Scenario: Client visits promise page for already-paid invoice
 
@@ -32,10 +34,10 @@ The system SHALL allow a client to self-commit to a payment date by visiting a u
 - **WHEN** a client submits the promise form with a date in the past
 - **THEN** the system rejects the submission with a validation error and prompts the client to choose a future date
 
-#### Scenario: Client attempts partial promise
+#### Scenario: Client attempts to negotiate broader arrangement
 
-- **WHEN** a client submits a promise request that does not represent full payment of the invoice
-- **THEN** the system rejects the request and does not create a promise record
+- **WHEN** a client uses the public promise flow to request a partial-payment, instalment, or multi-invoice commitment
+- **THEN** the system rejects the request and does not create an arrangement agreement
 
 #### Scenario: Client exceeds promise retry limit
 
