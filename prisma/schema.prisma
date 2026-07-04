@@ -35,6 +35,7 @@ model UserProfile {
   emailSettings         EmailSettings?
   trackedInvoices       TrackedInvoice[]
   arrangements          Arrangement[]
+  promiseEscalationPolicy PromiseEscalationPolicy?
   emailTemplates        EmailTemplate[]
   aiUsageLogs           AiUsageLog[]
   accountingConnections AccountingConnection[]
@@ -207,6 +208,21 @@ model PromiseToPay {
   @@index([trackedInvoiceId, createdAt])
   @@index([status, promisedPayBy])
   @@map("promise_to_pay")
+}
+
+model PromiseEscalationPolicy {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique @map("user_id")
+  retryLimit             Int      @default(2) @map("retry_limit")
+  escalationThreshold    Int      @default(2) @map("escalation_threshold")
+  timingEscalationEnabled Boolean @default(false) @map("timing_escalation_enabled")
+  toneEscalationEnabled   Boolean @default(false) @map("tone_escalation_enabled")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@map("promise_escalation_policies")
 }
 
 // ---------------------------------------------------------------------------

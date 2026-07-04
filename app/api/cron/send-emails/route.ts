@@ -4,6 +4,13 @@ import { computeNextEmailAt } from "@/lib/email/schedule"
 import { runCatchUpScan } from "@/lib/email/catchup"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import {
+  applyTimingEscalation,
+  applyToneEscalationStage,
+  buildBrokenPromiseDebtorCounts,
+  promiseDebtorKey,
+  resolvePromiseEscalationPolicy,
+} from "@/lib/promiseEscalationPolicy"
 
 // Secure with CRON_SECRET (Vercel sets this automatically for Vercel Cron)
 export async function GET(request: Request) {
@@ -156,8 +163,47 @@ export async function GET(request: Request) {
   let emailsSent = 0
   let errors = 0
 
+  const userIds = Array.from(new Set(pendingInvoices.map((invoice) => invoice.userId)))
+  const [brokenPromiseRows, policyRows] = await Promise.all([
+    prisma.promiseToPay.findMany({
+      where: {
+        status: "broken",
+        userId: { in: userIds },
+      },
+      select: {
+        userId: true,
+        trackedInvoice: { select: { clientEmail: true } },
+      },
+    }),
+    prisma.promiseEscalationPolicy.findMany({
+      where: { userId: { in: userIds } },
+      select: {
+        userId: true,
+        retryLimit: true,
+        escalationThreshold: true,
+        timingEscalationEnabled: true,
+        toneEscalationEnabled: true,
+      },
+    }),
+  ])
+
+  const brokenCountsByUserAndDebtor = buildBrokenPromiseDebtorCounts(
+    brokenPromiseRows.map((row) => ({
+      userId: row.userId,
+      clientEmail: row.trackedInvoice.clientEmail,
+    }))
+  )
+
+  const policyByUserId = new Map(
+    policyRows.map((row) => [row.userId, resolvePromiseEscalationPolicy(row)])
+  )
+
   for (const invoice of pendingInvoices) {
-    const stage = (invoice.currentStage + 1) as 1 | 2 | 3
+    const baseStage = (invoice.currentStage + 1) as 1 | 2 | 3
+    const policy = resolvePromiseEscalationPolicy(policyByUserId.get(invoice.userId))
+    const brokenCount =
+      brokenCountsByUserAndDebtor.get(promiseDebtorKey(invoice.userId, invoice.clientEmail)) ?? 0
+    const stage = applyToneEscalationStage(baseStage, brokenCount, policy)
 
     // Get freelancer's name and email from Supabase auth
     const { data: userData } = await supabaseAdmin.auth.admin.getUserById(invoice.userId)
@@ -190,11 +236,12 @@ export async function GET(request: Request) {
       })
     } else {
       const nextStage = (stage + 1) as 2 | 3
-      const nextEmailAt = computeNextEmailAt(
+      let nextEmailAt = computeNextEmailAt(
         invoice.dueDate,
         nextStage,
         schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 }
       )
+      nextEmailAt = applyTimingEscalation(nextEmailAt, brokenCount, policy)
       await prisma.trackedInvoice.update({
         where: { id: invoice.id },
         data: { currentStage: stage, nextEmailAt },

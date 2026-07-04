@@ -28,6 +28,7 @@ ALTER TABLE tracked_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
+ALTER TABLE promise_escalation_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arrangements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arrangement_invoice_coverages ENABLE ROW LEVEL SECURITY;
 
@@ -268,6 +269,22 @@ CREATE POLICY "users can view own promises to pay"
 
 -- No user INSERT/UPDATE/DELETE policy — public endpoint and cron use
 -- prismaAdmin (service role) which bypasses RLS by design.
+
+-- ---------------------------------------------------------------------------
+-- promise_escalation_policies
+-- Users can read and update their own retry/escalation configuration.
+-- ---------------------------------------------------------------------------
+CREATE POLICY "users can view own promise escalation policy"
+  ON promise_escalation_policies FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "users can insert own promise escalation policy"
+  ON promise_escalation_policies FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+CREATE POLICY "users can update own promise escalation policy"
+  ON promise_escalation_policies FOR UPDATE
+  USING (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- arrangements

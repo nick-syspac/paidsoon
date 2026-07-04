@@ -14,6 +14,10 @@ import {
   isArrangementHighPriority,
   type ArrangementCoverageWithArrangement,
 } from "@/lib/dashboard/arrangements"
+import {
+  getBrokenPromiseCountForDebtor,
+  isPromiseDebtorHighPriority,
+} from "@/lib/dashboard/promisePriority"
 
 type InvoiceWithLogs = TrackedInvoice & {
   emailLogs: EmailLog[]
@@ -75,9 +79,13 @@ function getP2PStatus(promises: PromiseToPay[]) {
 export function InvoiceTable({
   invoices,
   showResolved = false,
+  brokenPromiseCountsByDebtor = {},
+  escalationThreshold = 2,
 }: {
   invoices: InvoiceWithLogs[]
   showResolved?: boolean
+  brokenPromiseCountsByDebtor?: Record<string, number>
+  escalationThreshold?: number
 }) {
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -245,12 +253,22 @@ export function InvoiceTable({
             const p2p = getP2PStatus(inv.promisesToPay)
             const arrangement = deriveArrangementStatus(inv.arrangementCoverages)
             const isBrokenPriority = isArrangementHighPriority(arrangement)
+            const brokenPromiseCount = getBrokenPromiseCountForDebtor(
+              brokenPromiseCountsByDebtor,
+              inv.clientEmail,
+            )
+            const isPromisePriority = isPromiseDebtorHighPriority(
+              brokenPromiseCount,
+              escalationThreshold,
+            )
 
             return (
               <React.Fragment key={inv.id}>
                 <tr
                   className={`border-b border-gray-100 cursor-pointer ${
-                    isBrokenPriority ? "bg-red-50 hover:bg-red-100" : "hover:bg-gray-50"
+                    isBrokenPriority || isPromisePriority
+                      ? "bg-red-50 hover:bg-red-100"
+                      : "hover:bg-gray-50"
                   }`}
                   onClick={() => setExpandedId(isExpanded ? null : inv.id)}
                 >
@@ -301,6 +319,18 @@ export function InvoiceTable({
                         title={`Promised ${formatDate(p2p.promise.promisedPayBy)} — not paid`}
                       >
                         ⚠️ Missed{p2p.brokenCount > 1 ? ` (${p2p.brokenCount}×)` : ""}
+                      </span>
+                    )}
+                    {brokenPromiseCount > 0 && (
+                      <span
+                        className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${
+                          isPromisePriority
+                            ? "bg-red-50 text-red-700 border-red-100"
+                            : "bg-amber-50 text-amber-700 border-amber-100"
+                        }`}
+                        title="Debtor-level broken promise history"
+                      >
+                        Broken history: {brokenPromiseCount}
                       </span>
                     )}
                   </td>

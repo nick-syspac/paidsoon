@@ -7,6 +7,7 @@ import { InvoiceTable } from "@/components/dashboard/InvoiceTable"
 import { LockedDashboardPreview } from "@/components/dashboard/LockedDashboardPreview"
 import { UpgradeBanner } from "@/components/dashboard/UpgradeBanner"
 import Link from "next/link"
+import { buildBrokenPromiseCountsByDebtor } from "@/lib/promiseEscalationPolicy"
 
 export default async function DashboardPage({
   searchParams,
@@ -84,6 +85,30 @@ export default async function DashboardPage({
       )
     : []
 
+  const promisePolicy = canShowDashboardModule
+    ? await withUserContext(user.id, (tx) =>
+        tx.promiseEscalationPolicy.findUnique({
+          where: { userId: user.id },
+          select: { escalationThreshold: true },
+        }),
+      )
+    : null
+
+  const brokenByDebtor = canShowDashboardModule
+    ? await withUserContext(user.id, async (tx) => {
+        const rows = await tx.promiseToPay.findMany({
+          where: { userId: user.id, status: "broken" },
+          select: {
+            trackedInvoice: { select: { clientEmail: true } },
+          },
+        })
+
+          return buildBrokenPromiseCountsByDebtor(
+            rows.map((row) => ({ clientEmail: row.trackedInvoice.clientEmail }))
+          )
+      })
+    : {}
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -151,7 +176,12 @@ export default async function DashboardPage({
           </p>
         </div>
       ) : canShowDashboardModule ? (
-        <InvoiceTable invoices={invoices} showResolved={showResolved} />
+        <InvoiceTable
+          invoices={invoices}
+          showResolved={showResolved}
+          brokenPromiseCountsByDebtor={brokenByDebtor}
+          escalationThreshold={promisePolicy?.escalationThreshold ?? 2}
+        />
       ) : null}
     </div>
   )

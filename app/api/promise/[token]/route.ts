@@ -3,6 +3,10 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { sendP2PNotification, resolveFreelancerName } from "@/lib/email/send"
 import { createClient } from "@supabase/supabase-js"
+import {
+  resolvePromiseEscalationPolicy,
+  shouldBlockClientPromise,
+} from "@/lib/promiseEscalationPolicy"
 
 // Task 4.3 — Zod schema for the promise submission body
 const PromiseBodySchema = z.object({
@@ -62,6 +66,36 @@ export async function POST(
   if (promisedDate <= new Date()) {
     return NextResponse.json(
       { error: "promisedPayBy must be a future date" },
+      { status: 422 }
+    )
+  }
+
+  const [policy, brokenCount] = await Promise.all([
+    prisma.promiseEscalationPolicy.findUnique({
+      where: { userId: invoice.userId },
+      select: {
+        retryLimit: true,
+        escalationThreshold: true,
+        timingEscalationEnabled: true,
+        toneEscalationEnabled: true,
+      },
+    }),
+    prisma.promiseToPay.count({
+      where: {
+        userId: invoice.userId,
+        status: "broken",
+        trackedInvoice: { clientEmail: invoice.clientEmail },
+      },
+    }),
+  ])
+
+  const resolvedPolicy = resolvePromiseEscalationPolicy(policy)
+  if (shouldBlockClientPromise(brokenCount, resolvedPolicy.retryLimit)) {
+    return NextResponse.json(
+      {
+        error:
+          "This client link can no longer accept new payment commitments. Please contact the freelancer directly.",
+      },
       { status: 422 }
     )
   }
