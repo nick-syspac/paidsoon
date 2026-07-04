@@ -13,6 +13,11 @@ let sendCalls: Array<{
   message: string
 }> = []
 
+let verifyResult:
+  | { success: true }
+  | { success: false; error: string; status: 400 | 503 } = { success: true }
+let verifyCalls: Array<string | null | undefined> = []
+
 let contactPost: ((req: Request) => Promise<Response>) | null = null
 
 function makeValidPayload(enquiryType: ContactEnquiryType) {
@@ -21,6 +26,7 @@ function makeValidPayload(enquiryType: ContactEnquiryType) {
     email: "taylor@example.com",
     enquiryType,
     message: "Hello from a test enquiry.",
+    cfToken: "turnstile-token",
   }
 }
 
@@ -44,6 +50,15 @@ describe("Contact enquiry routing configuration", () => {
 
 describe("POST /api/contact", () => {
   before(async () => {
+    await mock.module("@/lib/auth/verifyTurnstile", {
+      namedExports: {
+        verifyTurnstile: async (token: string | null | undefined) => {
+          verifyCalls.push(token)
+          return verifyResult
+        },
+      },
+    })
+
     await mock.module("@/lib/email/send", {
       namedExports: {
         sendContactEnquiryEmail: async (payload: {
@@ -64,6 +79,8 @@ describe("POST /api/contact", () => {
   beforeEach(() => {
     sendResult = "msg_123"
     sendCalls = []
+    verifyResult = { success: true }
+    verifyCalls = []
   })
 
   test("routes accepted enquiry types and returns success", async () => {
@@ -102,6 +119,58 @@ describe("POST /api/contact", () => {
     assert.strictEqual(res.status, 400)
     const body = await res.json()
     assert.strictEqual(body.error, "Invalid request payload")
+    assert.strictEqual(verifyCalls.length, 0)
+    assert.strictEqual(sendCalls.length, 0)
+  })
+
+  test("rejects missing Turnstile token and does not verify or send", async () => {
+    if (!contactPost) throw new Error("route not loaded")
+
+    const payload = makeValidPayload("Sales")
+    const { cfToken: _unusedToken, ...withoutToken } = payload
+
+    const res = await contactPost(makeJsonRequest(withoutToken))
+
+    assert.strictEqual(res.status, 400)
+    const body = await res.json()
+    assert.strictEqual(body.error, "Invalid request payload")
+    assert.strictEqual(verifyCalls.length, 0)
+    assert.strictEqual(sendCalls.length, 0)
+  })
+
+  test("rejects invalid Turnstile token and skips email send", async () => {
+    if (!contactPost) throw new Error("route not loaded")
+
+    verifyResult = {
+      success: false,
+      error: "Security check failed. Please try again.",
+      status: 400,
+    }
+
+    const res = await contactPost(makeJsonRequest(makeValidPayload("Support")))
+
+    assert.strictEqual(res.status, 400)
+    const body = await res.json()
+    assert.strictEqual(body.error, "Security check failed. Please try again.")
+    assert.strictEqual(verifyCalls.length, 1)
+    assert.strictEqual(sendCalls.length, 0)
+  })
+
+  test("fails closed when Turnstile verification service is unavailable", async () => {
+    if (!contactPost) throw new Error("route not loaded")
+
+    verifyResult = {
+      success: false,
+      error: "Security check failed. Please try again.",
+      status: 503,
+    }
+
+    const res = await contactPost(makeJsonRequest(makeValidPayload("Sales")))
+
+    assert.strictEqual(res.status, 503)
+    const body = await res.json()
+    assert.strictEqual(body.error, "Security check failed. Please try again.")
+    assert.strictEqual(verifyCalls.length, 1)
     assert.strictEqual(sendCalls.length, 0)
   })
 

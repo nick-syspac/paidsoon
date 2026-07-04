@@ -136,8 +136,8 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `OPENAI_API_KEY` | `lib/email/ai-rewrite.ts` (to be created) — server-side only, never browser |
 | `SEED_ENV` | [scripts/seed-preview.ts](../../scripts/seed-preview.ts) — environment safety gate; never used by the application itself |
 | `NEXT_PUBLIC_COMPANY_ABN` | [components/marketing/MarketingFooter.tsx](../../components/marketing/MarketingFooter.tsx) — optional; footer shows placeholder if absent |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | [app/(auth)/sign-in/page.tsx](../../app/(auth)/sign-in/page.tsx), [app/(auth)/sign-up/page.tsx](../../app/(auth)/sign-up/page.tsx) — widget site key (browser-safe) |
-| `TURNSTILE_SECRET_KEY` | [lib/auth/verifyTurnstile.ts](../../lib/auth/verifyTurnstile.ts) — server-side Siteverify API secret; never expose to browser |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | [app/(auth)/sign-in/page.tsx](../../app/(auth)/sign-in/page.tsx), [app/(auth)/sign-up/page.tsx](../../app/(auth)/sign-up/page.tsx), [components/marketing/ContactForm.tsx](../../components/marketing/ContactForm.tsx) — widget site key (browser-safe) |
+| `TURNSTILE_SECRET_KEY` | [lib/auth/verifyTurnstile.ts](../../lib/auth/verifyTurnstile.ts), [app/api/contact/route.ts](../../app/api/contact/route.ts) — server-side Siteverify API secret; never expose to browser |
 | `TOKEN_ENCRYPTION_KEY` | [lib/providers/accounting/crypto.ts](../../lib/providers/accounting/crypto.ts) — AES-256-GCM key for encrypting OAuth tokens at rest; server-side only; never expose to browser |
 | `XERO_CLIENT_ID` | [lib/providers/accounting/xero.ts](../../lib/providers/accounting/xero.ts), [app/api/integrations/xero/connect/route.ts](../../app/api/integrations/xero/connect/route.ts), [app/api/integrations/xero/callback/route.ts](../../app/api/integrations/xero/callback/route.ts) |
 | `XERO_CLIENT_SECRET` | [lib/providers/accounting/xero.ts](../../lib/providers/accounting/xero.ts) — server-side only; never expose to browser |

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod/v4"
 import { sendContactEnquiryEmail } from "@/lib/email/send"
 import { CONTACT_ENQUIRY_TYPES } from "@/lib/email/contactEnquiryRouting"
+import { verifyTurnstile } from "@/lib/auth/verifyTurnstile"
 
 const ContactRequestSchema = z
   .object({
@@ -9,6 +10,7 @@ const ContactRequestSchema = z
     email: z.email(),
     enquiryType: z.enum(CONTACT_ENQUIRY_TYPES),
     message: z.string().trim().min(1).max(5000),
+    cfToken: z.string().min(1),
   })
   .strict()
 
@@ -27,6 +29,11 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const requestId = crypto.randomUUID()
   const payload = parsed.data
+
+  const turnstile = await verifyTurnstile(payload.cfToken)
+  if (!turnstile.success) {
+    return NextResponse.json({ error: turnstile.error }, { status: turnstile.status })
+  }
 
   console.info("Contact enquiry send attempt", {
     requestId,
