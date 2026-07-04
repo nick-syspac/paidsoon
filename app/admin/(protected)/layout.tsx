@@ -37,14 +37,14 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
           <div className="flex items-center gap-4">
             <span className="font-semibold text-white">PaidSoon Admin</span>
             <nav className="flex gap-3 text-sm">
-              <a href="/admin/overview" className="text-gray-300 hover:text-white">Overview</a>
+              <Link href="/admin/overview" className="text-gray-300 hover:text-white">Overview</Link>
               <Link href="/admin/tenants" className="text-gray-300 hover:text-white">Tenants</Link>
-              <a href="/admin/subscriptions" className="text-gray-300 hover:text-white">Subscriptions</a>
-              <a href="/admin/integrations" className="text-gray-300 hover:text-white">Integrations</a>
-              <a href="/admin/email-jobs" className="text-gray-300 hover:text-white">Email Jobs</a>
-              <a href="/admin/admin-devices" className="text-gray-300 hover:text-white">Devices</a>
-              <a href="/admin/staff" className="text-gray-300 hover:text-white">Staff</a>
-              <a href="/admin/customers" className="text-gray-300 hover:text-white">Customers</a>
+              <Link href="/admin/subscriptions" className="text-gray-300 hover:text-white">Subscriptions</Link>
+              <Link href="/admin/integrations" className="text-gray-300 hover:text-white">Integrations</Link>
+              <Link href="/admin/email-jobs" className="text-gray-300 hover:text-white">Email Jobs</Link>
+              <Link href="/admin/admin-devices" className="text-gray-300 hover:text-white">Devices</Link>
+              <Link href="/admin/staff" className="text-gray-300 hover:text-white">Staff</Link>
+              <Link href="/admin/customers" className="text-gray-300 hover:text-white">Customers</Link>
               <Link href="/admin/runbooks" className="text-gray-300 hover:text-white">Runbooks</Link>
             </nav>
           </div>

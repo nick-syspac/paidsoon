@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { notFound } from "next/navigation"
 import { requireAdminElevation } from "@/lib/admin/guard"
 import { prismaAdmin } from "@/lib/db/admin"
@@ -46,7 +47,7 @@ export default async function AdminCustomerDetailPage({
 }: {
   params: Promise<{ userId: string }>
 }) {
-  const ctx = await requireAdminElevation()
+  await requireAdminElevation()
   const { userId } = await params
 
   const profile = await prismaAdmin.userProfile.findUnique({
@@ -120,20 +121,20 @@ export default async function AdminCustomerDetailPage({
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">
-            <a href="/admin/customers" className="hover:text-white">
+            <Link href="/admin/customers" className="hover:text-white">
               ← Customers
-            </a>
+            </Link>
           </div>
           <h1 className="text-2xl font-bold text-white">{profile.displayName || email}</h1>
           <p className="text-gray-400 text-sm mt-1">{email}</p>
         </div>
         <div className="flex gap-3">
-          <a
+          <Link
             href={`/admin/customers/${userId}/audit`}
             className="border border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white px-4 py-2 rounded text-sm transition-colors"
           >
             View Audit Log
-          </a>
+          </Link>
           <ImpersonateButton userId={userId} />
         </div>
       </div>

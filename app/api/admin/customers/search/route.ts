@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     let guardContext
     try {
       guardContext = await requireAdminElevation()
-    } catch (err) {
+    } catch {
       // Elevation failed — 401 is logged automatically by middleware
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
