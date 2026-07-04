@@ -69,6 +69,16 @@ export default async function DashboardPage({
             promisesToPay: {
               orderBy: { createdAt: "desc" },
             },
+            arrangementCoverages: {
+              orderBy: { createdAt: "desc" },
+              include: {
+                arrangement: {
+                  include: {
+                    coverages: { select: { trackedInvoiceId: true } },
+                  },
+                },
+              },
+            },
           },
         }),
       )

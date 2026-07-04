@@ -34,6 +34,7 @@ model UserProfile {
   schedule              Schedule?
   emailSettings         EmailSettings?
   trackedInvoices       TrackedInvoice[]
+  arrangements          Arrangement[]
   emailTemplates        EmailTemplate[]
   aiUsageLogs           AiUsageLog[]
   accountingConnections AccountingConnection[]
@@ -127,9 +128,59 @@ model TrackedInvoice {
   emailLogs              EmailLog[]
   providerInvoiceMapping ProviderInvoiceMapping?
   promisesToPay          PromiseToPay[]
+  arrangementCoverages   ArrangementInvoiceCoverage[]
 
+  @@unique([id, userId, clientEmail])
   @@unique([externalId, provider, userId])
   @@map("tracked_invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Arrangement Agreements (freelancer-managed)
+// ---------------------------------------------------------------------------
+
+model Arrangement {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  debtorEmail     String   @map("debtor_email")
+  debtorName      String?  @map("debtor_name")
+  arrangementType String   @map("arrangement_type") // 'full_payment' | 'partial_payment' | 'instalment_plan'
+  status          String   @default("active") // 'active' | 'broken' | 'fulfilled' | 'expired' | 'cancelled'
+  promisedPayBy   DateTime? @map("promised_pay_by")
+  agreedAmount    Int?     @map("agreed_amount") // amount in cents; optional for full balance commitments
+  currency        String   @default("usd")
+  planSchedule    Json?    @map("plan_schedule") // instalment metadata when arrangementType = 'instalment_plan'
+  termsNotes      String?  @map("terms_notes")
+  expiresAt       DateTime? @map("expires_at")
+  breachedAt      DateTime? @map("breached_at")
+  fulfilledAt     DateTime? @map("fulfilled_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile                  @relation(fields: [userId], references: [userId])
+  coverages   ArrangementInvoiceCoverage[]
+
+  @@index([userId, status])
+  @@index([userId, debtorEmail])
+  @@unique([id, userId, debtorEmail])
+  @@map("arrangements")
+}
+
+model ArrangementInvoiceCoverage {
+  id              String   @id @default(cuid())
+  arrangementId   String   @map("arrangement_id")
+  trackedInvoiceId String  @map("tracked_invoice_id")
+  userId          String   @map("user_id")
+  debtorEmail     String   @map("debtor_email")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  arrangement Arrangement @relation(fields: [arrangementId, userId, debtorEmail], references: [id, userId, debtorEmail])
+  trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId, userId, debtorEmail], references: [id, userId, clientEmail])
+
+  @@unique([arrangementId, trackedInvoiceId])
+  @@index([trackedInvoiceId])
+  @@index([userId, debtorEmail])
+  @@map("arrangement_invoice_coverages")
 }
 
 // ---------------------------------------------------------------------------
@@ -545,3 +596,4 @@ model AuditRetentionLog {
   @@index([success])
   @@map("audit_retention_logs")
 }
+

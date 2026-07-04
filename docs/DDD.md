@@ -24,7 +24,7 @@ present in the repository (it is documented as absent, not designed).
 | Source | Path | Used for | Notes |
 |---|---|---|---|
 | Application code | `app/**`, `lib/**`, `middleware.ts` | Primary truth for all behaviour | App Router |
-| Prisma schema | `prisma/schema.prisma` | Data model | 6 models |
+| Prisma schema | `prisma/schema.prisma` | Data model | User + admin models; includes arrangements |
 | Initial migration | `prisma/migrations/20260531101711_init/migration.sql` | Tables, indexes, FKs | Single migration |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation | Applied manually in Supabase |
 | Prisma config | `prisma.config.ts` | Two-URL migration/runtime split | `DIRECT_URL` vs `DATABASE_URL` |
@@ -117,7 +117,8 @@ subsection documents a functional module.
 - **Flow (cron GET):** auth via `Bearer CRON_SECRET` → `runCatchUpScan()` →
   resume snoozed invoices whose `snoozedUntil` elapsed → **detect broken promises**
   (active promises whose `promisedPayBy` has passed; mark `broken`, notify freelancer) →
-  **exclude invoices with active promises** from the email queue → select `pending`
+  **detect expired/broken arrangements** (active arrangements whose payment/expiry date has elapsed) →
+  **exclude invoices with active promises or active arrangements** from the email queue → select `pending`
   invoices with `nextEmailAt <= now` and `currentStage < 3` → for each, resolve
   freelancer email/name via Supabase admin, `sendFollowUpEmail`, then advance
   `currentStage`/`nextEmailAt` or mark `sequence_complete` after stage 3.
@@ -217,8 +218,9 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 
 ## 6. Database Design
 
-Eight application tables, all owned by a single user (tenant = `userId`). All
-FKs reference `user_profiles.userId` (or parent rows) with `ON DELETE RESTRICT`.
+User-scoped application tables are owned by a single tenant (`userId`) and are
+protected by RLS. FKs reference `user_profiles.userId` (or parent rows) with
+`ON DELETE RESTRICT`.
 
 ### 6.1 Tenancy / profile / connections / config
 
@@ -329,6 +331,8 @@ erDiagram
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
 | `PromiseToPay` | `prisma/schema.prisma` | Client payment commitment history per invoice | `trackedInvoiceId`, `userId`, `promisedPayBy`, `promisedAmount`, `clientNotes`, `status`, `breachNotifiedAt` | N—1 tracked invoice | Yes (SELECT only; INSERT/UPDATE via `prismaAdmin`) | `status`: `active` → `kept` / `broken` / `superseded`; indexes on `(trackedInvoiceId, createdAt)` and `(status, promisedPayBy)` |
+| `Arrangement` | `prisma/schema.prisma` | Freelancer-managed agreement for one debtor (single or multi-invoice scope) | `userId`, `debtorEmail`, `arrangementType`, `status`, `promisedPayBy`, `agreedAmount`, `planSchedule`, `expiresAt`, `breachedAt`, `fulfilledAt` | N—1 profile; 1—N coverages | Yes (RLS CRUD) | `arrangementType`: `full_payment` / `partial_payment` / `instalment_plan`; `status`: `active` → `broken` / `fulfilled` / `expired` / `cancelled` |
+| `ArrangementInvoiceCoverage` | `prisma/schema.prisma` | Joins arrangements to covered invoices for suppression/resume behavior | `arrangementId`, `trackedInvoiceId`, `userId`, `debtorEmail` | N—1 arrangement; N—1 tracked invoice | Yes (RLS CRUD) | Unique `(arrangementId, trackedInvoiceId)`; tenant/debtor-safe relational constraints via composite references |
 | `AccountingConnection` | `prisma/schema.prisma` | OAuth connection to Xero or MYOB | `userId`, `provider`, `organisationId`, `organisationName`, `encryptedAccessToken`, `encryptedRefreshToken`, `tokenExpiresAt`, `scopes`, `status`, `lastSyncedAt` | N—1 profile; 1—N sync runs, provider mappings | Yes (RLS) | Unique `(userId, provider, organisationId)`; tokens encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY` |
 | `AccountingSyncRun` | `prisma/schema.prisma` | Sync run history per accounting connection | `accountingConnectionId`, `provider`, `userId`, `startedAt`, `completedAt`, `status`, `invoicesCreated`, `invoicesUpdated`, `invoicesSkipped`, `errorMessage` | N—1 connection | Yes (SELECT only; writes via `prismaAdmin` in cron) | Index on `(accountingConnectionId, startedAt)` |
 | `ProviderInvoiceMapping` | `prisma/schema.prisma` | Maps provider invoice IDs to `TrackedInvoice` | `trackedInvoiceId`, `accountingConnectionId`, `providerInvoiceId`, `providerUpdatedAt`, `providerMetadata` | 1—1 tracked invoice; N—1 connection | Yes (SELECT via JOIN on tracked_invoices.userId) | Unique `(providerInvoiceId, accountingConnectionId)`; `providerUpdatedAt` drives incremental sync |
@@ -345,7 +349,7 @@ erDiagram
 
 ### 6.4 RLS design
 
-`prisma/rls-policies.sql` enables RLS on all eight tables. Policies key on
+`prisma/rls-policies.sql` enables RLS on user-scoped tables. Policies key on
 `auth.uid()::text = "userId"` for SELECT/INSERT/UPDATE. `email_templates` has a
 DELETE policy (users reset a stage to defaults). Other tables have no DELETE
 policy (app never hard-deletes rows; FKs are `RESTRICT`). `email_logs` SELECT
@@ -353,7 +357,8 @@ and INSERT both use a join-based `EXISTS` check against `tracked_invoices`
 (ownership via `userId`); the cron worker bypasses RLS entirely via `prismaAdmin`
 (service role), so the tightened INSERT policy does not affect it. `ai_usage_logs`
 has a SELECT policy for own rows; INSERTs are `prismaAdmin`-only (no user INSERT
-policy).
+policy). `arrangements` and `arrangement_invoice_coverages` have full tenant-scoped
+CRUD policies.
 
 The six **platform admin tables** (`platform_roles`, `admin_devices`,
 `admin_challenges`, `admin_sessions`, `admin_audit_events`, `staff_invitations`)
@@ -379,7 +384,9 @@ admin guard. See `prisma/rls-policies.sql`.
 | `POST /api/invoices/[id]/resume` | `.../resume/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/snooze` | `.../snooze/route.ts` | path `id` | session | `withUserContext` | → `{success,snoozedUntil}` | Implemented |
 | `POST /api/invoices/[id]/resolve` | `.../resolve/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
-| `POST /api/promise/[token]` | `.../promise/[token]/route.ts` | path `token`; body `{promisedPayBy, promisedAmount?, clientNotes?}` | none (public) | `prismaAdmin` | → `{ok}` | Implemented — client-initiated P2P; supersedes any active promise; notifies freelancer |
+| `POST /api/arrangements` | `app/api/arrangements/route.ts` | body `{invoiceIds[], arrangementType, promisedPayBy?, agreedAmount?, currency?, termsNotes?, planSchedule?}` | session | `withUserContext` | → `{arrangement}` | Implemented — freelancer-managed arrangement creation for single/multi-invoice scope |
+| `POST /api/arrangements/[id]/status` | `app/api/arrangements/[id]/status/route.ts` | path `id`; body `{status}` | session | `withUserContext` | → `{arrangement}` | Implemented — lifecycle transitions (`active`, `broken`, `fulfilled`, `expired`, `cancelled`) |
+| `POST /api/promise/[token]` | `.../promise/[token]/route.ts` | path `token`; body `{promisedPayBy, promisedAmount?, clientNotes?}` | none (public) | `prismaAdmin` | → `{ok}` | Implemented — client-initiated single-invoice P2P; arrangement-like payloads rejected |
 | `GET/PUT /api/settings/schedule` | `.../schedule/route.ts` | `zod` ascending offsets | session + `email_reminder_sequence` | `withUserContext` upsert | → `{schedule}` / `{success}` | Implemented |
 | `GET/PUT /api/settings/email` | `.../email/route.ts` | `zod` email/name | session + `own_email_address` (PUT) | `withUserContext` | → `{settings}` / `{success}` | Implemented |
 | `PATCH /api/settings/profile` | `.../profile/route.ts` | `zod` `{displayName}` 1–100 chars | session | `withUserContext` profile update | → `{displayName}` | Implemented |

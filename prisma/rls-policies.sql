@@ -28,6 +28,8 @@ ALTER TABLE tracked_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
+ALTER TABLE arrangements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE arrangement_invoice_coverages ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles
@@ -266,6 +268,46 @@ CREATE POLICY "users can view own promises to pay"
 
 -- No user INSERT/UPDATE/DELETE policy — public endpoint and cron use
 -- prismaAdmin (service role) which bypasses RLS by design.
+
+-- ---------------------------------------------------------------------------
+-- arrangements
+-- Users can create and manage their own freelancer-managed arrangement records.
+-- ---------------------------------------------------------------------------
+CREATE POLICY "users can view own arrangements"
+  ON arrangements FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "users can insert own arrangements"
+  ON arrangements FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+CREATE POLICY "users can update own arrangements"
+  ON arrangements FOR UPDATE
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "users can delete own arrangements"
+  ON arrangements FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- arrangement_invoice_coverages
+-- Coverage rows are user-scoped and link arrangement headers to tracked invoices.
+-- ---------------------------------------------------------------------------
+CREATE POLICY "users can view own arrangement coverages"
+  ON arrangement_invoice_coverages FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "users can insert own arrangement coverages"
+  ON arrangement_invoice_coverages FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+CREATE POLICY "users can update own arrangement coverages"
+  ON arrangement_invoice_coverages FOR UPDATE
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "users can delete own arrangement coverages"
+  ON arrangement_invoice_coverages FOR DELETE
+  USING (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- Platform Admin Tables (deny-all for anon and authenticated roles)

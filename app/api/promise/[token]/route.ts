@@ -9,7 +9,7 @@ const PromiseBodySchema = z.object({
   promisedPayBy: z.string().datetime(),
   promisedAmount: z.number().int().positive().optional(),
   clientNotes: z.string().max(500).optional(),
-})
+}).strict()
 
 export async function POST(
   request: Request,
@@ -49,6 +49,14 @@ export async function POST(
 
   const { promisedPayBy, promisedAmount, clientNotes } = parsed.data
 
+  // Public client promise flow only supports full-payment commitments.
+  if (promisedAmount != null && promisedAmount !== invoice.amountDue) {
+    return NextResponse.json(
+      { error: "Only full-payment commitments are allowed for this link" },
+      { status: 422 }
+    )
+  }
+
   // Reject past dates
   const promisedDate = new Date(promisedPayBy)
   if (promisedDate <= new Date()) {
@@ -71,7 +79,7 @@ export async function POST(
         trackedInvoiceId: invoice.id,
         userId: invoice.userId,
         promisedPayBy: promisedDate,
-        promisedAmount: promisedAmount ?? null,
+        promisedAmount: null,
         clientNotes: clientNotes ?? null,
         status: "active",
       },

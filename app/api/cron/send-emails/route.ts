@@ -88,7 +88,30 @@ export async function GET(request: Request) {
     }
   }
 
-  // 4. Find invoices with active promises — these must not receive emails this cycle.
+  // 4. Detect arrangement breaches/expiry and update lifecycle status.
+  const activeArrangements = await prisma.arrangement.findMany({
+    where: {
+      status: "active",
+      OR: [
+        { promisedPayBy: { lt: new Date() } },
+        { promisedPayBy: null, expiresAt: { lt: new Date() } },
+      ],
+    },
+    select: { id: true, promisedPayBy: true },
+  })
+
+  for (const arrangement of activeArrangements) {
+    await prisma.arrangement.update({
+      where: { id: arrangement.id },
+      data:
+        arrangement.promisedPayBy != null
+          ? { status: "broken", breachedAt: new Date() }
+          : { status: "expired" },
+    })
+  }
+
+  // 5. Find invoices with active promises or active arrangements — these must
+  //    not receive emails this cycle.
   const activePromiseInvoiceIds = (
     await prisma.promiseToPay.findMany({
       where: { status: "active" },
@@ -96,15 +119,26 @@ export async function GET(request: Request) {
     })
   ).map((p) => p.trackedInvoiceId)
 
-  // 5. Find all invoices ready for their next email (excluding those with active promises)
+  const activeArrangementInvoiceIds = (
+    await prisma.arrangementInvoiceCoverage.findMany({
+      where: { arrangement: { status: "active" } },
+      select: { trackedInvoiceId: true },
+    })
+  ).map((coverage) => coverage.trackedInvoiceId)
+
+  const suppressedInvoiceIds = Array.from(
+    new Set([...activePromiseInvoiceIds, ...activeArrangementInvoiceIds])
+  )
+
+  // 6. Find all invoices ready for their next email (excluding those suppressed)
   const now = new Date()
   const pendingInvoices = await prisma.trackedInvoice.findMany({
     where: {
       status: "pending",
       nextEmailAt: { lte: now },
       currentStage: { lt: 3 },
-      ...(activePromiseInvoiceIds.length > 0
-        ? { id: { notIn: activePromiseInvoiceIds } }
+      ...(suppressedInvoiceIds.length > 0
+        ? { id: { notIn: suppressedInvoiceIds } }
         : {}),
     },
     include: {
