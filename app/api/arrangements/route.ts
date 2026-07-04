@@ -71,7 +71,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         promisedPayBy: parsed.data.promisedPayBy ? new Date(parsed.data.promisedPayBy) : null,
         agreedAmount: parsed.data.agreedAmount ?? null,
         currency: (parsed.data.currency ?? invoices[0].currency).toLowerCase(),
-        planSchedule: parsed.data.planSchedule ?? null,
+        planSchedule: parsed.data.planSchedule,
         termsNotes: parsed.data.termsNotes?.trim() ?? null,
         expiresAt: parsed.data.promisedPayBy ? new Date(parsed.data.promisedPayBy) : null,
         coverages: {
