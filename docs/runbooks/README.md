@@ -56,6 +56,10 @@ For a brand-new production setup, work through the runbooks in this order:
 8. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
 9. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
 
+For launch readiness review and final go/no-go criteria, use:
+
+- [go-live-decision-matrix.md](./go-live-decision-matrix.md) — operator decision matrix with owner, ETA, and evidence fields.
+
 For Local development only, run sections 1–3 against test mode / dev project, then `npm run dev`. See each runbook's "Local" column for the dev posture.
 
 ## Environment-variable matrix
