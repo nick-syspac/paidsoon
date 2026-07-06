@@ -258,6 +258,37 @@ describe("checkSyncStale", () => {
     }))
     assert.equal(results.length, 2)
   })
+
+  test("returns empty array for a MYOB connection newly pending its first sync", () => {
+    const results = checkSyncStale(makeSnapshot({
+      accountingConns: [
+        makeAccountingConn({
+          provider: "myob",
+          status: "pending_first_sync",
+          lastSyncedAt: null,
+          createdAt: new Date(), // just connected
+        }),
+      ],
+    }))
+    assert.deepEqual(results, [])
+  })
+
+  test("returns warning for a MYOB connection stuck pending its first sync for over an hour", () => {
+    const stuckSince = new Date(Date.now() - 2 * 3600_000)
+    const results = checkSyncStale(makeSnapshot({
+      accountingConns: [
+        makeAccountingConn({
+          provider: "myob",
+          status: "pending_first_sync",
+          lastSyncedAt: null,
+          createdAt: stuckSince,
+        }),
+      ],
+    }))
+    assert.equal(results.length, 1)
+    assert.equal(results[0].slug, "sync-stale")
+    assert.equal(results[0].actions[0].actionSlug, "trigger-resync")
+  })
 })
 
 // ---------------------------------------------------------------------------

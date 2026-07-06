@@ -35,6 +35,60 @@ describe("syncConnection — logic tests using mocked dependencies", () => {
     test("unknown → pending (default)", () => assert.equal(mapStatus("something_else"), "pending"))
   })
 
+  describe("resolveConnectionStatusAfterSync", () => {
+    // Mirrors lib/providers/accounting/sync.ts — reimplemented here because
+    // importing the real module pulls in prismaAdmin (see file header note).
+    type ErrorKind = "unauthorized" | "rate_limited" | "not_found" | "server_error" | "validation" | "unknown"
+
+    function resolveConnectionStatusAfterSync(
+      currentStatus: string,
+      outcome: "success" | "partial" | "failed",
+      errorKind?: ErrorKind
+    ): string | null {
+      if (currentStatus === "disconnected") return null
+      if (outcome === "success" || outcome === "partial") {
+        return currentStatus === "active" ? null : "active"
+      }
+      if (errorKind === "unauthorized") return "revoked"
+      if (currentStatus === "pending_first_sync") return "error"
+      return null
+    }
+
+    test("first successful sync promotes pending_first_sync to active", () => {
+      assert.equal(resolveConnectionStatusAfterSync("pending_first_sync", "success"), "active")
+    })
+
+    test("partial success also promotes pending_first_sync to active", () => {
+      assert.equal(resolveConnectionStatusAfterSync("pending_first_sync", "partial"), "active")
+    })
+
+    test("successful sync on an already-active connection makes no change", () => {
+      assert.equal(resolveConnectionStatusAfterSync("active", "success"), null)
+    })
+
+    test("a retry from error that succeeds promotes the connection to active", () => {
+      assert.equal(resolveConnectionStatusAfterSync("error", "success"), "active")
+    })
+
+    test("first sync failure sets status to error", () => {
+      assert.equal(resolveConnectionStatusAfterSync("pending_first_sync", "failed"), "error")
+    })
+
+    test("failure on an already-active connection does not downgrade status", () => {
+      assert.equal(resolveConnectionStatusAfterSync("active", "failed"), null)
+    })
+
+    test("unauthorized error always marks the connection revoked", () => {
+      assert.equal(resolveConnectionStatusAfterSync("active", "failed", "unauthorized"), "revoked")
+      assert.equal(resolveConnectionStatusAfterSync("pending_first_sync", "failed", "unauthorized"), "revoked")
+    })
+
+    test("a disconnected connection is never resurrected by a sync outcome", () => {
+      assert.equal(resolveConnectionStatusAfterSync("disconnected", "success"), null)
+      assert.equal(resolveConnectionStatusAfterSync("disconnected", "failed", "unauthorized"), null)
+    })
+  })
+
   describe("toCents", () => {
     function toCents(amount: number): number {
       return Math.round(amount * 100)

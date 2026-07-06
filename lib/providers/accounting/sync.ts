@@ -21,6 +21,17 @@
  *   - AccountingProviderError({ kind: 'unauthorized' }) → marks connection status = 'revoked'
  *   - AccountingProviderError({ kind: 'rate_limited' }) → records error in sync run, skips
  *   - All other errors → records in sync run error_message, does not crash cron
+ *
+ * Connection status lifecycle (see `resolveConnectionStatusAfterSync`):
+ *   - A newly created connection starts as 'pending_first_sync' (callback does not
+ *     imply invoice import is already complete).
+ *   - The first successful (or partial) sync promotes the connection to 'active'.
+ *   - A failure on that first sync sets status = 'error' so it is visibly actionable
+ *     instead of silently stuck as pending; an already-'active' connection is not
+ *     downgraded by a single transient failure — that failure is recorded on the
+ *     AccountingSyncRun row instead.
+ *   - 'disconnected' is a terminal, user-initiated state and is never overwritten
+ *     by a sync outcome.
  */
 
 import { Prisma } from "@/lib/generated/prisma/client"
@@ -28,6 +39,7 @@ import { prismaAdmin } from "@/lib/db/admin"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import {
   AccountingProviderError,
+  type AccountingProviderErrorKind,
   type ProviderInvoice,
   type ProviderContact,
 } from "@/lib/providers/accounting/types"
@@ -62,6 +74,43 @@ function shouldRefresh(tokenExpiresAt: Date, provider: string): boolean {
     ? 21 * 60 * 1000  // 21 min — always refresh before a MYOB sync
     : 5 * 60 * 1000   // 5 min — standard buffer for Xero (30 min tokens)
   return tokenExpiresAt.getTime() - Date.now() < BUFFER_MS
+}
+
+/**
+ * Connection statuses that are eligible for a sync attempt.
+ * - 'active' — steady-state connection, already collecting data.
+ * - 'pending_first_sync' — connected but no successful sync has completed yet.
+ * - 'error' — a previous first sync failed; user or cron may retry.
+ * 'disconnected' and 'revoked' are terminal until the user reconnects.
+ */
+const SYNCABLE_STATUSES = new Set(["active", "pending_first_sync", "error"])
+
+/**
+ * Pure function that resolves the next `AccountingConnection.status` given the
+ * status before the sync attempt and its outcome. Returns `null` when the
+ * status should not change.
+ *
+ * Exported for direct unit testing (no DB or network dependencies).
+ */
+export function resolveConnectionStatusAfterSync(
+  currentStatus: string,
+  outcome: "success" | "partial" | "failed",
+  errorKind?: AccountingProviderErrorKind
+): string | null {
+  // A user-initiated disconnect is terminal — never silently resurrect it.
+  if (currentStatus === "disconnected") return null
+
+  if (outcome === "success" || outcome === "partial") {
+    return currentStatus === "active" ? null : "active"
+  }
+
+  // outcome === "failed"
+  if (errorKind === "unauthorized") return "revoked"
+  // Only the first sync attempt downgrades to 'error' — an already-active
+  // connection stays active on a transient failure; the failure is recorded
+  // on the AccountingSyncRun row instead.
+  if (currentStatus === "pending_first_sync") return "error"
+  return null
 }
 
 /** Retry with exponential backoff for transient provider errors */
@@ -127,8 +176,8 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     },
   })
 
-  if (!connection || connection.status !== "active") {
-    result.errorMessage = "Connection not found or not active"
+  if (!connection || !SYNCABLE_STATUSES.has(connection.status)) {
+    result.errorMessage = "Connection not found or not syncable"
     return result
   }
 
@@ -239,27 +288,40 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       }
     }
 
-    // --- Update connection lastSyncedAt ---
+    result.status = result.invoicesSkipped > 0 ? "partial" : "success"
+
+    // --- Update connection lastSyncedAt and, if this was the first
+    // successful sync (or a recovery from 'error'), promote status to 'active' ---
+    const nextStatus = resolveConnectionStatusAfterSync(connection.status, result.status)
     await prismaAdmin.accountingConnection.update({
       where: { id: connectionId },
-      data: { lastSyncedAt: syncStartedAt },
+      data: {
+        lastSyncedAt: syncStartedAt,
+        ...(nextStatus ? { status: nextStatus } : {}),
+      },
     })
-
-    result.status = result.invoicesSkipped > 0 ? "partial" : "success"
   } catch (err) {
-    if (err instanceof AccountingProviderError && err.kind === "unauthorized") {
-      // Token revoked — mark connection so user can reconnect
-      await prismaAdmin.accountingConnection.update({
-        where: { id: connectionId },
-        data: { status: "revoked" },
-      })
+    const errorKind = err instanceof AccountingProviderError ? err.kind : undefined
+
+    if (errorKind === "unauthorized") {
       result.errorMessage = "Access token revoked — user must reconnect"
-    } else if (err instanceof AccountingProviderError && err.kind === "rate_limited") {
+    } else if (errorKind === "rate_limited") {
       result.errorMessage = `Rate limited by ${connection.provider} — will retry next cycle`
     } else {
       result.errorMessage = err instanceof Error ? err.message : "Unknown error"
     }
     result.status = "failed"
+
+    // Mark the connection deterministically: revoked on auth failure, or
+    // 'error' if this was still an unproven first sync. An already-active
+    // connection stays active — the failed run is recorded above.
+    const nextStatus = resolveConnectionStatusAfterSync(connection.status, "failed", errorKind)
+    if (nextStatus) {
+      await prismaAdmin.accountingConnection.update({
+        where: { id: connectionId },
+        data: { status: nextStatus },
+      })
+    }
   }
 
   // --- Write sync run result ---
@@ -418,12 +480,14 @@ function mapProviderStatusToTracked(
 }
 
 /**
- * Sync all active accounting connections.
+ * Sync all connections in a syncable state (active, pending first sync, or
+ * previously errored) so that a stalled first sync or a transient failure is
+ * retried automatically on the next cron run.
  * Called by the cron job. Errors in individual connections do not stop others.
  */
 export async function syncAllActiveConnections(): Promise<SyncResult[]> {
   const connections = await prismaAdmin.accountingConnection.findMany({
-    where: { status: "active" },
+    where: { status: { in: Array.from(SYNCABLE_STATUSES) } },
     select: { id: true },
   })
 

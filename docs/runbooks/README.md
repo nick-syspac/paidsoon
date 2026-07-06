@@ -55,6 +55,7 @@ For a brand-new production setup, work through the runbooks in this order:
 7. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
 8. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
 9. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
+10. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
 
 For launch readiness review and final go/no-go criteria, use:
 
@@ -88,13 +89,13 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` | `onboarding@resend.dev` | `billing@paidsoon.com` | [resend.md §3](./resend.md) |
 | `RESEND_FROM_NAME` | `PaidSoon (dev)` | `PaidSoon (preview)` | `PaidSoon` | [resend.md §3](./resend.md) |
 | `OPENAI_API_KEY` | dev `sk-proj-…` | dev `sk-proj-…` | prod `sk-proj-…` | [openai.md §1](./openai.md) |
-| `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` (64 hex chars) | `openssl rand -hex 32` | `openssl rand -hex 32` — never share with Xero/MYOB or frontend |
+| `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` (64 hex chars) | `openssl rand -hex 32` | `openssl rand -hex 32` | Server-side only — never expose to Xero/MYOB, the frontend, or logs. See [myob.md §2](./myob.md) |
 | `XERO_CLIENT_ID` | Xero developer app client ID | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) |
 | `XERO_CLIENT_SECRET` | Xero developer app client secret | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) — server-side only |
 | `XERO_REDIRECT_URI` | `http://localhost:3000/api/integrations/xero/callback` | preview deployment URL + `/api/integrations/xero/callback` | `https://paidsoon.com/api/integrations/xero/callback` | Must be registered in Xero developer portal |
-| `MYOB_CLIENT_ID` | MYOB developer app API key | same | same | From [MYOB developer portal](https://developer.myob.com) |
-| `MYOB_CLIENT_SECRET` | MYOB developer app API secret | same | same | From [MYOB developer portal](https://developer.myob.com) — server-side only |
-| `MYOB_REDIRECT_URI` | `http://localhost:3000/api/integrations/myob/callback` | preview deployment URL + `/api/integrations/myob/callback` | `https://paidsoon.com/api/integrations/myob/callback` | Must be registered in MYOB developer portal |
+| `MYOB_CLIENT_ID` | MYOB developer app API key | same | same | [myob.md §1–2](./myob.md) — from [MYOB developer portal](https://developer.myob.com) |
+| `MYOB_CLIENT_SECRET` | MYOB developer app API secret | same | same | [myob.md §1–2](./myob.md) — server-side only |
+| `MYOB_REDIRECT_URI` | `http://localhost:3000/api/integrations/myob/callback` | preview deployment URL + `/api/integrations/myob/callback` | `https://paidsoon.com/api/integrations/myob/callback` | [myob.md §1](./myob.md) — must be registered in MYOB developer portal |
 | `SEED_ENV` | `local` | `preview` | — (never set in production) | [preview-seed-data.md](../preview-seed-data.md) |
 | `NEXT_PUBLIC_COMPANY_ABN` | omit or set to company ABN | omit or set to company ABN | ABN of Syspac Pty Ltd (e.g., `12 345 678 901`) | [MarketingFooter](../../components/marketing/MarketingFooter.tsx) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `1x00000000000000000000AA` (CF test key — always passes) | `1x00000000000000000000AA` (CF test key) | real site key from [Cloudflare Turnstile dashboard](https://dash.cloudflare.com/) | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |

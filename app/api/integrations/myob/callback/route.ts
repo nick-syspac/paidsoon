@@ -16,6 +16,7 @@ import { prismaAdmin } from "@/lib/db/admin"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { encryptToken } from "@/lib/providers/accounting/crypto"
+import { syncConnection } from "@/lib/providers/accounting/sync"
 import { NextResponse } from "next/server"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
@@ -90,23 +91,27 @@ export async function GET(request: Request) {
 
   // businessId from MYOB is the cf_uri used for all subsequent API calls.
   // Resolve the human-readable company file name by calling the MYOB company
-  // file list endpoint. Falls back to the GUID segment of the URI on failure.
+  // file list endpoint. Falls back to a deterministic identifier-derived name
+  // (never an empty string) on failure.
   const organisationId = businessId
-  let organisationName = businessId.replace(/\/$/, "").split("/").pop() ?? "MYOB Company File"
+  const trimmedBusinessId = businessId.replace(/\/$/, "")
+  const fallbackSegment = trimmedBusinessId.split("/").filter(Boolean).pop()
+  let organisationName = fallbackSegment && fallbackSegment.length > 0 ? fallbackSegment : "MYOB Company File"
 
   try {
     const orgs = await provider.getOrganisations(tokens.accessToken)
     const match = orgs.find(
-      (o) => o.id === businessId || o.id.replace(/\/$/, "") === businessId.replace(/\/$/, "")
+      (o) => o.id === businessId || o.id.replace(/\/$/, "") === trimmedBusinessId
     )
     if (match?.name) organisationName = match.name
   } catch {
-    // Non-fatal — proceed with GUID-based name
+    // Non-fatal — proceed with the deterministic fallback name
   }
 
+  let connection
   try {
-    await withUserContext(user.id, async (tx) => {
-      await tx.accountingConnection.upsert({
+    connection = await withUserContext(user.id, async (tx) => {
+      return tx.accountingConnection.upsert({
         where: {
           userId_provider_organisationId: {
             userId: user.id,
@@ -120,7 +125,9 @@ export async function GET(request: Request) {
           encryptedRefreshToken,
           tokenExpiresAt,
           scopes,
-          status: "active",
+          // Reconnecting warrants a fresh first-sync validation rather than
+          // implying the previous sync history still reflects current data.
+          status: "pending_first_sync",
           lastSyncedAt: null,
         },
         create: {
@@ -132,7 +139,7 @@ export async function GET(request: Request) {
           encryptedRefreshToken,
           tokenExpiresAt,
           scopes,
-          status: "active",
+          status: "pending_first_sync",
         },
       })
     })
@@ -141,6 +148,17 @@ export async function GET(request: Request) {
     return NextResponse.redirect(
       `${APP_URL}/dashboard/settings/integrations?error=connection_save_failed`
     )
+  }
+
+  // Trigger the first sync inline so a "connected" connection does not sit in
+  // pending_first_sync indefinitely until the next cron pass. syncConnection
+  // handles its own errors internally and updates the connection status
+  // (active on success, error on a first-sync failure) — this call is
+  // best-effort and must not block the redirect on an unexpected throw.
+  try {
+    await syncConnection(connection.id)
+  } catch (err) {
+    console.error("[myob/callback] initial sync failed to run", err)
   }
 
   return NextResponse.redirect(

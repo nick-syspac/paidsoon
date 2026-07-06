@@ -27,10 +27,13 @@ const currentDocs = [
     title: "Audit trail",
     body: "PaidSoon records key workflow events such as invoice syncs, reminder sends, promise-to-pay updates, dispute pauses and manual actions.",
   },
+  {
+    title: "MYOB Business integration (early access)",
+    body: "Early-access users can connect a MYOB Business company file to import overdue invoices. Full production support is still being validated — see the roadmap for status.",
+  },
 ]
 
 const futureDocs = [
-  "MYOB Business integration",
   "Xero integration",
   "QuickBooks Online integration",
   "Webhooks",

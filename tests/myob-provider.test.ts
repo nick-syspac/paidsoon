@@ -102,9 +102,45 @@ describe("MyobProvider", () => {
   })
 
   describe("getOrganisations", () => {
-    test("returns empty array (cf_uri comes from OAuth callback)", async () => {
+    test("maps company file list response to Organisation[]", async () => {
+      mockFetch([
+        {
+          status: 200,
+          body: [
+            { Id: "abc-123", Name: "Bob Co Pty Ltd", Uri: "https://api.myob.com/accountright/abc-123" },
+            { Id: "def-456", Name: "", Uri: "https://api.myob.com/accountright/def-456" },
+          ],
+        },
+      ])
+
+      const orgs = await provider.getOrganisations("at-myob")
+      assert.equal(orgs.length, 2)
+      assert.equal(orgs[0].id, "https://api.myob.com/accountright/abc-123")
+      assert.equal(orgs[0].name, "Bob Co Pty Ltd")
+      // Falls back to the Id when Name is blank rather than an empty string
+      assert.equal(orgs[1].name, "def-456")
+    })
+
+    test("skips entries with no Uri", async () => {
+      mockFetch([
+        { status: 200, body: [{ Id: "no-uri", Name: "No Uri Co" }] },
+      ])
       const orgs = await provider.getOrganisations("at-myob")
       assert.deepEqual(orgs, [])
+    })
+
+    test("returns empty array when the response is not an array", async () => {
+      mockFetch([{ status: 200, body: { unexpected: "shape" } }])
+      const orgs = await provider.getOrganisations("at-myob")
+      assert.deepEqual(orgs, [])
+    })
+
+    test("propagates AccountingProviderError on 401", async () => {
+      mockFetch([{ status: 401, body: { error: "invalid_token" } }])
+      await assert.rejects(
+        () => provider.getOrganisations("bad-token"),
+        { name: "AccountingProviderError", kind: "unauthorized" }
+      )
     })
   })
 

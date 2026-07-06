@@ -46,7 +46,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Connection is not a MYOB connection" }, { status: 400 })
   }
 
-  if (connection.status !== "active") {
+  // Allow retrying a connection still awaiting its first sync, or one that
+  // previously errored — only 'disconnected' and 'revoked' block a manual sync.
+  const SYNCABLE_STATUSES = new Set(["active", "pending_first_sync", "error"])
+  if (!SYNCABLE_STATUSES.has(connection.status)) {
     return NextResponse.json({ error: "Connection is not active" }, { status: 400 })
   }
 

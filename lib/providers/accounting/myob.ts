@@ -34,6 +34,9 @@ import {
 
 const MYOB_AUTH_URL = "https://secure.myob.com/oauth2/account/authorize"
 const MYOB_TOKEN_URL = "https://secure.myob.com/oauth2/v1/authorize"
+// Lists company files reachable by the current access token — used to resolve
+// a human-readable name for the `businessId` (cf_uri) returned on callback.
+const MYOB_COMPANY_FILE_LIST_URL = "https://api.myob.com/accountright/"
 
 // MYOB OData page size (max 1000, MYOB default 400)
 const PAGE_SIZE = 400
@@ -186,23 +189,40 @@ export class MyobProvider implements AccountingProvider {
   /**
    * In MYOB the "organisation" corresponds to a company file (cf_uri).
    * The cf_uri is returned as the `businessId` query param in the OAuth callback
-   * and must be stored as AccountingConnection.organisationId.
+   * and must be stored as AccountingConnection.organisationId — that URI is the
+   * stable identifier regardless of whether a readable name can be resolved.
    *
-   * MYOB's token endpoint does not return a company file list directly. The
-   * company file URI is provided during the OAuth callback by MYOB. This method
-   * returns an empty array because the organisation selection is handled at the
-   * callback level (see: app/api/integrations/myob/callback/route.ts).
-   *
-   * NOTE: For multi-file MYOB accounts, MYOB redirects the user to select a
-   * company file as part of the OAuth flow. The selected file's URI is returned
-   * in the `businessId` query parameter on the callback URL.
+   * MYOB's token endpoint does not return a company file list directly, but the
+   * company file list endpoint (`GET https://api.myob.com/accountright/`) does,
+   * scoped to whichever company files the current access token can see. This
+   * method calls that endpoint so the callback can resolve a human-readable
+   * name for the `businessId` returned during authorisation.
    */
-  async getOrganisations(_accessToken: string): Promise<Organisation[]> {
-    // MYOB company file selection happens during the OAuth redirect flow.
-    // The selected file's URI is returned as the `businessId` query parameter
-    // on the callback URL. There is no separate API call required to discover
-    // company files at the getOrganisations step.
-    return []
+  async getOrganisations(accessToken: string): Promise<Organisation[]> {
+    const { clientId } = getConfig()
+    const res = await fetch(MYOB_COMPANY_FILE_LIST_URL, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-myobapi-key": clientId,
+        "x-myobapi-version": "v2",
+        Accept: "application/json",
+      },
+    })
+
+    const data = (await handleProviderResponse(res)) as Array<{
+      Id?: string
+      Name?: string
+      Uri?: string
+    }>
+
+    if (!Array.isArray(data)) return []
+
+    return data
+      .filter((cf) => typeof cf.Uri === "string" && cf.Uri.length > 0)
+      .map((cf) => ({
+        id: cf.Uri as string,
+        name: cf.Name && cf.Name.trim().length > 0 ? cf.Name : (cf.Id ?? (cf.Uri as string)),
+      }))
   }
 
   async getInvoices(params: {

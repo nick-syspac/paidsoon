@@ -27,16 +27,28 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 const STATUS_BADGES: Record<string, string> = {
   active: "bg-green-100 text-green-800",
+  pending_first_sync: "bg-blue-100 text-blue-800",
   disconnected: "bg-gray-100 text-gray-600",
   revoked: "bg-red-100 text-red-700",
   error: "bg-yellow-100 text-yellow-800",
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  pending_first_sync: "Importing\u2026",
+  disconnected: "Disconnected",
+  revoked: "Revoked",
+  error: "Sync error",
+}
+
+// Statuses from which the user can trigger (or retry) a sync.
+const SYNCABLE_STATUSES = new Set(["active", "pending_first_sync", "error"])
+
 function SyncStatusBadge({ status }: { status: string }) {
   const cls = STATUS_BADGES[status] ?? "bg-gray-100 text-gray-600"
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${cls}`}>
-      {status}
+      {STATUS_LABELS[status] ?? status}
     </span>
   )
 }
@@ -79,14 +91,32 @@ function ConnectionCard({
         </div>
       )}
 
+      {connection.status === "pending_first_sync" && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md px-3 py-2 text-xs text-blue-700">
+          Import in progress. This connection is authorised but hasn&rsquo;t completed its first
+          invoice import yet &mdash; refresh in a minute, or use &ldquo;Sync now&rdquo; below.
+        </div>
+      )}
+
+      {connection.status === "error" && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2 text-xs text-yellow-800">
+          The first invoice import didn&rsquo;t complete successfully. Try syncing again &mdash; if it
+          keeps failing, contact support.
+        </div>
+      )}
+
       <div className="flex gap-2 flex-wrap">
-        {connection.status === "active" && (
+        {SYNCABLE_STATUSES.has(connection.status) && (
           <button
             onClick={() => onSync(connection.id)}
             disabled={syncing}
             className="px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 disabled:opacity-50"
           >
-            {syncing ? "Syncing…" : "Sync now"}
+            {syncing
+              ? "Syncing\u2026"
+              : connection.status === "error"
+              ? "Retry sync"
+              : "Sync now"}
           </button>
         )}
         {connection.status === "revoked" && (

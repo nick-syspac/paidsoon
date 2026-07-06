@@ -65,7 +65,11 @@ export async function POST(
   }
 
   try {
-    await syncConnection(connectionId)
+    const result = await syncConnection(connectionId)
+    // syncConnection never throws — it records failures on the result instead.
+    // Reflect that outcome in the audit log so support can see whether the
+    // manual resync actually succeeded, not just that the call completed.
+    const succeeded = result.status === "success" || result.status === "partial"
 
     await logAdminEvent({
       actorUserId: ctx.userId,
@@ -79,16 +83,28 @@ export async function POST(
       ipAddress,
       userAgent,
       requestId,
-      success: true,
+      success: succeeded,
+      reason: succeeded ? undefined : result.errorMessage,
       metadata: {
         action: "trigger-resync",
         connectionId,
         provider: connection.provider,
         organisationName: connection.organisationName,
+        syncStatus: result.status,
+        invoicesCreated: result.invoicesCreated,
+        invoicesUpdated: result.invoicesUpdated,
+        invoicesSkipped: result.invoicesSkipped,
       },
     })
 
-    return NextResponse.json({ success: true })
+    if (!succeeded) {
+      return NextResponse.json(
+        { success: false, error: result.errorMessage ?? "Sync did not complete successfully", result },
+        { status: 502 }
+      )
+    }
+
+    return NextResponse.json({ success: true, result })
   } catch (err) {
     await logAdminEvent({
       actorUserId: ctx.userId,
