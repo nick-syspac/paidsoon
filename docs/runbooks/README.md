@@ -74,7 +74,7 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `SUPABASE_SECRET_KEY` | `paidsoon-dev` `sb_secret_…` | `paidsoon-dev` `sb_secret_…` | `paidsoon-prod` `sb_secret_…` | [supabase.md §3](./supabase.md) |
 | `DATABASE_URL` | `paidsoon-dev` `authenticator` pooler URL | `paidsoon-dev` `authenticator` pooler URL | `paidsoon-prod` `authenticator` pooler URL | [supabase.md §2](./supabase.md) |
 | `DIRECT_URL` | `paidsoon-dev` `postgres` direct URL | `paidsoon-dev` `postgres` direct URL | `paidsoon-prod` `postgres` direct URL | [supabase.md §2](./supabase.md) |
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | the preview deployment URL (set per deploy if needed) | `https://paidsoon.com` | [vercel.md §2](./vercel.md) |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:4001` (per `package.json`'s `next dev --port 4001`) | the preview deployment URL (set per deploy if needed) | `https://paidsoon.com` | [vercel.md §2](./vercel.md) |
 | `LIVE` | `false` while pre-launch, `true` at go-live | `false` until launch readiness | `true` once publicly launched | [vercel.md §2](./vercel.md) |
 | `CRON_SECRET` | any `openssl rand -hex 32` | not required (cron does not fire) | `openssl rand -hex 32` | [vercel.md §5](./vercel.md) |
 | `STRIPE_SECRET_KEY` | test `sk_test_…` | test `sk_test_…` | live `sk_live_…` | [stripe.md §2](./stripe.md) |
@@ -92,10 +92,10 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` (64 hex chars) | `openssl rand -hex 32` | `openssl rand -hex 32` | Server-side only — never expose to Xero/MYOB, the frontend, or logs. See [myob.md §2](./myob.md) |
 | `XERO_CLIENT_ID` | Xero developer app client ID | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) |
 | `XERO_CLIENT_SECRET` | Xero developer app client secret | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) — server-side only |
-| `XERO_REDIRECT_URI` | `http://localhost:3000/api/integrations/xero/callback` | preview deployment URL + `/api/integrations/xero/callback` | `https://paidsoon.com/api/integrations/xero/callback` | Must be registered in Xero developer portal |
+| `XERO_REDIRECT_URI` | `http://localhost:4001/api/integrations/xero/callback` | preview deployment URL + `/api/integrations/xero/callback` | `https://paidsoon.com/api/integrations/xero/callback` | Must be registered in Xero developer portal |
 | `MYOB_CLIENT_ID` | MYOB developer app API key | same | same | [myob.md §1–2](./myob.md) — from [MYOB developer portal](https://developer.myob.com) |
 | `MYOB_CLIENT_SECRET` | MYOB developer app API secret | same | same | [myob.md §1–2](./myob.md) — server-side only |
-| `MYOB_REDIRECT_URI` | `http://localhost:3000/api/integrations/myob/callback` | preview deployment URL + `/api/integrations/myob/callback` | `https://paidsoon.com/api/integrations/myob/callback` | [myob.md §1](./myob.md) — must be registered in MYOB developer portal |
+| `MYOB_REDIRECT_URI` | `http://localhost:4001/api/integrations/myob/callback` | preview deployment URL + `/api/integrations/myob/callback` | `https://paidsoon.com/api/integrations/myob/callback` | [myob.md §1](./myob.md) — must be registered in MYOB developer portal |
 | `SEED_ENV` | `local` | `preview` | — (never set in production) | [preview-seed-data.md](../preview-seed-data.md) |
 | `NEXT_PUBLIC_COMPANY_ABN` | omit or set to company ABN | omit or set to company ABN | ABN of Syspac Pty Ltd (e.g., `12 345 678 901`) | [MarketingFooter](../../components/marketing/MarketingFooter.tsx) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `1x00000000000000000000AA` (CF test key — always passes) | `1x00000000000000000000AA` (CF test key) | real site key from [Cloudflare Turnstile dashboard](https://dash.cloudflare.com/) | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |

@@ -17,7 +17,7 @@ demand) so reminders can be sent without the user re-entering invoice data.
    separate app per environment, only a separate redirect URI per environment).
 3. Record the **API Key** (`MYOB_CLIENT_ID`) and **Secret** (`MYOB_CLIENT_SECRET`).
 4. Add a redirect URI for each environment you plan to run:
-   - Local: `http://localhost:3000/api/integrations/myob/callback`
+   - Local: `http://localhost:4001/api/integrations/myob/callback` (this repo's `next dev` script is pinned to port 4001 — see `package.json`)
    - Preview: `<preview deployment URL>/api/integrations/myob/callback`
    - Production: `https://paidsoon.com/api/integrations/myob/callback`
 
@@ -34,7 +34,7 @@ sees a callback.
 |---|---|---|---|
 | `MYOB_CLIENT_ID` | dev app API key | same as Local | same MYOB app (or a dedicated production app) |
 | `MYOB_CLIENT_SECRET` | dev app secret | same as Local | same MYOB app secret — server-side only |
-| `MYOB_REDIRECT_URI` | `http://localhost:3000/api/integrations/myob/callback` | preview deployment URL + `/api/integrations/myob/callback` | `https://paidsoon.com/api/integrations/myob/callback` |
+| `MYOB_REDIRECT_URI` | `http://localhost:4001/api/integrations/myob/callback` | preview deployment URL + `/api/integrations/myob/callback` | `https://paidsoon.com/api/integrations/myob/callback` |
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` | same generation method (can differ per environment) | `openssl rand -hex 32` — shared with the Xero integration; never rotate without a re-encryption pass over `accounting_connections` |
 
 `MYOB_CLIENT_ID` and `MYOB_CLIENT_SECRET` are read by
