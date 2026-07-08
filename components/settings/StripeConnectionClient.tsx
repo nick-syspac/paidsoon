@@ -72,7 +72,7 @@ export function StripeConnectionClient({
               <button
                 onClick={() => handleDisconnect(connection.id)}
                 disabled={disconnecting}
-                className="text-sm text-red-600 hover:text-red-800 disabled:opacity-40"
+                className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm px-3 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-40"
               >
                 {disconnecting ? "Disconnecting..." : "Disconnect"}
               </button>

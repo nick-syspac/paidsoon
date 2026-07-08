@@ -110,7 +110,7 @@ function ConnectionCard({
           <button
             onClick={() => onSync(connection.id)}
             disabled={syncing}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 disabled:opacity-50"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
           >
             {syncing
               ? "Syncing\u2026"
@@ -122,7 +122,7 @@ function ConnectionCard({
         {connection.status === "revoked" && (
           <a
             href={`/api/integrations/${connection.provider}/connect`}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
           >
             Reconnect
           </a>
@@ -130,14 +130,14 @@ function ConnectionCard({
         <button
           onClick={() => onDisconnect(connection.id)}
           disabled={disconnecting}
-          className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+          className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
         >
           {disconnecting ? "Disconnecting…" : "Disconnect"}
         </button>
         {connection.recentRuns.length > 0 && (
           <button
             onClick={() => setShowHistory((v) => !v)}
-            className="px-3 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
           >
             {showHistory ? "Hide history" : "Sync history"}
           </button>
@@ -244,7 +244,7 @@ export function AccountingConnectionsClient({
           </p>
           <a
             href="/dashboard/settings/subscription"
-            className="inline-block mt-1 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-500"
+            className="inline-block mt-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
           >
             Upgrade plan
           </a>
@@ -305,13 +305,13 @@ export function AccountingConnectionsClient({
         <div className="flex gap-3 flex-wrap">
           <a
             href="/api/integrations/xero/connect"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-800 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
             <span>Connect Xero</span>
           </a>
           <a
             href="/api/integrations/myob/connect"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-800 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
             <span>Connect MYOB</span>
           </a>
