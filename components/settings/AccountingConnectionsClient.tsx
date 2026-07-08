@@ -20,9 +20,21 @@ interface AccountingConnectionRow {
   }>
 }
 
-const PROVIDER_LABELS: Record<string, string> = {
+type ProviderType = "xero" | "myob"
+
+const PROVIDER_LABELS: Record<ProviderType, string> = {
   xero: "Xero",
   myob: "MYOB Business",
+}
+
+const PROVIDER_DESCRIPTIONS: Record<ProviderType, string> = {
+  xero: "Import overdue invoices from Xero and keep reminder sequences in sync.",
+  myob: "Import overdue MYOB Business invoices and pause or resume follow-ups from one place.",
+}
+
+const PROVIDER_KICKERS: Record<ProviderType, string> = {
+  xero: "Accounting",
+  myob: "Accounting",
 }
 
 const STATUS_BADGES: Record<string, string> = {
@@ -177,6 +189,80 @@ function ConnectionCard({
   )
 }
 
+function ProviderCard({
+  provider,
+  connections,
+  hasFeature,
+  onSync,
+  onDisconnect,
+  syncingId,
+  disconnectingId,
+}: {
+  provider: ProviderType
+  connections: AccountingConnectionRow[]
+  hasFeature: boolean
+  onSync: (id: string) => void
+  onDisconnect: (id: string) => void
+  syncingId: string | null
+  disconnectingId: string | null
+}) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-400">
+            {PROVIDER_KICKERS[provider]}
+          </p>
+          <h2 className="text-lg font-semibold text-gray-900">{PROVIDER_LABELS[provider]}</h2>
+          <p className="text-sm text-gray-500">{PROVIDER_DESCRIPTIONS[provider]}</p>
+        </div>
+
+        {hasFeature ? (
+          <a
+            href={`/api/integrations/${provider}/connect`}
+            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            {connections.length > 0 ? "Connect another" : `Connect ${PROVIDER_LABELS[provider]}`}
+          </a>
+        ) : (
+          <a
+            href="/dashboard/settings/subscription"
+            className="inline-flex items-center justify-center rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+          >
+            Upgrade plan
+          </a>
+        )}
+      </div>
+
+      {!hasFeature ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+          <p className="text-sm font-medium text-amber-900">Business plan required</p>
+          <p className="text-sm text-amber-800">
+            Accounting integrations require the Business plan or above.
+          </p>
+        </div>
+      ) : connections.length > 0 ? (
+        <div className="space-y-3">
+          {connections.map((connection) => (
+            <ConnectionCard
+              key={connection.id}
+              connection={connection}
+              onSync={onSync}
+              onDisconnect={onDisconnect}
+              syncing={syncingId === connection.id}
+              disconnecting={disconnectingId === connection.id}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-600">
+          No {PROVIDER_LABELS[provider]} connection yet.
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function AccountingConnectionsClient({
   connections,
   hasFeature,
@@ -191,6 +277,8 @@ export function AccountingConnectionsClient({
   const router = useRouter()
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null)
+  const xeroConnections = connections.filter((connection) => connection.provider === "xero")
+  const myobConnections = connections.filter((connection) => connection.provider === "myob")
 
   async function handleSync(connectionId: string) {
     const conn = connections.find((c) => c.id === connectionId)
@@ -234,32 +322,38 @@ export function AccountingConnectionsClient({
 
   if (!hasFeature) {
     return (
-      <div className="max-w-lg space-y-4">
-        <h2 className="text-base font-medium text-gray-900">Accounting Integrations</h2>
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
-          <p className="text-sm font-medium text-amber-900">Business plan required</p>
-          <p className="text-sm text-amber-800">
-            Connect Xero or MYOB Business to automatically import overdue invoices.
-            Available on the Business and Accounting plans.
-          </p>
-          <a
-            href="/dashboard/settings/subscription"
-            className="inline-block mt-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-          >
-            Upgrade plan
-          </a>
-        </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ProviderCard
+          provider="xero"
+          connections={[]}
+          hasFeature={false}
+          onSync={handleSync}
+          onDisconnect={handleDisconnect}
+          syncingId={syncingId}
+          disconnectingId={disconnectingId}
+        />
+        <ProviderCard
+          provider="myob"
+          connections={[]}
+          hasFeature={false}
+          onSync={handleSync}
+          onDisconnect={handleDisconnect}
+          syncingId={syncingId}
+          disconnectingId={disconnectingId}
+        />
       </div>
     )
   }
 
   return (
-    <div className="max-w-lg space-y-5">
-      <h2 className="text-base font-medium text-gray-900">Accounting Integrations</h2>
-      <p className="text-sm text-gray-500">
-        Connect your accounting software to automatically import overdue invoices and send
-        reminder emails.
-      </p>
+    <div className="space-y-5">
+      <div className="space-y-1">
+        <h2 className="text-base font-medium text-gray-900">Accounting Integrations</h2>
+        <p className="text-sm text-gray-500">
+          Connect your accounting software to automatically import overdue invoices and send
+          reminder emails.
+        </p>
+      </div>
 
       {successMessage && (
         <div className="bg-green-50 border border-green-200 rounded-md px-4 py-2 text-sm text-green-800">
@@ -277,45 +371,33 @@ export function AccountingConnectionsClient({
             ? "Accounting integrations require the Business plan or above."
             : errorMessage === "xero_cancelled" || errorMessage === "myob_cancelled"
             ? "Connection was cancelled."
+            : errorMessage === "missing_company_file"
+            ? "MYOB could not find an accessible company file for the signed-in user."
             : errorMessage === "no_organisations"
             ? "No organisations found in your account. Ensure you have at least one organisation."
             : `Error: ${errorMessage}`}
         </div>
       )}
 
-      {connections.length > 0 && (
-        <div className="space-y-3">
-          {connections.map((conn) => (
-            <ConnectionCard
-              key={conn.id}
-              connection={conn}
-              onSync={handleSync}
-              onDisconnect={handleDisconnect}
-              syncing={syncingId === conn.id}
-              disconnecting={disconnectingId === conn.id}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="border-t border-gray-100 pt-4 space-y-3">
-        <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-          Connect a new account
-        </p>
-        <div className="flex gap-3 flex-wrap">
-          <a
-            href="/api/integrations/xero/connect"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            <span>Connect Xero</span>
-          </a>
-          <a
-            href="/api/integrations/myob/connect"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            <span>Connect MYOB</span>
-          </a>
-        </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ProviderCard
+          provider="xero"
+          connections={xeroConnections}
+          hasFeature={true}
+          onSync={handleSync}
+          onDisconnect={handleDisconnect}
+          syncingId={syncingId}
+          disconnectingId={disconnectingId}
+        />
+        <ProviderCard
+          provider="myob"
+          connections={myobConnections}
+          hasFeature={true}
+          onSync={handleSync}
+          onDisconnect={handleDisconnect}
+          syncingId={syncingId}
+          disconnectingId={disconnectingId}
+        />
       </div>
     </div>
   )
