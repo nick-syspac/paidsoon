@@ -56,6 +56,7 @@ For a brand-new production setup, work through the runbooks in this order:
 8. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
 9. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
 10. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
+11. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
 
 For launch readiness review and final go/no-go criteria, use:
 

@@ -104,3 +104,7 @@ gate `G-MYOB2` in [go-live-decision-matrix.md](./go-live-decision-matrix.md).
 MYOB-specific go-live gates, pass/fail criteria, and rollout-level rules are documented in
 [go-live-decision-matrix.md](./go-live-decision-matrix.md). Do not describe MYOB as a
 supported production data source in user-facing copy until those gates pass.
+
+For the OpenSpec task 15.7 pre-archive validation gate, run
+[myob-sandbox-verification.md](./myob-sandbox-verification.md) and attach the evidence package
+before archiving the change.

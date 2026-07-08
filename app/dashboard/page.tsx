@@ -133,7 +133,7 @@ export default async function DashboardPage({
           ) : null}
           {!connection && !showResolved && canShowDashboardModule && (
             <a
-              href="/dashboard/settings/stripe"
+              href="/dashboard/settings/connections"
               className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700"
             >
               Connect Stripe →

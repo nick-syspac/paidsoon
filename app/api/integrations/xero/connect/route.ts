@@ -27,7 +27,7 @@ export async function GET() {
   const hasFeature = await requireFeature(user.id, "accounting_integrations")
   if (!hasFeature) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/integrations?error=upgrade_required`
+      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/connections?source=xero&code=upgrade_required`
     )
   }
 

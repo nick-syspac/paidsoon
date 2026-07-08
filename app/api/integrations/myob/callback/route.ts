@@ -31,19 +31,19 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=myob_cancelled`
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=cancelled`
     )
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=missing_params`
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=missing_params`
     )
   }
 
   if (!businessId) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=missing_company_file`
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=missing_company_file`
     )
   }
 
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     oauthState.expiresAt < new Date()
   ) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=invalid_state`
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=invalid_state`
     )
   }
 
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[myob/callback] token exchange failed", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=token_exchange_failed`
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=token_exchange_failed`
     )
   }
 
@@ -146,7 +146,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[myob/callback] failed to store connection", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=connection_save_failed`
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=connection_save_failed`
     )
   }
 
@@ -162,6 +162,6 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.redirect(
-    `${APP_URL}/dashboard/settings/integrations?success=myob_connected`
+    `${APP_URL}/dashboard/settings/connections?source=myob&code=connected`
   )
 }

@@ -29,13 +29,13 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=xero_cancelled`
+      `${APP_URL}/dashboard/settings/connections?source=xero&code=cancelled`
     )
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=missing_params`
+      `${APP_URL}/dashboard/settings/connections?source=xero&code=missing_params`
     )
   }
 
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     oauthState.expiresAt < new Date()
   ) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=invalid_state`
+      `${APP_URL}/dashboard/settings/connections?source=xero&code=invalid_state`
     )
   }
 
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[xero/callback] token exchange failed", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=token_exchange_failed`
+      `${APP_URL}/dashboard/settings/connections?source=xero&code=token_exchange_failed`
     )
   }
 
@@ -83,13 +83,13 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[xero/callback] getOrganisations failed", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=org_fetch_failed`
+      `${APP_URL}/dashboard/settings/connections?source=xero&code=org_fetch_failed`
     )
   }
 
   if (organisations.length === 0) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?error=no_organisations`
+      `${APP_URL}/dashboard/settings/connections?source=xero&code=no_organisations`
     )
   }
 
@@ -135,7 +135,7 @@ export async function GET(request: Request) {
     })
 
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/integrations?success=xero_connected`
+      `${APP_URL}/dashboard/settings/connections?source=xero&code=connected`
     )
   }
 
@@ -158,7 +158,7 @@ export async function GET(request: Request) {
     path: "/",
   })
 
-  const selectUrl = new URL(`${APP_URL}/dashboard/settings/integrations/xero/select-org`)
+  const selectUrl = new URL(`${APP_URL}/dashboard/settings/connections/xero/select-org`)
   selectUrl.searchParams.set("key", pendingKey)
   return NextResponse.redirect(selectUrl.toString())
 }

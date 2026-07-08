@@ -17,13 +17,13 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/stripe?error=connect_cancelled`
+      `${appUrl}/dashboard/settings/connections?source=stripe&code=cancelled`
     )
   }
 
   if (!code) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/stripe?error=missing_code`
+      `${appUrl}/dashboard/settings/connections?source=stripe&code=missing_code`
     )
   }
 
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   const stripeConnectAccountId = response.stripe_user_id
   if (!stripeConnectAccountId) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/stripe?error=no_account_id`
+      `${appUrl}/dashboard/settings/connections?source=stripe&code=no_account_id`
     )
   }
 
@@ -96,15 +96,15 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === "CONNECTION_LIMIT_REACHED") {
       return NextResponse.redirect(
-        `${appUrl}/dashboard/settings/stripe?error=connection_limit_reached`,
+        `${appUrl}/dashboard/settings/connections?source=stripe&code=connection_limit_reached`,
       )
     }
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/stripe?error=connection_failed`,
+      `${appUrl}/dashboard/settings/connections?source=stripe&code=connection_failed`,
     )
   }
 
   return NextResponse.redirect(
-    `${appUrl}/dashboard/settings/stripe?success=connected`
+    `${appUrl}/dashboard/settings/connections?source=stripe&code=connected`
   )
 }

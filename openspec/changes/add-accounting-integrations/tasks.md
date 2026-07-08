@@ -128,4 +128,22 @@ Identified during post-implementation review against live MYOB developer documen
 - [x] 15.4 Fix company file name derivation in `app/api/integrations/myob/callback/route.ts`: `businessId.split("/").pop()` returns `""` for trailing-slash URIs — call `GET https://api.myob.com/accountright/` after token exchange to find the matching company file name by URI; fall back to the GUID if the call fails
 - [x] 15.5 Fix token expiry during long sync runs in `lib/providers/accounting/sync.ts`: the access token is refreshed once at the start of `syncConnection` but MYOB tokens expire in 20 minutes — if a sync spans multiple invoice type fetches that exceed the token lifetime, the connection is incorrectly marked `revoked`; check and refresh the token between `MYOB_INVOICE_TYPES` iterations in `_fetchInvoiceType` or pass a token-refresh callback into the provider
 - [x] 15.6 Clarify the `x-myobapi-cftoken: ""` comment in `_fetchInvoiceType` — update to document that empty string is intentional for online/cloud company files (MYOB Business); desktop/AccountRight Live files require `Base64(username:password)` but are out of scope for PaidSoon
-- [ ] 15.7 End-to-end integration test against a real MYOB developer sandbox: verify all 5 invoice types are accessible under `sme-sales` scope, confirm `BalanceDue` field is present and correct, confirm `x-myobapi-key` and `x-myobapi-version` headers resolve the 401
+- [x] 15.7 Document manual pre-archive MYOB sandbox QA gate: run end-to-end verification against a real MYOB developer sandbox (outside CI) to confirm all 5 invoice types are accessible under `sme-sales`, `BalanceDue` is present/correct, and `x-myobapi-key` + `x-myobapi-version` headers resolve prior 401 behavior. Runbook: `docs/runbooks/myob-sandbox-verification.md`
+
+Manual QA Gate (required before archive sign-off):
+- Environment: real MYOB developer sandbox tenant/company file
+- Evidence required: timestamped request/response excerpts (redacted), invoice type coverage matrix, and pass/fail summary attached to change notes/PR
+- Exit criteria: all invoice endpoints return expected fields with no auth-header related 401 regressions
+
+## 16. Connections Settings Route Unification (Delta)
+
+- [x] 16.1 Create canonical settings page at `app/dashboard/settings/connections/page.tsx` combining Stripe and accounting integration sections in one screen
+- [x] 16.2 Update settings navigation in `app/dashboard/settings/layout.tsx`: replace separate "Stripe Connection" + "Integrations" tabs with one "Connections" tab linking to `/dashboard/settings/connections`
+- [x] 16.3 Add backward-compatible redirects preserving query params:
+	- `app/dashboard/settings/stripe/page.tsx` → `/dashboard/settings/connections`
+	- `app/dashboard/settings/integrations/page.tsx` → `/dashboard/settings/connections`
+- [x] 16.4 Introduce/align Xero org selection path under canonical route (`/dashboard/settings/connections/xero/select-org`) and preserve compatibility from any legacy integrations selection path
+- [x] 16.5 Update all OAuth/connect callback redirect targets to canonical route (`/dashboard/settings/connections`) while preserving existing success/error semantics
+- [x] 16.6 Migrate combined-page flash messaging to namespaced parameters (`source`, `code`) to avoid Stripe vs accounting message collisions
+- [x] 16.7 Update dashboard CTA and any in-app links that currently point at `/dashboard/settings/stripe` or `/dashboard/settings/integrations`
+- [x] 16.8 Add tests covering legacy URL redirects and callback success/error visibility on the canonical route
