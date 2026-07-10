@@ -7,9 +7,11 @@
  * - Generates a CSRF nonce and stores it in oauth_states (10 min TTL)
  * - Redirects the user to the MYOB authorisation URL
  *
- * Note: MYOB's OAuth flow includes company file selection. The selected
- * company file's URI is returned as the `businessId` query param in the
- * callback, which becomes the organisationId for this connection.
+ * Note: MYOB's hosted authorisation screen does NOT let the user pick a
+ * company file — it only covers login/consent. Company-file selection
+ * happens in the callback after token exchange, once the resulting access
+ * token can be used to list reachable company files (single file: connect
+ * immediately; multiple files: user is redirected to a selection UI).
  */
 import { createClient } from "@/lib/supabase/server"
 import { prismaAdmin } from "@/lib/db/admin"

@@ -386,8 +386,6 @@ export function AccountingConnectionsClient({
             ? "Accounting integrations require the Business plan or above."
             : errorMessage === "xero_cancelled" || errorMessage === "myob_cancelled"
             ? "Connection was cancelled."
-            : errorMessage === "missing_company_file"
-            ? "MYOB could not find an accessible company file for the signed-in user."
             : errorMessage === "no_organisations"
             ? "No organisations found in your account. Ensure you have at least one organisation."
             : `Error: ${errorMessage}`}

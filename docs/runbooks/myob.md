@@ -58,9 +58,15 @@ scope.
 
 1. Set the four env vars above for the environment.
 2. Sign in, go to **Settings → Integrations**, click **Connect MYOB**.
-3. Authorise against a MYOB sandbox or trial company file.
+3. Authorise against a MYOB sandbox or trial company file. MYOB's hosted screen only
+   covers login/consent — it does **not** let you pick a company file. Company-file
+   selection happens back on PaidSoon, after the token exchange:
+   - If the token can only reach one company file, the connection is created immediately.
+   - If it can reach more than one, you're redirected to
+     `/dashboard/settings/connections/myob/select-org` to pick one before the connection
+     is created.
 4. Confirm the redirect lands back on the integrations page with
-   `?success=myob_connected` and the connection card shows a status other than
+   `?code=connected` and the connection card shows a status other than
    **Sync error** — a first sync now runs automatically as part of connecting.
 5. If the card shows **Importing…** for more than a minute, use **Sync now** to retry, or
    check server logs for `[myob/callback] initial sync failed to run`.
@@ -76,7 +82,10 @@ gate `G-MYOB2` in [go-live-decision-matrix.md](./go-live-decision-matrix.md).
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | MYOB redirects with `error=myob_cancelled` | User declined authorisation | Expected — no action needed |
-| MYOB redirects with `error=missing_company_file` | MYOB did not return a `businessId` on callback | Confirm the MYOB app has at least one accessible company file for the authorising user |
+| MYOB redirects with `error=no_organisations` | The authorising MYOB account has no accessible company file | Confirm the MYOB app has at least one accessible company file for the authorising user |
+| MYOB redirects with `error=org_fetch_failed` | The company-file list call (`GET https://api.myob.com/accountright/`) failed after token exchange | Check server logs for `[myob/callback] getOrganisations failed`; confirm `MYOB_CLIENT_ID` / token validity |
+| User isn't shown a company-file picker despite having multiple files | Selection only appears when `getOrganisations` returns more than one entry — confirm the MYOB account genuinely has multiple company files reachable by the granted scopes | Check server logs for `[myob/callback]`; verify the `myob_pending_<key>` cookie is being set (see [select-org route](../../app/api/integrations/myob/select-org/route.ts)) |
+| `error=selection_expired` or `error=invalid_selection` on the select-org form | The 30-minute pending cookie expired, was already used, or didn't match the signed-in user | Ask the user to click **Connect MYOB** again from the start |
 | Connection stays in **Importing…** | The inline first sync failed or the process restarted mid-request | Click **Sync now**; if it keeps failing, check `AccountingSyncRun.errorMessage` for that connection via the admin tenant detail page |
 | Connection shows **Sync error** | The first sync ran and failed | Click **Retry sync**; investigate the `errorMessage` on the most recent `AccountingSyncRun` row |
 | 401 errors against real company files | Missing `x-myobapi-key` / `x-myobapi-version` header, or an expired token | Confirm `MYOB_CLIENT_ID` matches the app the token was issued for; tokens expire after 20 minutes and are refreshed automatically before each sync |
@@ -89,7 +98,9 @@ gate `G-MYOB2` in [go-live-decision-matrix.md](./go-live-decision-matrix.md).
 |---|---|
 | OAuth + invoice/contact provider | [lib/providers/accounting/myob.ts](../../lib/providers/accounting/myob.ts) |
 | Connect route | [app/api/integrations/myob/connect/route.ts](../../app/api/integrations/myob/connect/route.ts) |
-| Callback route | [app/api/integrations/myob/callback/route.ts](../../app/api/integrations/myob/callback/route.ts) |
+| Callback route (single company file) | [app/api/integrations/myob/callback/route.ts](../../app/api/integrations/myob/callback/route.ts) |
+| Company-file selection route (multiple company files) | [app/api/integrations/myob/select-org/route.ts](../../app/api/integrations/myob/select-org/route.ts) |
+| Company-file selection UI | [app/dashboard/settings/connections/myob/select-org/page.tsx](<../../app/dashboard/settings/connections/myob/select-org/page.tsx>) |
 | Manual sync route | [app/api/integrations/myob/sync/route.ts](../../app/api/integrations/myob/sync/route.ts) |
 | Disconnect route | [app/api/integrations/myob/disconnect/route.ts](../../app/api/integrations/myob/disconnect/route.ts) |
 | Sync orchestrator (shared with Xero) | [lib/providers/accounting/sync.ts](../../lib/providers/accounting/sync.ts) |
@@ -108,3 +119,65 @@ supported production data source in user-facing copy until those gates pass.
 For the OpenSpec task 15.7 pre-archive validation gate, run
 [myob-sandbox-verification.md](./myob-sandbox-verification.md) and attach the evidence package
 before archiving the change.
+
+---
+
+## 6. Resetting a user's MYOB connection (support/admin)
+
+The user's own **Disconnect** button (Settings → Connections) is the self-service path and
+should always be tried first — it calls
+[app/api/integrations/myob/disconnect/route.ts](../../app/api/integrations/myob/disconnect/route.ts),
+which sets the connection's `status` to `disconnected` and clears `nextEmailAt` on any
+`TrackedInvoice`s linked to it. The admin tenant detail page currently only exposes a
+**resync** action ([trigger-resync](<../../app/api/admin/tenants/[id]/actions/trigger-resync/route.ts>)),
+not a disconnect/reset — there is no admin UI button for this yet.
+
+When an operator needs to reset a connection on a user's behalf (e.g. the user can't access
+their account, or a stale connection is blocking a clean reconnect), use
+[scripts/reset-myob-connection.ts](../../scripts/reset-myob-connection.ts). It runs via
+`prismaAdmin` (bypassing RLS) because it executes out-of-band with no user session.
+
+### 6.1 Usage
+
+```bash
+# Soft reset (default) — same effect as the user's own Disconnect button.
+# Reconnecting afterwards goes through the normal OAuth flow.
+USER_EMAIL=user@example.com npm run reset:myob-connection
+
+# Or target by Supabase user ID directly:
+USER_ID=clxxxxxxxx npm run reset:myob-connection
+
+# Hard delete — removes the AccountingConnection row and its sync history/
+# mappings entirely. Use only when the soft reset doesn't unblock reconnecting
+# (e.g. the unique [userId, provider, organisationId] constraint is stuck on a
+# corrupted row).
+HARD_DELETE=true USER_EMAIL=user@example.com npm run reset:myob-connection
+```
+
+An interactive wrapper, [scripts/reset-myob-connection.sh](../../scripts/reset-myob-connection.sh),
+is also available and prompts for confirmation before a hard delete:
+
+```bash
+scripts/reset-myob-connection.sh --email user@example.com
+scripts/reset-myob-connection.sh --user-id clxxxxxxxx --hard-delete
+```
+
+Requires `DATABASE_URL` (Prisma). `USER_EMAIL` additionally requires
+`NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SECRET_KEY` to resolve the email to a Supabase user
+ID — see [README.md](./README.md) for where those values come from per environment.
+
+### 6.2 What it does
+
+| Mode | AccountingConnection | AccountingSyncRun / mappings | TrackedInvoice.nextEmailAt |
+|---|---|---|---|
+| Soft (default) | `status` → `disconnected` | left in place | cleared for linked invoices |
+| `HARD_DELETE=true` | row deleted | deleted (sync runs, invoice mappings, contact mappings) | cleared for linked invoices |
+
+The script only ever targets connections where `provider = "myob"` for the given user — it
+does not touch Xero connections.
+
+### 6.3 After resetting
+
+Tell the user to reconnect via **Settings → Connections → Connect MYOB**. A fresh
+`AccountingConnection` row is created on the OAuth callback and a first sync runs
+automatically — see section 3 above for what a healthy reconnect looks like.

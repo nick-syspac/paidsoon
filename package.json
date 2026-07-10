@@ -14,7 +14,8 @@
     "verify-seed": "node --import tsx scripts/verify-seed.ts",
     "db:reset:local": "SEED_ENV=local node --import tsx scripts/db-reset-local.ts",
     "seed:admin-owner": "node --import tsx scripts/seed-admin-owner.ts",
-    "get:admin-devices": "node --import tsx scripts/get-admin-devices.ts"
+    "get:admin-devices": "node --import tsx scripts/get-admin-devices.ts",
+    "reset:myob-connection": "node --import tsx scripts/reset-myob-connection.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.74",

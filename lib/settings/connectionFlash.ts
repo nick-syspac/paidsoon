@@ -15,7 +15,6 @@ export interface ConnectionsFlashState {
 const ACCOUNTING_ERROR_CODES = new Set([
   "upgrade_required",
   "no_organisations",
-  "missing_company_file",
   "invalid_state",
   "token_exchange_failed",
   "org_fetch_failed",

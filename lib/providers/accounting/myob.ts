@@ -188,15 +188,16 @@ export class MyobProvider implements AccountingProvider {
 
   /**
    * In MYOB the "organisation" corresponds to a company file (cf_uri).
-   * The cf_uri is returned as the `businessId` query param in the OAuth callback
-   * and must be stored as AccountingConnection.organisationId — that URI is the
-   * stable identifier regardless of whether a readable name can be resolved.
    *
-   * MYOB's token endpoint does not return a company file list directly, but the
-   * company file list endpoint (`GET https://api.myob.com/accountright/`) does,
-   * scoped to whichever company files the current access token can see. This
-   * method calls that endpoint so the callback can resolve a human-readable
-   * name for the `businessId` returned during authorisation.
+   * MYOB's hosted OAuth authorisation screen does not let the user select a
+   * company file — it is not returned via the callback query string. The
+   * only way to discover which company files a token can access is to call
+   * this company file list endpoint (`GET https://api.myob.com/accountright/`)
+   * after token exchange. The callback uses this to either connect the single
+   * reachable company file immediately, or present a selection UI when more
+   * than one is reachable (mirroring the Xero multi-organisation flow). The
+   * returned `Uri` (mapped to `id` below) is the stable identifier stored as
+   * AccountingConnection.organisationId.
    */
   async getOrganisations(accessToken: string): Promise<Organisation[]> {
     const { clientId } = getConfig()

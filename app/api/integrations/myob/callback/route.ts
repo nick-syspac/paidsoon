@@ -4,12 +4,14 @@
  * OAuth 2.0 callback from MYOB after the user authorises access.
  * - Validates the state nonce against oauth_states (CSRF protection)
  * - Exchanges the code for tokens
- * - Reads the `businessId` query param (= company file URI / cf_uri) which
- *   MYOB provides during the OAuth redirect as the selected company file
- * - Stores an AccountingConnection record
- *
- * MYOB handles company file selection as part of its OAuth UI, so there is
- * no multi-org selection step needed (unlike Xero).
+ * - Fetches the list of company files reachable by the resulting access
+ *   token (MYOB's authorise screen does NOT let the user pick a company
+ *   file — selection only becomes possible after we have a token)
+ * - If exactly one company file is reachable: stores the AccountingConnection
+ *   immediately
+ * - If multiple company files are reachable: stores the pending tokens in a
+ *   short-lived HTTP-only cookie and redirects to a selection UI, mirroring
+ *   the Xero multi-organisation flow
  */
 import { createClient } from "@/lib/supabase/server"
 import { prismaAdmin } from "@/lib/db/admin"
@@ -18,6 +20,8 @@ import { getAccountingProvider } from "@/lib/providers/accounting"
 import { encryptToken } from "@/lib/providers/accounting/crypto"
 import { syncConnection } from "@/lib/providers/accounting/sync"
 import { NextResponse } from "next/server"
+import { randomBytes } from "crypto"
+import { cookies } from "next/headers"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
@@ -26,8 +30,6 @@ export async function GET(request: Request) {
   const code = searchParams.get("code")
   const state = searchParams.get("state")
   const error = searchParams.get("error")
-  // MYOB provides the company file URI as `businessId` on the callback URL
-  const businessId = searchParams.get("businessId") ?? searchParams.get("business_id") ?? ""
 
   if (error) {
     return NextResponse.redirect(
@@ -38,12 +40,6 @@ export async function GET(request: Request) {
   if (!code || !state) {
     return NextResponse.redirect(
       `${APP_URL}/dashboard/settings/connections?source=myob&code=missing_params`
-    )
-  }
-
-  if (!businessId) {
-    return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=missing_company_file`
     )
   }
 
@@ -84,84 +80,109 @@ export async function GET(request: Request) {
     )
   }
 
+  let companyFiles
+  try {
+    companyFiles = await provider.getOrganisations(tokens.accessToken)
+  } catch (err) {
+    console.error("[myob/callback] getOrganisations failed", err)
+    return NextResponse.redirect(
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=org_fetch_failed`
+    )
+  }
+
+  if (companyFiles.length === 0) {
+    return NextResponse.redirect(
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=no_organisations`
+    )
+  }
+
   const encryptedAccessToken = encryptToken(tokens.accessToken)
   const encryptedRefreshToken = encryptToken(tokens.refreshToken)
   const tokenExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000)
   const scopes = tokens.scope ?? "sme-sales sme-contacts-customer"
 
-  // businessId from MYOB is the cf_uri used for all subsequent API calls.
-  // Resolve the human-readable company file name by calling the MYOB company
-  // file list endpoint. Falls back to a deterministic identifier-derived name
-  // (never an empty string) on failure.
-  const organisationId = businessId
-  const trimmedBusinessId = businessId.replace(/\/$/, "")
-  const fallbackSegment = trimmedBusinessId.split("/").filter(Boolean).pop()
-  let organisationName = fallbackSegment && fallbackSegment.length > 0 ? fallbackSegment : "MYOB Company File"
-
-  try {
-    const orgs = await provider.getOrganisations(tokens.accessToken)
-    const match = orgs.find(
-      (o) => o.id === businessId || o.id.replace(/\/$/, "") === trimmedBusinessId
-    )
-    if (match?.name) organisationName = match.name
-  } catch {
-    // Non-fatal — proceed with the deterministic fallback name
-  }
-
-  let connection
-  try {
-    connection = await withUserContext(user.id, async (tx) => {
-      return tx.accountingConnection.upsert({
-        where: {
-          userId_provider_organisationId: {
+  if (companyFiles.length === 1) {
+    // Single company file: store the connection directly.
+    const companyFile = companyFiles[0]
+    let connection
+    try {
+      connection = await withUserContext(user.id, async (tx) => {
+        return tx.accountingConnection.upsert({
+          where: {
+            userId_provider_organisationId: {
+              userId: user.id,
+              provider: "myob",
+              organisationId: companyFile.id,
+            },
+          },
+          update: {
+            organisationName: companyFile.name,
+            encryptedAccessToken,
+            encryptedRefreshToken,
+            tokenExpiresAt,
+            scopes,
+            // Reconnecting warrants a fresh first-sync validation rather than
+            // implying the previous sync history still reflects current data.
+            status: "pending_first_sync",
+            lastSyncedAt: null,
+          },
+          create: {
             userId: user.id,
             provider: "myob",
-            organisationId,
+            organisationId: companyFile.id,
+            organisationName: companyFile.name,
+            encryptedAccessToken,
+            encryptedRefreshToken,
+            tokenExpiresAt,
+            scopes,
+            status: "pending_first_sync",
           },
-        },
-        update: {
-          organisationName,
-          encryptedAccessToken,
-          encryptedRefreshToken,
-          tokenExpiresAt,
-          scopes,
-          // Reconnecting warrants a fresh first-sync validation rather than
-          // implying the previous sync history still reflects current data.
-          status: "pending_first_sync",
-          lastSyncedAt: null,
-        },
-        create: {
-          userId: user.id,
-          provider: "myob",
-          organisationId,
-          organisationName,
-          encryptedAccessToken,
-          encryptedRefreshToken,
-          tokenExpiresAt,
-          scopes,
-          status: "pending_first_sync",
-        },
+        })
       })
-    })
-  } catch (err) {
-    console.error("[myob/callback] failed to store connection", err)
+    } catch (err) {
+      console.error("[myob/callback] failed to store connection", err)
+      return NextResponse.redirect(
+        `${APP_URL}/dashboard/settings/connections?source=myob&code=connection_save_failed`
+      )
+    }
+
+    // Trigger the first sync inline so a "connected" connection does not sit in
+    // pending_first_sync indefinitely until the next cron pass. syncConnection
+    // handles its own errors internally and updates the connection status
+    // (active on success, error on a first-sync failure) — this call is
+    // best-effort and must not block the redirect on an unexpected throw.
+    try {
+      await syncConnection(connection.id)
+    } catch (err) {
+      console.error("[myob/callback] initial sync failed to run", err)
+    }
+
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=connection_save_failed`
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=connected`
     )
   }
 
-  // Trigger the first sync inline so a "connected" connection does not sit in
-  // pending_first_sync indefinitely until the next cron pass. syncConnection
-  // handles its own errors internally and updates the connection status
-  // (active on success, error on a first-sync failure) — this call is
-  // best-effort and must not block the redirect on an unexpected throw.
-  try {
-    await syncConnection(connection.id)
-  } catch (err) {
-    console.error("[myob/callback] initial sync failed to run", err)
-  }
+  // Multiple company files: store pending state in a short-lived HTTP-only
+  // server cookie and redirect to the company-file selection UI.
+  const pendingKey = randomBytes(16).toString("hex")
+  const cookieStore = await cookies()
+  cookieStore.set(`myob_pending_${pendingKey}`, JSON.stringify({
+    userId: user.id,
+    organisations: companyFiles,
+    encryptedAccessToken,
+    encryptedRefreshToken,
+    tokenExpiresAt: tokenExpiresAt.toISOString(),
+    scopes,
+  }), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 30 * 60, // 30 minutes
+    path: "/",
+  })
 
-  return NextResponse.redirect(
-    `${APP_URL}/dashboard/settings/connections?source=myob&code=connected`
-  )
+  const selectUrl = new URL(`${APP_URL}/dashboard/settings/connections/myob/select-org`)
+  selectUrl.searchParams.set("key", pendingKey)
+  return NextResponse.redirect(selectUrl.toString())
 }
+

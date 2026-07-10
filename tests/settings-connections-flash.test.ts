@@ -20,8 +20,8 @@ describe("parseConnectionsFlash", () => {
   })
 
   test("maps myob source/code error for accounting section", () => {
-    const result = parseConnectionsFlash({ source: "myob", code: "missing_company_file" })
-    assert.equal(result.accountingErrorCode, "missing_company_file")
+    const result = parseConnectionsFlash({ source: "myob", code: "no_organisations" })
+    assert.equal(result.accountingErrorCode, "no_organisations")
     assert.equal(result.accountingSuccessCode, null)
     assert.equal(result.stripeErrorCode, null)
   })
