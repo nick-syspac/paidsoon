@@ -31,6 +31,12 @@ import { cookies } from "next/headers"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
+// Token exchange + the 401-retry window below + an inline first sync (paginated
+// invoice/contact fetches against MYOB) can comfortably exceed Vercel's default
+// serverless function duration. Raise the cap so a slow-but-successful run isn't
+// killed mid-request.
+export const maxDuration = 60
+
 // MYOB access tokens can take a moment to propagate through their backend
 // after issuance — calling an API with a brand-new token immediately after
 // token exchange can return a transient 401 (OAuthTokenIsInvalid) even though

@@ -14,6 +14,10 @@ import { z } from "zod"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
+// This route runs an inline first sync (paginated invoice/contact fetches)
+// before redirecting — raise the duration cap so it isn't killed mid-request.
+export const maxDuration = 60
+
 const selectOrgSchema = z.object({
   key: z.string().min(1),
   organisationId: z.string().min(1),

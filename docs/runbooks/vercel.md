@@ -125,6 +125,19 @@ Vercel auto-detects this on import. Verify in **Settings → Cron Jobs** that th
 
 > **Cron does NOT fire on Preview deployments.** Vercel only schedules cron jobs against the Production deployment. To exercise the email path on a preview (or locally), use the manual trigger in §6 below.
 
+### 4.1 Function duration overrides
+
+The accounting integration routes that run an inline provider sync (MYOB/Xero OAuth
+callback + company-file/organisation selection, the manual `sync` routes, the admin
+resync action, and the `/api/cron/sync-accounting` cron) each set
+`export const maxDuration = 60` in their route file. Token exchange, a short retry
+window for MYOB's token-propagation delay, and paginated invoice/contact fetches can
+exceed Vercel's default serverless function duration, which would otherwise abort the
+request mid-sync. 60s fits within the Hobby plan's ceiling; raise it (Pro: up to 300s,
+Enterprise: up to 900s) if `syncAllActiveConnections` ever approaches the cap as the
+user base grows — see the open question about batching in
+[openspec/changes/add-accounting-integrations/design.md](../../openspec/changes/add-accounting-integrations/design.md).
+
 ---
 
 ## 5. `CRON_SECRET`

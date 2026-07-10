@@ -6,6 +6,10 @@ import { logAdminEvent } from "@/lib/admin/audit"
 import { getIpAddress, getUserAgent, generateRequestId } from "@/lib/admin/request"
 import { syncConnection } from "@/lib/providers/accounting/sync"
 
+// Paginated invoice/contact fetches against the provider can take a while —
+// raise the duration cap so a slow-but-successful sync isn't killed mid-request.
+export const maxDuration = 60
+
 const TriggerResyncSchema = z.object({
   connectionId: z.string().min(1),
 })
