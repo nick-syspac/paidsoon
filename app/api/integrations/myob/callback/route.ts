@@ -12,6 +12,11 @@
  * - If multiple company files are reachable: stores the pending tokens in a
  *   short-lived HTTP-only cookie and redirects to a selection UI, mirroring
  *   the Xero multi-organisation flow
+ *
+ * Note: the company-file list call is retried a couple of times on a 401,
+ * because MYOB access tokens can take a moment to propagate through their
+ * backend right after issuance — calling any API with a brand-new token
+ * immediately can return a transient "OAuthTokenIsInvalid" 401.
  */
 import { createClient } from "@/lib/supabase/server"
 import { prismaAdmin } from "@/lib/db/admin"
@@ -19,11 +24,36 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { encryptToken } from "@/lib/providers/accounting/crypto"
 import { syncConnection } from "@/lib/providers/accounting/sync"
+import { AccountingProviderError, type AccountingProvider, type Organisation } from "@/lib/providers/accounting/types"
 import { NextResponse } from "next/server"
 import { randomBytes } from "crypto"
 import { cookies } from "next/headers"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
+
+// MYOB access tokens can take a moment to propagate through their backend
+// after issuance — calling an API with a brand-new token immediately after
+// token exchange can return a transient 401 (OAuthTokenIsInvalid) even though
+// the token is valid. Retry a few times with a short delay before giving up.
+const TOKEN_PROPAGATION_RETRY_DELAYS_MS = [1500, 3000]
+
+async function getOrganisationsWithRetry(
+  provider: AccountingProvider,
+  accessToken: string
+): Promise<Organisation[]> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await provider.getOrganisations(accessToken)
+    } catch (err) {
+      const isUnauthorized = err instanceof AccountingProviderError && err.kind === "unauthorized"
+      if (!isUnauthorized || attempt >= TOKEN_PROPAGATION_RETRY_DELAYS_MS.length) throw err
+      console.warn(
+        `[myob/callback] getOrganisations got 401, retrying in ${TOKEN_PROPAGATION_RETRY_DELAYS_MS[attempt]}ms (attempt ${attempt + 1})`
+      )
+      await new Promise((resolve) => setTimeout(resolve, TOKEN_PROPAGATION_RETRY_DELAYS_MS[attempt]))
+    }
+  }
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -82,7 +112,7 @@ export async function GET(request: Request) {
 
   let companyFiles
   try {
-    companyFiles = await provider.getOrganisations(tokens.accessToken)
+    companyFiles = await getOrganisationsWithRetry(provider, tokens.accessToken)
   } catch (err) {
     console.error("[myob/callback] getOrganisations failed", err)
     return NextResponse.redirect(
