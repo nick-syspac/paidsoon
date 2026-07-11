@@ -60,24 +60,49 @@ function getConfig() {
   return { clientId, clientSecret }
 }
 
+/**
+ * MYOB error responses are a JSON envelope of the shape:
+ *   { Errors: [{ Message, Name?, ErrorCode? }, ...], Information: "..." }
+ * Extract a short, log-friendly summary instead of dumping the raw body —
+ * console/log viewers otherwise collapse the nested `Errors` array to `[…]`,
+ * hiding the actual MYOB error code/message that's needed for diagnosis
+ * (e.g. distinguishing a transient `OAuthTokenIsInvalid` 401 from an
+ * actually-revoked token or a client-key mismatch).
+ */
+function summariseMYOBErrorBody(text: string): string {
+  if (!text) return "(empty body)"
+  try {
+    const parsed = JSON.parse(text) as { Errors?: Array<{ Message?: string; Name?: string; ErrorCode?: string | number }> }
+    if (Array.isArray(parsed.Errors) && parsed.Errors.length > 0) {
+      return parsed.Errors
+        .map((e) => [e.ErrorCode, e.Name, e.Message].filter(Boolean).join(" "))
+        .join("; ")
+    }
+  } catch {
+    // Not JSON — fall through to raw text below.
+  }
+  return text
+}
+
 async function handleProviderResponse(res: Response): Promise<unknown> {
   if (res.ok) return res.json()
 
   const text = await res.text().catch(() => "")
+  const summary = summariseMYOBErrorBody(text)
   if (res.status === 401) {
-    throw new AccountingProviderError("unauthorized", `MYOB 401: ${text}`)
+    throw new AccountingProviderError("unauthorized", `MYOB 401: ${summary}`)
   }
   if (res.status === 429) {
     const retryAfter = Number(res.headers.get("retry-after") ?? 60)
     throw new AccountingProviderError("rate_limited", `MYOB 429 rate limited`, retryAfter)
   }
   if (res.status === 404) {
-    throw new AccountingProviderError("not_found", `MYOB 404: ${text}`)
+    throw new AccountingProviderError("not_found", `MYOB 404: ${summary}`)
   }
   if (res.status >= 500) {
-    throw new AccountingProviderError("server_error", `MYOB ${res.status}: ${text}`)
+    throw new AccountingProviderError("server_error", `MYOB ${res.status}: ${summary}`)
   }
-  throw new AccountingProviderError("unknown", `MYOB ${res.status}: ${text}`)
+  throw new AccountingProviderError("unknown", `MYOB ${res.status}: ${summary}`)
 }
 
 function normaliseMYOBStatus(status: string): ProviderInvoiceStatus {

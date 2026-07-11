@@ -41,7 +41,10 @@ export const maxDuration = 60
 // after issuance — calling an API with a brand-new token immediately after
 // token exchange can return a transient 401 (OAuthTokenIsInvalid) even though
 // the token is valid. Retry a few times with a short delay before giving up.
-const TOKEN_PROPAGATION_RETRY_DELAYS_MS = [1500, 3000]
+// Widened from [1500, 3000] after observing propagation delays that
+// outlasted the previous ~4.5s retry budget in production; maxDuration=60
+// on this route leaves plenty of headroom for the extra wait.
+const TOKEN_PROPAGATION_RETRY_DELAYS_MS = [1500, 3000, 6000, 10000]
 
 async function getOrganisationsWithRetry(
   provider: AccountingProvider,
