@@ -5,6 +5,7 @@
  */
 import { test, describe } from "node:test"
 import assert from "node:assert/strict"
+import { AccountingProviderError } from "@/lib/providers/accounting/types"
 
 // ---------------------------------------------------------------------------
 // Test doubles
@@ -183,6 +184,75 @@ describe("syncConnection — logic tests using mocked dependencies", () => {
           )
       )
       assert.equal(calls, 2)
+    })
+  })
+
+  describe("withTokenPropagationRetry", () => {
+    // Mirrors lib/providers/accounting/sync.ts's withTokenPropagationRetry,
+    // reimplemented here with a zero-delay schedule for fast tests. Guards
+    // against a transient 401 immediately after a MYOB token refresh being
+    // misread as a genuine revocation.
+    async function withTokenPropagationRetry<T>(
+      fn: () => Promise<T>,
+      delays: number[] = [0, 0, 0, 0]
+    ): Promise<T> {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await fn()
+        } catch (err) {
+          const isUnauthorized = err instanceof AccountingProviderError && err.kind === "unauthorized"
+          if (!isUnauthorized || attempt >= delays.length) throw err
+          await new Promise((resolve) => setTimeout(resolve, delays[attempt]))
+        }
+      }
+    }
+
+    test("succeeds immediately when there is no error", async () => {
+      let calls = 0
+      const result = await withTokenPropagationRetry(async () => {
+        calls++
+        return "ok"
+      })
+      assert.equal(result, "ok")
+      assert.equal(calls, 1)
+    })
+
+    test("retries a transient 401 and succeeds once it clears", async () => {
+      let calls = 0
+      const result = await withTokenPropagationRetry(async () => {
+        calls++
+        if (calls < 3) throw new AccountingProviderError("unauthorized", "MYOB 401: OAuthTokenIsInvalid")
+        return "ok"
+      })
+      assert.equal(result, "ok")
+      assert.equal(calls, 3)
+    })
+
+    test("gives up and rethrows once the retry budget is exhausted", async () => {
+      let calls = 0
+      await assert.rejects(
+        () =>
+          withTokenPropagationRetry(async () => {
+            calls++
+            throw new AccountingProviderError("unauthorized", "MYOB 401: OAuthTokenIsInvalid")
+          }, [0, 0]),
+        { name: "AccountingProviderError", kind: "unauthorized" }
+      )
+      // 1 initial attempt + 2 retries from the delays array = 3 calls
+      assert.equal(calls, 3)
+    })
+
+    test("does not retry non-unauthorized errors — rethrows immediately", async () => {
+      let calls = 0
+      await assert.rejects(
+        () =>
+          withTokenPropagationRetry(async () => {
+            calls++
+            throw new AccountingProviderError("server_error", "MYOB 500")
+          }),
+        { name: "AccountingProviderError", kind: "server_error" }
+      )
+      assert.equal(calls, 1)
     })
   })
 })

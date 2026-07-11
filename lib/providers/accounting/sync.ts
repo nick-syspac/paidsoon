@@ -2,7 +2,11 @@
  * Accounting sync orchestrator.
  *
  * `syncConnection(connectionId)` — syncs one accounting connection:
- *   1. Refreshes the access token if it expires within 5 minutes
+ *   1. Refreshes the access token if it expires soon (5 min buffer for Xero;
+ *      MYOB always refreshes — see shouldRefresh). For MYOB, the first API
+ *      call after a fresh refresh tolerates a transient post-refresh 401
+ *      (token propagation delay) via withTokenPropagationRetry instead of
+ *      immediately marking the connection revoked.
  *   2. Fetches invoices (incremental from lastSyncedAt, full on first sync)
  *   3. Fetches contacts for new/updated invoices
  *   4. Upserts TrackedInvoice rows (with a linked InvoiceConnection row)
@@ -138,6 +142,43 @@ async function withRetry<T>(
   throw lastError
 }
 
+/**
+ * MYOB access tokens can take a moment to propagate through MYOB's backend
+ * immediately after being minted — including right after a *refresh*, not
+ * just after the initial OAuth code exchange (the same quirk already
+ * handled for `getOrganisations` in app/api/integrations/myob/callback/route.ts).
+ * Calling an API with a brand-new token in this window can return a
+ * transient 401 (`OAuthTokenIsInvalid`) even though the token is valid.
+ *
+ * `shouldRefresh`'s 21-minute buffer means *every* MYOB sync refreshes its
+ * token before the first API call, so every sync re-rolls this propagation
+ * race. Without this retry, a transient 401 here is indistinguishable from
+ * a genuinely revoked token and `resolveConnectionStatusAfterSync` would
+ * permanently mark the connection `revoked` (requiring the user to
+ * reconnect) even though nothing was actually wrong with the credential.
+ *
+ * Mirrors TOKEN_PROPAGATION_RETRY_DELAYS_MS in the callback route.
+ */
+const TOKEN_PROPAGATION_RETRY_DELAYS_MS = [1500, 3000, 6000, 10000]
+
+async function withTokenPropagationRetry<T>(
+  fn: () => Promise<T>,
+  connectionId: string
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      const isUnauthorized = err instanceof AccountingProviderError && err.kind === "unauthorized"
+      if (!isUnauthorized || attempt >= TOKEN_PROPAGATION_RETRY_DELAYS_MS.length) throw err
+      console.warn(
+        `[sync] connection ${connectionId} got 401 right after MYOB token refresh, retrying in ${TOKEN_PROPAGATION_RETRY_DELAYS_MS[attempt]}ms (attempt ${attempt + 1})`
+      )
+      await new Promise((resolve) => setTimeout(resolve, TOKEN_PROPAGATION_RETRY_DELAYS_MS[attempt]))
+    }
+  }
+}
+
 export async function syncConnection(connectionId: string): Promise<SyncResult> {
   const result: SyncResult = {
     connectionId,
@@ -200,11 +241,17 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     let refreshToken = decryptToken(connection.encryptedRefreshToken)
     let tokenExpiresAt = connection.tokenExpiresAt
 
+    // Tracks whether this run just minted a fresh MYOB token, so the first
+    // API call below knows to tolerate a transient post-refresh 401 instead
+    // of treating it as a genuine revocation (see withTokenPropagationRetry).
+    let justRefreshedMyob = false
+
     if (shouldRefresh(tokenExpiresAt, connection.provider)) {
       const newTokens = await withRetry(() => provider.refreshTokens(refreshToken))
       accessToken = newTokens.accessToken
       refreshToken = newTokens.refreshToken
       tokenExpiresAt = new Date(Date.now() + newTokens.expiresIn * 1000)
+      justRefreshedMyob = connection.provider === "myob"
 
       await prismaAdmin.accountingConnection.update({
         where: { id: connectionId },
@@ -218,12 +265,14 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
 
     // --- Fetch invoices ---
     const modifiedAfter = connection.lastSyncedAt ?? undefined
-    const invoices = await withRetry(() =>
+    const fetchInvoices = () =>
       provider.getInvoices({
         accessToken,
         organisationId: connection.organisationId,
         modifiedAfter,
       })
+    const invoices = await withRetry(() =>
+      justRefreshedMyob ? withTokenPropagationRetry(fetchInvoices, connectionId) : fetchInvoices()
     )
 
     // --- Fetch contacts for invoices ---
