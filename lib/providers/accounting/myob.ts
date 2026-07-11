@@ -145,11 +145,20 @@ export class MyobProvider implements AccountingProvider {
   }): Promise<TokenSet> {
     const { clientId, clientSecret } = getConfig()
 
+    // MYOB's token-exchange docs list `scope` as a required POST parameter
+    // alongside client_id/client_secret/code/redirect_uri/grant_type. Omitting
+    // it (as this call previously did) doesn't fail the exchange itself — MYOB
+    // still returns a 200 with an access_token — but for granular-scope apps
+    // the resulting token isn't properly bound to the sme-* scopes the user
+    // consented to, and every subsequent API call is rejected with a 401
+    // "OAuthTokenIsInvalid" regardless of how long you wait for propagation.
+    // Must match the scope requested in getAuthorizationUrl().
     const body = new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
       redirect_uri: params.redirectUri,
       code: params.code,
+      scope: MYOB_SCOPES,
       grant_type: "authorization_code",
     })
 
