@@ -138,7 +138,7 @@ export async function GET(request: Request) {
   const encryptedAccessToken = encryptToken(tokens.accessToken)
   const encryptedRefreshToken = encryptToken(tokens.refreshToken)
   const tokenExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000)
-  const scopes = tokens.scope ?? "sme-sales sme-contacts-customer"
+  const scopes = tokens.scope ?? "sme-sales sme-contacts-customer sme-company-file"
 
   if (companyFiles.length === 1) {
     // Single company file: store the connection directly.

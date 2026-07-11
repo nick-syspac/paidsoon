@@ -10,7 +10,14 @@
  *   MYOB_REDIRECT_URI  — OAuth callback URL registered in MYOB developer portal
  *
  * OAuth scopes used (granular, from design decision D9):
- *   sme-sales sme-contacts-customer
+ *   sme-sales sme-contacts-customer sme-company-file
+ *
+ * sme-company-file is required for the company-file list endpoint
+ * (GET https://api.myob.com/accountright/, used by getOrganisations) — this is
+ * a granular scope introduced by MYOB's March 2025 scope changes and is
+ * distinct from the deprecated broad `CompanyFile` scope. Omitting it causes
+ * every call to the company-file list endpoint to fail with a persistent
+ * 401 OAuthTokenIsInvalid, even with a valid, Admin-authorised token.
  *
  * MYOB invoice types covered (all represent accounts-receivable sales):
  *   Sale/Invoice/Service, Sale/Invoice/Item, Sale/Invoice/Professional,
@@ -41,7 +48,7 @@ const MYOB_COMPANY_FILE_LIST_URL = "https://api.myob.com/accountright/"
 // MYOB OData page size (max 1000, MYOB default 400)
 const PAGE_SIZE = 400
 
-const MYOB_SCOPES = ["sme-sales", "sme-contacts-customer"].join(" ")
+const MYOB_SCOPES = ["sme-sales", "sme-contacts-customer", "sme-company-file"].join(" ")
 
 const MYOB_INVOICE_TYPES = [
   "Service",

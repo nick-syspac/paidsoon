@@ -46,6 +46,7 @@ describe("MyobProvider", () => {
       assert.ok(url.includes("client_id=test-myob-client"))
       assert.ok(url.includes("sme-sales"))
       assert.ok(url.includes("sme-contacts-customer"))
+      assert.ok(url.includes("sme-company-file"))
       assert.ok(url.includes("state=xyz789"))
     })
   })

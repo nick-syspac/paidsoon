@@ -30,7 +30,8 @@ Before running this gate, confirm:
 
 Required scope and behavior:
 
-- Scope: `sme-sales` (invoice endpoints) and `sme-contacts-customer` (contacts).
+- Scope: `sme-sales` (invoice endpoints), `sme-contacts-customer` (contacts), and
+  `sme-company-file` (company-file list endpoint, required for `getOrganisations`).
 - Invoice coverage required for pass:
   - Service
   - Item
