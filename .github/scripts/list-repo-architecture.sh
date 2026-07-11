@@ -78,8 +78,8 @@ fi
 if [[ -f lib/supabase/client.ts ]]; then
   echo "  Browser client: lib/supabase/client.ts"
 fi
-if [[ -f middleware.ts ]]; then
-  echo "  Middleware: middleware.ts"
+if [[ -f proxy.ts ]]; then
+  echo "  Proxy (formerly middleware): proxy.ts"
 fi
 
 echo ""

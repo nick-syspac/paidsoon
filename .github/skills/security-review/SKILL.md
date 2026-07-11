@@ -12,7 +12,7 @@ Confirmed applicable to this codebase.
 
 ## Files to Inspect
 - Code files under review
-- `middleware.ts` — auth gate
+- `proxy.ts` — auth gate
 - `prisma/rls-policies.sql` — tenant isolation
 - `lib/db/withUserContext.ts` — DB access
 - `lib/db/admin.ts` — RLS bypass usage

@@ -17,7 +17,7 @@ Confirmed implemented in this codebase (Next.js 16.2.6 App Router).
 - `app/dashboard/layout.tsx` — shared layout pattern
 - `app/api/settings/schedule/route.ts` — GET + PUT route pattern
 - `components/ui/Spinner.tsx` — loading component
-- `middleware.ts` — auth gate
+- `proxy.ts` — auth gate
 - `tsconfig.json` — path aliases
 
 ## Rules to Follow

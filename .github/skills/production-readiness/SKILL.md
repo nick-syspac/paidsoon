@@ -16,7 +16,7 @@ Confirmed applicable to this codebase.
 - `package.json` — build scripts
 - `prisma/schema.prisma` — DB schema
 - `prisma/rls-policies.sql` — tenant isolation
-- `middleware.ts` — LIVE gate and auth
+- `proxy.ts` — LIVE gate and auth
 - `docs/runbooks/README.md` — env var matrix
 - `lib/liveMode.ts` — launch gate logic
 

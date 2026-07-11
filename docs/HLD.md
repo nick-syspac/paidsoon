@@ -163,7 +163,7 @@ no `apps/*` or `packages/*` workspaces.
 | Component | Path | Purpose | Runtime | Notes |
 |---|---|---|---|---|
 | Web app + API | `app/**` | App Router pages, layouts, API route handlers | Vercel (Node) | SSR + serverless functions |
-| Middleware | `middleware.ts` | Session refresh, `/dashboard` protection, `LIVE` gating | Vercel Edge/Node middleware | Runs on most paths (see matcher) |
+| Proxy (formerly middleware) | `proxy.ts` | Session refresh, `/dashboard` protection, `LIVE` gating | Vercel Edge/Node proxy | Runs on most paths (see matcher) |
 | Domain / service libs | `lib/**` | DB access, billing, email, providers, plans | In-process | No separate service |
 | DB admin client | `lib/db/admin.ts` | RLS-bypassing Prisma client | In-process | Cron/webhooks/bootstrap only |
 | DB user client | `lib/db/withUserContext.ts` | RLS-enforcing transactional wrapper | In-process | Default for user requests |
@@ -200,7 +200,7 @@ what is actually present, and explicitly marks absent capabilities.
 | Manual invoice actions | Pause / resume / snooze / resolve | Implemented | `app/api/invoices/[id]/**` | `.../specs/dashboard/spec.md` | RLS-scoped |
 | Dashboard | Overdue + resolved views, upsell | Implemented | `app/dashboard/page.tsx`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell/specs/...` | Feature-gated modules |
 | Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/update-subscription-plan-tiers/specs/...` | 3 tiers: Starter A$19 / Business A$49 / Accountant Partner (contact us) |
-| Live-mode gating | Pre-launch auth lockout + banner | Implemented | `lib/liveMode.ts`, `middleware.ts`, `app/layout.tsx` | `changes/live-mode-auth-gate-banner/specs/...` | `LIVE` env var |
+| Live-mode gating | Pre-launch auth lockout + banner | Implemented | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | `changes/live-mode-auth-gate-banner/specs/...` | `LIVE` env var |
 | Templates | Read/write per-stage reminder templates | Implemented | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite`, `changes/templates-sidebar-help` | GET/PUT/DELETE; persists to `email_templates`; sidebar with variable chips |
 | AI rewrite | GPT-4o-mini rewrite of reminder text | Implemented | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | Three tone variants; usage logged; embedded in templates page |
 | Subscription plan switching | Upgrade mid-cycle; deferred downgrade | Implemented | `app/api/billing/{checkout,downgrade}/route.ts` | `changes/subscription-plan-switching` | Upgrade via Stripe sub update; downgrade via Stripe Schedule |
@@ -325,7 +325,7 @@ surface is the `STRIPE_PRO_PRICE_ID` env var, accepted as a fallback for the
   classes inline; a single shared `components/ui/Spinner.tsx`.
 - **Auth/session:** `lib/supabase/server.ts` (RSC/route handler client, cookie
   bridge) and `lib/supabase/client.ts` (browser client). Session refresh and
-  route protection are centralised in `middleware.ts`.
+  route protection are centralised in `proxy.ts`.
 - **Tenant context:** implicit — the signed-in `user.id`; no tenant switcher.
 - **Branding/theming:** single brand "PaidSoon" (`app/layout.tsx`); no
   per-vertical theming.
@@ -358,7 +358,7 @@ flowchart TD
 | Control | Implementation | Status |
 |---|---|---|
 | Authentication | Supabase Auth (email/pw + Google OAuth); cookie sessions via `@supabase/ssr` | Implemented |
-| Route protection | `middleware.ts` redirects unauthenticated `/dashboard/*` to `/sign-in` | Implemented |
+| Route protection | `proxy.ts` redirects unauthenticated `/dashboard/*` to `/sign-in` | Implemented |
 | Authorization | **Plan-tier feature gates only** (`requireFeature`, `lib/billing.ts`). No RBAC roles | Implemented (coarse) |
 | Tenant isolation | Postgres RLS; `withUserContext` sets `request.jwt.claims` + `SET LOCAL ROLE authenticated` per transaction | Implemented |
 | Cross-tenant enforcement | RLS policies key every table on `auth.uid()::text = "userId"` (`prisma/rls-policies.sql`); verified by `scripts/verify-rls.ts` | Implemented |

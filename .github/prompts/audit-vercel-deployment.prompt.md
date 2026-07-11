@@ -18,7 +18,7 @@ Review the Vercel configuration, build setup, environment variable documentation
 - `docs/runbooks/README.md` — env var matrix
 - `docs/runbooks/vercel.md` — Vercel runbook
 - `app/api/cron/send-emails/route.ts` — cron handler
-- `middleware.ts` — LIVE mode gate
+- `proxy.ts` — LIVE mode gate
 - `lib/liveMode.ts` — launch gate logic
 - `.copilotignore` or `.gitignore` — secrets excluded?
 

@@ -23,7 +23,7 @@ present in the repository (it is documented as absent, not designed).
 
 | Source | Path | Used for | Notes |
 |---|---|---|---|
-| Application code | `app/**`, `lib/**`, `middleware.ts` | Primary truth for all behaviour | App Router |
+| Application code | `app/**`, `lib/**`, `proxy.ts` | Primary truth for all behaviour | App Router |
 | Prisma schema | `prisma/schema.prisma` | Data model | User + admin models; includes arrangements |
 | Initial migration | `prisma/migrations/20260531101711_init/migration.sql` | Tables, indexes, FKs | Single migration |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation | Applied manually in Supabase |
@@ -41,21 +41,21 @@ below maps logical areas to code modules (there are no Django apps).
 
 | Logical area | Module(s) | Purpose | Key models/services | OpenSpec |
 |---|---|---|---|---|
-| Auth & tenancy | `lib/supabase/**`, `lib/db/**`, `middleware.ts` | Identity, session, RLS scoping | `UserProfile`; `withUserContext`, `prismaAdmin` | `changes/invoice-nudge-mvp/specs/user-auth`, `changes/enforce-rls-via-prisma` |
+| Auth & tenancy | `lib/supabase/**`, `lib/db/**`, `proxy.ts` | Identity, session, RLS scoping | `UserProfile`; `withUserContext`, `prismaAdmin` | `changes/invoice-nudge-mvp/specs/user-auth`, `changes/enforce-rls-via-prisma` |
 | Invoice connection | `lib/providers/**`, `app/api/stripe/connect/**` | Link Stripe, abstract providers | `InvoiceConnection`; `InvoiceProvider` | `.../specs/invoice-connection` |
 | Invoice tracking | `lib/email/catchup.ts`, `app/api/webhooks/stripe-connect/route.ts` | Detect/track overdue invoices | `TrackedInvoice` | `.../specs/invoice-tracking` |
 | Follow-up engine | `app/api/cron/send-emails/route.ts`, `lib/email/**` | Stage progression + send | `TrackedInvoice`, `EmailLog`, `Schedule` | `.../specs/follow-up-sequences`, `.../specs/schedule-config` |
 | Email identity | `app/api/settings/email/route.ts`, `lib/email/send.ts` | Custom verified sender | `EmailSettings` | `.../specs/email-settings`, `changes/rename-to-paidsoon` |
 | Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/update-subscription-plan-tiers`, `.../specs/subscription-billing` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell` |
-| Live-mode gating | `lib/liveMode.ts`, `middleware.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
+| Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
 
 ## 4. Backend Application Design
 
 There are no Django apps. The backend is route handlers + `lib` services. Each
 subsection documents a functional module.
 
-### 4.1 Auth & tenancy (`lib/db/**`, `lib/supabase/**`, `middleware.ts`)
+### 4.1 Auth & tenancy (`lib/db/**`, `lib/supabase/**`, `proxy.ts`)
 
 - **Responsibility:** authenticate users, refresh sessions, enforce per-user DB
   isolation.
@@ -69,7 +69,7 @@ subsection documents a functional module.
     `@prisma/adapter-pg` using `DATABASE_URL`; **bypasses RLS**; service paths
     only.
 - **Permissions:** route handlers reject with 401 when `auth.getUser()` returns
-  no user. `middleware.ts` redirects unauthenticated `/dashboard/*` to
+  no user. `proxy.ts` redirects unauthenticated `/dashboard/*` to
   `/sign-in` and authenticated users away from auth pages.
 - **Integration points:** Supabase Auth; Supabase Postgres.
 - **Tests:** `scripts/verify-rls.ts` proves cross-user isolation (seed via
@@ -210,7 +210,7 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 
 - **Auth/session logic:** browser client (`lib/supabase/client.ts`) for sign-in;
   server client (`lib/supabase/server.ts`) for RSC/route handlers; refresh in
-  `middleware.ts`.
+  `proxy.ts`.
 - **Tenant context:** implicit `user.id`; no tenant switcher.
 - **RBAC helpers:** none; only `hasPlanFeature`/`requireFeature` entitlement
   gates.
@@ -436,7 +436,7 @@ backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
   (`app/(auth)/sign-in/page.tsx`). OAuth returns to `app/auth/callback/route.ts`
   which calls `exchangeCodeForSession`.
 - **Session model:** Supabase session cookies bridged by `@supabase/ssr`.
-  `middleware.ts` calls `supabase.auth.getUser()` to refresh and to guard
+  `proxy.ts` calls `supabase.auth.getUser()` to refresh and to guard
   `/dashboard/*`.
 - **Backend auth:** every user-facing route handler calls
   `supabase.auth.getUser()` and returns 401 when absent. Webhooks use Stripe
@@ -457,7 +457,7 @@ The `/admin` route group adds a **three-layer elevated-privilege guard** on top 
 
 | Layer | Mechanism | Where enforced |
 |---|---|---|
-| 1 | Supabase session — same as `/dashboard` | `middleware.ts` |
+| 1 | Supabase session — same as `/dashboard` | `proxy.ts` |
 | 2 | `PlatformRole` row in `platform_roles` with `status = active` | `lib/admin/guard.ts` |
 | 3 | `AdminSession` row linked to a verified `AdminDevice` (Ed25519 SSH public key challenge-response) | `lib/admin/guard.ts` + `app/api/admin/challenges/` |
 
@@ -480,7 +480,7 @@ All six admin DB tables have deny-all RLS. Every admin route handler calls `requ
 ```mermaid
 sequenceDiagram
     participant U as Browser
-    participant MW as middleware.ts
+    participant MW as proxy.ts
     participant RH as Route handler
     participant WC as withUserContext
     participant PG as Postgres (RLS)
@@ -792,7 +792,7 @@ automated tests; only pure helpers are unit-tested.
 | Manual actions | Yes | Specified | `app/api/invoices/[id]/**` | `.../dashboard` | pause/resume/snooze/resolve |
 | Dashboard + upsell | Yes | Specified | `app/dashboard/page.tsx`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell` | Gated modules |
 | Billing tiers | Yes | Specified | `lib/subscriptionPlans.ts`, `app/api/billing/**` | `changes/update-subscription-plan-tiers` | 3 tiers |
-| Live-mode gating | Yes | Specified | `lib/liveMode.ts`, `middleware.ts` | `changes/live-mode-auth-gate-banner` | `LIVE` flag |
+| Live-mode gating | Yes | Specified | `lib/liveMode.ts`, `proxy.ts` | `changes/live-mode-auth-gate-banner` | `LIVE` flag |
 | Login spinner | Yes | Specified | `components/ui/Spinner.tsx`, `app/(auth)/**` | `changes/login-loading-spinner` | — |
 | Logout redirect | Yes | Specified | `app/auth/sign-out/route.ts` | `changes/logout-redirect-homepage` | → `/` |
 | Rename to PaidSoon | Yes | Specified | `app/layout.tsx`, `lib/email/send.ts` | `changes/rename-to-paidsoon` | Brand flip |
@@ -844,7 +844,7 @@ automated tests; only pure helpers are unit-tested.
 ## 23. Appendix A — Code Path Index
 
 **Auth & tenancy**
-- `lib/supabase/server.ts`, `lib/supabase/client.ts`, `middleware.ts`
+- `lib/supabase/server.ts`, `lib/supabase/client.ts`, `proxy.ts`
 - `lib/db/withUserContext.ts`, `lib/db/admin.ts`, `lib/actions/auth.ts`
 - `app/(auth)/sign-in/page.tsx`, `app/(auth)/sign-up/page.tsx`,
   `app/auth/callback/route.ts`, `app/auth/sign-out/route.ts`

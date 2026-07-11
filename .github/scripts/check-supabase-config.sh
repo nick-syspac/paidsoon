@@ -55,11 +55,11 @@ fi
 
 echo ""
 echo "--- Auth Patterns ---"
-if [[ -f middleware.ts ]]; then
-  if grep -q "getUser" middleware.ts; then
-    pass "middleware.ts uses getUser() pattern"
+if [[ -f proxy.ts ]]; then
+  if grep -q "getUser" proxy.ts; then
+    pass "proxy.ts uses getUser() pattern"
   else
-    warn "middleware.ts — could not confirm getUser() usage"
+    warn "proxy.ts — could not confirm getUser() usage"
   fi
 fi
 

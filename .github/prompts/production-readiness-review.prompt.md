@@ -17,7 +17,7 @@ Hosted on Vercel. Supabase Postgres for data. Stripe for billing and invoice sou
 ## Files to Inspect
 - `vercel.json` — cron config
 - `next.config.ts` — build config
-- `middleware.ts` — LIVE mode gate
+- `proxy.ts` — LIVE mode gate
 - `lib/liveMode.ts` — launch gate logic
 - `app/api/cron/send-emails/route.ts` — cron handler
 - `app/api/webhooks/stripe-billing/route.ts` — billing webhook

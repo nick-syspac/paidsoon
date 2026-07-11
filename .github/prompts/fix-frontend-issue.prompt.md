@@ -20,7 +20,7 @@ Next.js 16 App Router, React 19, TypeScript strict, Tailwind CSS 4. Server Compo
 - `app/dashboard/layout.tsx` — shared layout
 - `components/dashboard/InvoiceTable.tsx` — invoice display
 - `components/ui/Spinner.tsx` — loading states
-- `middleware.ts` — auth redirects
+- `proxy.ts` — auth redirects
 
 ## Diagnostic Checklist
 
