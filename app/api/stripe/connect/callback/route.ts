@@ -51,23 +51,24 @@ export async function GET(request: Request) {
 
   try {
     await withUserContext(user.id, async (tx) => {
-      const [profile, existingForAccount, activeConnections] = await Promise.all([
-        tx.userProfile.findUnique({
-          where: { userId: user.id },
-          select: { subscriptionTier: true },
-        }),
-        tx.invoiceConnection.findFirst({
-          where: {
-            userId: user.id,
-            provider: "stripe",
-            stripeConnectAccountId,
-          },
-          select: { id: true },
-        }),
-        tx.invoiceConnection.count({
-          where: { userId: user.id, provider: "stripe", isActive: true },
-        }),
-      ])
+      // Sequential, not Promise.all: queries on a single interactive
+      // transaction's `tx` share one underlying pg connection — firing them
+      // concurrently triggers a pg client deprecation warning and is unsafe.
+      const profile = await tx.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { subscriptionTier: true },
+      })
+      const existingForAccount = await tx.invoiceConnection.findFirst({
+        where: {
+          userId: user.id,
+          provider: "stripe",
+          stripeConnectAccountId,
+        },
+        select: { id: true },
+      })
+      const activeConnections = await tx.invoiceConnection.count({
+        where: { userId: user.id, provider: "stripe", isActive: true },
+      })
 
       if (existingForAccount) {
         await tx.invoiceConnection.update({

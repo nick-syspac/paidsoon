@@ -28,37 +28,38 @@ export default async function ConnectionsSettingsPage({
   const { profile, stripeConnections, accountingConnections } = await withUserContext(
     user.id,
     async (tx) => {
-      const [profile, stripeConnections, accountingConnections] = await Promise.all([
-        tx.userProfile.findUnique({
-          where: { userId: user.id },
-          select: { subscriptionTier: true },
-        }),
-        tx.invoiceConnection.findMany({
-          where: { userId: user.id, provider: "stripe", isActive: true },
-          orderBy: { createdAt: "asc" },
-        }),
-        hasFeature
-          ? tx.accountingConnection.findMany({
-              where: { userId: user.id },
-              orderBy: { createdAt: "asc" },
-              include: {
-                syncRuns: {
-                  orderBy: { startedAt: "desc" },
-                  take: 5,
-                  select: {
-                    id: true,
-                    startedAt: true,
-                    completedAt: true,
-                    status: true,
-                    invoicesCreated: true,
-                    invoicesUpdated: true,
-                    errorMessage: true,
-                  },
+      // Sequential, not Promise.all: queries on a single interactive
+      // transaction's `tx` share one underlying pg connection — firing them
+      // concurrently triggers a pg client deprecation warning and is unsafe.
+      const profile = await tx.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { subscriptionTier: true },
+      })
+      const stripeConnections = await tx.invoiceConnection.findMany({
+        where: { userId: user.id, provider: "stripe", isActive: true },
+        orderBy: { createdAt: "asc" },
+      })
+      const accountingConnections = hasFeature
+        ? await tx.accountingConnection.findMany({
+            where: { userId: user.id },
+            orderBy: { createdAt: "asc" },
+            include: {
+              syncRuns: {
+                orderBy: { startedAt: "desc" },
+                take: 5,
+                select: {
+                  id: true,
+                  startedAt: true,
+                  completedAt: true,
+                  status: true,
+                  invoicesCreated: true,
+                  invoicesUpdated: true,
+                  errorMessage: true,
                 },
               },
-            })
-          : Promise.resolve([]),
-      ])
+            },
+          })
+        : []
 
       return { profile, stripeConnections, accountingConnections }
     }

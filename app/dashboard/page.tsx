@@ -28,18 +28,19 @@ export default async function DashboardPage({
   const { profile, connection, activeTrackedCount } = await withUserContext(
     user.id,
     async (tx) => {
-      const [profile, connection, activeTrackedCount] = await Promise.all([
-        tx.userProfile.findUnique({ where: { userId: user.id } }),
-        tx.invoiceConnection.findFirst({
-          where: { userId: user.id, isActive: true },
-        }),
-        tx.trackedInvoice.count({
-          where: {
-            userId: user.id,
-            status: { in: activeStatuses },
-          },
-        }),
-      ])
+      // Sequential, not Promise.all: queries on a single interactive
+      // transaction's `tx` share one underlying pg connection — firing them
+      // concurrently triggers a pg client deprecation warning and is unsafe.
+      const profile = await tx.userProfile.findUnique({ where: { userId: user.id } })
+      const connection = await tx.invoiceConnection.findFirst({
+        where: { userId: user.id, isActive: true },
+      })
+      const activeTrackedCount = await tx.trackedInvoice.count({
+        where: {
+          userId: user.id,
+          status: { in: activeStatuses },
+        },
+      })
       return { profile, connection, activeTrackedCount }
     },
   )

@@ -18,15 +18,15 @@ export async function GET() {
   const { subscriptionTier, activeConnections } = await withUserContext(
     user.id,
     async (tx) => {
-      const [profile, activeConnections] = await Promise.all([
-        tx.userProfile.findUnique({
-          where: { userId: user.id },
-          select: { subscriptionTier: true },
-        }),
-        tx.invoiceConnection.count({
-          where: { userId: user.id, provider: "stripe", isActive: true },
-        }),
-      ])
+      // Sequential, not Promise.all: queries on a single interactive
+      // transaction's `tx` share one underlying pg connection.
+      const profile = await tx.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { subscriptionTier: true },
+      })
+      const activeConnections = await tx.invoiceConnection.count({
+        where: { userId: user.id, provider: "stripe", isActive: true },
+      })
       return {
         subscriptionTier: profile?.subscriptionTier,
         activeConnections,

@@ -10,10 +10,10 @@ export default async function EmailSettingsPage() {
   if (!user) redirect("/sign-in")
 
   const { profile, emailSettings } = await withUserContext(user.id, async (tx) => {
-    const [profile, emailSettings] = await Promise.all([
-      tx.userProfile.findUnique({ where: { userId: user.id }, select: { subscriptionTier: true } }),
-      tx.emailSettings.findUnique({ where: { userId: user.id } }),
-    ])
+    // Sequential, not Promise.all: queries on a single interactive
+    // transaction's `tx` share one underlying pg connection.
+    const profile = await tx.userProfile.findUnique({ where: { userId: user.id }, select: { subscriptionTier: true } })
+    const emailSettings = await tx.emailSettings.findUnique({ where: { userId: user.id } })
     return { profile, emailSettings }
   })
 
