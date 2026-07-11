@@ -229,6 +229,14 @@ export class MyobProvider implements AccountingProvider {
     const res = await fetch(MYOB_COMPANY_FILE_LIST_URL, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        // x-myobapi-cftoken: required on every online/OAuth API call per MYOB's
+        // header docs, even calls (like this one) that aren't scoped to a
+        // specific company file yet. Empty string is correct for MYOB Business
+        // online/cloud company files — ownership is established via the OAuth
+        // Bearer token, not company-file credentials. Omitting this header
+        // causes MYOB to reject the otherwise-valid Bearer token with a 401
+        // "OAuthTokenIsInvalid".
+        "x-myobapi-cftoken": "",
         "x-myobapi-key": clientId,
         "x-myobapi-version": "v2",
         Accept: "application/json",
@@ -369,6 +377,9 @@ export class MyobProvider implements AccountingProvider {
       const res = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${params.accessToken}`,
+          // x-myobapi-cftoken: empty string is correct for MYOB Business online/cloud
+          // company files — ownership is established via OAuth Bearer token.
+          "x-myobapi-cftoken": "",
           "x-myobapi-key": clientId,
           "x-myobapi-version": "v2",
           Accept: "application/json",
