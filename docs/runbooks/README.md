@@ -116,13 +116,13 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 
 | Env var | Read by |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | [middleware.ts](../../middleware.ts), [lib/supabase/server.ts](../../lib/supabase/server.ts), [lib/supabase/client.ts](../../lib/supabase/client.ts), [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | [middleware.ts](../../middleware.ts), [lib/supabase/server.ts](../../lib/supabase/server.ts), [lib/supabase/client.ts](../../lib/supabase/client.ts) |
+| `NEXT_PUBLIC_SUPABASE_URL` | [proxy.ts](../../proxy.ts), [lib/supabase/server.ts](../../lib/supabase/server.ts), [lib/supabase/client.ts](../../lib/supabase/client.ts), [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | [proxy.ts](../../proxy.ts), [lib/supabase/server.ts](../../lib/supabase/server.ts), [lib/supabase/client.ts](../../lib/supabase/client.ts) |
 | `SUPABASE_SECRET_KEY` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) (admin client for `auth.admin.getUserById`) |
 | `DATABASE_URL` | [lib/db/admin.ts](../../lib/db/admin.ts) |
 | `DIRECT_URL` | [prisma.config.ts](../../prisma.config.ts) (migrations only) |
 | `NEXT_PUBLIC_APP_URL` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/authorize/route.ts](../../app/api/stripe/connect/authorize/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/auth/sign-out/route.ts](../../app/auth/sign-out/route.ts) |
-| `LIVE` | [lib/liveMode.ts](../../lib/liveMode.ts), [middleware.ts](../../middleware.ts), [app/layout.tsx](../../app/layout.tsx) |
+| `LIVE` | [lib/liveMode.ts](../../lib/liveMode.ts), [proxy.ts](../../proxy.ts), [app/layout.tsx](../../app/layout.tsx) |
 | `CRON_SECRET` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) |
 | `STRIPE_SECRET_KEY` | [lib/providers/stripe.ts](../../lib/providers/stripe.ts), [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
 | `STRIPE_STARTER_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |

@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import { isLiveMode, shouldBlockAuthEntry } from "@/lib/liveMode"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const liveMode = isLiveMode()
   const { pathname } = request.nextUrl
 

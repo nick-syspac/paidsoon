@@ -79,7 +79,7 @@ Thumbs.db
 # tests/
 # scripts/
 # public/
-# middleware.ts
+# proxy.ts
 # next.config.ts
 # vercel.json
 # package.json

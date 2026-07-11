@@ -14,7 +14,7 @@ satisfied in sequence:
 
 | Layer | What is checked | Enforced by |
 |---|---|---|
-| 1 | A valid Supabase session (normal login) | `middleware.ts` |
+| 1 | A valid Supabase session (normal login) | `proxy.ts` |
 | 2 | An active `PlatformRole` row for the authenticated user | `lib/admin/guard.ts` |
 | 3 | A live `AdminSession` cookie linked to a verified device | `lib/admin/guard.ts` |
 
