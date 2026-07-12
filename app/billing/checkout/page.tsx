@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { getPlanByTier, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { StartCheckoutButton } from "@/components/billing/StartCheckoutButton"
 
 export default async function BillingCheckoutPage({
   searchParams,
@@ -30,69 +30,44 @@ export default async function BillingCheckoutPage({
     tier = normalizeSubscriptionTier(profile?.subscriptionTier)
   }
 
-  // Forward the session cookie so the API route can authenticate via supabase.auth.getUser().
-  const cookieStore = await cookies()
-  const cookieHeader = cookieStore
-    .getAll()
-    .map(({ name, value }) => `${name}=${value}`)
-    .join("; ")
+  const plan = getPlanByTier(tier)
+  const isTrialExpired = params.reason === "trial_expired"
 
-  let checkoutUrl: string | null = null
-  let errorMessage: string | null = null
-
-  try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/billing/checkout`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: cookieHeader,
-        },
-        body: JSON.stringify({ tier }),
-        cache: "no-store",
-      },
-    )
-
-    const data: unknown = await res.json()
-
-    if (
-      res.ok &&
-      typeof data === "object" &&
-      data !== null &&
-      "url" in data &&
-      typeof (data as Record<string, unknown>).url === "string"
-    ) {
-      checkoutUrl = (data as Record<string, unknown>).url as string
-    } else {
-      errorMessage =
-        typeof data === "object" &&
-        data !== null &&
-        "error" in data &&
-        typeof (data as Record<string, unknown>).error === "string"
-          ? ((data as Record<string, unknown>).error as string)
-          : "Something went wrong while setting up your subscription."
-    }
-  } catch {
-    errorMessage =
-      "Could not connect to the billing service. Please try again."
-  }
-
-  // Redirect must happen outside the try/catch block.
-  if (checkoutUrl) redirect(checkoutUrl)
-
+  // Note: this page intentionally does NOT create a Checkout session or
+  // redirect automatically on render. It previously did both, which meant
+  // Stripe's cancel_url (pointing back under /dashboard/**) re-entered the
+  // trial-expired gate in app/dashboard/layout.tsx and immediately bounced
+  // back here for a brand-new session — an inescapable redirect loop.
+  // Session creation now only happens client-side, on an explicit click
+  // (see StartCheckoutButton), so landing here is always a stable stop.
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full bg-white rounded-lg shadow p-8 text-center space-y-4">
         <h1 className="text-xl font-semibold text-gray-900">
-          Unable to start checkout
+          {isTrialExpired ? "Your trial has ended" : "Upgrade your plan"}
         </h1>
-        <p className="text-sm text-gray-600">{errorMessage}</p>
+        <p className="text-sm text-gray-600">
+          {isTrialExpired
+            ? "Subscribe to keep sending reminders and tracking overdue invoices."
+            : `Subscribe to the ${plan.name} plan to continue.`}
+        </p>
+        {plan.monthlyPriceAud !== null ? (
+          <>
+            <p className="text-2xl font-semibold text-gray-900">
+              {plan.name} — ${plan.monthlyPriceAud}/mo
+            </p>
+            <StartCheckoutButton tier={tier} />
+          </>
+        ) : (
+          <p className="text-sm text-gray-600">
+            The {plan.name} plan uses custom pricing — contact us to get set up.
+          </p>
+        )}
         <a
-          href="/dashboard"
-          className="inline-block text-sm font-medium text-blue-600 hover:underline"
+          href="/"
+          className="inline-block text-sm text-gray-500 hover:underline"
         >
-          Return to dashboard
+          Not now — return to homepage
         </a>
       </div>
     </div>
