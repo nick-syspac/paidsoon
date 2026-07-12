@@ -70,6 +70,17 @@ export async function GET(request: Request) {
   const state = searchParams.get("state")
   const error = searchParams.get("error")
 
+  // TEMPORARY DIAGNOSTIC (openspec/changes/harden-myob-business-go-live) — logs
+  // only the query param *names*, never values (code/state are sensitive,
+  // single-use secrets). Confirms whether MYOB's granular-scope OAuth flow
+  // returns `businessId` on this callback, per MYOB's current docs, vs. the
+  // `GET /accountright/` company-file-list approach this route currently
+  // relies on (which has been observed returning an empty list). Remove once
+  // resolved.
+  console.log(
+    `[myob/callback] diagnostic: query param keys = [${[...searchParams.keys()].join(", ")}]`
+  )
+
   if (error) {
     return NextResponse.redirect(
       `${APP_URL}/dashboard/settings/connections?source=myob&code=cancelled`
