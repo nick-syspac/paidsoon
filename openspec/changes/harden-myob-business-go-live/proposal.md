@@ -22,7 +22,9 @@ None.
 
 ## Impact
 
-- **Affected code**: `app/api/integrations/myob/**`, `lib/providers/accounting/myob.ts`, `lib/providers/accounting/sync.ts`, admin resync/visibility routes, and integrations settings UI.
+- **Affected code**: `app/api/integrations/myob/**` (including the callback's company-file identification logic and the `select-org` route at `app/api/integrations/myob/select-org/route.ts` and its UI page at `app/dashboard/settings/connections/myob/select-org/page.tsx`), `lib/providers/accounting/myob.ts`, `lib/providers/accounting/sync.ts`, admin resync/visibility routes, and integrations settings UI.
 - **Affected docs**: `docs/runbooks/README.md`, go-live runbook material, and any documentation that currently describes MYOB as planned or launch-ready without explicit qualification.
 - **Operational impact**: MYOB rollout becomes gated by documented launch criteria instead of inferred readiness.
 - **Testing impact**: Requires real MYOB sandbox validation in addition to existing mocked unit coverage.
+
+**Open question surfaced during sandbox validation (task 4.1):** the current callback/`select-org` design assumes a single OAuth grant can reach multiple MYOB company files (mirroring Xero's multi-tenant model) and discovers them via `GET https://api.myob.com/accountright/`. MYOB's granular-scope docs suggest this may not hold — `businessId` is returned directly on the callback query string and MYOB's re-consent flow is described as approving "a single ledger" per authorization. If confirmed, the `select-org` picker may need to be re-scoped or retired rather than merely hardened. Needs sandbox confirmation before design changes are finalized.

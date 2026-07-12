@@ -101,6 +101,20 @@ export async function POST(request: Request) {
       items: [{ price: priceId }],
       proration_behavior: "create_prorations",
     })
+    // Update the profile synchronously rather than waiting on the async
+    // customer.subscription.updated webhook — this request already confirmed
+    // the change with Stripe, so there's no reason for the redirect target
+    // (gated by the dashboard's trial-expired check) to see stale tier data.
+    await withUserContext(user.id, (tx) =>
+      tx.userProfile.update({
+        where: { userId: user.id },
+        data: {
+          subscriptionTier: requestedTier,
+          subscriptionStatus: "active",
+          trialEndsAt: null,
+        },
+      }),
+    )
     const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription?success=upgraded&tier=${requestedTier}`
     return NextResponse.json({ url: successUrl })
   }
@@ -115,7 +129,12 @@ export async function POST(request: Request) {
         quantity: 1,
       },
     ],
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription?success=upgraded&tier=${requestedTier}`,
+    // Route through the reconciliation endpoint rather than straight back to
+    // the dashboard: it retrieves the confirmed session from Stripe and
+    // updates the profile immediately, instead of assuming the async
+    // checkout.session.completed webhook has already landed by the time the
+    // browser gets redirected back (see app/api/billing/checkout/success).
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/billing/checkout/success?session_id={CHECKOUT_SESSION_ID}&tier=${requestedTier}`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription?cancelled=true`,
     metadata: { userId: user.id, selectedTier: requestedTier },
   })
