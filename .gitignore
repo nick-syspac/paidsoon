@@ -44,4 +44,6 @@ next-env.d.ts
 
 /lib/generated/prisma
 # roborev snapshots
+/roborev./
+# roborev snapshots
 /.roborev/

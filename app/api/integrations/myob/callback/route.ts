@@ -69,16 +69,18 @@ export async function GET(request: Request) {
   const code = searchParams.get("code")
   const state = searchParams.get("state")
   const error = searchParams.get("error")
+  const businessId = searchParams.get("businessId")
 
   // TEMPORARY DIAGNOSTIC (openspec/changes/harden-myob-business-go-live) — logs
-  // only the query param *names*, never values (code/state are sensitive,
-  // single-use secrets). Confirms whether MYOB's granular-scope OAuth flow
-  // returns `businessId` on this callback, per MYOB's current docs, vs. the
-  // `GET /accountright/` company-file-list approach this route currently
-  // relies on (which has been observed returning an empty list). Remove once
-  // resolved.
+  // query param names plus the `businessId` value (not sensitive — it's a
+  // company-file identifier, not a credential, unlike `code`/`state`).
+  // Confirms whether MYOB's granular-scope OAuth flow returns `businessId` on
+  // this callback per MYOB's current docs, vs. the `GET /accountright/`
+  // company-file-list approach this route currently relies on (which has been
+  // observed failing/returning an empty list for online/cloud tokens — that
+  // endpoint's own docs say "Not available online"). Remove once resolved.
   console.log(
-    `[myob/callback] diagnostic: query param keys = [${[...searchParams.keys()].join(", ")}]`
+    `[myob/callback] diagnostic: query param keys = [${[...searchParams.keys()].join(", ")}], businessId = ${businessId ?? "(not present)"}`
   )
 
   if (error) {
@@ -128,6 +130,33 @@ export async function GET(request: Request) {
     return NextResponse.redirect(
       `${APP_URL}/dashboard/settings/connections?source=myob&code=token_exchange_failed`
     )
+  }
+
+  // TEMPORARY DIAGNOSTIC (openspec/changes/harden-myob-business-go-live) —
+  // probes `GET {businessId}/Info` directly, the per-company-file endpoint
+  // MYOB's docs describe as the correct online/cloud source of the company
+  // file's readable name (unlike `GET /accountright/`, which is documented as
+  // desktop/local-only). Best-effort and non-blocking: logged for comparison
+  // against the existing getOrganisations() call below, never thrown or used
+  // to change behaviour yet. Remove once the real fix lands.
+  if (businessId) {
+    try {
+      const infoRes = await fetch(`${businessId}/Info`, {
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`,
+          "x-myobapi-cftoken": "",
+          "x-myobapi-key": process.env.MYOB_CLIENT_ID ?? "",
+          "x-myobapi-version": "v2",
+          Accept: "application/json",
+        },
+      })
+      const infoText = await infoRes.text()
+      console.log(
+        `[myob/callback] diagnostic: GET {businessId}/Info status=${infoRes.status} body=${infoText.slice(0, 500)}`
+      )
+    } catch (err) {
+      console.error("[myob/callback] diagnostic: businessId/Info fetch failed", err)
+    }
   }
 
   let companyFiles
