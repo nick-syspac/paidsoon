@@ -399,7 +399,7 @@ admin guard. See `prisma/rls-policies.sql`.
 | `POST /api/integrations/xero/disconnect` | `.../xero/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
 | `POST /api/integrations/xero/sync` | `.../xero/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
 | `GET /api/integrations/myob/connect` | `.../myob/connect/route.ts` | — | session + `accounting_integrations` feature | `prismaAdmin` oauth_state insert | → redirect to MYOB OAuth | Implemented |
-| `GET /api/integrations/myob/callback` | `.../myob/callback/route.ts` | query `code,state,businessId` | session + nonce validation | `withUserContext` upsert accounting_connections | → redirect to settings | Implemented |
+| `GET /api/integrations/myob/callback` | `.../myob/callback/route.ts` | query `code,state,businessId,businessName` | session + nonce validation | `withUserContext` upsert accounting_connections | → redirect to settings | Implemented |
 | `POST /api/integrations/myob/disconnect` | `.../myob/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
 | `POST /api/integrations/myob/sync` | `.../myob/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
 | `GET /api/cron/sync-accounting` | `.../cron/sync-accounting/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{totalConnections,succeeded,failed,invoicesCreated,invoicesUpdated}` | Implemented |

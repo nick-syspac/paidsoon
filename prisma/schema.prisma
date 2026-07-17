@@ -293,7 +293,7 @@ model AccountingConnection {
   id                    String    @id @default(cuid())
   userId                String
   provider              String // 'xero' | 'myob'
-  organisationId        String    @map("organisation_id") // tenantId (Xero) or businessId/cf_uri (MYOB)
+  organisationId        String    @map("organisation_id") // tenantId (Xero) or cf_uri constructed from businessId (MYOB, e.g. https://api.myob.com/accountright/{businessId})
   organisationName      String    @map("organisation_name")
   encryptedAccessToken  String    @map("encrypted_access_token")
   encryptedRefreshToken String    @map("encrypted_refresh_token")

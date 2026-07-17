@@ -51,24 +51,24 @@ value for it.
 ## 3. Validating the connection per environment
 
 MYOB scopes requested are `sme-sales` (invoices), `sme-contacts-customer` (contacts), and
-`sme-company-file` (company-file list endpoint, used by `getOrganisations` during connect) —
-all read-only, granular scopes introduced by MYOB's March 2025 scope changes. Do not request
-the legacy broad `CompanyFile` scope (deprecated 1 September 2026) — `sme-company-file` is a
-distinct granular scope and is required, not optional: without it, the company-file list call
-(`GET https://api.myob.com/accountright/`) fails with a persistent 401 `OAuthTokenIsInvalid`
-even for a validly Admin-authorised token.
+`sme-company-file` — all read-only, granular scopes introduced by MYOB's March 2025 scope
+changes. Do not request the legacy broad `CompanyFile` scope (deprecated 1 September 2026) —
+`sme-company-file` is a distinct granular scope required for company-file-scoped API access.
+
+MYOB Business (online/cloud) authorises exactly one company file per OAuth grant and returns
+its identifier and display name directly on the callback as `businessId`/`businessName` — the
+callback uses these directly and does not call any company-file discovery endpoint (the
+legacy `GET https://api.myob.com/accountright/` "company files list" endpoint is documented
+by MYOB as "Not available online" and is not used during connect).
 
 ### 3.1 Local / Preview
 
 1. Set the four env vars above for the environment.
 2. Sign in, go to **Settings → Integrations**, click **Connect MYOB**.
-3. Authorise against a MYOB sandbox or trial company file. MYOB's hosted screen only
-   covers login/consent — it does **not** let you pick a company file. Company-file
-   selection happens back on PaidSoon, after the token exchange:
-   - If the token can only reach one company file, the connection is created immediately.
-   - If it can reach more than one, you're redirected to
-     `/dashboard/settings/connections/myob/select-org` to pick one before the connection
-     is created.
+3. Authorise against a MYOB sandbox or trial company file. MYOB's hosted screen covers
+   login/consent for a single company file and redirects back with `businessId`/
+   `businessName` on the callback query string — the connection is created immediately
+   from those values, with no separate company-file picker step.
 4. Confirm the redirect lands back on the integrations page with
    `?code=connected` and the connection card shows a status other than
    **Sync error** — a first sync now runs automatically as part of connecting.
@@ -86,10 +86,8 @@ gate `G-MYOB2` in [go-live-decision-matrix.md](./go-live-decision-matrix.md).
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | MYOB redirects with `error=myob_cancelled` | User declined authorisation | Expected — no action needed |
-| MYOB redirects with `error=no_organisations` | The authorising MYOB account has no accessible company file | Confirm the MYOB app has at least one accessible company file for the authorising user |
-| MYOB redirects with `error=org_fetch_failed` | The company-file list call (`GET https://api.myob.com/accountright/`) failed after token exchange, even after the built-in 401 retry (up to 4 retries over ~20s to cover MYOB token-propagation delay) | Check server logs for `[myob/callback] getOrganisations failed`. If the 401 is **transient** (succeeds partway through the retries), it was propagation delay — no action needed. If it fails **every single retry** across the full ~20s window, it's not propagation delay — check (1) the OAuth scope includes `sme-company-file` (see §3 above), and (2) the MYOB user who authorised the connection has **Admin** access to the company file (MYOB requires Admin-level approval for OAuth since March 2025 — Settings → Users and Permissions → confirm Access = Admin) |
-| User isn't shown a company-file picker despite having multiple files | Selection only appears when `getOrganisations` returns more than one entry — confirm the MYOB account genuinely has multiple company files reachable by the granted scopes | Check server logs for `[myob/callback]`; verify the `myob_pending_<key>` cookie is being set (see [select-org route](../../app/api/integrations/myob/select-org/route.ts)) |
-| `error=selection_expired` or `error=invalid_selection` on the select-org form | The 30-minute pending cookie expired, was already used, or didn't match the signed-in user | Ask the user to click **Connect MYOB** again from the start |
+| MYOB redirects with `error=missing_params` | The callback did not include `code`, `state`, or `businessId` | Check server logs for the callback request; confirm the MYOB app's redirect URI matches `MYOB_REDIRECT_URI` exactly (a mismatch can cause MYOB to omit params or redirect elsewhere) |
+| MYOB redirects with `error=connection_save_failed` | The `AccountingConnection` upsert failed after a successful token exchange | Check server logs for `[myob/callback] failed to store connection`; likely a transient DB issue — ask the user to retry |
 | Connection stays in **Importing…** | The inline first sync failed or the process restarted mid-request | Click **Sync now**; if it keeps failing, check `AccountingSyncRun.errorMessage` for that connection via the admin tenant detail page |
 | Connection shows **Sync error** | The first sync ran and failed | Click **Retry sync**; investigate the `errorMessage` on the most recent `AccountingSyncRun` row |
 | 401 errors against real company files | Missing `x-myobapi-key` / `x-myobapi-version` header, or an expired token | Confirm `MYOB_CLIENT_ID` matches the app the token was issued for; tokens expire after 20 minutes and are refreshed automatically before each sync |
@@ -102,9 +100,7 @@ gate `G-MYOB2` in [go-live-decision-matrix.md](./go-live-decision-matrix.md).
 |---|---|
 | OAuth + invoice/contact provider | [lib/providers/accounting/myob.ts](../../lib/providers/accounting/myob.ts) |
 | Connect route | [app/api/integrations/myob/connect/route.ts](../../app/api/integrations/myob/connect/route.ts) |
-| Callback route (single company file) | [app/api/integrations/myob/callback/route.ts](../../app/api/integrations/myob/callback/route.ts) |
-| Company-file selection route (multiple company files) | [app/api/integrations/myob/select-org/route.ts](../../app/api/integrations/myob/select-org/route.ts) |
-| Company-file selection UI | [app/dashboard/settings/connections/myob/select-org/page.tsx](<../../app/dashboard/settings/connections/myob/select-org/page.tsx>) |
+| Callback route (identifies the company file from `businessId`/`businessName` and stores the connection directly — no picker) | [app/api/integrations/myob/callback/route.ts](../../app/api/integrations/myob/callback/route.ts) |
 | Manual sync route | [app/api/integrations/myob/sync/route.ts](../../app/api/integrations/myob/sync/route.ts) |
 | Disconnect route | [app/api/integrations/myob/disconnect/route.ts](../../app/api/integrations/myob/disconnect/route.ts) |
 | Sync orchestrator (shared with Xero) | [lib/providers/accounting/sync.ts](../../lib/providers/accounting/sync.ts) |

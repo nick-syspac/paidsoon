@@ -31,7 +31,9 @@ Before running this gate, confirm:
 Required scope and behavior:
 
 - Scope: `sme-sales` (invoice endpoints), `sme-contacts-customer` (contacts), and
-  `sme-company-file` (company-file list endpoint, required for `getOrganisations`).
+  `sme-company-file` (required for company-file-scoped API access; the callback identifies
+  the company file directly from the `businessId`/`businessName` it receives on redirect, not
+  via a separate discovery endpoint).
 - Invoice coverage required for pass:
   - Service
   - Item

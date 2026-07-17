@@ -41,9 +41,13 @@ import {
 
 const MYOB_AUTH_URL = "https://secure.myob.com/oauth2/account/authorize"
 const MYOB_TOKEN_URL = "https://secure.myob.com/oauth2/v1/authorize"
-// Lists company files reachable by the current access token — used to resolve
-// a human-readable name for the `businessId` (cf_uri) returned on callback.
-const MYOB_COMPANY_FILE_LIST_URL = "https://api.myob.com/accountright/"
+// The shared host for MYOB's online/cloud (Business/Essentials) API. Exported
+// so the OAuth callback can construct a directly-callable company-file URI
+// (cf_uri) by appending the `businessId` the callback already receives —
+// `MYOB_COMPANY_FILE_LIST_URL + businessId` — instead of calling
+// getOrganisations() (below), which MYOB's docs mark "Not available online"
+// for cloud company files and cannot be used to discover them.
+export const MYOB_COMPANY_FILE_LIST_URL = "https://api.myob.com/accountright/"
 
 // MYOB OData page size (max 1000, MYOB default 400)
 const PAGE_SIZE = 400
@@ -242,15 +246,16 @@ export class MyobProvider implements AccountingProvider {
   /**
    * In MYOB the "organisation" corresponds to a company file (cf_uri).
    *
-   * MYOB's hosted OAuth authorisation screen does not let the user select a
-   * company file — it is not returned via the callback query string. The
-   * only way to discover which company files a token can access is to call
-   * this company file list endpoint (`GET https://api.myob.com/accountright/`)
-   * after token exchange. The callback uses this to either connect the single
-   * reachable company file immediately, or present a selection UI when more
-   * than one is reachable (mirroring the Xero multi-organisation flow). The
-   * returned `Uri` (mapped to `id` below) is the stable identifier stored as
-   * AccountingConnection.organisationId.
+   * NOT called from the MYOB connect path. MYOB Business (online/cloud) OAuth
+   * returns `businessId` (and `businessName`) directly on the callback query
+   * string — one company file per grant, nothing to discover — so
+   * `app/api/integrations/myob/callback/route.ts` builds the cf_uri directly
+   * from `businessId` (see `MYOB_COMPANY_FILE_LIST_URL` above) instead of
+   * calling this method. This endpoint (`GET https://api.myob.com/accountright/`)
+   * is also documented "Not available online" for cloud company files, which
+   * is why calling it from the connect path used to fail. It's retained here
+   * only to satisfy the shared `AccountingProvider` interface (Xero's
+   * genuinely multi-tenant implementation still needs and calls it).
    */
   async getOrganisations(accessToken: string): Promise<Organisation[]> {
     const { clientId } = getConfig()

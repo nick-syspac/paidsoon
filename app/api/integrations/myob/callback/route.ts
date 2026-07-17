@@ -4,19 +4,16 @@
  * OAuth 2.0 callback from MYOB after the user authorises access.
  * - Validates the state nonce against oauth_states (CSRF protection)
  * - Exchanges the code for tokens
- * - Fetches the list of company files reachable by the resulting access
- *   token (MYOB's authorise screen does NOT let the user pick a company
- *   file — selection only becomes possible after we have a token)
- * - If exactly one company file is reachable: stores the AccountingConnection
- *   immediately
- * - If multiple company files are reachable: stores the pending tokens in a
- *   short-lived HTTP-only cookie and redirects to a selection UI, mirroring
- *   the Xero multi-organisation flow
+ * - Identifies the connected company file directly from the callback's
+ *   `businessId`/`businessName` query params (confirmed via production
+ *   logs and MYOB's docs: MYOB Business online OAuth authorises exactly one
+ *   company file per grant and returns its id/name directly — there is
+ *   nothing to discover via a separate API call, and no picker is needed)
+ * - Stores the AccountingConnection and triggers an inline first sync
  *
- * Note: the company-file list call is retried a couple of times on a 401,
- * because MYOB access tokens can take a moment to propagate through their
- * backend right after issuance — calling any API with a brand-new token
- * immediately can return a transient "OAuthTokenIsInvalid" 401.
+ * `businessId` is a bare company-file id (a GUID), not a callable URL —
+ * the callable company-file URI (cf_uri) is built by appending it to the
+ * shared online API host (see `MYOB_COMPANY_FILE_LIST_URL`).
  */
 import { createClient } from "@/lib/supabase/server"
 import { prismaAdmin } from "@/lib/db/admin"
@@ -24,45 +21,15 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { encryptToken } from "@/lib/providers/accounting/crypto"
 import { syncConnection } from "@/lib/providers/accounting/sync"
-import { AccountingProviderError, type AccountingProvider, type Organisation } from "@/lib/providers/accounting/types"
+import { MYOB_COMPANY_FILE_LIST_URL } from "@/lib/providers/accounting/myob"
 import { NextResponse } from "next/server"
-import { randomBytes } from "crypto"
-import { cookies } from "next/headers"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
-// Token exchange + the 401-retry window below + an inline first sync (paginated
-// invoice/contact fetches against MYOB) can comfortably exceed Vercel's default
-// serverless function duration. Raise the cap so a slow-but-successful run isn't
-// killed mid-request.
+// Token exchange + an inline first sync (paginated invoice/contact fetches
+// against MYOB) can comfortably exceed Vercel's default serverless function
+// duration. Raise the cap so a slow-but-successful run isn't killed mid-request.
 export const maxDuration = 60
-
-// MYOB access tokens can take a moment to propagate through their backend
-// after issuance — calling an API with a brand-new token immediately after
-// token exchange can return a transient 401 (OAuthTokenIsInvalid) even though
-// the token is valid. Retry a few times with a short delay before giving up.
-// Widened from [1500, 3000] after observing propagation delays that
-// outlasted the previous ~4.5s retry budget in production; maxDuration=60
-// on this route leaves plenty of headroom for the extra wait.
-const TOKEN_PROPAGATION_RETRY_DELAYS_MS = [1500, 3000, 6000, 10000]
-
-async function getOrganisationsWithRetry(
-  provider: AccountingProvider,
-  accessToken: string
-): Promise<Organisation[]> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await provider.getOrganisations(accessToken)
-    } catch (err) {
-      const isUnauthorized = err instanceof AccountingProviderError && err.kind === "unauthorized"
-      if (!isUnauthorized || attempt >= TOKEN_PROPAGATION_RETRY_DELAYS_MS.length) throw err
-      console.warn(
-        `[myob/callback] getOrganisations got 401, retrying in ${TOKEN_PROPAGATION_RETRY_DELAYS_MS[attempt]}ms (attempt ${attempt + 1})`
-      )
-      await new Promise((resolve) => setTimeout(resolve, TOKEN_PROPAGATION_RETRY_DELAYS_MS[attempt]))
-    }
-  }
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -70,18 +37,7 @@ export async function GET(request: Request) {
   const state = searchParams.get("state")
   const error = searchParams.get("error")
   const businessId = searchParams.get("businessId")
-
-  // TEMPORARY DIAGNOSTIC (openspec/changes/harden-myob-business-go-live) — logs
-  // query param names plus the `businessId` value (not sensitive — it's a
-  // company-file identifier, not a credential, unlike `code`/`state`).
-  // Confirms whether MYOB's granular-scope OAuth flow returns `businessId` on
-  // this callback per MYOB's current docs, vs. the `GET /accountright/`
-  // company-file-list approach this route currently relies on (which has been
-  // observed failing/returning an empty list for online/cloud tokens — that
-  // endpoint's own docs say "Not available online"). Remove once resolved.
-  console.log(
-    `[myob/callback] diagnostic: query param keys = [${[...searchParams.keys()].join(", ")}], businessId = ${businessId ?? "(not present)"}`
-  )
+  const businessName = searchParams.get("businessName")
 
   if (error) {
     return NextResponse.redirect(
@@ -89,7 +45,7 @@ export async function GET(request: Request) {
     )
   }
 
-  if (!code || !state) {
+  if (!code || !state || !businessId) {
     return NextResponse.redirect(
       `${APP_URL}/dashboard/settings/connections?source=myob&code=missing_params`
     )
@@ -132,136 +88,79 @@ export async function GET(request: Request) {
     )
   }
 
-  // TEMPORARY DIAGNOSTIC (openspec/changes/harden-myob-business-go-live) —
-  // probes `GET {businessId}/Info` directly, the per-company-file endpoint
-  // MYOB's docs describe as the correct online/cloud source of the company
-  // file's readable name (unlike `GET /accountright/`, which is documented as
-  // desktop/local-only). Best-effort and non-blocking: logged for comparison
-  // against the existing getOrganisations() call below, never thrown or used
-  // to change behaviour yet. Remove once the real fix lands.
-  if (businessId) {
-    try {
-      const infoRes = await fetch(`${businessId}/Info`, {
-        headers: {
-          Authorization: `Bearer ${tokens.accessToken}`,
-          "x-myobapi-cftoken": "",
-          "x-myobapi-key": process.env.MYOB_CLIENT_ID ?? "",
-          "x-myobapi-version": "v2",
-          Accept: "application/json",
-        },
-      })
-      const infoText = await infoRes.text()
-      console.log(
-        `[myob/callback] diagnostic: GET {businessId}/Info status=${infoRes.status} body=${infoText.slice(0, 500)}`
-      )
-    } catch (err) {
-      console.error("[myob/callback] diagnostic: businessId/Info fetch failed", err)
-    }
-  }
-
-  let companyFiles
-  try {
-    companyFiles = await getOrganisationsWithRetry(provider, tokens.accessToken)
-  } catch (err) {
-    console.error("[myob/callback] getOrganisations failed", err)
-    return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=org_fetch_failed`
-    )
-  }
-
-  if (companyFiles.length === 0) {
-    return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=no_organisations`
-    )
-  }
+  // cf_uri: `businessId` is a bare company-file id, not a URL — build the
+  // callable URI by appending it to the shared online API host. This must
+  // match the shape getInvoices()/getContacts() in lib/providers/accounting/myob.ts
+  // already expect for `organisationId` (they append paths like
+  // `/Sale/Invoice/{type}` directly to it).
+  const organisationId = `${MYOB_COMPANY_FILE_LIST_URL}${businessId}`
+  // `businessName` is not documented by MYOB (only empirically observed on
+  // production callbacks) — treat it as optional and fall back to a
+  // deterministic, support-recognizable label rather than an extra API call.
+  const organisationName = businessName?.trim()
+    ? businessName.trim()
+    : `MYOB Company File ${businessId}`
 
   const encryptedAccessToken = encryptToken(tokens.accessToken)
   const encryptedRefreshToken = encryptToken(tokens.refreshToken)
   const tokenExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000)
   const scopes = tokens.scope ?? "sme-sales sme-contacts-customer sme-company-settings sme-company-file"
 
-  if (companyFiles.length === 1) {
-    // Single company file: store the connection directly.
-    const companyFile = companyFiles[0]
-    let connection
-    try {
-      connection = await withUserContext(user.id, async (tx) => {
-        return tx.accountingConnection.upsert({
-          where: {
-            userId_provider_organisationId: {
-              userId: user.id,
-              provider: "myob",
-              organisationId: companyFile.id,
-            },
-          },
-          update: {
-            organisationName: companyFile.name,
-            encryptedAccessToken,
-            encryptedRefreshToken,
-            tokenExpiresAt,
-            scopes,
-            // Reconnecting warrants a fresh first-sync validation rather than
-            // implying the previous sync history still reflects current data.
-            status: "pending_first_sync",
-            lastSyncedAt: null,
-          },
-          create: {
+  let connection
+  try {
+    connection = await withUserContext(user.id, async (tx) => {
+      return tx.accountingConnection.upsert({
+        where: {
+          userId_provider_organisationId: {
             userId: user.id,
             provider: "myob",
-            organisationId: companyFile.id,
-            organisationName: companyFile.name,
-            encryptedAccessToken,
-            encryptedRefreshToken,
-            tokenExpiresAt,
-            scopes,
-            status: "pending_first_sync",
+            organisationId,
           },
-        })
+        },
+        update: {
+          organisationName,
+          encryptedAccessToken,
+          encryptedRefreshToken,
+          tokenExpiresAt,
+          scopes,
+          // Reconnecting warrants a fresh first-sync validation rather than
+          // implying the previous sync history still reflects current data.
+          status: "pending_first_sync",
+          lastSyncedAt: null,
+        },
+        create: {
+          userId: user.id,
+          provider: "myob",
+          organisationId,
+          organisationName,
+          encryptedAccessToken,
+          encryptedRefreshToken,
+          tokenExpiresAt,
+          scopes,
+          status: "pending_first_sync",
+        },
       })
-    } catch (err) {
-      console.error("[myob/callback] failed to store connection", err)
-      return NextResponse.redirect(
-        `${APP_URL}/dashboard/settings/connections?source=myob&code=connection_save_failed`
-      )
-    }
-
-    // Trigger the first sync inline so a "connected" connection does not sit in
-    // pending_first_sync indefinitely until the next cron pass. syncConnection
-    // handles its own errors internally and updates the connection status
-    // (active on success, error on a first-sync failure) — this call is
-    // best-effort and must not block the redirect on an unexpected throw.
-    try {
-      await syncConnection(connection.id)
-    } catch (err) {
-      console.error("[myob/callback] initial sync failed to run", err)
-    }
-
+    })
+  } catch (err) {
+    console.error("[myob/callback] failed to store connection", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=connected`
+      `${APP_URL}/dashboard/settings/connections?source=myob&code=connection_save_failed`
     )
   }
 
-  // Multiple company files: store pending state in a short-lived HTTP-only
-  // server cookie and redirect to the company-file selection UI.
-  const pendingKey = randomBytes(16).toString("hex")
-  const cookieStore = await cookies()
-  cookieStore.set(`myob_pending_${pendingKey}`, JSON.stringify({
-    userId: user.id,
-    organisations: companyFiles,
-    encryptedAccessToken,
-    encryptedRefreshToken,
-    tokenExpiresAt: tokenExpiresAt.toISOString(),
-    scopes,
-  }), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 30 * 60, // 30 minutes
-    path: "/",
-  })
+  // Trigger the first sync inline so a "connected" connection does not sit in
+  // pending_first_sync indefinitely until the next cron pass. syncConnection
+  // handles its own errors internally and updates the connection status
+  // (active on success, error on a first-sync failure) — this call is
+  // best-effort and must not block the redirect on an unexpected throw.
+  try {
+    await syncConnection(connection.id)
+  } catch (err) {
+    console.error("[myob/callback] initial sync failed to run", err)
+  }
 
-  const selectUrl = new URL(`${APP_URL}/dashboard/settings/connections/myob/select-org`)
-  selectUrl.searchParams.set("key", pendingKey)
-  return NextResponse.redirect(selectUrl.toString())
+  return NextResponse.redirect(
+    `${APP_URL}/dashboard/settings/connections?source=myob&code=connected`
+  )
 }
 

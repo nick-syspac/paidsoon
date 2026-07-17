@@ -1,7 +1,7 @@
 ## 1. MYOB Connection Lifecycle Hardening
 
 - [x] 1.1 Update the MYOB callback flow so connection success distinguishes OAuth authorisation from first-sync readiness.
-- [x] 1.2 Implement or complete company-file metadata resolution so each MYOB connection stores a stable identifier plus a support-friendly display name.
+- [x] 1.2 Implement or complete company-file metadata resolution so each MYOB connection stores a stable identifier plus a support-friendly display name. — *Corrected by `fix-myob-company-file-identity`: the `getOrganisations()`/`select-org` approach this task originally shipped with never worked online (see that change's proposal for root cause); the callback now resolves `organisationId`/`organisationName` directly from the callback's `businessId`/`businessName`.*
 - [x] 1.3 Ensure MYOB callback and sync paths produce deterministic pending, active, revoked, disconnected, and error outcomes without exposing tokens.
 
 ## 2. Status Visibility And Operator Support
