@@ -143,6 +143,18 @@ export class MyobProvider implements AccountingProvider {
     url.searchParams.set("response_type", "code")
     url.searchParams.set("scope", MYOB_SCOPES)
     url.searchParams.set("state", params.state)
+    // MYOB's docs describe two authorize URL variants: a "silent" one (no
+    // prompt param) that reuses an existing session/grant without
+    // re-presenting the consent screen, and one with `prompt=consent` that
+    // always forces MYOB's full login+consent+company-file screen. Diagnostic
+    // testing (openspec/changes/harden-myob-business-go-live, task 4.1)
+    // observed a real callback returning only `code`/`scope`/`state` — no
+    // `businessId` — which matches the silent-reuse path skipping the
+    // consent step entirely rather than the granular-scope docs' documented
+    // `?code=&businessId=` callback shape. Forcing `prompt=consent` ensures
+    // the company-file consent screen (and therefore `businessId`) is always
+    // presented, even for a MYOB login that has authorised this app before.
+    url.searchParams.set("prompt", "consent")
     return url.toString()
   }
 
