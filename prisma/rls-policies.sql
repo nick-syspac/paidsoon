@@ -9,10 +9,10 @@
 -- `authenticated`). For each user request, the application wraps queries in
 -- `withUserContext(userId, fn)` (see lib/db/withUserContext.ts), which inside
 -- a transaction runs:
+--   SET LOCAL ROLE authenticated;
 --   SELECT set_config('request.jwt.claims', '{"sub": "<userId>", "role": "authenticated"}', true);
 --   SELECT set_config('request.jwt.claim.sub', '<userId>', true);
 --   SELECT set_config('request.jwt.claim.role', 'authenticated', true);
---   SET LOCAL ROLE authenticated;
 -- These transaction-scoped settings make auth.uid() resolve to <userId>, so
 -- the policies below fire and queries cannot read or write rows belonging to
 -- other users — even if the application-level WHERE clause is missing.
@@ -180,7 +180,8 @@ CREATE POLICY "users can insert own accounting connections"
 
 CREATE POLICY "users can update own accounting connections"
   ON accounting_connections FOR UPDATE
-  USING (auth.uid()::text = "userId");
+  USING (auth.uid()::text = "userId")
+  WITH CHECK (auth.uid()::text = "userId");
 
 CREATE POLICY "users can delete own accounting connections"
   ON accounting_connections FOR DELETE
