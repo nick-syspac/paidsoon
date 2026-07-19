@@ -24,6 +24,8 @@ const USER_A = "00000000-0000-0000-0000-00000000000a"
 const USER_B = "00000000-0000-0000-0000-00000000000b"
 const PROBE_EXTERNAL_A = "rls-verify-invoice-a"
 const PROBE_EXTERNAL_B = "rls-verify-invoice-b"
+const PROBE_ACCOUNTING_ORG_A = "rls-verify-accounting-org-a"
+const PROBE_ACCOUNTING_ORG_B = "rls-verify-accounting-org-b"
 
 async function seed() {
   // Two user profiles, two connections, two invoices — one per user.
@@ -71,6 +73,9 @@ async function seed() {
 }
 
 async function cleanup() {
+  await prismaAdmin.accountingConnection.deleteMany({
+    where: { organisationId: { in: [PROBE_ACCOUNTING_ORG_A, PROBE_ACCOUNTING_ORG_B] } },
+  })
   await prismaAdmin.trackedInvoice.deleteMany({
     where: { externalId: { in: [PROBE_EXTERNAL_A, PROBE_EXTERNAL_B] } },
   })
@@ -116,7 +121,55 @@ async function main() {
   }
   console.log("  ✓ saw only B")
 
-  console.log("\nCheck 3: raw connection as `authenticated` role with no claims sees nothing")
+  console.log("\nCheck 3: withUserContext(USER_A) can insert own accounting connection")
+  const accountingA = await withUserContext(USER_A, (tx) =>
+    tx.accountingConnection.create({
+      data: {
+        userId: USER_A,
+        provider: "myob",
+        organisationId: PROBE_ACCOUNTING_ORG_A,
+        organisationName: "RLS Verify A",
+        encryptedAccessToken: "encrypted-access-a",
+        encryptedRefreshToken: "encrypted-refresh-a",
+        tokenExpiresAt: new Date("2026-01-01T00:00:00.000Z"),
+        scopes: "sme-sales sme-contacts-customer sme-company-file",
+        status: "pending_first_sync",
+      },
+    }),
+  )
+  if (accountingA.userId !== USER_A || accountingA.organisationId !== PROBE_ACCOUNTING_ORG_A) {
+    await cleanup()
+    fail("expected USER_A to insert and receive their own accounting connection")
+  }
+  console.log("  ✓ inserted A accounting connection")
+
+  await prismaAdmin.accountingConnection.create({
+    data: {
+      userId: USER_B,
+      provider: "myob",
+      organisationId: PROBE_ACCOUNTING_ORG_B,
+      organisationName: "RLS Verify B",
+      encryptedAccessToken: "encrypted-access-b",
+      encryptedRefreshToken: "encrypted-refresh-b",
+      tokenExpiresAt: new Date("2026-01-01T00:00:00.000Z"),
+      scopes: "sme-sales sme-contacts-customer sme-company-file",
+      status: "pending_first_sync",
+    },
+  })
+
+  console.log("\nCheck 4: withUserContext(USER_A) sees only A's accounting connection")
+  const accountingRows = await withUserContext(USER_A, (tx) =>
+    tx.accountingConnection.findMany({
+      where: { organisationId: { in: [PROBE_ACCOUNTING_ORG_A, PROBE_ACCOUNTING_ORG_B] } },
+    }),
+  )
+  if (accountingRows.length !== 1 || accountingRows[0].organisationId !== PROBE_ACCOUNTING_ORG_A) {
+    await cleanup()
+    fail(`expected exactly A's accounting row, got ${JSON.stringify(accountingRows.map((r) => r.organisationId))}`)
+  }
+  console.log("  ✓ saw only A accounting connection")
+
+  console.log("\nCheck 5: raw connection as `authenticated` role with no claims sees nothing")
   // Run a query that switches role but does NOT set request.jwt.claims.
   // auth.uid() will be NULL, so no RLS policy on tracked_invoices will pass.
   const noContextRows = await prismaAdmin.$transaction(async (tx) => {

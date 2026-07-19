@@ -10,6 +10,8 @@ export type PrismaTx = Prisma.TransactionClient
  * Implementation notes:
  *   - `set_config(..., true)` and `SET LOCAL ROLE` are transaction-scoped,
  *     so settings cannot leak across requests sharing a pooled connection.
+ *   - Both `request.jwt.claims` and `request.jwt.claim.*` are set so the
+ *     helper works across Supabase/PostgREST auth.uid() claim lookups.
  *   - The connection role configured in `DATABASE_URL` must be permitted
  *     to `SET ROLE authenticated` (Supabase: connect as `authenticator`
  *     or a custom role granted `authenticated`).
@@ -26,6 +28,13 @@ export async function withUserContext<T>(
     await tx.$executeRawUnsafe(
       `SELECT set_config('request.jwt.claims', $1, true)`,
       claims,
+    )
+    await tx.$executeRawUnsafe(
+      `SELECT set_config('request.jwt.claim.sub', $1, true)`,
+      userId,
+    )
+    await tx.$executeRawUnsafe(
+      `SELECT set_config('request.jwt.claim.role', 'authenticated', true)`,
     )
     await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`)
     return fn(tx as unknown as PrismaTx)

@@ -10,6 +10,8 @@
 -- `withUserContext(userId, fn)` (see lib/db/withUserContext.ts), which inside
 -- a transaction runs:
 --   SELECT set_config('request.jwt.claims', '{"sub": "<userId>", "role": "authenticated"}', true);
+--   SELECT set_config('request.jwt.claim.sub', '<userId>', true);
+--   SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 --   SET LOCAL ROLE authenticated;
 -- These transaction-scoped settings make auth.uid() resolve to <userId>, so
 -- the policies below fire and queries cannot read or write rows belonging to
