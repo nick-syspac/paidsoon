@@ -44,8 +44,8 @@ describe("hasPlanFeature", () => {
   test("starter does not have own_email_address", () => {
     assert.strictEqual(hasPlanFeature("starter", "own_email_address"), false)
   })
-  test("solo has own_email_address", () => {
-    assert.strictEqual(hasPlanFeature("solo", "own_email_address"), true)
+  test("business has own_email_address", () => {
+    assert.strictEqual(hasPlanFeature("business", "own_email_address"), true)
   })
 })
 ```

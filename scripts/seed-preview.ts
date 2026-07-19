@@ -207,17 +207,17 @@ async function cleanup(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Seed — User 1: Melbourne Plumbing Co (solo tier)
+// Seed — User 1: Melbourne Plumbing Co (business tier)
 // Scenario: healthy business, mostly paid, a few overdue, one disputed/paused,
 //           one promise-to-pay (snoozed).
 // ---------------------------------------------------------------------------
 
 async function seedMelbournePlumbing(): Promise<void> {
   const userId = SEED_USER.melbournePlumbing
-  console.log("\nSeeding Melbourne Plumbing Co (solo)…")
+  console.log("\nSeeding Melbourne Plumbing Co (business)…")
 
   await prismaAdmin.userProfile.create({
-    data: { userId, subscriptionTier: "solo", subscriptionStatus: "active" },
+    data: { userId, subscriptionTier: "business", subscriptionStatus: "active" },
   })
 
   await prismaAdmin.schedule.create({
@@ -479,17 +479,17 @@ async function seedMelbournePlumbing(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Seed — User 2: Southbank Design Studio (small_business tier)
+// Seed — User 2: Southbank Design Studio (business tier)
 // Scenario: several overdue, one disputed, one recurring late-payer client,
 //           very large pending invoice, missed promise-to-pay.
 // ---------------------------------------------------------------------------
 
 async function seedSouthbankDesign(): Promise<void> {
   const userId = SEED_USER.southbankDesign
-  console.log("\nSeeding Southbank Design Studio (small_business)…")
+  console.log("\nSeeding Southbank Design Studio (business)…")
 
   await prismaAdmin.userProfile.create({
-    data: { userId, subscriptionTier: "small_business", subscriptionStatus: "active" },
+    data: { userId, subscriptionTier: "business", subscriptionStatus: "active" },
   })
 
   await prismaAdmin.schedule.create({

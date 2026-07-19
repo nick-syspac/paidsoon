@@ -51,8 +51,9 @@ async function main(): Promise<void> {
 
   const tiers = new Set(profiles.map((p) => p.subscriptionTier))
   check("Has a 'starter' tier user", tiers.has("starter"))
-  check("Has a 'solo' tier user", tiers.has("solo"))
-  check("Has a 'small_business' tier user", tiers.has("small_business"))
+  check("Has a 'business' tier user", tiers.has("business"))
+  // Accountant Partner tier is not yet implemented (contact-us only, no seed
+  // coverage needed until the partner build-out lands).
 
   // -------------------------------------------------------------------------
   // Invoices — total count

@@ -26,7 +26,7 @@ The cron job at `/api/cron/send-emails` drives the flow daily at 09:00 UTC.
 - `lib/email/catchup.ts` — `runCatchUpScan()` for detecting new overdue invoices
 - `app/api/cron/send-emails/route.ts` — cron handler orchestrating the full flow
 - `prisma/schema.prisma` — `TrackedInvoice`, `EmailLog`, `Schedule`, `EmailSettings` models
-- `lib/billing.ts` — feature checks (email_reminder_sequence requires solo+)
+- `lib/billing.ts` — feature checks (`email_reminder_sequence` is available on all tiers)
 - `lib/subscriptionPlans.ts` — feature flags
 
 ## Implementation Rules

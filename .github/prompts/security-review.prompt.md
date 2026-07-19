@@ -69,7 +69,7 @@ Multi-tenant SaaS. Customer invoice data (email, name, amounts) is PII. Stripe w
 
 ### Email
 - [ ] Only `clientEmail` from `TrackedInvoice` used as recipient (not user input)
-- [ ] Custom From address only with `resendVerified = true` + Solo+ tier
+- [ ] Custom From address only with `resendVerified = true` + Business+ tier
 - [ ] No duplicate email sends (EmailLog idempotency check)
 
 ### Billing

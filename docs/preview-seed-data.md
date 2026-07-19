@@ -65,7 +65,8 @@ npm run verify-seed
 The script queries the database for all records owned by the seed user IDs and
 checks:
 
-- 3 businesses seeded (all three subscription tiers covered)
+- 3 businesses seeded (Starter + Business tiers covered; Accountant Partner is
+  a planned tier and has no seed coverage yet)
 - ≥ 20 invoices total
 - All supported invoice statuses present
 - At least one overdue invoice
@@ -122,9 +123,12 @@ The seed creates three `user_profiles` with synthetic UUIDs:
 
 | UUID | Business | Tier |
 |---|---|---|
-| `5eed0001-0000-4000-8000-000000000001` | Melbourne Plumbing Co | Solo |
-| `5eed0002-0000-4000-8000-000000000002` | Southbank Design Studio | Small Business |
+| `5eed0001-0000-4000-8000-000000000001` | Melbourne Plumbing Co | Business |
+| `5eed0002-0000-4000-8000-000000000002` | Southbank Design Studio | Business |
 | `5eed0003-0000-4000-8000-000000000003` | Brisbane Electrical Services | Starter |
+
+Note: Accountant Partner is a planned tier (contact-us pricing, not yet
+implemented) — no seed business currently uses it.
 
 **These UUIDs do not correspond to any Supabase Auth user.**
 
@@ -144,7 +148,7 @@ programmatically — see the [Supabase Auth admin docs](https://supabase.com/doc
 
 ## Seed scenarios covered
 
-### Melbourne Plumbing Co (Solo tier)
+### Melbourne Plumbing Co (Business tier)
 
 | Invoice | Client | Amount | Status | Stage |
 |---|---|---|---|---|
@@ -159,7 +163,7 @@ programmatically — see the [Supabase Auth admin docs](https://supabase.com/doc
 | seed-melb-inv-009 | Contract Dispute Corp | $5,500 | paused (disputed) | 0 |
 | seed-melb-inv-010 | Promise Payer Co | $2,750 | snoozed (promise in 7 days) | 1 |
 
-### Southbank Design Studio (Small Business tier)
+### Southbank Design Studio (Business tier)
 
 | Invoice | Client | Amount | Status | Stage |
 |---|---|---|---|---|

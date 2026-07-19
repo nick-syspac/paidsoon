@@ -14,7 +14,7 @@ Add or extend the Stripe billing integration in PaidSoon, including subscription
 > **Important:** Stripe billing is **already implemented** in PaidSoon. Before making changes, inspect existing code to understand what is already in place.
 
 ## PaidSoon Context
-Stripe billing uses `stripe@22.1.1` with API version `"2026-05-27.dahlia"`. Three tiers: `starter`, `solo`, `small_business`. Checkout, customer portal, and billing webhooks are all implemented.
+Stripe billing uses `stripe@22.1.1` with API version `"2026-05-27.dahlia"`. Three tiers: `starter`, `business`, `accountant_partner` (contact-us pricing — planned, not yet fully implemented; no Stripe Checkout for this tier). Checkout, customer portal, and billing webhooks are all implemented.
 
 ## Files to Inspect
 - `app/api/billing/checkout/route.ts` — Checkout session creation

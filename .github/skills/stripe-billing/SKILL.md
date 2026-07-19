@@ -31,9 +31,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 | Tier | Env Var |
 |---|---|
 | `starter` | `STRIPE_STARTER_PRICE_ID` |
-| `solo` | `STRIPE_SOLO_PRICE_ID` |
-| `small_business` | `STRIPE_SMALL_BUSINESS_PRICE_ID` |
-| Legacy `pro` | `STRIPE_PRO_PRICE_ID` (maps to Solo) |
+| `business` | `STRIPE_BUSINESS_PRICE_ID` (legacy fallback: `STRIPE_SMALL_BUSINESS_PRICE_ID`) |
+| `accountant_partner` | none — contact-us pricing, no Stripe Checkout |
+| Legacy `pro`/`solo` | maps to `starter`; legacy fallback env vars `STRIPE_PRO_PRICE_ID`/`STRIPE_SOLO_PRICE_ID` still resolve to `starter` |
 
 ## Checkout Pattern
 

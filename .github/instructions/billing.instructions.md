@@ -15,33 +15,39 @@ applyTo: "**/lib/billing*,**/lib/subscriptionPlans*,**/app/api/billing/**,**/app
 
 Three tiers defined in `lib/subscriptionPlans.ts` (source of truth):
 
-| Tier | Price | Invoice Limit | Seats | Connect Accounts |
-|------|-------|---------------|-------|------------------|
-| `starter` | £9/mo | 10/month | 1 | 1 |
-| `solo` | £19/mo | 30/month | 1 | 1 |
-| `small_business` | £39/mo | 100/month | 3 | 3 |
+| Tier | Price (AUD) | Invoice Limit | Seats | Connect Accounts |
+|------|-------------|----------------|-------|-------------------|
+| `starter` | $19/mo | 20/month | 1 | 1 |
+| `business` | $49/mo | 100/month | 1 | 3 |
+| `accountant_partner` | contact-us (planned — not yet implemented) | unlimited | unlimited | unlimited |
 
-**Legacy tier names:** `"free"` maps to `"starter"`, `"pro"` maps to `"solo"` — handled by backward-compat logic in `lib/subscriptionPlans.ts`.
+**Legacy tier names:** `"free"`, `"pro"`, and `"solo"` all map to `"starter"`; `"small_business"` maps to `"business"` — handled by `LEGACY_TIER_MAP` backward-compat logic in `lib/subscriptionPlans.ts`.
 
 ## Feature Checks
 
 - Use `hasPlanFeature(tier, feature)` from `lib/billing.ts` for feature flag checks.
 - Use `requireFeature(userId, feature)` in route handlers — returns `403` if not entitled.
 - Available feature flags (defined in `lib/subscriptionPlans.ts`):
-  - `basic_email_reminders`, `email_reminder_sequence`, `basic_templates`
-  - `custom_reminder_templates` (small_business only)
-  - `own_email_address` (solo+)
-  - `ai_rewrite`, `tone_settings` (small_business only — scaffolded, not fully implemented)
-  - `payment_status_dashboard`, `overdue_invoice_dashboard` (solo+)
+  - `basic_email_reminders`, `email_reminder_sequence`, `basic_templates` (all tiers)
+  - `custom_reminder_templates` (business+)
+  - `own_email_address` (business+)
+  - `ai_rewrite`, `tone_settings` (business+ — scaffolded, not fully implemented)
+  - `payment_status_dashboard`, `overdue_invoice_dashboard` (all tiers)
+  - `accounting_integrations` (business+)
+  - `promise_to_pay_tracking` (business+)
+  - `weekly_summary_email`, `multi_client_management` (planned — not yet implemented on any tier)
 - Never add or change features without updating `lib/subscriptionPlans.ts`.
 
 ## Stripe Price IDs
 
 - Stored as env vars — never hardcoded:
   - `STRIPE_STARTER_PRICE_ID`
-  - `STRIPE_SOLO_PRICE_ID`
-  - `STRIPE_SMALL_BUSINESS_PRICE_ID`
-  - `STRIPE_PRO_PRICE_ID` (legacy fallback mapping to Solo)
+  - `STRIPE_BUSINESS_PRICE_ID` (current primary var for the Business tier)
+  - `STRIPE_SMALL_BUSINESS_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, `STRIPE_PRO_PRICE_ID` — legacy fallbacks
+    still read by the checkout and billing-webhook routes so existing subscriptions on old
+    Price IDs keep resolving to the correct tier (`STRIPE_SMALL_BUSINESS_PRICE_ID` → `business`,
+    `STRIPE_SOLO_PRICE_ID`/`STRIPE_PRO_PRICE_ID` → `starter`).
+  - `accountant_partner` has no Price ID — it is contact-us only, never sold through Stripe Checkout.
 - These must be set in all Vercel environments that use billing.
 
 ## Checkout Flow

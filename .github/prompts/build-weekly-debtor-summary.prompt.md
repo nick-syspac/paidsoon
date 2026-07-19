@@ -53,7 +53,7 @@ Add to `vercel.json`:
 (Monday at 08:00 UTC)
 
 ### Feature Gating
-- Decide which tiers receive the summary (suggest: Solo+ gets it)
+- Decide which tiers receive the summary (suggest: Business+ gets it)
 - Add feature flag to `lib/subscriptionPlans.ts` if needed
 
 ### Tests

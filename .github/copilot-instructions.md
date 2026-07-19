@@ -6,7 +6,10 @@ PaidSoon is a micro-SaaS product that helps freelancers and small businesses imp
 flow by automating invoice follow-ups. It connects to Stripe (via Stripe Connect OAuth),
 reads overdue invoices, and sends a three-stage sequence of reminder emails on behalf of the
 user. Users can pause, snooze, resume, or manually resolve invoices. Subscription tiers
-(Starter / Solo / Small Business) gate features and usage limits.
+(Starter / Business / Accountant Partner) gate features and usage limits. Accountant
+Partner is a planned tier (contact-us pricing on the marketing site) — its
+partner-specific functionality (multi-client dashboard, partner programme) is not
+yet implemented.
 
 ---
 
@@ -125,7 +128,7 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 - Email is sent via Resend. The `RESEND_API_KEY` environment variable is required.
 - All sending goes through `lib/email/send.ts` → `sendFollowUpEmail()`.
 - Never call `resend.emails.send()` directly from a route handler or component. Always go through `sendFollowUpEmail`.
-- Custom "From" addresses require: Solo+ tier AND `EmailSettings.resendVerified = true` for that user.
+- Custom "From" addresses require: Business+ tier AND `EmailSettings.resendVerified = true` for that user.
 - If neither is true, fall back to the system domain from `RESEND_FROM_EMAIL`.
 - Never send real emails from tests. Use mock or stub the Resend client in tests.
 - Every sent email is logged to the `email_logs` table via `prismaAdmin` (cron context).
@@ -146,10 +149,14 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 
 ## Billing and Subscription Rules
 
-- Three tiers: `starter` (A$9/mo), `solo` (A$19/mo), `small_business` (A$39/mo).
-- Legacy tier names: `free` → `starter`, `pro` → `solo`. Supported via backward-compat mapping in `lib/subscriptionPlans.ts`.
+- Three tiers: `starter` (A$19/mo), `business` (A$49/mo), `accountant_partner` (contact-us
+  pricing — planned tier, not yet fully implemented).
+- Legacy tier names: `free`/`pro`/`solo` → `starter`, `small_business` → `business`.
+  Supported via `LEGACY_TIER_MAP` backward-compat mapping in `lib/subscriptionPlans.ts`.
 - All feature checks use `hasPlanFeature(tier, feature)` or `requireFeature(userId, feature)` from `lib/billing.ts`.
-- Stripe Price IDs are stored in env vars: `STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, `STRIPE_SMALL_BUSINESS_PRICE_ID`.
+- Stripe Price IDs are stored in env vars: `STRIPE_STARTER_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`
+  (falls back to legacy `STRIPE_SMALL_BUSINESS_PRICE_ID`/`STRIPE_SOLO_PRICE_ID`/`STRIPE_PRO_PRICE_ID`
+  if unset). `accountant_partner` has no Stripe Checkout (contact-us only).
 - Stripe API version is `"2026-05-27.dahlia"` — do not change this.
 - Billing webhooks (`/api/webhooks/stripe-billing`) MUST verify `STRIPE_BILLING_WEBHOOK_SECRET`.
 - Connect webhooks (`/api/webhooks/stripe-connect`) MUST verify `STRIPE_CONNECT_WEBHOOK_SECRET`.
