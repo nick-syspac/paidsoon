@@ -121,24 +121,84 @@ async function cleanup(): Promise<void> {
 
   const userIds = Object.values(SEED_USER)
 
-  // EmailLog → TrackedInvoice (no direct userId; must join via invoice IDs)
-  const invoices = await prismaAdmin.trackedInvoice.findMany({
+  // Look up seed-owned parent ids first. TrackedInvoice/ProviderInvoiceMapping/etc.
+  // are then deleted by BOTH their own userId AND these parent ids, because a
+  // child row's ownership can drift after the fact (e.g. manually reassigned via
+  // Prisma Studio) while it still holds a FK to a seed-owned InvoiceConnection or
+  // AccountingConnection — which would otherwise strand the parent and break its
+  // deleteMany() further down.
+  const connections = await prismaAdmin.invoiceConnection.findMany({
     where: { userId: { in: userIds } },
+    select: { id: true },
+  })
+  const connectionIds = connections.map((c) => c.id)
+
+  const accountingConnections = await prismaAdmin.accountingConnection.findMany({
+    where: { userId: { in: userIds } },
+    select: { id: true },
+  })
+  const accountingConnectionIds = accountingConnections.map((c) => c.id)
+
+  const invoices = await prismaAdmin.trackedInvoice.findMany({
+    where: {
+      OR: [{ userId: { in: userIds } }, { invoiceConnectionId: { in: connectionIds } }],
+    },
     select: { id: true },
   })
   const invoiceIds = invoices.map((i) => i.id)
 
+  const arrangements = await prismaAdmin.arrangement.findMany({
+    where: { userId: { in: userIds } },
+    select: { id: true },
+  })
+  const arrangementIds = arrangements.map((a) => a.id)
+
+  // Leaf tables that reference TrackedInvoice / AccountingConnection
   if (invoiceIds.length > 0) {
-    await prismaAdmin.emailLog.deleteMany({
-      where: { trackedInvoiceId: { in: invoiceIds } },
+    await prismaAdmin.emailLog.deleteMany({ where: { trackedInvoiceId: { in: invoiceIds } } })
+    await prismaAdmin.promiseToPay.deleteMany({ where: { trackedInvoiceId: { in: invoiceIds } } })
+  }
+  if (invoiceIds.length > 0 || accountingConnectionIds.length > 0) {
+    await prismaAdmin.providerInvoiceMapping.deleteMany({
+      where: {
+        OR: [
+          { trackedInvoiceId: { in: invoiceIds } },
+          { accountingConnectionId: { in: accountingConnectionIds } },
+        ],
+      },
+    })
+  }
+  if (invoiceIds.length > 0 || arrangementIds.length > 0) {
+    await prismaAdmin.arrangementInvoiceCoverage.deleteMany({
+      where: {
+        OR: [
+          { trackedInvoiceId: { in: invoiceIds } },
+          { arrangementId: { in: arrangementIds } },
+        ],
+      },
+    })
+  }
+  if (accountingConnectionIds.length > 0) {
+    await prismaAdmin.providerContactMapping.deleteMany({
+      where: { accountingConnectionId: { in: accountingConnectionIds } },
+    })
+    await prismaAdmin.accountingSyncRun.deleteMany({
+      where: { accountingConnectionId: { in: accountingConnectionIds } },
     })
   }
 
   // Children of UserProfile
-  await prismaAdmin.trackedInvoice.deleteMany({ where: { userId: { in: userIds } } })
+  if (invoiceIds.length > 0) {
+    await prismaAdmin.trackedInvoice.deleteMany({ where: { id: { in: invoiceIds } } })
+  }
   await prismaAdmin.emailSettings.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.schedule.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.emailTemplate.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.promiseEscalationPolicy.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.arrangement.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.accountingConnection.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.invoiceConnection.deleteMany({ where: { userId: { in: userIds } } })
+  // AiUsageLog rows cascade automatically (onDelete: Cascade on the UserProfile FK).
 
   // Root
   await prismaAdmin.userProfile.deleteMany({ where: { userId: { in: userIds } } })
