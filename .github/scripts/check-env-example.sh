@@ -75,6 +75,7 @@ if [[ -f docs/runbooks/README.md ]]; then
     "STRIPE_CONNECT_WEBHOOK_SECRET"
     "CRON_SECRET"
     "LIVE"
+    "DEBUG"
   )
 
   for var in "${EXPECTED_VARS[@]}"; do

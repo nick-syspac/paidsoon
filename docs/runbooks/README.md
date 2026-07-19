@@ -77,6 +77,7 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `DIRECT_URL` | `paidsoon-dev` `postgres` direct URL | `paidsoon-dev` `postgres` direct URL | `paidsoon-prod` `postgres` direct URL | [supabase.md §2](./supabase.md) |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:4001` (per `package.json`'s `next dev --port 4001`) | the preview deployment URL (set per deploy if needed) | `https://paidsoon.com` | [vercel.md §2](./vercel.md) |
 | `LIVE` | `false` while pre-launch, `true` at go-live | `false` until launch readiness | `true` once publicly launched | [vercel.md §2](./vercel.md) |
+| `DEBUG` | `false` by default; set `true` only during local diagnostics | `false` by default; set `true` only for targeted preview diagnostics | `false` by default; set `true` only for approved, time-boxed production diagnostics | Server-side diagnostic tracing for login-to-dashboard flow; never expose as `NEXT_PUBLIC_DEBUG` |
 | `CRON_SECRET` | any `openssl rand -hex 32` | not required (cron does not fire) | `openssl rand -hex 32` | [vercel.md §5](./vercel.md) |
 | `STRIPE_SECRET_KEY` | test `sk_test_…` | test `sk_test_…` | live `sk_live_…` | [stripe.md §2](./stripe.md) |
 | `STRIPE_STARTER_PRICE_ID` | test `price_…` | test `price_…` | live `price_…` | [stripe.md §3](./stripe.md) |
@@ -124,6 +125,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `DIRECT_URL` | [prisma.config.ts](../../prisma.config.ts) (migrations only) |
 | `NEXT_PUBLIC_APP_URL` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/authorize/route.ts](../../app/api/stripe/connect/authorize/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/auth/sign-out/route.ts](../../app/auth/sign-out/route.ts) |
 | `LIVE` | [lib/liveMode.ts](../../lib/liveMode.ts), [proxy.ts](../../proxy.ts), [app/layout.tsx](../../app/layout.tsx) |
+| `DEBUG` | [lib/diagnostics/server.ts](../../lib/diagnostics/server.ts) — server-side diagnostic tracing gate; browser code receives only non-secret trace IDs/debug response headers |
 | `CRON_SECRET` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) |
 | `STRIPE_SECRET_KEY` | [lib/providers/stripe.ts](../../lib/providers/stripe.ts), [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
 | `STRIPE_STARTER_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
@@ -157,6 +159,31 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `ADMIN_MAX_FAILED_ATTEMPTS` | [app/api/admin/challenges/route.ts](../../app/api/admin/challenges/route.ts) |
 | `PLATFORM_OWNER_EMAIL` | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only |
 | `ADMIN_SSH_PUBLIC_KEY` | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only |
+
+### Diagnostic tracing with `DEBUG`
+
+`DEBUG` controls detailed structured diagnostic tracing for the login-to-dashboard flow. It is server-side only. Do not add `NEXT_PUBLIC_DEBUG`, and do not expose the raw value to browser bundles. Browser code may receive only non-secret diagnostic trace IDs and response headers issued by the server.
+
+Enablement rules:
+
+- Default: unset, empty, malformed, `false`, and every value except case-insensitive `true` disables tracing.
+- Local: set `DEBUG=true` in `.env.local`, restart `npm run dev`, reproduce the login-to-dashboard flow, then remove or reset it to `false` and restart.
+- Vercel Preview: keep `DEBUG=false` by default. Set `DEBUG=true` only for a targeted preview deployment, redeploy so the runtime sees the new variable, inspect Vercel logs, then set it back to `false` and redeploy.
+- Staging: treat the same as Preview, but restrict log access to operators who need the diagnostic output.
+- Production: keep `DEBUG=false`. Temporary `DEBUG=true` requires approval, a clear time box, protected log access, and immediate rollback after capture. The application emits a prominent protected warning when debug tracing is enabled in a production-like environment.
+
+Verification:
+
+- With `DEBUG` unset or `DEBUG=false`, login and dashboard behaviour should be unchanged and no `paidsoon.trace` events should appear.
+- With `DEBUG=true`, protected logs should contain structured `paidsoon.trace` events with a shared trace ID, operation, component, stage, event outcome, duration, safe HTTP metadata, safe auth/session summaries, redirect decisions, and safe error details where applicable.
+- Trace output must not contain passwords, Turnstile tokens, access tokens, refresh tokens, cookies, authorization headers, API keys, database URLs, Supabase secret keys, complete auth responses, raw invoice rows, customer email/name values, payment URLs, or unnecessary financial details.
+
+Retention, access, and removal:
+
+- Trace events are written to the existing runtime/platform logs. PaidSoon does not persist diagnostic traces in application tables.
+- Access follows the hosting provider's protected log access controls.
+- Retention and deletion follow the provider's log retention controls.
+- Rollback is configuration-first: set `DEBUG=false` or remove it, then redeploy or restart the affected environment. No database migration or data cleanup is required.
 
 ### Things you might expect but won't find
 
