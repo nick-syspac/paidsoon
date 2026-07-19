@@ -101,6 +101,14 @@ export async function GET(request: Request) {
     ? businessName.trim()
     : `MYOB Company File ${businessId}`
 
+  console.info("[myob/callback] company identity returned", {
+    businessId,
+    businessName: businessName?.trim() || null,
+    organisationId,
+    organisationName,
+    usedFallbackName: organisationName !== businessName?.trim(),
+  })
+
   const encryptedAccessToken = encryptToken(tokens.accessToken)
   const encryptedRefreshToken = encryptToken(tokens.refreshToken)
   const tokenExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000)
