@@ -41,6 +41,7 @@
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
 import { getAccountingProvider } from "@/lib/providers/accounting"
+import { isDemoOrganisationId } from "@/lib/providers/accounting/demoGuard"
 import {
   AccountingProviderError,
   type AccountingProviderErrorKind,
@@ -219,6 +220,15 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
 
   if (!connection || !SYNCABLE_STATUSES.has(connection.status)) {
     result.errorMessage = "Connection not found or not syncable"
+    return result
+  }
+
+  // Development seed data holds placeholder tokens and a reserved organisation id.
+  // Never open a provider connection on it — see lib/providers/accounting/demoGuard.ts.
+  if (isDemoOrganisationId(connection.organisationId)) {
+    result.status = "skipped" as SyncResult["status"]
+    result.provider = connection.provider
+    result.errorMessage = "Demo seed connection — sync skipped"
     return result
   }
 
@@ -537,11 +547,14 @@ function mapProviderStatusToTracked(
 export async function syncAllActiveConnections(): Promise<SyncResult[]> {
   const connections = await prismaAdmin.accountingConnection.findMany({
     where: { status: { in: Array.from(SYNCABLE_STATUSES) } },
-    select: { id: true },
+    select: { id: true, organisationId: true },
   })
 
   const results: SyncResult[] = []
   for (const conn of connections) {
+    // Skip development seed connections before any provider call is attempted.
+    if (isDemoOrganisationId(conn.organisationId)) continue
+
     try {
       const result = await syncConnection(conn.id)
       results.push(result)

@@ -252,7 +252,7 @@ See [docs/runbooks/vercel.md §9](./runbooks/vercel.md) for the manual smoke-tes
 | Set Vercel environment variables | Manual | Follow [docs/runbooks/vercel.md §2](./runbooks/vercel.md) |
 | Register Stripe webhook endpoints (production) | Manual | Follow [docs/runbooks/stripe.md](./runbooks/stripe.md) §5–§6 |
 | Verify `billing@paidsoon.com` in Resend | Manual | Follow [docs/runbooks/resend.md](./runbooks/resend.md) |
-| Create Supabase Auth users for sign-in testing | Manual | See [docs/preview-seed-data.md](./preview-seed-data.md) — seed UUIDs don't map to real auth users |
+| Create Supabase Auth users for sign-in testing | Automated | `npm run db:seed` creates the three seeded auth users (see [docs/preview-seed-data.md](./preview-seed-data.md)) — requires `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SECRET_KEY` |
 | Extend seed for new schema fields | Future | When dispute reason, partial payment, MYOB sync metadata columns are added |
 
 ---

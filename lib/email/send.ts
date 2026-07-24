@@ -15,6 +15,7 @@ import {
   CONTACT_ENQUIRY_RECIPIENTS,
   type ContactEnquiryType,
 } from "./contactEnquiryRouting"
+import { isUndeliverableAddress } from "./deliveryGuard"
 import type { TrackedInvoice, PromiseToPay } from "@/lib/generated/prisma/client"
 
 /**
@@ -34,6 +35,13 @@ const STAGE_DEFAULTS = {
   2: DEFAULT_STAGE_2,
   3: DEFAULT_STAGE_3,
 } as const
+
+/**
+ * Sentinel returned instead of a Resend message id when delivery was suppressed
+ * because the recipient domain is reserved/undeliverable. Callers treat this as
+ * success so the reminder state machine still advances.
+ */
+export const SUPPRESSED_MESSAGE_ID = "suppressed-undeliverable-domain"
 
 let _resend: Resend | undefined
 function getResend(): Resend {
@@ -216,6 +224,23 @@ export async function sendFollowUpEmail(
   }
 
   try {
+    // Reserved / undeliverable recipient domains (e.g. the `.test` addresses used
+    // by the development seed) are never handed to Resend. The send is still
+    // recorded in email_logs with a null message id so reminder history and the
+    // cron state machine advance, but no outbound message is attempted.
+    if (isUndeliverableAddress(invoice.clientEmail)) {
+      await prisma.emailLog.create({
+        data: {
+          trackedInvoiceId: invoice.id,
+          stage,
+          resendMessageId: null,
+          fromAddress: from,
+          subject,
+        },
+      })
+      return SUPPRESSED_MESSAGE_ID
+    }
+
     const result = await getResend().emails.send({
       from,
       to: invoice.clientEmail,
@@ -331,6 +356,10 @@ PaidSoon`
   }
 
   try {
+    // Seeded / development accounts use reserved `.test` addresses — never
+    // attempt an outbound send for those.
+    if (isUndeliverableAddress(freelancerEmail)) return
+
     await getResend().emails.send({ from, to: freelancerEmail, subject, html, text })
   } catch (err) {
     console.error(`Failed to send P2P notification (${type}) for invoice ${invoice.id}:`, err)
