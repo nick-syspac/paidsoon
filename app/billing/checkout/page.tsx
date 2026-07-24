@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
@@ -63,12 +64,12 @@ export default async function BillingCheckoutPage({
             The {plan.name} plan uses custom pricing — contact us to get set up.
           </p>
         )}
-        <a
+        <Link
           href="/"
           className="inline-block text-sm text-gray-500 hover:underline"
         >
           Not now — return to homepage
-        </a>
+        </Link>
       </div>
     </div>
   )
