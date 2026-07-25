@@ -114,19 +114,21 @@ function checkEnvironment(): void {
 // ---------------------------------------------------------------------------
 
 const ACCOUNTS = {
-  /** Primary demo account — Business tier, full entitlements, substantial data. */
+  /** Primary demo account — Small Business tier, full entitlements, substantial data. */
   owner: {
     key: "owner",
     email: "owner@coastline-demo.test",
     displayName: "Danielle Whitcombe",
     businessName: "Coastline Plumbing & Gas Pty Ltd",
-    tier: "business",
+    tier: "small_business",
   },
   /**
    * Second team member. PaidSoon has no seats/roles model, so the closest
    * supported analogue is a separate Starter-tier account for the bookkeeper —
-   * which also makes plan-entitlement gating (no accounting integrations, no
-   * custom templates, no promise-to-pay) directly testable.
+   * which also makes plan-entitlement gating (no custom templates, no AI
+   * rewrite, no verified custom from-domain) directly testable. Starter now
+   * includes accounting integrations and promise-to-pay tracking, since those
+   * are part of the core follow-up promise available on every paid tier.
    */
   bookkeeper: {
     key: "bookkeeper",
@@ -141,7 +143,7 @@ const ACCOUNTS = {
     email: "owner@yarravalley-demo.test",
     displayName: "Priya Raghavan",
     businessName: "Yarra Valley Web Studio",
-    tier: "business",
+    tier: "small_business",
   },
 } as const
 
@@ -714,6 +716,137 @@ const BOOKKEEPER_INVOICES: InvoiceSpec[] = [
     remindersSent: 0,
     lines: [{ description: "Payroll processing — monthly", quantity: 1, unitPriceExGstCents: aud(300) }],
   },
+  // ---------------------------------------------------------------------
+  // Chase-volume allowance demo: Starter's monthly allowance is 10. The 9
+  // invoices below plus bk-clifton-hill above bring this account's chased
+  // count for the current (deterministic, see subscriptionCurrentPeriodStart
+  // above) period to exactly 10 — i.e. at capacity — so bk-preston-held
+  // below demonstrates the held-for-allowance state on the dashboard. See
+  // openspec/changes/monthly-chase-volume-limits.
+  // ---------------------------------------------------------------------
+  {
+    slug: "bk-cap-01",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Brunswick East Yoga",
+    clientEmail: "accounts@brunswickeastyoga.example.test",
+    amountDue: aud(210),
+    dueInDays: -2,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 12,
+    lines: [{ description: "Bookkeeping — monthly retainer", quantity: 1, unitPriceExGstCents: aud(190) }],
+  },
+  {
+    slug: "bk-cap-02",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Northcote Bike Co",
+    clientEmail: "accounts@northcotebikeco.example.test",
+    amountDue: aud(245),
+    dueInDays: -3,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 11,
+    lines: [{ description: "Bookkeeping — monthly retainer", quantity: 1, unitPriceExGstCents: aud(225) }],
+  },
+  {
+    slug: "bk-cap-03",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Preston Market Deli",
+    clientEmail: "accounts@prestonmarketdeli.example.test",
+    amountDue: aud(180),
+    dueInDays: -4,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 10,
+    lines: [{ description: "BAS preparation and lodgement", quantity: 1, unitPriceExGstCents: aud(160) }],
+  },
+  {
+    slug: "bk-cap-04",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Reservoir Auto Electrical",
+    clientEmail: "accounts@reservoirautoelectrical.example.test",
+    amountDue: aud(390),
+    dueInDays: -5,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 9,
+    lines: [{ description: "Payroll processing — monthly", quantity: 1, unitPriceExGstCents: aud(360) }],
+  },
+  {
+    slug: "bk-cap-05",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Fairfield Osteopathy",
+    clientEmail: "admin@fairfieldosteo.example.test",
+    amountDue: aud(275),
+    dueInDays: -6,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 8,
+    lines: [{ description: "BAS preparation and lodgement", quantity: 1, unitPriceExGstCents: aud(250) }],
+  },
+  {
+    slug: "bk-cap-06",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Ivanhoe Physio Group",
+    clientEmail: "accounts@ivanhoephysio.example.test",
+    amountDue: aud(330),
+    dueInDays: -7,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 7,
+    lines: [{ description: "Bookkeeping — monthly retainer", quantity: 1, unitPriceExGstCents: aud(300) }],
+  },
+  {
+    slug: "bk-cap-07",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Alphington Landscaping",
+    clientEmail: "accounts@alphingtonlandscaping.example.test",
+    amountDue: aud(420),
+    dueInDays: -8,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 6,
+    lines: [{ description: "Payroll processing — monthly", quantity: 1, unitPriceExGstCents: aud(390) }],
+  },
+  {
+    slug: "bk-cap-08",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Kew East Dental",
+    clientEmail: "accounts@keweastdental.example.test",
+    amountDue: aud(510),
+    dueInDays: -9,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 5,
+    lines: [{ description: "BAS preparation and lodgement", quantity: 1, unitPriceExGstCents: aud(470) }],
+  },
+  {
+    slug: "bk-cap-09",
+    scenario: "Starter tier — at-capacity filler, first reminder sent",
+    clientName: "Eltham Ceramics Studio",
+    clientEmail: "accounts@elthamceramics.example.test",
+    amountDue: aud(295),
+    dueInDays: -10,
+    status: "pending",
+    remindersSent: 1,
+    nextEmailInDays: 4,
+    lines: [{ description: "Bookkeeping — monthly retainer", quantity: 1, unitPriceExGstCents: aud(270) }],
+  },
+  {
+    slug: "bk-preston-held",
+    scenario: "Starter tier — held for allowance: account at capacity, first reminder due now",
+    clientName: "Preston Panelbeaters",
+    clientEmail: "accounts@prestonpanelbeaters.example.test",
+    amountDue: aud(560),
+    dueInDays: -5,
+    status: "pending",
+    remindersSent: 0,
+    // In the past, so this is always overdue for its first reminder — the
+    // cron holds it (currentStage 0, account at capacity) rather than
+    // sending, and the dashboard labels it "Held — allowance".
+    nextEmailInDays: -1,
+    lines: [{ description: "Bookkeeping — monthly retainer", quantity: 1, unitPriceExGstCents: aud(510) }],
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -967,15 +1100,18 @@ async function createInvoices(
 
     // Reminder history, consistent with currentStage: the most recent reminder
     // is closest to the reference day, earlier stages roughly a week apart.
+    let firstChasedAt: Date | null = null
     for (let stage = 1; stage <= remindersSent; stage++) {
       const typedStage = stage as 1 | 2 | 3
       const daysBack = Math.max(1, -spec.dueInDays - (remindersSent - stage) * 7)
       const isLast = stage === remindersSent
+      const sentAt = clock.daysAgo(daysBack)
+      if (stage === 1) firstChasedAt = sentAt
       await prismaAdmin.emailLog.create({
         data: {
           trackedInvoiceId: invoice.id,
           stage: typedStage,
-          sentAt: clock.daysAgo(daysBack),
+          sentAt,
           // A null message id means no provider confirmation was recorded.
           resendMessageId:
             isLast && spec.lastReminderUndelivered ? null : `demo-seed-msg-${spec.slug}-${stage}`,
@@ -984,6 +1120,16 @@ async function createInvoices(
         },
       })
       counters.emailLogs++
+    }
+
+    // `firstChasedAt` mirrors the real backfill (earliest EmailLog.sentAt) so
+    // seeded chase-volume-allowance usage matches the reminder history above —
+    // see openspec/changes/monthly-chase-volume-limits.
+    if (firstChasedAt) {
+      await prismaAdmin.trackedInvoice.update({
+        where: { id: invoice.id },
+        data: { firstChasedAt },
+      })
     }
   }
 
@@ -1381,6 +1527,12 @@ async function seedBookkeeper(
       subscriptionStatus: "active",
       displayName: account.displayName,
       onboardingCompletedAt: clock.daysAgo(45),
+      // Deterministic allowance period (independent of the real-world
+      // calendar month) so the at-capacity / held-invoice scenario below is
+      // reproducible regardless of what day the seed is run on — see
+      // openspec/changes/monthly-chase-volume-limits.
+      subscriptionCurrentPeriodStart: clock.startOfDay(-20),
+      subscriptionCurrentPeriodEnd: clock.startOfDay(10),
     },
   })
 
@@ -1389,8 +1541,11 @@ async function seedBookkeeper(
   })
 
   // No EmailSettings, EmailTemplate or AccountingConnection: Starter tier has
-  // neither `own_email_address`, `custom_reminder_templates` nor
-  // `accounting_integrations`, so the UI should gate all three.
+  // neither `custom_sender_name`/`verified_from_domain` nor
+  // `custom_reminder_templates`, so the UI should gate those. Starter DOES
+  // have `accounting_integrations` (core follow-up promise on every tier),
+  // so the absence of an AccountingConnection here reflects the bookkeeper
+  // simply not having connected one, not a plan restriction.
 
   const stripeConn = await prismaAdmin.invoiceConnection.create({
     data: {

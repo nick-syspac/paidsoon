@@ -3,7 +3,7 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { StripeConnectionClient } from "@/components/settings/StripeConnectionClient"
 import { AccountingConnectionsClient } from "@/components/settings/AccountingConnectionsClient"
-import { getStripeConnectionLimitForTier, requireFeature } from "@/lib/billing"
+import { getInvoiceSourceLimitForTier, requireFeature } from "@/lib/billing"
 import { parseConnectionsFlash } from "@/lib/settings/connectionFlash"
 
 type SearchParams = {
@@ -65,7 +65,7 @@ export default async function ConnectionsSettingsPage({
     }
   )
 
-  const maxConnections = getStripeConnectionLimitForTier(profile?.subscriptionTier)
+  const maxConnections = getInvoiceSourceLimitForTier(profile?.subscriptionTier)
   const flash = parseConnectionsFlash(params)
 
   return (

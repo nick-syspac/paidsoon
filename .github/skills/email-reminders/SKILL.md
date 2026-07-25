@@ -52,7 +52,7 @@ interface TemplateVars {
 
 ```ts
 const canUseCustomFrom = 
-  hasPlanFeature(tier, "own_email_address") && 
+  hasPlanFeature(tier, "verified_from_domain") && 
   emailSettings?.resendVerified === true
 
 const fromAddress = canUseCustomFrom 

@@ -1,4 +1,4 @@
-import { PLAN_CATALOG, type SubscriptionTier } from "@/lib/subscriptionPlans"
+import { getPublicPlans, PLAN_CATALOG, type SubscriptionTier } from "@/lib/subscriptionPlans"
 
 export type UpsellFeatureIntent =
   | "templates"
@@ -63,9 +63,15 @@ const FEATURE_INTENT_SET = new Set<UpsellFeatureIntent>([
 export function getNextTierRecommendation(
   tier: SubscriptionTier,
 ): SubscriptionTier | null {
-  if (tier === "starter") return "business"
-  if (tier === "business") return "accountant_partner"
-  return null
+  // Never recommend upgrading beyond the highest publicly listed tier — a
+  // contact-only tier (e.g. Accountant Partner) has no price and no
+  // Checkout path, so it must not appear as an upsell target.
+  const publicPlans = getPublicPlans()
+  const currentIndex = publicPlans.findIndex((plan) => plan.id === tier)
+  if (currentIndex === -1 || currentIndex === publicPlans.length - 1) {
+    return null
+  }
+  return publicPlans[currentIndex + 1].id
 }
 
 export function isNearLimit(
@@ -86,12 +92,15 @@ export function buildDashboardUpsellModel({
   tier,
   usageCount,
   usageLimit,
+  periodEnd,
   featureIntent,
   showResolved,
 }: {
   tier: SubscriptionTier
   usageCount: number
   usageLimit: number
+  /** End of the current chase-volume allowance period, when known. */
+  periodEnd?: Date | null
   featureIntent?: string | null
   showResolved: boolean
 }): DashboardUpsellModel {
@@ -107,8 +116,11 @@ export function buildDashboardUpsellModel({
     ? "See which reminders were successful, what got paid, and where follow-up needs attention."
     : "Track who is overdue, what stage each reminder is in, and what to prioritize next."
 
+  const resetLabel = periodEnd
+    ? ` Resets ${periodEnd.toLocaleDateString("en-AU", { day: "numeric", month: "short" })}.`
+    : ""
   const nearLimitDescription = nearLimit
-    ? `You are close to your ${PLAN_CATALOG[tier].name} capacity (${usageCount}/${usageLimit}).`
+    ? `You've used ${usageCount} of your ${PLAN_CATALOG[tier].name} plan's ${usageLimit} chases this period.${resetLabel}`
     : "Sample rows are shown until your plan unlocks this module."
 
   if (!nextTier) {

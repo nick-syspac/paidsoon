@@ -9,9 +9,13 @@ import {
   isNearLimit,
 } from "@/lib/dashboardUpsell"
 
-test("next-tier recommendation follows plan ladder", () => {
-  assert.equal(getNextTierRecommendation("starter"), "business")
-  assert.equal(getNextTierRecommendation("business"), "accountant_partner")
+test("next-tier recommendation follows the public plan ladder", () => {
+  assert.equal(getNextTierRecommendation("starter"), "solo")
+  assert.equal(getNextTierRecommendation("solo"), "small_business")
+})
+
+test("next-tier recommendation never suggests the hidden contact-only tier", () => {
+  assert.equal(getNextTierRecommendation("small_business"), null)
   assert.equal(getNextTierRecommendation("accountant_partner"), null)
 })
 
@@ -35,7 +39,7 @@ test("locked dashboard model contains sample label and rows", () => {
   })
 
   assert.equal(model.badgeLabel, "Sample preview")
-  assert.equal(model.recommendedTier, "business")
+  assert.equal(model.recommendedTier, "solo")
   assert.equal(model.sampleRows.length, LOCKED_DASHBOARD_SAMPLE_ROWS.length)
 })
 
@@ -57,5 +61,5 @@ test("near-limit or intent upgrades copy context in model", () => {
   })
   // featureIntent "templates" is a recognised intent signal → nearLimit = true
   assert.equal(intentModel.nearLimit, true)
-  assert.equal(intentModel.recommendedTier, "business")
+  assert.equal(intentModel.recommendedTier, "solo")
 })

@@ -4,7 +4,7 @@
 Use when working with Stripe subscription billing, Checkout, Customer Portal, or billing webhooks in PaidSoon.
 
 ## Status
-Confirmed implemented (Stripe `22.1.1`, API `2026-05-27.dahlia`, 3 tiers).
+Confirmed implemented (Stripe `22.1.1`, API `2026-05-27.dahlia`, 3 public tiers + 1 hidden contact-only tier).
 
 ## Inputs Required
 - Which billing capability to work on (checkout, portal, webhook, feature gate)
@@ -31,9 +31,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 | Tier | Env Var |
 |---|---|
 | `starter` | `STRIPE_STARTER_PRICE_ID` |
-| `business` | `STRIPE_BUSINESS_PRICE_ID` (legacy fallback: `STRIPE_SMALL_BUSINESS_PRICE_ID`) |
+| `solo` | `STRIPE_SOLO_PRICE_ID` |
+| `small_business` | `STRIPE_SMALL_BUSINESS_PRICE_ID` |
 | `accountant_partner` | none — contact-us pricing, no Stripe Checkout |
-| Legacy `pro`/`solo` | maps to `starter`; legacy fallback env vars `STRIPE_PRO_PRICE_ID`/`STRIPE_SOLO_PRICE_ID` still resolve to `starter` |
+
+No legacy tier aliasing — `normalizeSubscriptionTier` falls back to `starter` for any
+unrecognised value. `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` are retired.
 
 ## Checkout Pattern
 
@@ -71,7 +74,7 @@ Handled events:
 import { hasPlanFeature, requireFeature } from "@/lib/billing"
 
 // In route handler:
-await requireFeature(user.id, "own_email_address")  // Throws 403 if not entitled
+await requireFeature(user.id, "custom_reply_to")  // Throws 403 if not entitled
 
 // In component:
 if (!hasPlanFeature(userTier, "payment_status_dashboard")) {

@@ -13,6 +13,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { prismaAdmin } from "@/lib/db/admin"
 import { withUserContext } from "@/lib/db/withUserContext"
+import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { encryptToken } from "@/lib/providers/accounting/crypto"
 import { NextResponse } from "next/server"
@@ -102,37 +103,72 @@ export async function GET(request: Request) {
   if (organisations.length === 1) {
     // Single org: store connection directly
     const org = organisations[0]
-    await withUserContext(user.id, async (tx) => {
-      await tx.accountingConnection.upsert({
-        where: {
-          userId_provider_organisationId: {
+    try {
+      await withUserContext(user.id, async (tx) => {
+        const existing = await tx.accountingConnection.findUnique({
+          where: {
+            userId_provider_organisationId: {
+              userId: user.id,
+              provider: "xero",
+              organisationId: org.id,
+            },
+          },
+          select: { id: true },
+        })
+
+        if (!existing) {
+          const profile = await tx.userProfile.findUnique({
+            where: { userId: user.id },
+            select: { subscriptionTier: true },
+          })
+          const maxConnections = getInvoiceSourceLimitForTier(profile?.subscriptionTier)
+          const activeConnections = await countActiveInvoiceSources(tx, user.id)
+          if (activeConnections >= maxConnections) {
+            throw new Error("CONNECTION_LIMIT_REACHED")
+          }
+        }
+
+        await tx.accountingConnection.upsert({
+          where: {
+            userId_provider_organisationId: {
+              userId: user.id,
+              provider: "xero",
+              organisationId: org.id,
+            },
+          },
+          update: {
+            organisationName: org.name,
+            encryptedAccessToken,
+            encryptedRefreshToken,
+            tokenExpiresAt,
+            scopes,
+            status: "active",
+            lastSyncedAt: null,
+          },
+          create: {
             userId: user.id,
             provider: "xero",
             organisationId: org.id,
+            organisationName: org.name,
+            encryptedAccessToken,
+            encryptedRefreshToken,
+            tokenExpiresAt,
+            scopes,
+            status: "active",
           },
-        },
-        update: {
-          organisationName: org.name,
-          encryptedAccessToken,
-          encryptedRefreshToken,
-          tokenExpiresAt,
-          scopes,
-          status: "active",
-          lastSyncedAt: null,
-        },
-        create: {
-          userId: user.id,
-          provider: "xero",
-          organisationId: org.id,
-          organisationName: org.name,
-          encryptedAccessToken,
-          encryptedRefreshToken,
-          tokenExpiresAt,
-          scopes,
-          status: "active",
-        },
+        })
       })
-    })
+    } catch (err) {
+      if (err instanceof Error && err.message === "CONNECTION_LIMIT_REACHED") {
+        return NextResponse.redirect(
+          `${APP_URL}/dashboard/settings/connections?source=xero&code=connection_limit_reached`
+        )
+      }
+      console.error("[xero/callback] failed to store connection", err)
+      return NextResponse.redirect(
+        `${APP_URL}/dashboard/settings/connections?source=xero&code=connection_save_failed`
+      )
+    }
 
     return NextResponse.redirect(
       `${APP_URL}/dashboard/settings/connections?source=xero&code=connected`

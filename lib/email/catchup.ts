@@ -1,17 +1,18 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getProvider } from "@/lib/providers"
-import { getInvoiceLimitForTier } from "@/lib/billing"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import type { NormalizedInvoice } from "@/lib/providers/types"
 
 /**
  * Scan all active Stripe connections for overdue invoices not yet tracked.
- * Creates new TrackedInvoice records, respecting per-tier limits.
+ * Creates new TrackedInvoice records for every synced invoice, regardless of
+ * the account's chase-volume allowance — allowance only governs whether
+ * follow-up begins, enforced at send time by the cron
+ * (app/api/cron/send-emails/route.ts), not at ingest.
  */
 export async function runCatchUpScan() {
   const connections = await prisma.invoiceConnection.findMany({
     where: { isActive: true, provider: "stripe" },
-    include: { userProfile: { select: { subscriptionTier: true } } },
   })
 
   const provider = getProvider("stripe")
@@ -29,8 +30,6 @@ export async function runCatchUpScan() {
       continue
     }
 
-    const tierLimit = getInvoiceLimitForTier(connection.userProfile.subscriptionTier)
-
     for (const invoice of overdueInvoices) {
       // Idempotency check
       const existing = await prisma.trackedInvoice.findFirst({
@@ -41,15 +40,6 @@ export async function runCatchUpScan() {
         },
       })
       if (existing) continue
-
-      // Tier limit check
-      const activeCount = await prisma.trackedInvoice.count({
-        where: {
-          userId: connection.userId,
-          status: { in: ["pending", "snoozed"] },
-        },
-      })
-      if (activeCount >= tierLimit) continue
 
       const schedule = await prisma.schedule.findUnique({
         where: { userId: connection.userId },

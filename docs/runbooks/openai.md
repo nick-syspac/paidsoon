@@ -4,7 +4,7 @@ PaidSoon uses OpenAI to power the **AI Message Rewrite** feature. A single API c
 
 > Env-var values come from [README.md](./README.md) — set them in the environment named in each row.
 
-**Tier gate:** `ai_rewrite` and `tone_settings` features are gated to the **Small Business** plan (`lib/subscriptionPlans.ts`). The API route at `app/api/settings/ai/route.ts` enforces this before calling OpenAI.
+**Tier gate:** `ai_rewrite` and `tone_settings` features are gated to the **Solo** plan and above (`lib/subscriptionPlans.ts`). The API route at `app/api/settings/ai/route.ts` enforces this before calling OpenAI.
 
 ---
 
@@ -87,7 +87,7 @@ Each call to the AI rewrite endpoint sends the system prompt + user text and rec
 | ~600 output | $0.60 / 1M | $0.000360 |
 | **Total** | | **~$0.00044 (~£0.00035)** |
 
-**Monthly cost at scale (Small Business tier only):**
+**Monthly cost at scale (Solo tier and above):**
 
 | Rewrites/month | Approx cost |
 |---|---|
@@ -96,7 +96,7 @@ Each call to the AI rewrite endpoint sends the system prompt + user text and rec
 | 2,000 | £0.70 |
 | 10,000 | £3.50 |
 
-At current Small Business pricing (£39/month), AI costs represent less than 1% of plan revenue even at high usage. A rate limit of **200 rewrites per user per month** is a reasonable first guard (see §6).
+At current Solo pricing (A$19/month), AI costs represent less than 1% of plan revenue even at high usage. A rate limit of **200 rewrites per user per month** is a reasonable first guard (see §6).
 
 ---
 
@@ -204,7 +204,7 @@ Usage logging in §5 is the prerequisite for rate limiting. When you are ready t
    }
    ```
 2. Expose `callsThisMonth` in the GET response so the UI can show a usage indicator.
-3. The recommended starting limit is **200 rewrites per user per month** for Small Business.
+3. The recommended starting limit is **200 rewrites per user per month**, applied from Solo tier upward.
 
 Do not implement a hard limit before usage data exists. Observe real usage patterns for one billing cycle first.
 
@@ -311,7 +311,7 @@ After deployment:
 - [ ] `OPENAI_API_KEY` is set in the target environment on Vercel.
 - [ ] `npx prisma migrate deploy` has run and `ai_usage_logs` table exists.
 - [ ] `npm run verify-rls` passes (RLS policy applied).
-- [ ] Sign in as a Small Business user; navigate to **Settings → AI**.
+- [ ] Sign in as a Solo user; navigate to **Settings → AI**.
 - [ ] Enter a short invoice message and click **Rewrite**.
 - [ ] All three variant cards (Friendly / Firm / Final Notice) render with subject and message.
 - [ ] A row is written to `ai_usage_logs` with correct token counts.

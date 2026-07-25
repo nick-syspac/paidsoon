@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
+import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
 import { syncConnection } from "@/lib/providers/accounting/sync"
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
@@ -77,6 +78,29 @@ export async function POST(request: Request): Promise<NextResponse> {
   let connectionId: string | null = null
   try {
     await withUserContext(user.id, async (tx) => {
+      const existing = await tx.accountingConnection.findUnique({
+        where: {
+          userId_provider_organisationId: {
+            userId: user.id,
+            provider: "xero",
+            organisationId: organisation.id,
+          },
+        },
+        select: { id: true },
+      })
+
+      if (!existing) {
+        const profile = await tx.userProfile.findUnique({
+          where: { userId: user.id },
+          select: { subscriptionTier: true },
+        })
+        const maxConnections = getInvoiceSourceLimitForTier(profile?.subscriptionTier)
+        const activeConnections = await countActiveInvoiceSources(tx, user.id)
+        if (activeConnections >= maxConnections) {
+          throw new Error("CONNECTION_LIMIT_REACHED")
+        }
+      }
+
       const connection = await tx.accountingConnection.upsert({
         where: {
           userId_provider_organisationId: {
@@ -109,7 +133,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
       connectionId = connection.id
     })
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.message === "CONNECTION_LIMIT_REACHED") {
+      return redirectWithCode("connection_limit_reached")
+    }
     return redirectWithCode("connection_save_failed")
   }
 

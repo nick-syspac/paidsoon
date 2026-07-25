@@ -46,7 +46,7 @@ below maps logical areas to code modules (there are no Django apps).
 | Invoice tracking | `lib/email/catchup.ts`, `app/api/webhooks/stripe-connect/route.ts` | Detect/track overdue invoices | `TrackedInvoice` | `.../specs/invoice-tracking` |
 | Follow-up engine | `app/api/cron/send-emails/route.ts`, `lib/email/**` | Stage progression + send | `TrackedInvoice`, `EmailLog`, `Schedule` | `.../specs/follow-up-sequences`, `.../specs/schedule-config` |
 | Email identity | `app/api/settings/email/route.ts`, `lib/email/send.ts` | Custom verified sender | `EmailSettings` | `.../specs/email-settings`, `changes/rename-to-paidsoon` |
-| Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/update-subscription-plan-tiers`, `.../specs/subscription-billing` |
+| Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell` |
 | Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
 
@@ -102,14 +102,19 @@ subsection documents a functional module.
   paid.
 - **Two ingestion paths:**
   1. **Webhook** (`stripe-connect`): verifies signature, handles
-     `invoice.overdue` (create tracked invoice if under tier limit, idempotent)
-     and `invoice.paid` (mark paid).
+     `invoice.overdue` (create tracked invoice, idempotent — always created,
+     never gated by allowance) and `invoice.paid` (mark paid).
   2. **Catch-up scan** (`runCatchUpScan`): cron-time poll across all active
-     Stripe connections, creating missing tracked invoices under tier limits.
+     Stripe connections, creating missing tracked invoices.
 - **Idempotency:** unique key `(externalId, provider, userId)` +
   pre-insert `findFirst` checks.
-- **Tier limits:** `getInvoiceLimitForTier` gates how many active
-  (`pending`/`snoozed`) invoices a user may track.
+- **Chase-volume allowance is not enforced at ingest.** Every synced invoice
+  (Stripe Connect, catch-up scan, and accounting sync — `lib/providers/accounting/sync.ts`)
+  is created and stays visible on the dashboard regardless of the account's
+  plan or remaining allowance. The allowance only governs whether follow-up
+  *begins* for a given invoice — enforced once, in the cron (§4.4) — not
+  whether the invoice is recorded. See the `chase-volume-entitlement` capability
+  (`openspec/changes/monthly-chase-volume-limits`).
 
 ### 4.4 Follow-up engine (`app/api/cron/send-emails/route.ts`, `lib/email/**`)
 
@@ -119,18 +124,41 @@ subsection documents a functional module.
   (active promises whose `promisedPayBy` has passed; mark `broken`, notify freelancer) →
   **detect expired/broken arrangements** (active arrangements whose payment/expiry date has elapsed) →
   **exclude invoices with active promises or active arrangements** from the email queue → select `pending`
-  invoices with `nextEmailAt <= now` and `currentStage < 3` → for each, resolve
-  freelancer email/name via Supabase admin, `sendFollowUpEmail`, then advance
-  `currentStage`/`nextEmailAt` or mark `sequence_complete` after stage 3.
+  invoices with `nextEmailAt <= now` and `currentStage < 3` → compute each
+  distinct account's chase-volume allowance status once for the pass
+  (`getChaseAllowanceStatusesForUsers`, `lib/billing.ts`) → for each invoice,
+  resolve freelancer email/name via Supabase admin; if `currentStage === 0`
+  (first chase) and the account has no remaining allowance, **hold** the
+  invoice (skip it, leave its state untouched, retried on a later pass) —
+  otherwise `sendFollowUpEmail`, set `firstChasedAt` on a first chase, and
+  advance `currentStage`/`nextEmailAt` or mark `sequence_complete` after stage
+  3. A single pass decrements the in-memory allowance figure after each first
+  send so it can never exceed the allowance; the response includes `held`
+  (invoices skipped this pass) and `usageByAccount` (per-account
+  allowance/usage/remaining/atCapacity) so the held condition is observable.
+  Stage 2/3 sends for a sequence already under way are never gated.
+- **Chase-volume allowance model** (`chase-volume-entitlement` capability,
+  `lib/billing.ts`): one unit of allowance is consumed once per invoice, at
+  its first reminder send (not derivable from `EmailLog.stage`, since tone
+  escalation can promote a first send from stage 1 to stage 2 — see §4.6).
+  Consumption is recorded via `TrackedInvoice.firstChasedAt` (set once, never
+  cleared). Usage is measured over `resolveAllowancePeriod()`'s resolved
+  window: the account's billing period
+  (`UserProfile.subscriptionCurrentPeriodStart/End`) → the trial window
+  (account creation → `trialEndsAt`) → the current calendar month in
+  Australia/Melbourne, in that order. No overage charging exists; reaching
+  the allowance pauses new first chases until the period resets.
 - **Services:**
   - `sendFollowUpEmail` (`lib/email/send.ts`) — resolves from-address, renders
-    template (including `{{promiseToPayLink}}` for Business+ users), sends via Resend,
-    writes an `EmailLog`. Generates and persists `p2pToken` on first send for Business+ users.
+    template (including `{{promiseToPayLink}}`, available on every paid tier), sends via Resend,
+    writes an `EmailLog`. Generates and persists `p2pToken` on first send.
   - `sendP2PNotification` (`lib/email/send.ts`) — sends freelancer notifications for
     promise received and promise broken events. Goes to the freelancer (not the client).
   - `generateP2PToken` (`lib/email/send.ts`) — 32-byte cryptographically random hex token.
-  - `resolveFromAddress` — uses custom verified sender when the tier has
-    `own_email_address` and Resend is verified; else system domain.
+  - `resolveFromAddress` — sender-identity ladder: system address + custom reply-to
+    (`custom_reply_to`, all tiers) → custom sender name (`custom_sender_name`, Solo+) →
+    verified custom from-domain (`verified_from_domain`, Small Business+, requires
+    Resend verification).
   - `computeNextEmailAt` (`lib/email/schedule.ts`) — `dueDate + dayOffset`.
   - `renderTemplate` (`lib/email/templates.ts`) — stage 1/2/3 HTML+text.
 - **Background tasks:** exactly one — this cron route. No queue/worker.
@@ -140,26 +168,48 @@ subsection documents a functional module.
 - **GET:** returns settings; if a custom `fromEmail` is set but unverified,
   polls `resend.domains.list()` and flips `resendVerified` when the sending
   domain reports `verified`.
-- **PUT:** gated by `own_email_address`; upserts `EmailSettings`; on email
-  change, triggers `resend.domains.create(...)` and resets verification.
+- **PUT:** gated by `custom_reply_to` (available on every paid tier); a Resend
+  domain-verification call is only triggered for tiers with `verified_from_domain`.
 
 ### 4.6 Billing & entitlements (`app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts`)
 
-- **Plan catalog:** `PLAN_CATALOG` defines `starter`/`business`/`accountant_partner`
-  with `limits` (chased invoices, seats, connected accounts; `-1` = unlimited) and a
-  `features` map. `LEGACY_TIER_MAP` maps `free→starter`, `pro→starter`, `solo→starter`,
-  `small_business→business`.
+- **Plan catalog:** `PLAN_CATALOG` defines `starter`/`solo`/`small_business` (public,
+  customer-selectable) and `accountant_partner` (contact-only, hidden from plan
+  listings via `visibility: "contact_only"`) with `limits` (chased invoices, seats,
+  connected invoice sources; `-1` = unlimited) and a `features` map. There is no
+  legacy alias map — `normalizeSubscriptionTier` falls back to `starter` for any
+  unrecognised value.
 - **Entitlement checks:** `requireFeature(userId, feature)` reads the tier via
   `withUserContext` and consults `hasPlanFeature`. Limit helpers:
-  `getInvoiceLimitForTier`, `getStripeConnectionLimitForTier`,
-  `getUserSeatLimitForTier`.
+  `getInvoiceLimitForTier`, `getInvoiceSourceLimitForTier` (Stripe Connect +
+  accounting connections combined, via `countActiveInvoiceSources`),
+  `getUserSeatLimitForTier`. `getPublicPlans()` returns only customer-facing tiers,
+  used by the pricing page, onboarding plan picker, and
+  `getNextTierRecommendation` (never recommends the hidden contact-only tier).
+- **Chase-volume allowance helpers** (`lib/billing.ts`, `chase-volume-entitlement`
+  capability): `resolveAllowancePeriod(account, now)` resolves the current
+  billing/trial/calendar-month window; `getChaseAllowanceStatus(tx, userId)`
+  and the batched `getChaseAllowanceStatusesForUsers(tx, userIds)` return
+  `{ period, allowance, usage, remaining, atCapacity, nearLimit }` for one or
+  many accounts, accepting either a `withUserContext` tx or `prismaAdmin`.
+  `usage` counts `TrackedInvoice` rows whose `firstChasedAt` falls inside the
+  resolved period — **not** `EmailLog.stage`, because
+  `applyToneEscalationStage` (`lib/promiseEscalationPolicy.ts`) can promote a
+  debtor's first reminder from stage 1 to stage 2, so an invoice's first
+  `EmailLog` row is not reliably `stage: 1`. `nearLimit` reuses
+  `isNearLimit`/`DEFAULT_NEAR_LIMIT_THRESHOLD` (0.8) from
+  `lib/dashboardUpsell.ts` as the single 80% threshold definition.
 - **Checkout:** `POST checkout` maps requested tier → price id env var, creates
   (or reuses) a Stripe customer, returns a Checkout session URL.
 - **Portal:** `POST portal` returns a Stripe billing-portal URL.
 - **Webhook (`stripe-billing`):** signature-verified; handles
-  `checkout.session.completed` (set tier/active), `customer.subscription.updated`
-  (resolve tier from price id), `customer.subscription.deleted` (revert to
-  `starter`, pause invoices over the starter limit). **`invoice.payment_failed`
+  `checkout.session.completed` (set tier/active, persist
+  `subscriptionCurrentPeriodStart`/`End` from the Stripe invoice
+  `period_start`/`period_end`), `customer.subscription.updated` (resolve tier
+  from price id, persist the refreshed period start/end), `customer.subscription.deleted`
+  (revert to `starter`, pause invoices over the starter limit — this is a
+  separate, pre-existing concurrent-count safeguard on downgrade, distinct
+  from the chase-volume allowance). **`invoice.payment_failed`
   is not handled** (proposed in `changes/handle-billing-payment-failed-webhook`).
 
 ### 4.7 Dashboard actions (`app/api/invoices/[id]/**`)
@@ -322,11 +372,11 @@ erDiagram
 
 | Model | Path | Purpose | Key fields | Relationships | Tenant scoped? | Notes |
 |---|---|---|---|---|---|---|
-| `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `stripeSubscriptionId`, `subscriptionCurrentPeriodEnd`, `pendingDowngradeTier`, `stripeScheduleId`, `subscriptionTier`, `subscriptionStatus`, `trialEndsAt`, `onboardingCompletedAt`, `displayName` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | New users start with `subscriptionStatus: "trialing"` and `trialEndsAt: now + 14 days`; `onboardingCompletedAt` is null until plan is chosen on `/onboarding`; `displayName` is used as `{{yourName}}` in reminder emails |
+| `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `stripeSubscriptionId`, `subscriptionCurrentPeriodStart`, `subscriptionCurrentPeriodEnd`, `pendingDowngradeTier`, `stripeScheduleId`, `subscriptionTier`, `subscriptionStatus`, `trialEndsAt`, `onboardingCompletedAt`, `displayName` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | New users start with `subscriptionStatus: "trialing"` and `trialEndsAt: now + 14 days`; `onboardingCompletedAt` is null until plan is chosen on `/onboarding`; `displayName` is used as `{{yourName}}` in reminder emails; `subscriptionCurrentPeriodStart` anchors the chase-volume allowance period (§4.6) and is populated from Stripe's invoice `period_start` alongside `subscriptionCurrentPeriodEnd` |
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
-| `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `own_email_address` |
-| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `p2pToken` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated for Business+ users |
+| `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `custom_sender_name`/`verified_from_domain` |
+| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later |
 | `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject` | N—1 tracked invoice | Yes (via join policy) | Insert via service role |
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
@@ -379,7 +429,7 @@ admin guard. See `prisma/rls-policies.sql`.
 | `POST /api/stripe/connect/disconnect` | `.../disconnect/route.ts` | optional `{connectionId}` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` by `stripeCustomerId` | Stripe event → `{received}` | Implemented (no `payment_failed`) |
 | `POST /api/webhooks/stripe-connect` | `.../stripe-connect/route.ts` | provider signature | signature | `prismaAdmin` by account id | Stripe event → `{received}` | Implemented |
-| `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed}` | Implemented |
+| `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed,held,usageByAccount}` | Implemented |
 | `POST /api/invoices/[id]/pause` | `.../pause/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/resume` | `.../resume/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/snooze` | `.../snooze/route.ts` | path `id` | session | `withUserContext` | → `{success,snoozedUntil}` | Implemented |
@@ -388,7 +438,7 @@ admin guard. See `prisma/rls-policies.sql`.
 | `POST /api/arrangements/[id]/status` | `app/api/arrangements/[id]/status/route.ts` | path `id`; body `{status}` | session | `withUserContext` | → `{arrangement}` | Implemented — lifecycle transitions (`active`, `broken`, `fulfilled`, `expired`, `cancelled`) |
 | `POST /api/promise/[token]` | `.../promise/[token]/route.ts` | path `token`; body `{promisedPayBy, promisedAmount?, clientNotes?}` | none (public) | `prismaAdmin` | → `{ok}` | Implemented — client-initiated single-invoice P2P; arrangement-like payloads rejected |
 | `GET/PUT /api/settings/schedule` | `.../schedule/route.ts` | `zod` ascending offsets | session + `email_reminder_sequence` | `withUserContext` upsert | → `{schedule}` / `{success}` | Implemented |
-| `GET/PUT /api/settings/email` | `.../email/route.ts` | `zod` email/name | session + `own_email_address` (PUT) | `withUserContext` | → `{settings}` / `{success}` | Implemented |
+| `GET/PUT /api/settings/email` | `.../email/route.ts` | `zod` email/name | session + `custom_reply_to` (PUT) | `withUserContext` | → `{settings}` / `{success}` | Implemented |
 | `PATCH /api/settings/profile` | `.../profile/route.ts` | `zod` `{displayName}` 1–100 chars | session | `withUserContext` profile update | → `{displayName}` | Implemented |
 | `GET/PUT/DELETE /api/settings/templates` | `.../templates/route.ts` | `zod` subject/body | session + template features | `withUserContext` (PUT/DELETE) | → `{...template}` / `{success}` | Implemented |
 | `GET/POST /api/settings/ai` | `.../ai/route.ts` | `zod` text/stage | session + `ai_rewrite` | `prismaAdmin` (`ai_usage_logs`) | → `{canRewrite}` / `{success, friendly, firm, final_notice}` | Implemented (GPT-4o-mini) |
@@ -537,62 +587,91 @@ stateDiagram-v2
 
 ## 11. Billing and Entitlements Design
 
-- **Plans** (`lib/subscriptionPlans.ts`):
+- **Plans** (`lib/subscriptionPlans.ts`), prices inclusive of GST:
 
-| Tier | Price/mo | Chased invoices | Seats | Stripe accounts |
+| Tier | Visibility | Price/mo | Chased invoices/period | Seats | Connected invoice sources |
+|---|---|---|---|---|---|
+| `starter` | public | A$9 | 10 | 1 | 1 |
+| `solo` | public (marked "Most Popular") | A$19 | 50 | 1 | 1 |
+| `small_business` | public | A$39 | 200 | 3 (usable seats not yet implemented) | 1 |
+| `accountant_partner` | contact-only (hidden from pricing page & upgrade recommendations) | Contact us | Unlimited | Unlimited | Unlimited |
+
+  Feature matrix (✓ = enabled, — = disabled, ◷ = enabled in the catalog but not yet
+  implemented in the product — presentation code must render these as "Coming soon",
+  see `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()`):
+
+| Feature (`SubscriptionFeature`) | Starter | Solo | Small Business | Accountant Partner |
 |---|---|---|---|---|
-| `starter` | A$19 | 20 | 1 | 1 |
-| `business` | A$49 | 100 | 1 | 3 |
-| `accountant_partner` | Contact us | Unlimited | Unlimited | Unlimited |
-
-  Feature matrix (✓ = enabled, — = disabled, ◷ = planned/not yet implemented):
-
-| Feature (`SubscriptionFeature`) | Starter | Business | Accountant Partner |
-|---|---|---|---|
-| `basic_email_reminders` | ✓ | ✓ | ✓ |
-| `email_reminder_sequence` | ✓ | ✓ | ✓ |
-| `basic_templates` | ✓ | ✓ | ✓ |
-| `custom_reminder_templates` | — | ✓ | ✓ |
-| `paid_soon_branding` | ✓ | ✓ | ✓ |
-| `own_email_address` | — | ✓ | ✓ |
-| `ai_rewrite` | — | ✓ | ✓ |
-| `tone_settings` | — | ✓ | ✓ |
-| `payment_status_dashboard` | ✓ | ✓ | ✓ |
-| `overdue_invoice_dashboard` | ✓ | ✓ | ✓ |
-| `accounting_integrations` | — | ✓ | ✓ |
-| `promise_to_pay_tracking` | — | ✓ | ✓ |
-| `weekly_summary_email` ◷ | — | ◷ | ◷ |
-| `multi_client_management` ◷ | — | — | ◷ |
+| `basic_email_reminders` | ✓ | ✓ | ✓ | ✓ |
+| `email_reminder_sequence` (custom timing) | — | ✓ | ✓ | ✓ |
+| `customer_specific_sequences` ◷ | — | — | ◷ | ◷ |
+| `basic_templates` | ✓ | ✓ | ✓ | ✓ |
+| `custom_reminder_templates` | — | ✓ | ✓ | ✓ |
+| `multi_template_customer_wording` ◷ | — | — | ◷ | ◷ |
+| `paid_soon_branding` | ✓ | ✓ | ✓ | ✓ |
+| `custom_reply_to` | ✓ | ✓ | ✓ | ✓ |
+| `custom_sender_name` | — | ✓ | ✓ | ✓ |
+| `verified_from_domain` | — | — | ✓ | ✓ |
+| `ai_rewrite` | — | ✓ | ✓ | ✓ |
+| `tone_settings` | — | ✓ | ✓ | ✓ |
+| `payment_status_dashboard` | ✓ | ✓ | ✓ | ✓ |
+| `overdue_invoice_dashboard` | ✓ | ✓ | ✓ | ✓ |
+| `accounting_integrations` | ✓ | ✓ | ✓ | ✓ |
+| `promise_to_pay_tracking` | ✓ | ✓ | ✓ | ✓ |
+| `dispute_pause` | ✓ | ✓ | ✓ | ✓ |
+| `weekly_summary_email` ◷ | — | — | ◷ | ◷ |
+| `csv_export` ◷ | — | — | ◷ | ◷ |
+| `approval_mode` ◷ | — | — | ◷ | ◷ |
+| `contact_suppression` ◷ | — | — | ◷ | ◷ |
+| `team_seats` ◷ | — | — | ◷ | ◷ |
+| `multi_client_management` ◷ | — | — | — | ◷ |
 
 - **Features** are a `Record<SubscriptionFeature, boolean>` per plan; checked via
-  `hasPlanFeature`/`requireFeature`.
-- **Legacy mapping:** `free→starter`, `pro→starter`, `solo→starter`, `small_business→business`
-  via `LEGACY_TIER_MAP` + `normalizeSubscriptionTier`.
+  `hasPlanFeature`/`requireFeature`. Core follow-up capabilities (sync, the
+  Friendly/Firm/Final progression, auto-stop on payment, promise-to-pay, dispute
+  pause, the debtor dashboard, accounting integrations) are enabled on every paid
+  tier — MYOB's own reminder features are not a substitute for PaidSoon's workflow,
+  so these are not used as upsell levers.
+- **No legacy alias map:** `normalizeSubscriptionTier` returns `starter` for any
+  value not in `{starter, solo, small_business, accountant_partner}`. Previous
+  generations of tier naming (`free`/`pro`/`business`) are not aliased — a stray
+  legacy value surfaces as a visibly wrong plan rather than resolving silently.
 - **Accountant Partner checkout:** `accountant_partner` has `monthlyPriceAud: null` (contact-us
   pricing); the Stripe Checkout route returns an error for this tier. Provisioning is manual.
+  It is `visibility: "contact_only"` — `getPublicPlans()` excludes it from the pricing page,
+  the onboarding plan picker, and `getNextTierRecommendation`.
 - **Unlimited limits:** `accountant_partner` has `-1` for all limits in `PlanLimits`; the
-  `getInvoiceLimitForTier` / `getStripeConnectionLimitForTier` / `getUserSeatLimitForTier`
+  `getInvoiceLimitForTier` / `getInvoiceSourceLimitForTier` / `getUserSeatLimitForTier`
   helpers in `lib/billing.ts` normalise -1 to `Number.MAX_SAFE_INTEGER` for comparisons.
+  `getInvoiceSourceLimitForTier` covers Stripe Connect accounts and accounting
+  connections combined (`countActiveInvoiceSources`), replacing the earlier
+  Stripe-only connection limit.
 - **Checkout → activation:** `POST /api/billing/checkout` → Stripe Checkout →
   `checkout.session.completed` webhook sets `subscriptionTier` (from
   `selectedTier` metadata) and `subscriptionStatus = active`.
 - **Updates/cancellation:** `customer.subscription.updated` resolves tier from
   the price id (`PRICE_ID_TO_TIER`); `customer.subscription.deleted` reverts to
   `starter`, sets `cancelled`, and pauses invoices exceeding the starter limit.
-- **Legacy price IDs:** the webhook's `PRICE_ID_TO_TIER` map includes
-  `STRIPE_SOLO_PRICE_ID→starter` and `STRIPE_SMALL_BUSINESS_PRICE_ID→business`
-  so existing active subscriptions resolve correctly after the tier rename.
+- **Price IDs:** the webhook's `PRICE_ID_TO_TIER` map has exactly three entries —
+  `STRIPE_STARTER_PRICE_ID→starter`, `STRIPE_SOLO_PRICE_ID→solo`,
+  `STRIPE_SMALL_BUSINESS_PRICE_ID→small_business`. `STRIPE_BUSINESS_PRICE_ID` and
+  `STRIPE_PRO_PRICE_ID` have been retired (see `changes/restore-three-tier-pricing`).
 - **Portal:** `POST /api/billing/portal` → Stripe billing portal.
 - **Trial/free handling:** `trialing` is treated as active; there is no separate
-  free plan — `starter` is the paid entry tier (schema's `"free"` default maps
-  to `starter`).
+  free plan — `starter` is the paid entry tier (schema's `subscriptionTier` default
+  is `"starter"`).
+- **GST:** all three prices are inclusive of GST. The corresponding Stripe Price
+  objects must carry `tax_behavior: "inclusive"` — this attribute is immutable
+  once set, so it must be confirmed before pricing/checkout changes, not after.
 - **Not implemented:** `invoice.payment_failed` → `past_due`
-  (`changes/handle-billing-payment-failed-webhook`); add-ons; usage events.
+  (`changes/handle-billing-payment-failed-webhook`); add-ons; usage events;
+  monthly chased-invoice allowance enforcement semantics (counting, warning,
+  pausing) — see `changes/monthly-chase-volume-limits`.
 
 ## 12. AI Rewrite Design
 
 `app/api/settings/ai/route.ts` gates on the `ai_rewrite` plan feature
-(`business` tier and above).
+(`solo` tier and above).
 
 **GET** returns `{ canRewrite: boolean }`.
 
@@ -635,8 +714,8 @@ RAG/vector store, no LLM fallback.
   - **Stripe Billing** — subscriptions/portal (`app/api/billing/**`).
   - **Resend** — email + domain verification.
   - **Supabase** — auth + DB.
-  - **Xero** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/xero.ts`). Business+ tier.
-  - **MYOB Business** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/myob.ts`). Business+ tier.
+  - **Xero** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/xero.ts`). Available on every paid tier (`accounting_integrations`).
+  - **MYOB Business** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/myob.ts`). Available on every paid tier (`accounting_integrations`).
 
 ### Accounting Provider Architecture
 
@@ -717,7 +796,7 @@ The exhaustive, code-checked list lives in `docs/runbooks/README.md`
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
 `SUPABASE_SECRET_KEY`, `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`,
 `LIVE`, `CRON_SECRET`, `STRIPE_SECRET_KEY`,
-`STRIPE_{STARTER,BUSINESS,SOLO,SMALL_BUSINESS,PRO}_PRICE_ID`,
+`STRIPE_{STARTER,SOLO,SMALL_BUSINESS}_PRICE_ID`,
 `STRIPE_CONNECT_CLIENT_ID`, `STRIPE_BILLING_WEBHOOK_SECRET`,
 `STRIPE_CONNECT_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
 `RESEND_FROM_NAME`.
@@ -755,7 +834,7 @@ automated tests; only pure helpers are unit-tested.
 - **Webhook/cron auth:** Stripe signatures; `CRON_SECRET` bearer.
 - **OAuth CSRF:** Stripe Connect `state == user.id` check.
 - **AI governance:** `ai_usage_logs` records model name, feature, token counts,
-  and estimated cost per call; gated to `business` tier and above via
+  and estimated cost per call; gated to `solo` tier and above via
   `requireFeature`.
 - **PII handling:** client name/email and invoice amounts are stored; **no
   documented retention, minimisation, or deletion** policy. RLS prevents
@@ -791,7 +870,7 @@ automated tests; only pure helpers are unit-tested.
 | Email settings | Yes | Specified | `app/api/settings/email/route.ts` | `.../email-settings` | Resend verify poll |
 | Manual actions | Yes | Specified | `app/api/invoices/[id]/**` | `.../dashboard` | pause/resume/snooze/resolve |
 | Dashboard + upsell | Yes | Specified | `app/dashboard/page.tsx`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell` | Gated modules |
-| Billing tiers | Yes | Specified | `lib/subscriptionPlans.ts`, `app/api/billing/**` | `changes/update-subscription-plan-tiers` | 3 tiers |
+| Billing tiers | Yes | Specified | `lib/subscriptionPlans.ts`, `app/api/billing/**` | `changes/restore-three-tier-pricing` | 3 public tiers + 1 hidden contact-only tier |
 | Live-mode gating | Yes | Specified | `lib/liveMode.ts`, `proxy.ts` | `changes/live-mode-auth-gate-banner` | `LIVE` flag |
 | Login spinner | Yes | Specified | `components/ui/Spinner.tsx`, `app/(auth)/**` | `changes/login-loading-spinner` | — |
 | Logout redirect | Yes | Specified | `app/auth/sign-out/route.ts` | `changes/logout-redirect-homepage` | → `/` |

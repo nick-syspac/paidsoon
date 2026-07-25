@@ -2,6 +2,7 @@ import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { sendFollowUpEmail, sendP2PNotification, resolveFreelancerName } from "@/lib/email/send"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { runCatchUpScan } from "@/lib/email/catchup"
+import { getChaseAllowanceStatusesForUsers } from "@/lib/billing"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import {
@@ -162,9 +163,10 @@ export async function GET(request: Request) {
 
   let emailsSent = 0
   let errors = 0
+  let held = 0
 
   const userIds = Array.from(new Set(pendingInvoices.map((invoice) => invoice.userId)))
-  const [brokenPromiseRows, policyRows] = await Promise.all([
+  const [brokenPromiseRows, policyRows, allowanceStatuses] = await Promise.all([
     prisma.promiseToPay.findMany({
       where: {
         status: "broken",
@@ -185,6 +187,8 @@ export async function GET(request: Request) {
         toneEscalationEnabled: true,
       },
     }),
+    // Computed once per account per pass (not per invoice) — task 3.1.
+    getChaseAllowanceStatusesForUsers(prisma, userIds),
   ])
 
   const brokenCountsByUserAndDebtor = buildBrokenPromiseDebtorCounts(
@@ -199,6 +203,21 @@ export async function GET(request: Request) {
   )
 
   for (const invoice of pendingInvoices) {
+    const isFirstChase = invoice.currentStage === 0
+
+    // Allowance gate: only the first reminder for an invoice consumes
+    // allowance. An account with no remaining allowance holds new first
+    // chases — the invoice's state is left untouched so it is retried on a
+    // later pass, once the period rolls over. Sequences already in progress
+    // (currentStage > 0) are never gated.
+    if (isFirstChase) {
+      const allowanceStatus = allowanceStatuses.get(invoice.userId)
+      if (allowanceStatus && allowanceStatus.remaining <= 0) {
+        held++
+        continue
+      }
+    }
+
     const baseStage = (invoice.currentStage + 1) as 1 | 2 | 3
     const policy = resolvePromiseEscalationPolicy(policyByUserId.get(invoice.userId))
     const brokenCount =
@@ -223,6 +242,18 @@ export async function GET(request: Request) {
 
     emailsSent++
 
+    // A single cron pass cannot exceed the allowance: decrement the in-pass
+    // figure immediately after the send that consumed it, before the next
+    // invoice for this account is considered (task 3.5).
+    if (isFirstChase) {
+      const allowanceStatus = allowanceStatuses.get(invoice.userId)
+      if (allowanceStatus) {
+        allowanceStatus.usage += 1
+        allowanceStatus.remaining = Math.max(allowanceStatus.allowance - allowanceStatus.usage, 0)
+        allowanceStatus.atCapacity = allowanceStatus.usage >= allowanceStatus.allowance
+      }
+    }
+
     // Get user schedule for computing next send date
     const schedule = await prisma.schedule.findUnique({
       where: { userId: invoice.userId },
@@ -232,7 +263,12 @@ export async function GET(request: Request) {
       // Sequence complete
       await prisma.trackedInvoice.update({
         where: { id: invoice.id },
-        data: { currentStage: 3, status: "sequence_complete", nextEmailAt: null },
+        data: {
+          currentStage: 3,
+          status: "sequence_complete",
+          nextEmailAt: null,
+          ...(isFirstChase ? { firstChasedAt: new Date() } : {}),
+        },
       })
     } else {
       const nextStage = (stage + 1) as 2 | 3
@@ -244,7 +280,11 @@ export async function GET(request: Request) {
       nextEmailAt = applyTimingEscalation(nextEmailAt, brokenCount, policy)
       await prisma.trackedInvoice.update({
         where: { id: invoice.id },
-        data: { currentStage: stage, nextEmailAt },
+        data: {
+          currentStage: stage,
+          nextEmailAt,
+          ...(isFirstChase ? { firstChasedAt: new Date() } : {}),
+        },
       })
     }
   }
@@ -254,5 +294,13 @@ export async function GET(request: Request) {
     emailsSent,
     errors,
     processed: pendingInvoices.length,
+    held,
+    usageByAccount: Array.from(allowanceStatuses.entries()).map(([userId, status]) => ({
+      userId,
+      allowance: status.allowance,
+      usage: status.usage,
+      remaining: status.remaining,
+      atCapacity: status.atCapacity,
+    })),
   })
 }

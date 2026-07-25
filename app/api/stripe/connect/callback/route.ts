@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { getStripeConnectionLimitForTier } from "@/lib/billing"
+import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 
@@ -66,9 +66,7 @@ export async function GET(request: Request) {
         },
         select: { id: true },
       })
-      const activeConnections = await tx.invoiceConnection.count({
-        where: { userId: user.id, provider: "stripe", isActive: true },
-      })
+      const activeConnections = await countActiveInvoiceSources(tx, user.id)
 
       if (existingForAccount) {
         await tx.invoiceConnection.update({
@@ -78,7 +76,7 @@ export async function GET(request: Request) {
         return
       }
 
-      const maxConnections = getStripeConnectionLimitForTier(
+      const maxConnections = getInvoiceSourceLimitForTier(
         profile?.subscriptionTier,
       )
       if (activeConnections >= maxConnections) {

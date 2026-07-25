@@ -6,8 +6,9 @@ PaidSoon is a micro-SaaS product that helps freelancers and small businesses imp
 flow by automating invoice follow-ups. It connects to Stripe (via Stripe Connect OAuth),
 reads overdue invoices, and sends a three-stage sequence of reminder emails on behalf of the
 user. Users can pause, snooze, resume, or manually resolve invoices. Subscription tiers
-(Starter / Business / Accountant Partner) gate features and usage limits. Accountant
-Partner is a planned tier (contact-us pricing on the marketing site) — its
+(Starter / Solo / Small Business / Accountant Partner) gate features and usage limits.
+Starter, Solo, and Small Business are customer-selectable via Stripe Checkout. Accountant
+Partner is a hidden, contact-us tier (not listed on the pricing page) — its
 partner-specific functionality (multi-client dashboard, partner programme) is not
 yet implemented.
 
@@ -128,8 +129,8 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 - Email is sent via Resend. The `RESEND_API_KEY` environment variable is required.
 - All sending goes through `lib/email/send.ts` → `sendFollowUpEmail()`.
 - Never call `resend.emails.send()` directly from a route handler or component. Always go through `sendFollowUpEmail`.
-- Custom "From" addresses require: Business+ tier AND `EmailSettings.resendVerified = true` for that user.
-- If neither is true, fall back to the system domain from `RESEND_FROM_EMAIL`.
+- Custom "From" addresses require the `verified_from_domain` feature (Small Business+) AND `EmailSettings.resendVerified = true` for that user. Every paid tier can set a custom reply-to (`custom_reply_to`); Solo+ can also set a custom sender name (`custom_sender_name`).
+- If none of the above is true, fall back to the system domain from `RESEND_FROM_EMAIL`.
 - Never send real emails from tests. Use mock or stub the Resend client in tests.
 - Every sent email is logged to the `email_logs` table via `prismaAdmin` (cron context).
 - Avoid duplicate sends: check `EmailLog` for `(trackedInvoiceId, stage)` before sending.
@@ -149,14 +150,19 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 
 ## Billing and Subscription Rules
 
-- Three tiers: `starter` (A$19/mo), `business` (A$49/mo), `accountant_partner` (contact-us
-  pricing — planned tier, not yet fully implemented).
-- Legacy tier names: `free`/`pro`/`solo` → `starter`, `small_business` → `business`.
-  Supported via `LEGACY_TIER_MAP` backward-compat mapping in `lib/subscriptionPlans.ts`.
+- Three customer-selectable tiers: `starter` (A$9/mo), `solo` (A$19/mo), `small_business`
+  (A$39/mo) — all inclusive of GST. Plus one hidden, contact-only tier: `accountant_partner`
+  (contact-us pricing — planned, not yet fully implemented; excluded from the pricing page,
+  the onboarding plan picker, and upgrade recommendations via `getPublicPlans()`).
+- No legacy tier aliasing. `normalizeSubscriptionTier` in `lib/subscriptionPlans.ts` falls
+  back to `starter` for any value outside the four tiers above — there is no
+  `LEGACY_TIER_MAP`.
 - All feature checks use `hasPlanFeature(tier, feature)` or `requireFeature(userId, feature)` from `lib/billing.ts`.
-- Stripe Price IDs are stored in env vars: `STRIPE_STARTER_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`
-  (falls back to legacy `STRIPE_SMALL_BUSINESS_PRICE_ID`/`STRIPE_SOLO_PRICE_ID`/`STRIPE_PRO_PRICE_ID`
-  if unset). `accountant_partner` has no Stripe Checkout (contact-us only).
+- Stripe Price IDs are stored in env vars: `STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`,
+  `STRIPE_SMALL_BUSINESS_PRICE_ID`. `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have
+  been retired. `accountant_partner` has no Stripe Checkout (contact-us only). All three
+  Prices must carry `tax_behavior: "inclusive"` — immutable once set; changing it requires a
+  new Price object.
 - Stripe API version is `"2026-05-27.dahlia"` — do not change this.
 - Billing webhooks (`/api/webhooks/stripe-billing`) MUST verify `STRIPE_BILLING_WEBHOOK_SECRET`.
 - Connect webhooks (`/api/webhooks/stripe-connect`) MUST verify `STRIPE_CONNECT_WEBHOOK_SECRET`.

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 const bodySchema = z.object({
-  tier: z.enum(["starter", "business", "accountant_partner"]),
+  tier: z.enum(["starter", "solo", "small_business", "accountant_partner"]),
 })
 
 export async function PATCH(request: Request) {

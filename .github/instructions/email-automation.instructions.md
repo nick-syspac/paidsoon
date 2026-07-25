@@ -37,8 +37,8 @@ PaidSoon sends a maximum of 3 follow-up emails per tracked invoice:
 
 ## Custom "From" Address Rules
 
-- Business+ tier users can send from their own domain IF `EmailSettings.resendVerified = true`.
-- Check: `hasPlanFeature(tier, "own_email_address") && emailSettings.resendVerified`.
+- Every paid tier can set a custom reply-to address (`custom_reply_to`); Solo+ can also set a custom sender name (`custom_sender_name`); Small Business+ tier users can send from a fully custom, verified from-domain IF `EmailSettings.resendVerified = true`.
+- Check: `hasPlanFeature(tier, "verified_from_domain") && emailSettings.resendVerified`.
 - If either condition is false, fall back to the system domain (`RESEND_FROM_EMAIL`).
 - Domain verification status is polled from the Resend API in `GET /api/settings/email`.
 - Use `resend.domains.list()` → `domains?.data?.find(...)` to check verification.

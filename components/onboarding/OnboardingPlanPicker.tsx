@@ -3,9 +3,11 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Spinner } from "@/components/ui/Spinner"
-import type { SubscriptionTier } from "@/lib/subscriptionPlans"
+import { getPublicPlans, type SubscriptionTier } from "@/lib/subscriptionPlans"
+import { formatPlanPrice, planHighlights } from "@/lib/planPresentation"
 
-const VALID_TIERS: SubscriptionTier[] = ["starter", "business", "accountant_partner"]
+const PUBLIC_PLANS = getPublicPlans()
+const VALID_TIERS: SubscriptionTier[] = PUBLIC_PLANS.map((plan) => plan.id)
 
 function getPreselectedTier(): SubscriptionTier {
   try {
@@ -19,45 +21,6 @@ function getPreselectedTier(): SubscriptionTier {
   }
   return "starter"
 }
-
-interface Plan {
-  id: SubscriptionTier
-  name: string
-  price: number
-  invoicesPerMonth: number
-  highlights: string[]
-  recommended?: boolean
-}
-
-const PLANS: Plan[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: 19,
-    invoicesPerMonth: 20,
-    highlights: [
-      "Up to 20 invoices/month",
-      "Automated 3-stage reminder sequence",
-      "Reminder templates",
-      "Debtor dashboard",
-      "PaidSoon branding on emails",
-    ],
-  },
-  {
-    id: "business",
-    name: "Business",
-    price: 49,
-    invoicesPerMonth: 100,
-    highlights: [
-      "Up to 100 invoices/month",
-      "Up to 3 connected Stripe accounts",
-      "Custom email address (your domain)",
-      "AI-assisted reminder wording",
-      "Promise-to-pay & dispute tracking",
-    ],
-    recommended: true,
-  },
-]
 
 export function OnboardingPlanPicker() {
   const router = useRouter()
@@ -95,7 +58,7 @@ export function OnboardingPlanPicker() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {PLANS.map((plan) => {
+        {PUBLIC_PLANS.map((plan) => {
           const isSelected = selectedTier === plan.id
           return (
             <button
@@ -109,7 +72,7 @@ export function OnboardingPlanPicker() {
                   : "border-gray-200 bg-white hover:border-gray-300",
               ].join(" ")}
             >
-              {plan.recommended && (
+              {plan.popular && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-semibold px-3 py-0.5 rounded-full">
                   Most popular
                 </span>
@@ -117,12 +80,11 @@ export function OnboardingPlanPicker() {
               <div className="mb-3">
                 <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
                 <p className="mt-1">
-                  <span className="text-2xl font-bold text-gray-900">£{plan.price}</span>
-                  <span className="text-sm text-gray-500">/mo</span>
+                  <span className="text-2xl font-bold text-gray-900">{formatPlanPrice(plan.monthlyPriceAud)}</span>
                 </p>
               </div>
               <ul className="space-y-1.5 flex-1">
-                {plan.highlights.map((h) => (
+                {planHighlights(plan.id).map((h) => (
                   <li key={h} className="flex items-start gap-1.5 text-xs text-gray-600">
                     <span className="mt-0.5 text-green-500 shrink-0">✓</span>
                     {h}

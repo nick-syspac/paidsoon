@@ -12,7 +12,7 @@ You are a full-stack engineer adding or modifying an email template in PaidSoon.
 Create or update an email template for the PaidSoon reminder sequence, following all template safety, formatting, and idempotency rules.
 
 ## PaidSoon Context
-PaidSoon sends 3-stage follow-up emails via Resend. Templates live in `lib/email/templates.ts`. Each stage has a fixed subject and HTML/text body. Custom templates are a scaffolded feature (Business+ tier with `custom_reminder_templates` feature flag).
+PaidSoon sends 3-stage follow-up emails via Resend. Templates live in `lib/email/templates.ts`. Each stage has a fixed subject and HTML/text body. Custom templates are a scaffolded feature (Solo+ tier with `custom_reminder_templates` feature flag).
 
 ## Files to Inspect
 - `lib/email/templates.ts` — all existing templates (pattern to follow)

@@ -19,10 +19,11 @@ model UserProfile {
   userId                       String    @unique // maps to auth.users.id in Supabase
   stripeCustomerId             String?   @unique
   stripeSubscriptionId         String?   @map("stripe_subscription_id")
+  subscriptionCurrentPeriodStart DateTime? @map("subscription_current_period_start")
   subscriptionCurrentPeriodEnd DateTime? @map("subscription_current_period_end")
   pendingDowngradeTier         String?   @map("pending_downgrade_tier")
   stripeScheduleId             String?   @map("stripe_schedule_id")
-  subscriptionTier             String    @default("free") // 'free' | 'pro'
+  subscriptionTier             String    @default("starter") // 'starter' | 'solo' | 'small_business' | 'accountant_partner'
   subscriptionStatus           String    @default("active") // 'active' | 'trialing' | 'cancelled' | 'past_due'
   trialEndsAt                  DateTime? @map("trial_ends_at")
   onboardingCompletedAt        DateTime? @map("onboarding_completed_at")
@@ -119,6 +120,7 @@ model TrackedInvoice {
   currentStage        Int       @default(0) // 0=not started, 1=email1 sent, 2=email2 sent, 3=email3 sent
   nextEmailAt         DateTime?
   snoozedUntil        DateTime?
+  firstChasedAt       DateTime? @map("first_chased_at") // set once, when the first reminder is sent; consumes chase-volume allowance
   providerMetadata    Json?     @map("provider_metadata") // provider-specific fields, not part of core model
   p2pToken            String?   @unique @map("p2p_token") // generated for Business+ users; client uses to submit a promise to pay
   createdAt           DateTime  @default(now())
@@ -133,6 +135,7 @@ model TrackedInvoice {
 
   @@unique([id, userId, clientEmail])
   @@unique([externalId, provider, userId])
+  @@index([userId, firstChasedAt])
   @@map("tracked_invoices")
 }
 

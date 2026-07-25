@@ -81,11 +81,15 @@ export function InvoiceTable({
   showResolved = false,
   brokenPromiseCountsByDebtor = {},
   escalationThreshold = 2,
+  heldInvoiceIds,
 }: {
   invoices: InvoiceWithLogs[]
   showResolved?: boolean
   brokenPromiseCountsByDebtor?: Record<string, number>
   escalationThreshold?: number
+  /** Invoices due for their first reminder but waiting because the account
+   * is at its chase-volume allowance for the current period. */
+  heldInvoiceIds?: Set<string>
 }) {
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -247,7 +251,10 @@ export function InvoiceTable({
         </thead>
         <tbody>
           {invoices.map((inv) => {
-            const status = STATUS_LABELS[inv.status] ?? { label: inv.status, color: "bg-gray-100 text-gray-600" }
+            const isHeld = heldInvoiceIds?.has(inv.id) ?? false
+            const status = isHeld
+              ? { label: "Held — allowance", color: "bg-amber-100 text-amber-800" }
+              : STATUS_LABELS[inv.status] ?? { label: inv.status, color: "bg-gray-100 text-gray-600" }
             const isExpanded = expandedId === inv.id
             const isLoading = loadingId === inv.id
             const p2p = getP2PStatus(inv.promisesToPay)
@@ -296,7 +303,9 @@ export function InvoiceTable({
                     {STAGE_LABELS[inv.currentStage] ?? inv.currentStage}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
-                    {inv.status === "snoozed"
+                    {isHeld
+                      ? "Waiting for allowance"
+                      : inv.status === "snoozed"
                       ? `Snoozed until ${formatDate(inv.snoozedUntil)}`
                       : inv.status === "sequence_complete"
                       ? "—"

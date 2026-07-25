@@ -83,23 +83,23 @@ test("createUserProfile trial duration constant is 14 days in ms", () => {
 // Onboarding tier validation (mirrors Zod schema in /api/onboarding)
 // ---------------------------------------------------------------------------
 
-const VALID_TIERS = new Set(["starter", "business", "accountant_partner"])
+const VALID_TIERS = new Set(["starter", "solo", "small_business", "accountant_partner"])
 
-function validateOnboardingTier(tier: unknown): tier is "starter" | "business" | "accountant_partner" {
+function validateOnboardingTier(tier: unknown): tier is "starter" | "solo" | "small_business" | "accountant_partner" {
   return typeof tier === "string" && VALID_TIERS.has(tier)
 }
 
 test("valid tiers are accepted by onboarding route schema", () => {
   assert.equal(validateOnboardingTier("starter"), true)
-  assert.equal(validateOnboardingTier("business"), true)
+  assert.equal(validateOnboardingTier("solo"), true)
+  assert.equal(validateOnboardingTier("small_business"), true)
   assert.equal(validateOnboardingTier("accountant_partner"), true)
 })
 
 test("invalid tiers are rejected by onboarding route schema", () => {
   assert.equal(validateOnboardingTier("free"), false)
   assert.equal(validateOnboardingTier("pro"), false)
-  assert.equal(validateOnboardingTier("solo"), false)
-  assert.equal(validateOnboardingTier("small_business"), false)
+  assert.equal(validateOnboardingTier("business"), false)
   assert.equal(validateOnboardingTier("enterprise"), false)
   assert.equal(validateOnboardingTier(""), false)
   assert.equal(validateOnboardingTier(null), false)
@@ -112,7 +112,7 @@ test("invalid tiers are rejected by onboarding route schema", () => {
 // (mirrors the fallback in app/billing/checkout/page.tsx)
 // ---------------------------------------------------------------------------
 
-const VALID_CHECKOUT_TIERS = new Set(["starter", "business", "accountant_partner"])
+const VALID_CHECKOUT_TIERS = new Set(["starter", "solo", "small_business", "accountant_partner"])
 const DEFAULT_CHECKOUT_TIER = "starter" // normalizeSubscriptionTier default
 
 function resolveCheckoutTier(
@@ -128,12 +128,12 @@ function resolveCheckoutTier(
 }
 
 test("checkout resolves plan from query param when present", () => {
-  assert.equal(resolveCheckoutTier("starter", "business"), "starter")
-  assert.equal(resolveCheckoutTier("business", "starter"), "business")
+  assert.equal(resolveCheckoutTier("starter", "small_business"), "starter")
+  assert.equal(resolveCheckoutTier("small_business", "starter"), "small_business")
 })
 
 test("checkout falls back to profile tier when no plan param is given", () => {
-  assert.equal(resolveCheckoutTier(undefined, "business"), "business")
+  assert.equal(resolveCheckoutTier(undefined, "small_business"), "small_business")
   assert.equal(resolveCheckoutTier(undefined, "starter"), "starter")
   assert.equal(resolveCheckoutTier(undefined, "accountant_partner"), "accountant_partner")
 })
@@ -144,7 +144,7 @@ test("checkout falls back to default tier when both param and profile tier are a
 })
 
 test("checkout ignores invalid plan param and falls back to profile tier", () => {
-  assert.equal(resolveCheckoutTier("enterprise", "business"), "business")
+  assert.equal(resolveCheckoutTier("enterprise", "small_business"), "small_business")
   assert.equal(resolveCheckoutTier("free", "starter"), "starter")
 })
 
@@ -158,7 +158,7 @@ function buildTrialCheckoutUrl(tier: string): string {
 }
 
 test("trial banner checkoutUrl points to /billing/checkout for trialing user", () => {
-  assert.equal(buildTrialCheckoutUrl("business"), "/billing/checkout?plan=business")
+  assert.equal(buildTrialCheckoutUrl("small_business"), "/billing/checkout?plan=small_business")
   assert.equal(buildTrialCheckoutUrl("starter"), "/billing/checkout?plan=starter")
   assert.equal(
     buildTrialCheckoutUrl("accountant_partner"),
@@ -167,6 +167,6 @@ test("trial banner checkoutUrl points to /billing/checkout for trialing user", (
 })
 
 test("trial banner checkoutUrl does not point to subscription settings page", () => {
-  const url = buildTrialCheckoutUrl("business")
+  const url = buildTrialCheckoutUrl("small_business")
   assert.equal(url.includes("/dashboard/settings/subscription"), false)
 })

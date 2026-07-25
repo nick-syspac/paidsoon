@@ -22,10 +22,13 @@
 import "./_loadEnv"
 
 import { prismaAdmin } from "../lib/db/admin"
+import { getInvoiceLimitForTier, resolveAllowancePeriod } from "../lib/billing"
 import { isUndeliverableAddress } from "../lib/email/deliveryGuard"
 import { isDemoOrganisationId } from "../lib/providers/accounting/demoGuard"
 import { hasPlanFeature } from "../lib/subscriptionPlans"
 import { SEED_TIME_ZONE, zonedDateParts } from "./seed/referenceDate"
+
+const BOOKKEEPER_EMAIL = "bookkeeper@coastline-demo.test"
 
 const SEED_EMAILS = [
   "owner@coastline-demo.test",
@@ -130,11 +133,17 @@ async function main(): Promise<void> {
   check("All three seed accounts have a user profile", profiles.length === 3, `found ${profiles.length}`)
 
   const tiers = new Set(profiles.map((p) => p.subscriptionTier))
-  check("A 'business' tier account exists", tiers.has("business"))
+  check("A 'small_business' tier account exists", tiers.has("small_business"))
   check("A 'starter' tier account exists", tiers.has("starter"))
+  check(
+    "No seed account holds a retired tier identifier",
+    profiles.every((p) =>
+      ["starter", "solo", "small_business", "accountant_partner"].includes(p.subscriptionTier),
+    ),
+  )
 
   const primaryProfile = profiles.find((p) => p.userId === primaryUserId)
-  check("Primary account is on the Business tier", primaryProfile?.subscriptionTier === "business")
+  check("Primary account is on the Small Business tier", primaryProfile?.subscriptionTier === "small_business")
   check(
     "Primary account can use accounting integrations",
     hasPlanFeature(primaryProfile?.subscriptionTier, "accounting_integrations"),
@@ -146,8 +155,13 @@ async function main(): Promise<void> {
 
   const starterProfile = profiles.find((p) => p.subscriptionTier === "starter")
   check(
-    "Starter account is correctly denied accounting integrations",
-    !hasPlanFeature(starterProfile?.subscriptionTier, "accounting_integrations"),
+    "Starter account can use core follow-up features available on every tier",
+    hasPlanFeature(starterProfile?.subscriptionTier, "accounting_integrations") &&
+      hasPlanFeature(starterProfile?.subscriptionTier, "promise_to_pay_tracking"),
+  )
+  check(
+    "Starter account is correctly denied custom reminder templates",
+    !hasPlanFeature(starterProfile?.subscriptionTier, "custom_reminder_templates"),
   )
 
   const schedules = await prismaAdmin.schedule.findMany({ where: { userId: { in: seedUserIds } } })
@@ -319,6 +333,50 @@ async function main(): Promise<void> {
   check("A reminder with no confirmed delivery exists", undelivered.length >= 1)
   const delivered = emailLogs.filter((l) => l.resendMessageId !== null)
   check("Reminders with confirmed delivery exist", delivered.length >= 1)
+
+  // -------------------------------------------------------------------------
+  section("Chase-volume allowance")
+  // -------------------------------------------------------------------------
+  check(
+    "Every chased invoice (currentStage > 0) has a firstChasedAt timestamp",
+    invoices.filter((i) => i.currentStage > 0).every((i) => i.firstChasedAt !== null),
+  )
+  check(
+    "Every never-chased invoice (currentStage === 0) has no firstChasedAt timestamp",
+    invoices.filter((i) => i.currentStage === 0).every((i) => i.firstChasedAt === null),
+  )
+
+  const bookkeeperUserId = emailToUserId.get(BOOKKEEPER_EMAIL)
+  const bookkeeperProfile = profiles.find((p) => p.userId === bookkeeperUserId)
+  if (bookkeeperProfile) {
+    const allowance = getInvoiceLimitForTier(bookkeeperProfile.subscriptionTier)
+    const period = resolveAllowancePeriod(bookkeeperProfile)
+    const bookkeeperInvoices = invoices.filter((i) => i.userId === bookkeeperUserId)
+    const usage = bookkeeperInvoices.filter(
+      (i) => i.firstChasedAt !== null && i.firstChasedAt >= period.start && i.firstChasedAt < period.end,
+    ).length
+
+    check(
+      "Bookkeeper (Starter) account has consumed its full chase-volume allowance this period",
+      usage === allowance,
+      `usage=${usage} allowance=${allowance}`,
+    )
+
+    const held = bookkeeperInvoices.filter(
+      (i) =>
+        i.status === "pending" &&
+        i.currentStage === 0 &&
+        i.nextEmailAt !== null &&
+        i.nextEmailAt <= now,
+    )
+    check(
+      "Bookkeeper account has at least one invoice held for allowance",
+      held.length >= 1,
+      `found ${held.length}`,
+    )
+  } else {
+    check("Bookkeeper account resolved for chase-volume allowance checks", false)
+  }
 
   // -------------------------------------------------------------------------
   section("Promises to pay")

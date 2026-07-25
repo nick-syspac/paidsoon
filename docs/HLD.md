@@ -28,7 +28,7 @@ user-configurable schedule. The product's value proposition is removing the
 emotional friction of chasing payment: the freelancer "hides behind" a neutral
 automated system (`openspec/changes/invoice-nudge-mvp/proposal.md`).
 
-The platform is monetised through tiered subscriptions (Starter A$19 / Business A$49 /
+The platform is monetised through tiered subscriptions (Starter A$9 / Solo A$19 / Small Business A$39 /
 Accountant Partner contact-us per month) billed via **Stripe Billing**. Subscription tier
 gates feature access and usage limits (number of chased invoices, connected
 Stripe accounts, user seats, custom from-address, reminder templates, accounting
@@ -192,14 +192,14 @@ what is actually present, and explicitly marks absent capabilities.
 | User auth | Account creation, sign-in, session | Implemented | `app/(auth)/**`, `lib/supabase/**`, `app/auth/callback/route.ts` | `changes/invoice-nudge-mvp/specs/user-auth/spec.md` | Supabase Auth; email/pw + Google |
 | Tenant isolation | One user = one tenant via RLS | Implemented | `lib/db/withUserContext.ts`, `prisma/rls-policies.sql` | `changes/enforce-rls-via-prisma/specs/user-auth/spec.md` | See §9 |
 | Invoice connection | Connect Stripe via OAuth; provider abstraction | Implemented | `app/api/stripe/connect/**`, `lib/providers/**` | `changes/invoice-nudge-mvp/specs/invoice-connection/spec.md` | Stripe only |
-| Accounting integrations | Connect Xero/MYOB via OAuth; pull-based invoice sync | Implemented | `app/api/integrations/**`, `lib/providers/accounting/**`, `app/api/cron/sync-accounting/route.ts` | `changes/add-accounting-integrations` | Business+ tier; AES-256-GCM token encryption; incremental sync; `AccountingProvider` interface |
+| Accounting integrations | Connect Xero/MYOB via OAuth; pull-based invoice sync | Implemented | `app/api/integrations/**`, `lib/providers/accounting/**`, `app/api/cron/sync-accounting/route.ts` | `changes/add-accounting-integrations` | Available on every paid tier; AES-256-GCM token encryption; incremental sync; `AccountingProvider` interface |
 | Invoice tracking | Detect & track overdue invoices | Implemented | `lib/email/catchup.ts`, `app/api/webhooks/stripe-connect/route.ts` | `.../specs/invoice-tracking/spec.md` | Webhook + cron catch-up |
 | Follow-up sequences | 3-stage escalating reminders | Implemented | `app/api/cron/send-emails/route.ts`, `lib/email/**` | `.../specs/follow-up-sequences/spec.md` | Stages 1/2/3 |
 | Schedule config | Per-user day offsets | Implemented | `app/api/settings/schedule/route.ts`, `lib/email/schedule.ts` | `.../specs/schedule-config/spec.md` | Gated to sequence feature |
 | Email settings | Custom verified from-address | Implemented | `app/api/settings/email/route.ts`, `lib/email/send.ts` | `.../specs/email-settings/spec.md` | Resend domain verify polling |
 | Manual invoice actions | Pause / resume / snooze / resolve | Implemented | `app/api/invoices/[id]/**` | `.../specs/dashboard/spec.md` | RLS-scoped |
 | Dashboard | Overdue + resolved views, upsell | Implemented | `app/dashboard/page.tsx`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell/specs/...` | Feature-gated modules |
-| Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/update-subscription-plan-tiers/specs/...` | 3 tiers: Starter A$19 / Business A$49 / Accountant Partner (contact us) |
+| Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/restore-three-tier-pricing/specs/...` | 4 tiers: Starter A$9 / Solo A$19 / Small Business A$39 (public) / Accountant Partner (contact us, hidden) |
 | Live-mode gating | Pre-launch auth lockout + banner | Implemented | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | `changes/live-mode-auth-gate-banner/specs/...` | `LIVE` env var |
 | Templates | Read/write per-stage reminder templates | Implemented | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite`, `changes/templates-sidebar-help` | GET/PUT/DELETE; persists to `email_templates`; sidebar with variable chips |
 | AI rewrite | GPT-4o-mini rewrite of reminder text | Implemented | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | Three tone variants; usage logged; embedded in templates page |
@@ -470,10 +470,10 @@ batching) before invoice volume grows.
 
 | Area | Source of truth | Gap | Risk | Recommended follow-up |
 |---|---|---|---|---|
-| Subscription tier default | Code | `prisma/schema.prisma` defaults `subscriptionTier` to `"free"` but `lib/subscriptionPlans.ts` now uses `starter/business/accountant_partner` (legacy mapped) | Low — `normalizeSubscriptionTier` maps `free→starter` | Update schema default/comment to `"starter"` |
-| Subscription tier rename migration | Code | DB rows with `subscriptionTier = 'solo'` or `'small_business'` are normalised at read time but not migrated in Postgres | Medium — inconsistent stored values, harder DB queries | Run a migration to update stored tier values to new names |
-| New pricing features not in code | Pricing page | `promise_to_pay_tracking`, `weekly_summary_email`, `multi_client_management` shown on pricing page; feature flags defined in `subscriptionPlans.ts` but no implementation | High — pricing page implies functionality that does not exist | Implement or clearly label as coming soon on pricing page |
-| `STRIPE_BUSINESS_PRICE_ID` env var | Code | New env var required for `business` tier; old `STRIPE_SMALL_BUSINESS_PRICE_ID` accepted as fallback in checkout/downgrade/webhook routes | Medium — must set before going live with new pricing | Add `STRIPE_BUSINESS_PRICE_ID` to `docs/runbooks/README.md` and Vercel env |
+| Subscription tier default | Code | **Resolved by `changes/restore-three-tier-pricing`** — `prisma/schema.prisma` now defaults `subscriptionTier` to `"starter"`, matching `lib/subscriptionPlans.ts` | Resolved | n/a |
+| Subscription tier rename migration | Code | **Resolved by `changes/restore-three-tier-pricing`** — a migration normalises any stray `subscriptionTier` values (e.g. `business`) to the current tier set | Resolved | n/a |
+| New pricing features not in code | Pricing page | **Resolved by `changes/restore-three-tier-pricing`** — capabilities without an implementation (`weekly_summary_email`, `csv_export`, `approval_mode`, `contact_suppression`, `team_seats`, `customer_specific_sequences`, `multi_template_customer_wording`, `multi_client_management`) are tracked via `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()` and labelled "Coming soon" wherever shown; `promise_to_pay_tracking` is now implemented and enabled on every paid tier, so it is no longer a gap | Resolved | n/a |
+| `STRIPE_BUSINESS_PRICE_ID` env var | Code | **Resolved by `changes/restore-three-tier-pricing`** — `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired; the canonical set is `STRIPE_STARTER_PRICE_ID` / `STRIPE_SOLO_PRICE_ID` / `STRIPE_SMALL_BUSINESS_PRICE_ID` | Resolved | n/a |
 | `stripeConnectAccountId` encryption | Code | Schema comment claims app-layer encryption; no code encrypts it | Medium — overstated security control | Implement encryption or correct the comment |
 | `invoice.payment_failed` | OpenSpec | Listed as required webhook event; no handler in code | Medium — `past_due` not reflected promptly | Implement `changes/handle-billing-payment-failed-webhook` |
 | Env-var drift CI | OpenSpec | Proposed CI check + script not present; no CI workflow at all | Medium — runbook/code drift recurs | Implement `changes/ci-runbook-envvar-drift-check` + add CI |
@@ -496,6 +496,6 @@ batching) before invoice volume grows.
 | Stage | The reminder step (1 friendly → 2 firm → 3 final) for a tracked invoice |
 | Catch-up scan | Cron-time poll of Stripe for newly overdue invoices (`lib/email/catchup.ts`) |
 | Connection | A linked Stripe Connect account (`InvoiceConnection`) supplying invoices |
-| Tier / plan | Subscription level (Starter / Business / Accountant Partner) gating features and limits |
+| Tier / plan | Subscription level (Starter / Solo / Small Business / Accountant Partner) gating features and limits |
 | `LIVE` | Env flag controlling pre-launch auth gating (`lib/liveMode.ts`) |
 | Provider | Invoice-source adapter implementing `InvoiceProvider` (`lib/providers/types.ts`) |

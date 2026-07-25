@@ -54,7 +54,6 @@ Vercel → Project → **Settings → Environment Variables**. Add every row fro
 | `STRIPE_STARTER_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
 | `STRIPE_SOLO_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
 | `STRIPE_SMALL_BUSINESS_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
-| `STRIPE_PRO_PRICE_ID` | optional legacy Solo fallback | optional legacy Solo fallback | optional legacy Solo fallback |
 | `STRIPE_CONNECT_CLIENT_ID` | ✓ (live `ca_…`) | ✓ (test `ca_…`) | ✓ (test `ca_…`) |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | ✓ (dashboard `whsec_…`) | — | — |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | ✓ (dashboard `whsec_…`) | — | — |
@@ -172,7 +171,17 @@ curl -i https://paidsoon-pr-42.vercel.app/api/cron/send-emails \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-Expected response: `200` with JSON `{ ok: true, emailsSent, errors, processed }`.
+Expected response: `200` with JSON `{ ok: true, emailsSent, errors, processed, held, usageByAccount }`.
+
+- `held` — first-chase invoices skipped this pass because their account had no remaining
+  chase-volume allowance for the current billing period (their state is left untouched, so
+  they are retried on the next pass — see `chase-volume-entitlement` in
+  [openspec/changes/monthly-chase-volume-limits](../../openspec/changes/monthly-chase-volume-limits)).
+  A non-zero `held` count with an otherwise-healthy `errors: 0` is expected behaviour, not a
+  failure — it means one or more accounts are at capacity, not that sending broke.
+- `usageByAccount` — per-account `{ userId, allowance, usage, remaining, atCapacity }` for
+  every account that had at least one invoice due this pass, so the held condition above is
+  observable without a DB query.
 
 Wrong / missing `CRON_SECRET` → `401 Unauthorized`.
 

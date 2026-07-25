@@ -1,62 +1,80 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { PricingCTA } from "@/components/pricing/PricingCTA"
+import {
+  getPublicPlans,
+  isFeatureImplemented,
+  PLAN_CATALOG,
+  type SubscriptionFeature,
+  type SubscriptionTier,
+} from "@/lib/subscriptionPlans"
+import { formatPlanPrice, planHighlights, PLAN_TAGLINE } from "@/lib/planPresentation"
+
+const publicPlans = getPublicPlans()
 
 export const metadata: Metadata = {
   title: "Pricing — PaidSoon",
-  description:
-    "Simple, transparent pricing for PaidSoon. Start a free trial with Starter at $19/mo AUD, Business at $49/mo AUD, or contact us for the Accountant Partner plan.",
+  description: `Simple, transparent pricing for PaidSoon. Start a free trial with ${publicPlans
+    .map((plan) => `${plan.name} at ${formatPlanPrice(plan.monthlyPriceAud)} AUD (inc. GST)`)
+    .join(", ")}, or contact us for the ${PLAN_CATALOG.accountant_partner.name} plan.`,
 }
 
-const pricingPlans = [
-  {
-    id: "starter" as const,
-    name: "Starter",
-    price: "$19/mo",
-    cta: "Start with Starter",
-    featured: false,
-    description: "For freelancers and sole traders who want automated invoice chasing on autopilot.",
-    features: [
-      "Up to 20 tracked invoices",
-      "1 connected Stripe account",
-      "Automated 3-stage reminder sequence",
-      "Reminder templates",
-      "Debtor dashboard",
-      "PaidSoon branding on emails",
-    ],
-  },
-  {
-    id: "business" as const,
-    name: "Business",
-    price: "$49/mo",
-    cta: "Start with Business",
-    featured: true,
-    description: "For growing businesses that need more volume, custom branding, and AI-assisted reminders.",
-    features: [
-      "Up to 100 tracked invoices",
-      "Up to 3 connected Stripe accounts",
-      "Everything in Starter",
-      "Custom email address (your domain)",
-      "AI-assisted reminder wording",
-      "Promise-to-pay & dispute tracking",
-      "Weekly debtor summary reports",
-    ],
-  },
-]
+const PLAN_CTA_LABEL: Record<SubscriptionTier, string> = {
+  starter: "Start with Starter",
+  solo: "Start with Solo",
+  small_business: "Start with Small Business",
+  accountant_partner: "Contact us",
+}
 
-const comparisonFeatures = [
-  { feature: "Tracked invoices", starter: "Up to 20", business: "Up to 100", partner: "Unlimited" },
-  { feature: "Connected Stripe accounts", starter: "1", business: "Up to 3", partner: "Unlimited" },
-  { feature: "Automated reminder sequence", starter: "✓", business: "✓", partner: "✓" },
-  { feature: "Reminder templates", starter: "✓", business: "✓", partner: "✓" },
-  { feature: "Custom email address (your domain)", starter: "—", business: "✓", partner: "✓" },
-  { feature: "AI-assisted reminder wording", starter: "—", business: "✓", partner: "✓" },
-  { feature: "Promise-to-pay tracking", starter: "—", business: "✓", partner: "✓" },
-  { feature: "Dispute pause", starter: "—", business: "✓", partner: "✓" },
-  { feature: "Weekly debtor summary email", starter: "—", business: "✓", partner: "✓" },
-  { feature: "Multi-client management", starter: "—", business: "—", partner: "✓" },
-  { feature: "Client visibility dashboard", starter: "—", business: "—", partner: "✓" },
-  { feature: "Dedicated onboarding support", starter: "—", business: "—", partner: "✓" },
+interface ComparisonRow {
+  label: string
+  values: (tier: SubscriptionTier) => string
+}
+
+function limitRow(
+  label: string,
+  select: (tier: SubscriptionTier) => number,
+  unimplementedAbove = Infinity,
+): ComparisonRow {
+  return {
+    label,
+    values: (tier) => {
+      const limit = select(tier)
+      if (limit === -1) return "Unlimited"
+      return limit > unimplementedAbove ? `Up to ${limit} (coming soon)` : `${limit}`
+    },
+  }
+}
+
+function featureRow(label: string, feature: SubscriptionFeature): ComparisonRow {
+  return {
+    label,
+    values: (tier) => {
+      if (!PLAN_CATALOG[tier].features[feature]) return "—"
+      return isFeatureImplemented(feature) ? "✓" : "Coming soon"
+    },
+  }
+}
+
+const comparisonRows: ComparisonRow[] = [
+  limitRow("Invoices chased per month", (tier) => PLAN_CATALOG[tier].limits.chasedInvoicesPerMonth),
+  limitRow("Internal users", (tier) => PLAN_CATALOG[tier].limits.userSeats, 1),
+  limitRow("Connected invoice sources", (tier) => PLAN_CATALOG[tier].limits.connectedInvoiceSources),
+  featureRow("Automated reminder sequence", "basic_email_reminders"),
+  featureRow("Custom reminder timing", "email_reminder_sequence"),
+  featureRow("Customer-specific sequences", "customer_specific_sequences"),
+  featureRow("Fully editable templates", "custom_reminder_templates"),
+  featureRow("Multiple templates & customer wording", "multi_template_customer_wording"),
+  featureRow("Custom sender name", "custom_sender_name"),
+  featureRow("Verified custom from-address", "verified_from_domain"),
+  featureRow("AI-assisted reminder wording", "ai_rewrite"),
+  featureRow("Promise-to-pay tracking", "promise_to_pay_tracking"),
+  featureRow("Dispute pause", "dispute_pause"),
+  featureRow("Weekly debtor summary email", "weekly_summary_email"),
+  featureRow("CSV export", "csv_export"),
+  featureRow("Approval mode", "approval_mode"),
+  featureRow("Customer suppression / do-not-contact", "contact_suppression"),
+  featureRow("Accounting integrations (MYOB, Xero)", "accounting_integrations"),
 ]
 
 export default function PricingPage() {
@@ -68,67 +86,53 @@ export default function PricingPage() {
         <p className="mt-4 text-lg text-gray-500">
           Start your free trial. No credit card required. Cancel any time — no lock-in contracts.
         </p>
+        <p className="mt-2 text-sm text-gray-400">All prices are in AUD and include GST.</p>
       </section>
 
       {/* Plan cards */}
       <section className="max-w-5xl mx-auto px-4 pb-16">
         <div className="grid lg:grid-cols-3 gap-6">
-          {pricingPlans.map((plan) => (
+          {publicPlans.map((plan) => (
             <div
               key={plan.id}
               className={`rounded-xl p-6 space-y-4 relative ${
-                plan.featured
+                plan.popular
                   ? "border-2 border-blue-600 shadow-sm"
                   : "border border-gray-200"
               }`}
             >
-              {plan.featured && (
+              {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs px-3 py-0.5 rounded-full">
                   Most popular
                 </div>
               )}
               <div>
                 <p className="text-lg font-semibold text-gray-900">{plan.name}</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{plan.price}</p>
-                <p className="text-sm text-gray-500 mt-2">{plan.description}</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  {formatPlanPrice(plan.monthlyPriceAud)}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">{PLAN_TAGLINE[plan.id]}</p>
               </div>
               <ul className="space-y-2 text-sm text-gray-600">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex gap-2">
+                {planHighlights(plan.id).map((highlight) => (
+                  <li key={highlight} className="flex gap-2">
                     <span className="text-green-500">✓</span>
-                    <span>{feature}</span>
+                    <span>{highlight}</span>
                   </li>
                 ))}
               </ul>
-              <PricingCTA tier={plan.id} label={plan.cta} featured={plan.featured} />
+              <PricingCTA tier={plan.id} label={PLAN_CTA_LABEL[plan.id]} featured={plan.popular} />
             </div>
           ))}
-
-          {/* Accountant Partner */}
-          <div className="rounded-xl p-6 space-y-4 border border-gray-200">
-            <div>
-              <p className="text-lg font-semibold text-gray-900">Accountant Partner</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">Contact us</p>
-              <p className="text-sm text-gray-500 mt-2">
-                For bookkeepers and accountants managing invoice follow-ups across multiple clients.
-              </p>
-            </div>
-            <ul className="space-y-2 text-sm text-gray-600">
-              {["Everything in Business", "Unlimited clients", "Multi-client debtor dashboard", "Client onboarding support", "Partner programme benefits"].map((f) => (
-                <li key={f} className="flex gap-2">
-                  <span className="text-green-500">✓</span>
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/contact?type=partnership"
-              className="block text-center text-sm py-2 rounded-md border border-blue-600 text-blue-600 hover:bg-blue-50"
-            >
-              Contact us
-            </Link>
-          </div>
         </div>
+
+        <p className="mt-8 text-center text-sm text-gray-500">
+          Managing invoice follow-ups for multiple clients?{" "}
+          <Link href="/contact?type=partnership" className="text-blue-600 hover:underline">
+            Contact us about {PLAN_CATALOG.accountant_partner.name}
+          </Link>
+          .
+        </p>
       </section>
 
       {/* Trust messaging */}
@@ -151,18 +155,22 @@ export default function PricingPage() {
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left py-3 pr-4 font-medium text-gray-500 w-1/2">Feature</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-900">Starter</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-900">Business</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-900">Accountant Partner</th>
+                {publicPlans.map((plan) => (
+                  <th key={plan.id} className="text-center py-3 px-4 font-semibold text-gray-900">
+                    {plan.name}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {comparisonFeatures.map((row) => (
-                <tr key={row.feature} className="border-b border-gray-100">
-                  <td className="py-3 pr-4 text-gray-700">{row.feature}</td>
-                  <td className="text-center py-3 px-4 text-gray-500">{row.starter}</td>
-                  <td className="text-center py-3 px-4 text-gray-500">{row.business}</td>
-                  <td className="text-center py-3 px-4 text-gray-500">{row.partner}</td>
+              {comparisonRows.map((row) => (
+                <tr key={row.label} className="border-b border-gray-100">
+                  <td className="py-3 pr-4 text-gray-700">{row.label}</td>
+                  {publicPlans.map((plan) => (
+                    <td key={plan.id} className="text-center py-3 px-4 text-gray-500">
+                      {row.values(plan.id)}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

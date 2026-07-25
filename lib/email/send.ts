@@ -126,9 +126,12 @@ export async function sendContactEnquiryEmail(input: ContactEnquiryEmailInput): 
 }
 
 /**
- * Resolve the "From" address for a user.
- * Tiers with own_email_address entitlement and a verified sender use custom address.
- * Other tiers (or unverified sender) use the system domain.
+ * Resolve the "From" address and reply-to for a user, per the sender-identity
+ * ladder: Starter gets the PaidSoon system address with a custom reply-to;
+ * Solo adds a custom sender display name alongside the system address; Small
+ * Business (and Accountant Partner) adds a fully custom, verified from-domain.
+ * This is the single enforcement point for sender identity — settings routes
+ * only persist values, they do not decide what gets used to send.
  */
 export async function resolveFromAddress(userId: string): Promise<{
   from: string
@@ -138,23 +141,30 @@ export async function resolveFromAddress(userId: string): Promise<{
     where: { userId },
     select: { subscriptionTier: true },
   })
+  const settings = await prisma.emailSettings.findUnique({
+    where: { userId },
+  })
 
-  if (hasPlanFeature(profile?.subscriptionTier, "own_email_address")) {
-    const settings = await prisma.emailSettings.findUnique({
-      where: { userId },
-    })
-    if (settings?.fromEmail && settings.resendVerified) {
-      const name = settings.fromName ?? settings.fromEmail
-      return {
-        from: `${name} <${settings.fromEmail}>`,
-        replyTo: settings.replyTo ?? settings.fromEmail,
-      }
+  const canUseVerifiedDomain = hasPlanFeature(profile?.subscriptionTier, "verified_from_domain")
+  const canUseCustomSenderName = hasPlanFeature(profile?.subscriptionTier, "custom_sender_name")
+  const canUseCustomReplyTo = hasPlanFeature(profile?.subscriptionTier, "custom_reply_to")
+
+  if (canUseVerifiedDomain && settings?.fromEmail && settings.resendVerified) {
+    const name = settings.fromName ?? settings.fromEmail
+    return {
+      from: `${name} <${settings.fromEmail}>`,
+      replyTo: settings.replyTo ?? settings.fromEmail,
     }
   }
 
-  // Fallback: system domain
+  const name =
+    canUseCustomSenderName && settings?.fromName
+      ? settings.fromName
+      : process.env.RESEND_FROM_NAME!
+
   return {
-    from: `${process.env.RESEND_FROM_NAME!} <${process.env.RESEND_FROM_EMAIL!}>`,
+    from: `${name} <${process.env.RESEND_FROM_EMAIL!}>`,
+    replyTo: canUseCustomReplyTo ? settings?.replyTo ?? undefined : undefined,
   }
 }
 

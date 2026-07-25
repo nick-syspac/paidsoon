@@ -19,7 +19,9 @@ export default async function EmailSettingsPage() {
 
   return (
     <EmailSettingsClient
-      canUseOwnEmail={hasPlanFeature(profile?.subscriptionTier, "own_email_address")}
+      canUseCustomReplyTo={hasPlanFeature(profile?.subscriptionTier, "custom_reply_to")}
+      canUseCustomSenderName={hasPlanFeature(profile?.subscriptionTier, "custom_sender_name")}
+      canUseVerifiedDomain={hasPlanFeature(profile?.subscriptionTier, "verified_from_domain")}
       settings={emailSettings}
       systemEmail={process.env.RESEND_FROM_EMAIL ?? "billing@paidsoon.com"}
     />

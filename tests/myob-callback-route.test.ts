@@ -62,10 +62,18 @@ describe("MYOB callback route", () => {
         withUserContext: async (_userId: string, fn: (tx: unknown) => unknown) => {
           const tx = {
             accountingConnection: {
+              findUnique: async () => null, // simulates a new (not-yet-connected) organisation
               upsert: async (args: unknown) => {
                 upsertArgs = args
                 return { id: "conn-1" }
               },
+              count: async () => 0,
+            },
+            invoiceConnection: {
+              count: async () => 0,
+            },
+            userProfile: {
+              findUnique: async () => ({ subscriptionTier: "solo" }),
             },
           }
           return fn(tx)

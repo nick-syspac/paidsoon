@@ -34,7 +34,7 @@ The cron job at `/api/cron/send-emails` drives the flow daily at 09:00 UTC.
 ### Email Sending
 - All sending through `lib/email/send.ts` → `sendFollowUpEmail()`. Never call Resend directly.
 - Check `EmailLog(trackedInvoiceId, stage)` before sending to prevent duplicates.
-- Use custom From address only if: `hasPlanFeature(tier, "own_email_address") && emailSettings.resendVerified`.
+- Use custom From address only if: `hasPlanFeature(tier, "verified_from_domain") && emailSettings.resendVerified`.
 - Fall back to `RESEND_FROM_EMAIL` otherwise.
 - Log every send to `email_logs` via `prismaAdmin`.
 

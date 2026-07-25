@@ -78,6 +78,7 @@ export async function GET(request: Request) {
               trialEndsAt: null,
               stripeCustomerId: completion.customerId,
               stripeSubscriptionId: completion.subscriptionId,
+              subscriptionCurrentPeriodStart: completion.periodStart,
               subscriptionCurrentPeriodEnd: completion.periodEnd,
             },
           }),
