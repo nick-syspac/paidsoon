@@ -393,7 +393,7 @@ terms appear nowhere in the code and must not be treated as part of this system.
 | Worker hosting | None — cron invokes a route on the same deployment | `vercel.json` crons |
 | Scheduler | Vercel Cron, daily `0 9 * * *` → `/api/cron/send-emails` | `vercel.json` |
 | Database | Supabase Postgres (`paidsoon-dev`, `paidsoon-prod`) | `docs/runbooks/supabase.md` |
-| DB connections | `DATABASE_URL` (pooled, `authenticator` role, RLS applies) + `DIRECT_URL` (owner, migrations) | `prisma.config.ts`, `lib/db/admin.ts` |
+| DB connections | `DATABASE_URL` (shared pooler, `postgres.[ref]`, RLS applied by `withUserContext`'s `SET LOCAL ROLE authenticated`) + `DIRECT_URL` (owner, migrations) | `prisma.config.ts`, `lib/db/admin.ts` |
 | Auth | Supabase Auth | `docs/runbooks/supabase.md` |
 | Object storage | None | — |
 | Redis / queue | None | — |

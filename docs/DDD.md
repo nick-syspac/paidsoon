@@ -775,7 +775,7 @@ favour of "PaidSoon" / `paidsoon.com`.
 | API/web runtime | Single Next.js 16 app on Vercel | `docs/runbooks/vercel.md` |
 | Worker runtime | None — cron route on same deployment | `vercel.json` |
 | Scheduler | Vercel Cron `0 9 * * *` (prod only) → `/api/cron/send-emails` | `vercel.json`, `docs/runbooks/vercel.md` |
-| Database | Supabase Postgres; runtime via pooled `authenticator` role | `prisma.config.ts`, `lib/db/admin.ts` |
+| Database | Supabase Postgres; runtime via the shared pooler as `postgres.[ref]`, RLS applied per-transaction by `withUserContext` | `prisma.config.ts`, `lib/db/admin.ts` |
 | Migrations | `prisma migrate` via `DIRECT_URL` (owner) | `prisma.config.ts` |
 | RLS bootstrap | `prisma/rls-policies.sql` applied manually in Supabase | `prisma/rls-policies.sql`, `docs/runbooks/supabase.md` |
 | Object storage / Redis | None | — |

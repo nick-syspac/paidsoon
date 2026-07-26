@@ -15,8 +15,9 @@ export type PrismaTx = Prisma.TransactionClient
  *   - Both `request.jwt.claims` and `request.jwt.claim.*` are set so the
  *     helper works across Supabase/PostgREST auth.uid() claim lookups.
  *   - The connection role configured in `DATABASE_URL` must be permitted
- *     to `SET ROLE authenticated` (Supabase: connect as `authenticator`
- *     or a custom role granted `authenticated`).
+ *     to `SET ROLE authenticated` (Supabase: `postgres.[ref]` via the shared
+ *     pooler, or any role granted `authenticated`). RLS enforcement comes
+ *     from this role switch, not from the connection role itself.
  *
  * Every user-scoped Prisma access should go through this helper. Service
  * paths (cron, webhooks) use `prismaAdmin` directly.

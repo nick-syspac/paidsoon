@@ -4,9 +4,9 @@
 --
 -- Enforcement model
 -- -----------------
--- The Prisma runtime client connects via DATABASE_URL as a role that does NOT
--- have BYPASSRLS (Supabase: `authenticator` or a custom role granted
--- `authenticated`). For each user request, the application wraps queries in
+-- The Prisma runtime client connects via DATABASE_URL through the Supabase
+-- Shared Pooler as `postgres.[ref]`. Enforcement does not rely on that role:
+-- for each user request, the application wraps queries in
 -- `withUserContext(userId, fn)` (see lib/db/withUserContext.ts), which inside
 -- a transaction runs:
 --   SET LOCAL ROLE authenticated;

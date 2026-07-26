@@ -46,7 +46,7 @@ Vercel → Project → **Settings → Environment Variables**. Add every row fro
 | `NEXT_PUBLIC_SUPABASE_URL` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
 | `SUPABASE_SECRET_KEY` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
-| `DATABASE_URL` | ✓ (prod `authenticator` pooler) | ✓ (dev `authenticator` pooler) | ✓ (dev `authenticator` pooler) |
+| `DATABASE_URL` | ✓ (prod `postgres.[ref]` pooler) | ✓ (dev `postgres.[ref]` pooler) | ✓ (dev `postgres.[ref]` pooler) |
 | `DIRECT_URL` | ✓ (prod direct) | ✓ (dev direct) | ✓ (dev direct) |
 | `NEXT_PUBLIC_APP_URL` | ✓ (`https://paidsoon.com`) | ✓ (preview URL — see §2.2) | ✓ (your preference) |
 | `CRON_SECRET` | ✓ (required) | — | — |

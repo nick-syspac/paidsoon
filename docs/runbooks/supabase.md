@@ -21,7 +21,7 @@ Steps (per project):
 
 1. [supabase.com/dashboard](https://supabase.com/dashboard) → **New project**.
 2. Name (`paidsoon-dev` or `paidsoon-prod`).
-3. **Database password** — generate a strong one and save it in a password manager. You will use this exact string for both `DATABASE_URL` and `DIRECT_URL` (the `authenticator` role shares this password — see §2).
+3. **Database password** — generate a strong one and save it in a password manager. You will use this exact string for both `DATABASE_URL` and `DIRECT_URL` — both connect as `postgres` (see §2).
 4. **Region** — pick one close to your users. Region trade-offs:
    - Same region as Vercel Functions → lowest p99 latency for every DB query. Vercel Functions default to `iad1` (us-east-1), so `us-east-1` Supabase is the typical pairing.
    - Cross-region adds 50–200 ms per round-trip to every Prisma query, which compounds badly given each user request can issue several queries.
@@ -34,46 +34,43 @@ Steps (per project):
 
 PaidSoon uses **two** Postgres connections, on purpose:
 
-- **`DATABASE_URL`** — runtime connection. Connects as the `authenticator` role through pgBouncer (port `6543`). This role is **not** allowed to bypass RLS, so the policies in [prisma/rls-policies.sql](../../prisma/rls-policies.sql) actually apply. The role then switches into `authenticated` inside each transaction via [lib/db/withUserContext.ts](../../lib/db/withUserContext.ts).
-- **`DIRECT_URL`** — migrations only. Connects as the `postgres` owner role on the direct port (`5432`). This bypasses RLS so `prisma migrate deploy` can DDL. Configured in [prisma.config.ts](../../prisma.config.ts).
+- **`DATABASE_URL`** — runtime connection. Goes through the **Shared Pooler (Supavisor), transaction mode** on `aws-[region].pooler.supabase.com:6543`. Supavisor is IPv4-only, which is what Vercel Functions need. RLS is enforced by [lib/db/withUserContext.ts](../../lib/db/withUserContext.ts), which issues `SET LOCAL ROLE authenticated` as the first statement of every user-scoped transaction — see §2.2.
+- **`DIRECT_URL`** — migrations only. Connects as the `postgres` owner role on the direct host/port (`db.[ref].supabase.co:5432`). This bypasses RLS so `prisma migrate deploy` can DDL. Configured in [prisma.config.ts](../../prisma.config.ts). The direct host is IPv6-only without the IPv4 add-on, so it is usable from a developer machine but **not** from Vercel.
 
 ### 2.1 Find the strings
 
-Supabase dashboard → **Project Settings → Database**:
+Supabase dashboard → **Connect** (top of the project page):
 
-- **Connection string** → **URI** (port `5432`) → this is your `DIRECT_URL` as-is.
-- **Connection pooling** → "Transaction" mode (port `6543`) → this is the **base** for your `DATABASE_URL`, before the username swap below.
+- **Direct connection** (port `5432`, host `db.[ref].supabase.co`) → this is your `DIRECT_URL` as-is.
+- **Transaction pooler** (port `6543`, host `aws-[region].pooler.supabase.com`) → this is your `DATABASE_URL`; just append `&connection_limit=1`.
 
-### 2.2 Build the `authenticator` URL (username swap)
+### 2.2 Use the `postgres.[ref]` user — do not swap it
 
-The pooler URL Supabase hands you uses the `postgres` user. To make RLS apply at runtime, swap the username to `authenticator` while keeping the **same database password** from step 1.3:
+The shared pooler's username is `postgres.[ref]`, where the suffix is how Supavisor resolves the tenant. **Supavisor only has a user record for `postgres`.** Substituting any other role — including Supabase's built-in `authenticator` — fails at connect time with:
 
 ```
-# Original pooler URL (from Supabase dashboard):
-postgresql://postgres.[ref]:[DB_PASSWORD]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
-
-# Final DATABASE_URL — swap "postgres" → "authenticator":
-postgresql://authenticator.[ref]:[DB_PASSWORD]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+FATAL XX000: (ENOTFOUND) tenant/user authenticator.[ref] not found
 ```
 
-`authenticator` is a built-in Supabase role that:
+RLS is still enforced with the `postgres` user, because enforcement does not depend on the connection role. [withUserContext.ts](../../lib/db/withUserContext.ts) runs `SET LOCAL ROLE authenticated` before any query in the transaction, so `current_user` is `authenticated` — a role with neither `BYPASSRLS` nor table ownership — for the whole transaction. The `SET LOCAL` is transaction-scoped, so it cannot leak across requests sharing a pooled connection.
 
-- Does **not** have `BYPASSRLS` (so RLS policies fire).
-- Is permitted to `SET ROLE authenticated`, which is what [withUserContext.ts](../../lib/db/withUserContext.ts) does inside every user-scoped transaction.
+The connection role therefore only affects `prismaAdmin` code paths that deliberately run without a user session (cron, webhooks, post-signup bootstrap), which are meant to bypass RLS.
 
-> The `authenticator` role uses the **same password** as the project's `postgres` user. There is no separate "Database roles" password to retrieve.
+> If you need the runtime connection itself to be a non-owner role, the shared pooler cannot do it. That requires the Dedicated Pooler (PgBouncer, paid plan) or a direct connection, both of which need the [IPv4 add-on](https://supabase.com/docs/guides/platform/ipv4-address) to be reachable from Vercel.
 
-The `connection_limit=1` query parameter is recommended for serverless deployments to avoid exhausting the pgBouncer pool.
+The `connection_limit=1` query parameter is recommended for serverless deployments to avoid exhausting the pool.
 
 ### 2.3 Final shape
 
 ```bash
-# Runtime — pooler, user=authenticator, RLS applies
-DATABASE_URL="postgresql://authenticator.[ref]:[DB_PASSWORD]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+# Runtime — shared pooler (Supavisor) transaction mode, IPv4, user=postgres.[ref]
+DATABASE_URL="postgresql://postgres.[ref]:[DB_PASSWORD]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
 
-# Migrations — direct, user=postgres (owner), bypasses RLS
+# Migrations — direct host, user=postgres (owner), bypasses RLS
 DIRECT_URL="postgresql://postgres:[DB_PASSWORD]@db.[ref].supabase.co:5432/postgres"
 ```
+
+> **Do not** point `DATABASE_URL` at `db.[ref].supabase.co:6543`. That host/port pair is the Dedicated Pooler and does not exist on the free tier; the direct host only listens on `5432`. The symptom is Prisma `P1001 Can't reach database server`.
 
 Set these per the matrix in [README.md](./README.md) — `paidsoon-dev` values go into Local + Preview, `paidsoon-prod` into Production.
 
@@ -142,8 +139,8 @@ node --import tsx scripts/verify-rls.ts
 
 If it fails, **do not continue** — fix it first. Common causes:
 
-- `DATABASE_URL` is using `postgres` (or `postgres.[ref]`) instead of `authenticator.[ref]` → the connection bypasses RLS silently.
 - You forgot to apply `prisma/rls-policies.sql`.
+- The `authenticated` role is missing `GRANT`s on the `public` schema/tables → `permission denied for schema public` after `SET LOCAL ROLE authenticated`.
 - Wrong password.
 
 ---

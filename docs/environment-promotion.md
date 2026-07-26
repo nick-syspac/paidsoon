@@ -353,7 +353,7 @@ ONLY apply prisma migrate deploy to production after testing on preview.
 | Running `prisma migrate dev` in production | May generate spurious new migrations | Use `prisma migrate deploy` in all hosted environments |
 | Forgetting to re-apply `rls-policies.sql` after a migration | RLS may be incomplete or broken | Always run `npm run verify-rls` after `prisma migrate deploy` |
 | Setting `LIVE=true` on preview before launch readiness | Sign-in/sign-up unintentionally exposed | Keep `LIVE=false` on preview until explicitly ready |
-| Using `DIRECT_URL` as `DATABASE_URL` at runtime | Bypasses RLS — all tenant isolation fails | Runtime always uses the `authenticator` role pooler URL |
+| Using `DIRECT_URL` as `DATABASE_URL` at runtime | Bypasses the pooler and is IPv6-only (unreachable from Vercel) | Runtime always uses the shared-pooler URL |
 
 ---
 

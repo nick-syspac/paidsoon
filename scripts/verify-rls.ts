@@ -2,7 +2,8 @@
  * Verify RLS enforcement via Prisma + withUserContext.
  *
  * Run against a DB where:
- *   - DATABASE_URL connects as a role granted `authenticated` (e.g. Supabase `authenticator`)
+ *   - DATABASE_URL connects as a role granted `authenticated` (Supabase: `postgres.[ref]`
+ *     via the shared pooler)
  *   - DIRECT_URL connects as the migration owner (used here for seed/cleanup)
  *   - rls-policies.sql has been applied
  *

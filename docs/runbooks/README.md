@@ -73,7 +73,7 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `NEXT_PUBLIC_SUPABASE_URL` | `paidsoon-dev` project URL | `paidsoon-dev` project URL | `paidsoon-prod` project URL | [supabase.md §3](./supabase.md) |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `paidsoon-dev` `sb_publishable_…` | `paidsoon-dev` `sb_publishable_…` | `paidsoon-prod` `sb_publishable_…` | [supabase.md §3](./supabase.md) |
 | `SUPABASE_SECRET_KEY` | `paidsoon-dev` `sb_secret_…` | `paidsoon-dev` `sb_secret_…` | `paidsoon-prod` `sb_secret_…` | [supabase.md §3](./supabase.md) |
-| `DATABASE_URL` | `paidsoon-dev` `authenticator` pooler URL | `paidsoon-dev` `authenticator` pooler URL | `paidsoon-prod` `authenticator` pooler URL | [supabase.md §2](./supabase.md) |
+| `DATABASE_URL` | `paidsoon-dev` `postgres.[ref]` pooler URL | `paidsoon-dev` `postgres.[ref]` pooler URL | `paidsoon-prod` `postgres.[ref]` pooler URL | [supabase.md §2](./supabase.md) |
 | `DIRECT_URL` | `paidsoon-dev` `postgres` direct URL | `paidsoon-dev` `postgres` direct URL | `paidsoon-prod` `postgres` direct URL | [supabase.md §2](./supabase.md) |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:4001` (per `package.json`'s `next dev --port 4001`) | the preview deployment URL (set per deploy if needed) | `https://paidsoon.com` | [vercel.md §2](./vercel.md) |
 | `LIVE` | `false` while pre-launch, `true` at go-live | `false` until launch readiness | `true` once publicly launched | [vercel.md §2](./vercel.md) |
