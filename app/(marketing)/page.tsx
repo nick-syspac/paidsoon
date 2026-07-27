@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { isDebugEnabled } from "@/lib/diagnostics/server"
+import DebugDbCheckButton from "@/components/marketing/DebugDbCheckButton"
 
 export const metadata: Metadata = {
   title: "PaidSoon — Automated Invoice Follow-Ups for Freelancers & Small Business",
@@ -72,6 +74,7 @@ export default function HomePage() {
             How it works →
           </Link>
         </div>
+        {isDebugEnabled() && <DebugDbCheckButton />}
       </section>
 
       {/* Problem */}
