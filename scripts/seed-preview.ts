@@ -1103,7 +1103,7 @@ async function createInvoices(
     let firstChasedAt: Date | null = null
     for (let stage = 1; stage <= remindersSent; stage++) {
       const typedStage = stage as 1 | 2 | 3
-      const daysBack = Math.max(1, -spec.dueInDays - (remindersSent - stage) * 7)
+      const daysBack = Math.max(1, -spec.dueInDays + (remindersSent - stage) * 7)
       const isLast = stage === remindersSent
       const sentAt = clock.daysAgo(daysBack)
       if (stage === 1) firstChasedAt = sentAt
