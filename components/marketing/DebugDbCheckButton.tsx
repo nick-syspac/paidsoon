@@ -5,6 +5,7 @@ import { useState } from "react"
 type DbCheckResult = {
   ok: boolean
   message: string
+  connectionTarget?: string | null
   latencyMs?: number
   error?: string
   checkedAt?: string
