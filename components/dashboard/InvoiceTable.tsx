@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import type {
   EmailLog,
@@ -18,11 +18,34 @@ import {
   getBrokenPromiseCountForDebtor,
   isPromiseDebtorHighPriority,
 } from "@/lib/dashboard/promisePriority"
+import { DetailModal } from "./DetailModal"
+import { Spinner } from "@/components/ui/Spinner"
+import { sanitizeHtml } from "@/lib/email/htmlSanitizer"
 
 type InvoiceWithLogs = TrackedInvoice & {
   emailLogs: EmailLog[]
   promisesToPay: PromiseToPay[]
   arrangementCoverages: ArrangementCoverageWithArrangement[]
+}
+
+type ArrangementDetailCoverage = {
+  invoiceId: string
+  clientName: string
+  clientEmail: string
+  amountDue: number
+  currency: string
+  status: string
+}
+
+type ArrangementDetail = {
+  id: string
+  arrangementType: string
+  status: string
+  promisedPayBy: string | null
+  agreedAmount: number | null
+  currency: string
+  termsNotes: string | null
+  coverages: ArrangementDetailCoverage[]
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -101,6 +124,52 @@ export function InvoiceTable({
   const [agreedAmount, setAgreedAmount] = useState("")
   const [arrangementSubmitting, setArrangementSubmitting] = useState(false)
   const [arrangementError, setArrangementError] = useState<string | null>(null)
+  const [selectedEmailLog, setSelectedEmailLog] = useState<EmailLog | null>(null)
+  const [selectedArrangementId, setSelectedArrangementId] = useState<string | null>(null)
+  const [arrangementDetail, setArrangementDetail] = useState<ArrangementDetail | null>(null)
+  const [arrangementDetailLoading, setArrangementDetailLoading] = useState(false)
+  const [arrangementDetailError, setArrangementDetailError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!selectedArrangementId) return
+
+    let cancelled = false
+
+    fetch(`/api/arrangements/${selectedArrangementId}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}))
+          throw new Error(body.error ?? "Failed to load arrangement detail")
+        }
+        return response.json()
+      })
+      .then((body: { arrangement: ArrangementDetail }) => {
+        if (!cancelled) setArrangementDetail(body.arrangement)
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setArrangementDetailError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setArrangementDetailLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedArrangementId])
+
+  function openArrangementDetail(arrangementId: string) {
+    setSelectedArrangementId(arrangementId)
+    setArrangementDetail(null)
+    setArrangementDetailError(null)
+    setArrangementDetailLoading(true)
+  }
+
+  function closeArrangementDetail() {
+    setSelectedArrangementId(null)
+    setArrangementDetail(null)
+    setArrangementDetailError(null)
+  }
 
   async function doAction(id: string, action: "pause" | "resume" | "snooze" | "resolve") {
     setLoadingId(id)
@@ -343,19 +412,26 @@ export function InvoiceTable({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td
+                    className={`px-4 py-3 ${arrangement ? "cursor-pointer" : ""}`}
+                    onClick={(event) => {
+                      if (!arrangement) return
+                      event.stopPropagation()
+                      openArrangementDetail(arrangement.arrangement.id)
+                    }}
+                  >
                     {arrangement?.type === "active" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 hover:underline">
                         🧾 Active ({arrangementScopeLabel(arrangement.arrangement)})
                       </span>
                     )}
                     {arrangement?.type === "broken" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-100">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-100 hover:underline">
                         ⚠️ Broken arrangement
                       </span>
                     )}
                     {arrangement?.type === "fulfilled" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100 hover:underline">
                         ✓ Fulfilled
                       </span>
                     )}
@@ -432,7 +508,13 @@ export function InvoiceTable({
                       {arrangement && (
                         <div className="mb-3 text-xs text-gray-700">
                           <p className="font-medium text-gray-600 mb-1">Arrangement</p>
-                          <div className="flex flex-wrap gap-4">
+                          <div
+                            className="flex flex-wrap gap-4 cursor-pointer hover:underline"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              openArrangementDetail(arrangement.arrangement.id)
+                            }}
+                          >
                             <span>Type: {arrangementTypeLabel(arrangement.arrangement.arrangementType)}</span>
                             <span>Scope: {arrangementScopeLabel(arrangement.arrangement)}</span>
                             <span>Status: {arrangement.arrangement.status}</span>
@@ -452,7 +534,14 @@ export function InvoiceTable({
                       ) : (
                         <div className="space-y-1">
                           {inv.emailLogs.map((log) => (
-                            <div key={log.id} className="text-xs text-gray-600 flex gap-4">
+                            <div
+                              key={log.id}
+                              className="text-xs text-gray-600 flex gap-4 cursor-pointer hover:bg-gray-100 rounded px-1 -mx-1"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setSelectedEmailLog(log)
+                              }}
+                            >
                               <span className="w-20 shrink-0 text-gray-400">
                                 Stage {log.stage}
                               </span>
@@ -471,6 +560,88 @@ export function InvoiceTable({
           })}
         </tbody>
       </table>
+
+      {selectedEmailLog && (
+        <DetailModal
+          title={`Stage ${selectedEmailLog.stage} email`}
+          onClose={() => setSelectedEmailLog(null)}
+        >
+          <div className="space-y-1 text-xs text-gray-600 mb-3">
+            <div>
+              <span className="font-medium text-gray-500">Subject:</span> {selectedEmailLog.subject}
+            </div>
+            <div>
+              <span className="font-medium text-gray-500">From:</span> {selectedEmailLog.fromAddress}
+            </div>
+            <div>
+              <span className="font-medium text-gray-500">Sent:</span> {formatDate(selectedEmailLog.sentAt)}
+            </div>
+          </div>
+          <hr className="border-gray-100 mb-3" />
+          {selectedEmailLog.htmlBody ? (
+            <div
+              className="text-sm text-gray-800 [&_a]:text-blue-600 [&_a]:underline"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedEmailLog.htmlBody) }}
+            />
+          ) : selectedEmailLog.textBody ? (
+            <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800">
+              {selectedEmailLog.textBody}
+            </pre>
+          ) : (
+            <p className="text-xs text-gray-400">
+              Content not available for emails sent before this feature was added.
+            </p>
+          )}
+        </DetailModal>
+      )}
+
+      {selectedArrangementId && (
+        <DetailModal title="Arrangement detail" onClose={closeArrangementDetail}>
+          {arrangementDetailLoading && (
+            <div className="flex justify-center py-6">
+              <Spinner />
+            </div>
+          )}
+          {arrangementDetailError && (
+            <p className="text-xs text-red-600">{arrangementDetailError}</p>
+          )}
+          {arrangementDetail && (
+            <div className="space-y-3 text-sm">
+              <div className="flex flex-wrap gap-4 text-xs text-gray-700">
+                <span>Type: {arrangementTypeLabel(arrangementDetail.arrangementType)}</span>
+                <span>Status: {arrangementDetail.status}</span>
+                <span>
+                  Repayment:
+                  {arrangementDetail.agreedAmount
+                    ? ` ${formatCurrency(arrangementDetail.agreedAmount, arrangementDetail.currency)}`
+                    : " Full balance"}
+                </span>
+                <span>Target date: {formatDate(arrangementDetail.promisedPayBy)}</span>
+              </div>
+              {arrangementDetail.termsNotes && (
+                <div className="text-xs text-gray-700">
+                  <p className="font-medium text-gray-500 mb-1">Terms / notes</p>
+                  <p className="whitespace-pre-wrap">{arrangementDetail.termsNotes}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-2">
+                  Covered invoices ({arrangementDetail.coverages.length})
+                </p>
+                <div className="space-y-1">
+                  {arrangementDetail.coverages.map((coverage) => (
+                    <div key={coverage.invoiceId} className="text-xs text-gray-600 flex gap-4">
+                      <span className="truncate">{coverage.clientName}</span>
+                      <span>{formatCurrency(coverage.amountDue, coverage.currency)}</span>
+                      <span className="text-gray-400">{coverage.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </DetailModal>
+      )}
     </div>
   )
 }

@@ -19,12 +19,38 @@ let mockArrangementRecord: {
   coverages: Array<{ trackedInvoiceId: string }>
 } | null = null
 
-let mockArrangementForStatus: { id: string; status: string } | null = null
+type MockArrangementDetail = {
+  id: string
+  status: string
+  arrangementType?: string
+  promisedPayBy?: string | null
+  agreedAmount?: number | null
+  currency?: string
+  planSchedule?: unknown
+  termsNotes?: string | null
+  expiresAt?: string | null
+  breachedAt?: string | null
+  fulfilledAt?: string | null
+  createdAt?: string
+  coverages?: Array<{
+    trackedInvoiceId: string
+    trackedInvoice: {
+      id: string
+      clientName: string
+      clientEmail: string
+      amountDue: number
+      currency: string
+      status: string
+    }
+  }>
+}
+
+let mockArrangementForStatus: MockArrangementDetail | null = null
 let lastArrangementCreateArgs: unknown = null
 let lastArrangementUpdateArgs: unknown = null
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let createArrangementRoute: any, updateArrangementStatusRoute: any
+let createArrangementRoute: any, updateArrangementStatusRoute: any, getArrangementDetailRoute: any
 
 describe("Arrangement route handlers", () => {
   before(async () => {
@@ -64,6 +90,7 @@ describe("Arrangement route handlers", () => {
 
     ;({ POST: createArrangementRoute } = await import("@/app/api/arrangements/route"))
     ;({ POST: updateArrangementStatusRoute } = await import("@/app/api/arrangements/[id]/status/route"))
+    ;({ GET: getArrangementDetailRoute } = await import("@/app/api/arrangements/[id]/route"))
   })
 
   beforeEach(() => {
@@ -177,5 +204,99 @@ describe("Arrangement route handlers", () => {
     const updateArgs = lastArrangementUpdateArgs as { data: { status: string; breachedAt: Date | null } }
     assert.equal(updateArgs.data.status, "broken")
     assert.ok(updateArgs.data.breachedAt instanceof Date)
+  })
+
+  test("GET /api/arrangements/[id] returns full detail for the owning user", async () => {
+    mockArrangementForStatus = {
+      id: "arr-1",
+      status: "active",
+      arrangementType: "full_payment",
+      promisedPayBy: "2026-08-01T00:00:00.000Z",
+      agreedAmount: null,
+      currency: "usd",
+      termsNotes: "Pays in full by end of month",
+      coverages: [
+        {
+          trackedInvoiceId: "inv-1",
+          trackedInvoice: {
+            id: "inv-1",
+            clientName: "Client Co",
+            clientEmail: "client@example.com",
+            amountDue: 10000,
+            currency: "usd",
+            status: "pending",
+          },
+        },
+      ],
+    }
+
+    const req = new Request("http://localhost/api/arrangements/arr-1")
+    const res = await getArrangementDetailRoute(req, { params: Promise.resolve({ id: "arr-1" }) })
+
+    assert.equal(res.status, 200)
+    const body = await res.json()
+    assert.equal(body.arrangement.id, "arr-1")
+    assert.equal(body.arrangement.coverages.length, 1)
+    assert.equal(body.arrangement.coverages[0].clientName, "Client Co")
+  })
+
+  test("GET /api/arrangements/[id] returns 404 when arrangement doesn't belong to the requesting user", async () => {
+    // Simulates the RLS-scoped findFirst(where: { id, userId }) returning
+    // nothing because the arrangement belongs to a different user.
+    mockArrangementForStatus = null
+
+    const req = new Request("http://localhost/api/arrangements/arr-other")
+    const res = await getArrangementDetailRoute(req, { params: Promise.resolve({ id: "arr-other" }) })
+
+    assert.equal(res.status, 404)
+    const body = await res.json()
+    assert.equal(body.error, "Not found")
+  })
+
+  test("GET /api/arrangements/[id] returns the full list of covered invoices for a multi-invoice arrangement", async () => {
+    mockArrangementForStatus = {
+      id: "arr-2",
+      status: "active",
+      arrangementType: "instalment_plan",
+      promisedPayBy: null,
+      agreedAmount: 15000,
+      currency: "usd",
+      termsNotes: null,
+      coverages: [
+        {
+          trackedInvoiceId: "inv-1",
+          trackedInvoice: {
+            id: "inv-1",
+            clientName: "Client Co",
+            clientEmail: "client@example.com",
+            amountDue: 5000,
+            currency: "usd",
+            status: "pending",
+          },
+        },
+        {
+          trackedInvoiceId: "inv-2",
+          trackedInvoice: {
+            id: "inv-2",
+            clientName: "Client Co",
+            clientEmail: "client@example.com",
+            amountDue: 10000,
+            currency: "usd",
+            status: "pending",
+          },
+        },
+      ],
+    }
+
+    const req = new Request("http://localhost/api/arrangements/arr-2")
+    const res = await getArrangementDetailRoute(req, { params: Promise.resolve({ id: "arr-2" }) })
+
+    assert.equal(res.status, 200)
+    const body = await res.json()
+    assert.equal(body.arrangement.coverages.length, 2)
+    assert.deepEqual(
+      body.arrangement.coverages.map((c: { invoiceId: string }) => c.invoiceId),
+      ["inv-1", "inv-2"],
+    )
   })
 })

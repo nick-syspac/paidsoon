@@ -1,7 +1,7 @@
 import { Resend } from "resend"
 import { randomBytes } from "crypto"
-import sanitizeHtmlLib from "sanitize-html"
 import { prismaAdmin as prisma } from "@/lib/db/admin"
+import { sanitizeHtml } from "./htmlSanitizer"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import {
   buildTemplateVars,
@@ -58,25 +58,10 @@ export function generateP2PToken(): string {
 // ---------------------------------------------------------------------------
 // HTML sanitisation — applied to all htmlBody content before sending.
 // Allows safe formatting elements; strips scripts, iframes, event handlers.
+// Moved to ./htmlSanitizer so it can also be imported from client components
+// (e.g. the dashboard's email detail modal) without pulling in server-only
+// deps (prismaAdmin, resend) that this file imports.
 // ---------------------------------------------------------------------------
-
-const SANITIZE_OPTIONS: sanitizeHtmlLib.IOptions = {
-  allowedTags: [
-    "p", "br", "strong", "em", "u", "s", "ul", "ol", "li",
-    "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "a", "span", "div",
-  ],
-  allowedAttributes: {
-    a: ["href", "target", "rel"],
-    span: ["style"],
-    p: ["style"],
-  },
-  allowedSchemes: ["https", "http", "mailto"],
-  disallowedTagsMode: "discard",
-}
-
-export function sanitizeHtml(html: string): string {
-  return sanitizeHtmlLib(html, SANITIZE_OPTIONS)
-}
 
 function sanitizeHeaderText(value: string): string {
   return value.replace(/[\r\n]+/g, " ").trim().slice(0, 200)
@@ -246,6 +231,8 @@ export async function sendFollowUpEmail(
           resendMessageId: null,
           fromAddress: from,
           subject,
+          htmlBody: html,
+          textBody: text,
         },
       })
       return SUPPRESSED_MESSAGE_ID
@@ -269,6 +256,8 @@ export async function sendFollowUpEmail(
         resendMessageId: messageId,
         fromAddress: from,
         subject,
+        htmlBody: html,
+        textBody: text,
       },
     })
 

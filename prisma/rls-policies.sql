@@ -113,6 +113,10 @@ CREATE POLICY "users can update own invoices"
 -- email_logs
 -- ---------------------------------------------------------------------------
 -- email_logs is accessed via tracked_invoice; use a join-based policy
+-- NOTE: the `htmlBody`/`textBody` columns added for the email-detail-modal
+-- feature are row-level data, not row-visibility gates, so no policy change
+-- is required here — the existing join-based policies already scope every
+-- column (including the new ones) to the owning user.
 CREATE POLICY "users can view own email logs"
   ON email_logs FOR SELECT
   USING (
