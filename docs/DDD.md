@@ -47,7 +47,7 @@ below maps logical areas to code modules (there are no Django apps).
 | Follow-up engine | `app/api/cron/send-emails/route.ts`, `lib/email/**` | Stage progression + send | `TrackedInvoice`, `EmailLog`, `Schedule` | `.../specs/follow-up-sequences`, `.../specs/schedule-config` |
 | Email identity | `app/api/settings/email/route.ts`, `lib/email/send.ts` | Custom verified sender | `EmailSettings` | `.../specs/email-settings`, `changes/rename-to-paidsoon` |
 | Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
-| Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell` |
+| Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` |
 | Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
 
 ## 4. Backend Application Design
@@ -249,10 +249,12 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 | Auth callback | `app/auth/callback/route.ts` | `exchangeCodeForSession` → `/dashboard` |
 | Sign out | `app/auth/sign-out/route.ts` | `signOut()` → redirect `/` |
 | Trial checkout gateway | `app/billing/checkout/page.tsx` | Server component; reads `?plan` param (falls back to profile tier), POSTs to `/api/billing/checkout`, and redirects to the Stripe Checkout URL. Entry point for both the trial-expired gate and the TrialBanner "Add payment" CTA. Renders an error UI if checkout session creation fails. |
-| Dashboard shell | `app/dashboard/layout.tsx` | Nav with `UserMenu` dropdown (identity + sign-out); redirects unauthenticated to `/sign-in` |
-| Dashboard page | `app/dashboard/page.tsx` | Overdue/resolved tables; feature-gated modules + upsell |
+| Dashboard shell | `app/dashboard/layout.tsx` | Nav with `UserMenu` dropdown (identity + sign-out); left-side vertical tab rail (`DashboardNavRail`) for Overview/Invoices/Resolved Invoices; redirects unauthenticated to `/sign-in` |
+| Dashboard Overview page | `app/dashboard/page.tsx` | Traffic-light summary cards (Overdue, Chase allowance, Broken promises, Held invoices), ungated for every tier; redirects legacy `?resolved=1` to `/dashboard/resolved` |
+| Dashboard Invoices page | `app/dashboard/invoices/page.tsx` | Active-invoice table; feature-gated module + upsell; supports `?filter=` from Overview card click-throughs |
+| Dashboard Resolved Invoices page | `app/dashboard/resolved/page.tsx` | Paid/manually-resolved invoice table; feature-gated module + upsell |
 | Settings pages | `app/dashboard/settings/{account,schedule,email,templates,team,stripe,subscription}/page.tsx` | Each pairs with a `*Client.tsx`; AI controls are embedded in the templates page |
-| Dashboard components | `components/dashboard/{InvoiceTable,LockedDashboardPreview,UpgradeBanner}.tsx` | Table + locked preview + banner |
+| Dashboard components | `components/dashboard/{InvoiceTable,LockedDashboardPreview,UpgradeBanner,OverviewCards,DashboardNavRail}.tsx` | Table + locked preview + banner + Overview cards + nav rail |
 | Settings clients | `components/settings/*Client.tsx` | Client-side forms calling the settings APIs |
 | Shared UI | `components/ui/Spinner.tsx` | Only shared primitive |
 | API clients | (none) | Components call route handlers via `fetch`; Supabase via `@supabase/ssr` |
@@ -871,7 +873,7 @@ automated tests; only pure helpers are unit-tested.
 | Schedule config | Yes | Specified | `app/api/settings/schedule/route.ts` | `.../schedule-config` | Ascending offsets |
 | Email settings | Yes | Specified | `app/api/settings/email/route.ts` | `.../email-settings` | Resend verify poll |
 | Manual actions | Yes | Specified | `app/api/invoices/[id]/**` | `.../dashboard` | pause/resume/snooze/resolve |
-| Dashboard + upsell | Yes | Specified | `app/dashboard/page.tsx`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell` | Gated modules |
+| Dashboard + upsell | Yes | Specified | `app/dashboard/{page,invoices/page,resolved/page}.tsx`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` | Gated modules; Overview ungated |
 | Billing tiers | Yes | Specified | `lib/subscriptionPlans.ts`, `app/api/billing/**` | `changes/restore-three-tier-pricing` | 3 public tiers + 1 hidden contact-only tier |
 | Live-mode gating | Yes | Specified | `lib/liveMode.ts`, `proxy.ts` | `changes/live-mode-auth-gate-banner` | `LIVE` flag |
 | Login spinner | Yes | Specified | `components/ui/Spinner.tsx`, `app/(auth)/**` | `changes/login-loading-spinner` | — |
@@ -946,9 +948,10 @@ automated tests; only pure helpers are unit-tested.
 - `app/api/webhooks/stripe-billing/route.ts`
 
 **Dashboard & settings**
-- `app/dashboard/{layout,page}.tsx`, `app/dashboard/settings/**`
+- `app/dashboard/{layout,page}.tsx`, `app/dashboard/{invoices,resolved}/page.tsx`,
+  `app/dashboard/settings/**`
 - `components/dashboard/**`, `components/settings/**`,
-  `lib/dashboardUpsell.ts`
+  `lib/dashboardUpsell.ts`, `lib/dashboard/**`
 
 **Platform/config**
 - `app/layout.tsx`, `lib/liveMode.ts`

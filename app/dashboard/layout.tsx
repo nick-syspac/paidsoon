@@ -7,6 +7,7 @@ import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
 import { UserMenu } from "@/components/dashboard/UserMenu"
 import { SupportBanner } from "@/components/dashboard/SupportBanner"
+import { DashboardNavRail } from "@/components/dashboard/DashboardNavRail"
 import {
   createServerTraceContext,
   traceEvent,
@@ -160,7 +161,7 @@ export default async function DashboardLayout({
               href="/dashboard"
               className="text-sm text-gray-600 hover:text-gray-900"
             >
-              Invoices
+              Dashboard
             </Link>
             <Link
               href="/dashboard/settings"
@@ -176,7 +177,12 @@ export default async function DashboardLayout({
           </div>
         </div>
       </nav>
-      <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+      <main className="max-w-5xl mx-auto px-4 py-8">
+        <div className="flex flex-col gap-6 md:flex-row">
+          <DashboardNavRail />
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
+      </main>
     </div>
   )
 }
