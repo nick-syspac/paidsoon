@@ -116,8 +116,8 @@ export function InvoiceTable({
 }) {
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [loadingId, setLoadingId] = useState<string | null>(null)
-  const [confirmResolve, setConfirmResolve] = useState<string | null>(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [confirmBulkResolve, setConfirmBulkResolve] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [arrangementType, setArrangementType] = useState<"full_payment" | "partial_payment">("full_payment")
   const [promisedPayBy, setPromisedPayBy] = useState("")
@@ -171,11 +171,15 @@ export function InvoiceTable({
     setArrangementDetailError(null)
   }
 
-  async function doAction(id: string, action: "pause" | "resume" | "snooze" | "resolve") {
-    setLoadingId(id)
-    await fetch(`/api/invoices/${id}/${action}`, { method: "POST" })
-    setLoadingId(null)
-    setConfirmResolve(null)
+  async function doBulkAction(action: "pause" | "resume" | "snooze" | "resolve") {
+    if (selectedIds.length === 0) return
+    setBulkActionLoading(true)
+    await Promise.all(
+      selectedIds.map((id) => fetch(`/api/invoices/${id}/${action}`, { method: "POST" }))
+    )
+    setBulkActionLoading(false)
+    setConfirmBulkResolve(false)
+    setSelectedIds([])
     router.refresh()
   }
 
@@ -292,6 +296,68 @@ export function InvoiceTable({
             </button>
             {arrangementError && <p className="text-xs text-red-600">{arrangementError}</p>}
           </div>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => doBulkAction("snooze")}
+              disabled={selectedIds.length === 0 || bulkActionLoading}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Snooze
+            </button>
+            <button
+              type="button"
+              onClick={() => doBulkAction("pause")}
+              disabled={selectedIds.length === 0 || bulkActionLoading}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Pause
+            </button>
+            <button
+              type="button"
+              onClick={() => doBulkAction("resume")}
+              disabled={selectedIds.length === 0 || bulkActionLoading}
+              className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Resume
+            </button>
+            <button
+              type="button"
+              onClick={() => createArrangement(selectedIds)}
+              disabled={selectedIds.length === 0 || arrangementSubmitting}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Arrange
+            </button>
+            {confirmBulkResolve ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => doBulkAction("resolve")}
+                  disabled={bulkActionLoading}
+                  className="text-xs text-green-700 hover:text-green-900 border border-green-200 rounded px-3 py-1.5 font-medium disabled:opacity-40"
+                >
+                  Confirm resolve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmBulkResolve(false)}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmBulkResolve(true)}
+                disabled={selectedIds.length === 0}
+                className="text-xs text-gray-500 hover:text-gray-700 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
+              >
+                Resolve
+              </button>
+            )}
+          </div>
         </div>
       )}
       <div className="overflow-x-auto">
@@ -316,7 +382,6 @@ export function InvoiceTable({
             <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Promise</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Arrangement</th>
-            {!showResolved && <th className="px-4 py-3" />}
           </tr>
         </thead>
         <tbody>
@@ -326,7 +391,6 @@ export function InvoiceTable({
               ? { label: "Held — allowance", color: "bg-amber-100 text-amber-800" }
               : STATUS_LABELS[inv.status] ?? { label: inv.status, color: "bg-gray-100 text-gray-600" }
             const isExpanded = expandedId === inv.id
-            const isLoading = loadingId === inv.id
             const p2p = getP2PStatus(inv.promisesToPay)
             const arrangement = deriveArrangementStatus(inv.arrangementCoverages)
             const isBrokenPriority = isArrangementHighPriority(arrangement)
@@ -437,75 +501,11 @@ export function InvoiceTable({
                       </span>
                     )}
                   </td>
-                  {!showResolved && (
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      {inv.status === "pending" && (
-                        <>
-                          <button
-                            onClick={() => doAction(inv.id, "snooze")}
-                            disabled={isLoading}
-                            className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-40"
-                          >
-                            Snooze
-                          </button>
-                          <button
-                            onClick={() => doAction(inv.id, "pause")}
-                            disabled={isLoading}
-                            className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-40"
-                          >
-                            Pause
-                          </button>
-                          <button
-                            onClick={() => createArrangement([inv.id])}
-                            disabled={arrangementSubmitting}
-                            className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-40"
-                          >
-                            Arrange
-                          </button>
-                        </>
-                      )}
-                      {inv.status === "paused" && (
-                        <button
-                          onClick={() => doAction(inv.id, "resume")}
-                          disabled={isLoading}
-                          className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-40"
-                        >
-                          Resume
-                        </button>
-                      )}
-                      {confirmResolve === inv.id ? (
-                        <>
-                          <button
-                            onClick={() => doAction(inv.id, "resolve")}
-                            disabled={isLoading}
-                            className="text-xs text-green-600 hover:text-green-800 font-medium"
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            onClick={() => setConfirmResolve(null)}
-                            className="text-xs text-gray-400"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmResolve(inv.id)}
-                          className="text-xs text-gray-400 hover:text-gray-700"
-                        >
-                          Resolve
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  )}
                 </tr>
 
                 {isExpanded && (
                   <tr className="bg-gray-50">
-                  <td colSpan={showResolved ? 8 : 10} className="px-4 py-3">
+                  <td colSpan={showResolved ? 8 : 9} className="px-4 py-3">
                       {arrangement && (
                         <div className="mb-3 text-xs text-gray-700">
                           <p className="font-medium text-gray-600 mb-1">Arrangement</p>
