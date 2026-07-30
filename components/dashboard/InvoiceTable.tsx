@@ -294,7 +294,8 @@ export function InvoiceTable({
           </div>
         </div>
       )}
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[960px] text-sm">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
             {!showResolved && (
@@ -559,7 +560,8 @@ export function InvoiceTable({
             )
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {selectedEmailLog && (
         <DetailModal
