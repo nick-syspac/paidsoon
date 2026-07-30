@@ -19,18 +19,20 @@ export function AgeingChart({ buckets, currency = "usd" }: { buckets: AgeingBuck
       {!hasData ? (
         <p className="mt-4 text-sm text-gray-500">No outstanding invoices — nothing to age.</p>
       ) : (
-        <div className="mt-4 flex items-end gap-3 h-40">
+        <div className="mt-4 flex items-end gap-3">
           {buckets.map((bucket) => {
             const heightPercent = Math.max(2, Math.round((bucket.amount / maxAmount) * 100))
             return (
-              <div key={bucket.key} className="flex flex-1 flex-col items-center justify-end h-full">
+              <div key={bucket.key} className="flex flex-1 flex-col items-center">
                 <span className="text-xs font-medium text-gray-700">{formatCents(bucket.amount, currency)}</span>
-                <div
-                  role="img"
-                  aria-label={`${bucket.label}: ${formatCents(bucket.amount, currency)} across ${bucket.count} invoice${bucket.count === 1 ? "" : "s"}`}
-                  className={`mt-1 w-full rounded-t ${BUCKET_COLORS[bucket.key]}`}
-                  style={{ height: `${heightPercent}%` }}
-                />
+                <div className="mt-1 flex h-32 w-full items-end">
+                  <div
+                    role="img"
+                    aria-label={`${bucket.label}: ${formatCents(bucket.amount, currency)} across ${bucket.count} invoice${bucket.count === 1 ? "" : "s"}`}
+                    className={`w-full rounded-t ${BUCKET_COLORS[bucket.key]}`}
+                    style={{ height: `${heightPercent}%` }}
+                  />
+                </div>
                 <span className="mt-2 text-xs text-gray-500 text-center">{bucket.label}</span>
               </div>
             )
