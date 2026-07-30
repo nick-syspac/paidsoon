@@ -15,7 +15,7 @@ Review the specified code area for security vulnerabilities, with particular foc
 Multi-tenant SaaS. Customer invoice data (email, name, amounts) is PII. Stripe webhook security is critical. Cron authentication is required. Supabase RLS is the primary tenant isolation control.
 
 ## Files to Inspect (customise per review scope)
-- `middleware.ts` — auth gate
+- `proxy.ts` — auth gate
 - `app/api/**` — route handlers
 - `prisma/rls-policies.sql` — tenant isolation
 - `lib/db/withUserContext.ts` — DB access context
@@ -69,7 +69,7 @@ Multi-tenant SaaS. Customer invoice data (email, name, amounts) is PII. Stripe w
 
 ### Email
 - [ ] Only `clientEmail` from `TrackedInvoice` used as recipient (not user input)
-- [ ] Custom From address only with `resendVerified = true` + Solo+ tier
+- [ ] Custom From address only with `resendVerified = true` + Small Business+ tier (`verified_from_domain`)
 - [ ] No duplicate email sends (EmailLog idempotency check)
 
 ### Billing

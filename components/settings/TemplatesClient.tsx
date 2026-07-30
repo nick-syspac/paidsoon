@@ -232,7 +232,7 @@ export function TemplatesClient({ data, canRewrite }: { data: TemplateData; canR
       <div className="grid grid-cols-[3fr_2fr] gap-8 items-start">
       <div>      {!data.canCustomize ? (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-          Upgrade to Small Business to edit custom reminder templates.
+          Upgrade to Solo or Small Business to edit custom reminder templates.
         </div>
       ) : loading ? (
         <div className="text-sm text-gray-500 py-4">Loading…</div>

@@ -99,11 +99,11 @@ fi
 echo ""
 echo "--- Live Mode Config ---"
 [[ -f lib/liveMode.ts ]] && pass "lib/liveMode.ts exists" || warn "lib/liveMode.ts not found"
-if [[ -f middleware.ts ]]; then
-  if grep -q "isLiveMode\|LIVE\|liveMode" middleware.ts; then
-    pass "middleware.ts references LIVE mode gate"
+if [[ -f proxy.ts ]]; then
+  if grep -q "isLiveMode\|LIVE\|liveMode" proxy.ts; then
+    pass "proxy.ts references LIVE mode gate"
   else
-    warn "LIVE mode gate not found in middleware.ts"
+    warn "LIVE mode gate not found in proxy.ts"
   fi
 fi
 

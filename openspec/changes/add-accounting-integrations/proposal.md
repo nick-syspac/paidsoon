@@ -16,6 +16,8 @@ PaidSoon's core value — stopping small businesses from chasing invoices manual
 - **NEW** Sync history and error log visible to users in the settings UI
 - **MODIFIED** `TrackedInvoice` gains `providerMetadata` (JSON column) to carry provider-specific fields without schema pollution
 - **MODIFIED** Onboarding flow gains an optional "Connect your accounting software" step after Stripe Connect
+- **MODIFIED** Settings information architecture combines "Stripe Connection" and "Integrations" into a single **Connections** destination at `/dashboard/settings/connections`
+- **MODIFIED** Legacy settings URLs remain backward-compatible via redirects: `/dashboard/settings/stripe` and `/dashboard/settings/integrations` redirect to `/dashboard/settings/connections` while preserving query parameters
 
 ## Capabilities
 
@@ -37,5 +39,6 @@ PaidSoon's core value — stopping small businesses from chasing invoices manual
 - **Dependencies**: Xero Node SDK (`xero-node`) and/or raw fetch against Xero Accounting API; MYOB API — raw fetch (no official Node SDK as of writing — TODO: verify)
 - **Environment variables**: `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `XERO_REDIRECT_URI`, `MYOB_CLIENT_ID`, `MYOB_CLIENT_SECRET`, `MYOB_REDIRECT_URI`, `TOKEN_ENCRYPTION_KEY`
 - **Affected components**: `StripeConnectionClient.tsx` pattern reused for new `AccountingConnectionClient.tsx`; onboarding flow; settings page; `subscriptionPlans.ts`
+- **Affected routes (UI)**: new canonical `/dashboard/settings/connections`; legacy `/dashboard/settings/stripe` and `/dashboard/settings/integrations` retained as redirects for callback/bookmark compatibility
 - **Vercel Cron**: New cron entry `0 2 * * *` (02:00 UTC daily) for accounting sync, separate from the existing email send cron
 - **Security**: OAuth tokens encrypted before DB storage; `oauth_states` table prevents CSRF on callback; no provider credentials exposed to browser

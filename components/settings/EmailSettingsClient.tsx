@@ -10,11 +10,15 @@ interface EmailSettingsData {
 }
 
 export function EmailSettingsClient({
-  canUseOwnEmail,
+  canUseCustomReplyTo,
+  canUseCustomSenderName,
+  canUseVerifiedDomain,
   settings,
   systemEmail,
 }: {
-  canUseOwnEmail: boolean
+  canUseCustomReplyTo: boolean
+  canUseCustomSenderName: boolean
+  canUseVerifiedDomain: boolean
   settings: EmailSettingsData | null
   systemEmail: string
 }) {
@@ -32,7 +36,11 @@ export function EmailSettingsClient({
     const res = await fetch("/api/settings/email", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromEmail, fromName, replyTo: replyTo || undefined }),
+      body: JSON.stringify({
+        fromEmail: fromEmail || systemEmail,
+        fromName: fromName || "PaidSoon",
+        replyTo: replyTo || undefined,
+      }),
     })
     setSaving(false)
     if (res.ok) {
@@ -56,47 +64,55 @@ export function EmailSettingsClient({
         </p>
       </div>
 
-      {!canUseOwnEmail ? (
+      {!canUseCustomReplyTo ? (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-          Upgrade to Solo or Small Business to send follow-ups from your own email address.
+          Upgrade to a paid plan to customise where client replies are sent.
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-4">
           <p className="text-sm text-gray-500">
-            Set a custom from-address.
-            {settings?.fromEmail && !settings.resendVerified && (
+            {canUseVerifiedDomain
+              ? "Set a custom from-address."
+              : canUseCustomSenderName
+                ? "Set a custom sender name and reply-to. Upgrade to Small Business for a verified custom from-address."
+                : "Set a reply-to address. Upgrade to Solo or Small Business to customise the sender name and address."}
+            {settings?.fromEmail && !settings.resendVerified && canUseVerifiedDomain && (
               <span className="text-amber-600 font-medium"> Verification pending for {settings.fromEmail}.</span>
             )}
-            {settings?.resendVerified && (
+            {settings?.resendVerified && canUseVerifiedDomain && (
               <span className="text-green-600 font-medium"> ✓ {settings.fromEmail} verified.</span>
             )}
           </p>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">From email</label>
-            <input
-              type="email"
-              required
-              value={fromEmail}
-              onChange={(e) => setFromEmail(e.target.value)}
-              placeholder="you@yourcompany.com"
-              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-400 mt-1">Use a dedicated address like collections@yourcompany.com. We&apos;ll send a verification link when you save.</p>
-          </div>
+          {canUseVerifiedDomain && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">From email</label>
+              <input
+                type="email"
+                required
+                value={fromEmail}
+                onChange={(e) => setFromEmail(e.target.value)}
+                placeholder="you@yourcompany.com"
+                className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">Use a dedicated address like collections@yourcompany.com. We&apos;ll send a verification link when you save.</p>
+            </div>
+          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">From name</label>
-            <input
-              type="text"
-              required
-              value={fromName}
-              onChange={(e) => setFromName(e.target.value)}
-              placeholder="Your Name"
-              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-400 mt-1">Your business name as it appears to clients — e.g. &quot;Acme Ltd&quot; or &quot;Acme Consulting&quot;.</p>
-          </div>
+          {(canUseCustomSenderName || canUseVerifiedDomain) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">From name</label>
+              <input
+                type="text"
+                required
+                value={fromName}
+                onChange={(e) => setFromName(e.target.value)}
+                placeholder="Your Name"
+                className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">Your business name as it appears to clients — e.g. &quot;Acme Ltd&quot; or &quot;Acme Consulting&quot;.</p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -113,7 +129,11 @@ export function EmailSettingsClient({
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {saved && <p className="text-sm text-green-600">Saved! Check your inbox for a verification email.</p>}
+          {saved && (
+            <p className="text-sm text-green-600">
+              {canUseVerifiedDomain ? "Saved! Check your inbox for a verification email." : "Saved!"}
+            </p>
+          )}
 
           <button
             type="submit"

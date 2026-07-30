@@ -9,7 +9,7 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { prismaAdmin } from "@/lib/db/admin"
-import { requireFeature } from "@/lib/billing"
+import { countActiveInvoiceSources, getInvoiceSourceLimitForTier, getSubscriptionTier, requireFeature } from "@/lib/billing"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { NextResponse } from "next/server"
 import { randomBytes } from "crypto"
@@ -27,7 +27,16 @@ export async function GET() {
   const hasFeature = await requireFeature(user.id, "accounting_integrations")
   if (!hasFeature) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/integrations?error=upgrade_required`
+      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/connections?source=xero&code=upgrade_required`
+    )
+  }
+
+  const tier = await getSubscriptionTier(user.id)
+  const maxConnections = getInvoiceSourceLimitForTier(tier)
+  const activeConnections = await countActiveInvoiceSources(prismaAdmin, user.id)
+  if (activeConnections >= maxConnections) {
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/connections?source=xero&code=connection_limit_reached`
     )
   }
 

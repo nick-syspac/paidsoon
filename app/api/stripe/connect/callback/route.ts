@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { getStripeConnectionLimitForTier } from "@/lib/billing"
+import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 
@@ -17,13 +17,13 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/stripe?error=connect_cancelled`
+      `${appUrl}/dashboard/settings/connections?source=stripe&code=cancelled`
     )
   }
 
   if (!code) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/stripe?error=missing_code`
+      `${appUrl}/dashboard/settings/connections?source=stripe&code=missing_code`
     )
   }
 
@@ -45,29 +45,28 @@ export async function GET(request: Request) {
   const stripeConnectAccountId = response.stripe_user_id
   if (!stripeConnectAccountId) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/stripe?error=no_account_id`
+      `${appUrl}/dashboard/settings/connections?source=stripe&code=no_account_id`
     )
   }
 
   try {
     await withUserContext(user.id, async (tx) => {
-      const [profile, existingForAccount, activeConnections] = await Promise.all([
-        tx.userProfile.findUnique({
-          where: { userId: user.id },
-          select: { subscriptionTier: true },
-        }),
-        tx.invoiceConnection.findFirst({
-          where: {
-            userId: user.id,
-            provider: "stripe",
-            stripeConnectAccountId,
-          },
-          select: { id: true },
-        }),
-        tx.invoiceConnection.count({
-          where: { userId: user.id, provider: "stripe", isActive: true },
-        }),
-      ])
+      // Sequential, not Promise.all: queries on a single interactive
+      // transaction's `tx` share one underlying pg connection — firing them
+      // concurrently triggers a pg client deprecation warning and is unsafe.
+      const profile = await tx.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { subscriptionTier: true },
+      })
+      const existingForAccount = await tx.invoiceConnection.findFirst({
+        where: {
+          userId: user.id,
+          provider: "stripe",
+          stripeConnectAccountId,
+        },
+        select: { id: true },
+      })
+      const activeConnections = await countActiveInvoiceSources(tx, user.id)
 
       if (existingForAccount) {
         await tx.invoiceConnection.update({
@@ -77,7 +76,7 @@ export async function GET(request: Request) {
         return
       }
 
-      const maxConnections = getStripeConnectionLimitForTier(
+      const maxConnections = getInvoiceSourceLimitForTier(
         profile?.subscriptionTier,
       )
       if (activeConnections >= maxConnections) {
@@ -96,15 +95,15 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === "CONNECTION_LIMIT_REACHED") {
       return NextResponse.redirect(
-        `${appUrl}/dashboard/settings/stripe?error=connection_limit_reached`,
+        `${appUrl}/dashboard/settings/connections?source=stripe&code=connection_limit_reached`,
       )
     }
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/stripe?error=connection_failed`,
+      `${appUrl}/dashboard/settings/connections?source=stripe&code=connection_failed`,
     )
   }
 
   return NextResponse.redirect(
-    `${appUrl}/dashboard/settings/stripe?success=connected`
+    `${appUrl}/dashboard/settings/connections?source=stripe&code=connected`
   )
 }

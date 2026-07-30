@@ -38,7 +38,7 @@ Tenant isolation is enforced at the database layer via Supabase Row Level Securi
 
 Two database URLs are required:
 
-- `DATABASE_URL` — pgBouncer pooler connection as a non-owner role (e.g. Supabase's built-in `authenticator`). Used by Prisma at runtime.
+- `DATABASE_URL` — Supabase Shared Pooler (Supavisor) transaction-mode URL, user `postgres.[ref]`. Used by Prisma at runtime. RLS is enforced per-transaction by `withUserContext`, not by the connection role.
 - `DIRECT_URL` — direct connection as the owner / `postgres` role. Used by `prisma migrate` (see [prisma.config.ts](prisma.config.ts)).
 
 A verification script lives at [scripts/verify-rls.ts](scripts/verify-rls.ts) and proves cross-tenant isolation holds at the DB layer.

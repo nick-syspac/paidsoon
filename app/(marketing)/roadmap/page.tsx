@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 
 const available = [
   "Stripe Connect integration",
+  "MYOB Business integration (early access)",
   "Unpaid and overdue invoice monitoring",
   "Automated reminder sequences",
   "Friendly, firm and final notice reminder templates",
@@ -19,7 +20,7 @@ const available = [
 ]
 
 const plannedNext = [
-  "MYOB Business integration",
+  "MYOB Business integration — full production support (sandbox validation in progress)",
   "Xero integration",
   "Improved accountant partner dashboard",
   "Client-level settings for bookkeepers and accountants",

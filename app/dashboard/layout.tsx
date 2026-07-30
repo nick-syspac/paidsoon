@@ -1,26 +1,97 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
 import { UserMenu } from "@/components/dashboard/UserMenu"
+import { SupportBanner } from "@/components/dashboard/SupportBanner"
+import {
+  createServerTraceContext,
+  traceEvent,
+  traceOperation,
+  warnIfProductionDebugEnabled,
+} from "@/lib/diagnostics/server"
+import { summariseAuthForTrace } from "@/lib/diagnostics/shared"
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const requestHeaders = await headers()
+  const traceContext = createServerTraceContext({
+    headers: requestHeaders,
+    cookieHeader: requestHeaders.get("cookie"),
+  })
+  warnIfProductionDebugEnabled(traceContext)
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await traceOperation(
+    traceContext,
+    {
+      traceId: traceContext.traceId,
+      stage: "dashboard.layout.auth",
+      operation: "supabase.auth.getUser",
+      subsystem: "dashboard",
+      component: "app/dashboard/layout.tsx",
+    },
+    () => supabase.auth.getUser(),
+    {
+      success: (result) => ({
+        auth: summariseAuthForTrace({ user: result.data.user }),
+        outputs: { userPresent: Boolean(result.data.user) },
+      }),
+    },
+  )
 
-  if (!user) redirect("/sign-in")
+  if (!user) {
+    traceEvent(
+      () => ({
+        traceId: traceContext.traceId,
+        stage: "dashboard.layout.redirect",
+        operation: "redirect_unauthenticated_layout",
+        subsystem: "dashboard",
+        component: "app/dashboard/layout.tsx",
+        event: "decision",
+        navigation: { from: "/dashboard", to: "/sign-in", decision: "layout_unauthenticated" },
+        auth: summariseAuthForTrace({ user }),
+      }),
+      traceContext,
+    )
+    redirect("/sign-in")
+  }
 
-  const profile = await withUserContext(user.id, (tx) =>
-    tx.userProfile.findUnique({
-      where: { userId: user.id },
-      select: { subscriptionStatus: true, trialEndsAt: true, subscriptionTier: true, displayName: true },
-    }),
+  const profile = await traceOperation(
+    traceContext,
+    {
+      traceId: traceContext.traceId,
+      stage: "dashboard.layout.profile_load",
+      operation: "withUserContext.userProfile.findUnique",
+      subsystem: "dashboard",
+      component: "app/dashboard/layout.tsx",
+      auth: summariseAuthForTrace({ user }),
+      tenant: { context: "user_rls" },
+    },
+    () =>
+      withUserContext(user.id, (tx) =>
+        tx.userProfile.findUnique({
+          where: { userId: user.id },
+          select: { subscriptionStatus: true, trialEndsAt: true, subscriptionTier: true, displayName: true },
+        }),
+      ),
+    {
+      success: (result) => ({
+        outputs: {
+          profilePresent: Boolean(result),
+          subscriptionStatus: result?.subscriptionStatus ?? null,
+          subscriptionTier: result?.subscriptionTier ?? null,
+          trialEndsAtPresent: Boolean(result?.trialEndsAt),
+          displayNamePresent: Boolean(result?.displayName),
+        },
+      }),
+    },
   )
 
   const isTrialing = profile?.subscriptionStatus === "trialing"
@@ -29,6 +100,19 @@ export default async function DashboardLayout({
 
   // Gate: trial has expired → force checkout
   if (isTrialing && trialEndsAt !== null && trialEndsAt < new Date()) {
+    traceEvent(
+      () => ({
+        traceId: traceContext.traceId,
+        stage: "dashboard.layout.redirect",
+        operation: "redirect_trial_expired",
+        subsystem: "dashboard",
+        component: "app/dashboard/layout.tsx",
+        event: "decision",
+        navigation: { from: "/dashboard", to: `/billing/checkout?plan=${tier}&reason=trial_expired`, decision: "trial_expired" },
+        outputs: { tier, isTrialing, trialEndsAtPresent: true },
+      }),
+      traceContext,
+    )
     redirect(`/billing/checkout?plan=${tier}&reason=trial_expired`)
   }
 
@@ -38,8 +122,28 @@ export default async function DashboardLayout({
       ? Math.max(0, Math.ceil((trialEndsAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
       : null
 
+  traceEvent(
+    () => ({
+      traceId: traceContext.traceId,
+      stage: "dashboard.layout.render",
+      operation: "render_dashboard_layout",
+      subsystem: "dashboard",
+      component: "app/dashboard/layout.tsx",
+      event: "complete",
+      auth: summariseAuthForTrace({ user }),
+      outputs: {
+        tier,
+        isTrialing,
+        trialBannerShown: daysRemaining !== null,
+        daysRemainingPresent: daysRemaining !== null,
+      },
+    }),
+    traceContext,
+  )
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <SupportBanner />
       {daysRemaining !== null && (
         <TrialBanner
           daysRemaining={daysRemaining}

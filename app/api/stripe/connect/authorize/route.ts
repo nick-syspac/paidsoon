@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { getStripeConnectionLimitForTier } from "@/lib/billing"
+import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -18,15 +18,13 @@ export async function GET() {
   const { subscriptionTier, activeConnections } = await withUserContext(
     user.id,
     async (tx) => {
-      const [profile, activeConnections] = await Promise.all([
-        tx.userProfile.findUnique({
-          where: { userId: user.id },
-          select: { subscriptionTier: true },
-        }),
-        tx.invoiceConnection.count({
-          where: { userId: user.id, provider: "stripe", isActive: true },
-        }),
-      ])
+      // Sequential, not Promise.all: queries on a single interactive
+      // transaction's `tx` share one underlying pg connection.
+      const profile = await tx.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { subscriptionTier: true },
+      })
+      const activeConnections = await countActiveInvoiceSources(tx, user.id)
       return {
         subscriptionTier: profile?.subscriptionTier,
         activeConnections,
@@ -34,10 +32,10 @@ export async function GET() {
     },
   )
 
-  const maxConnections = getStripeConnectionLimitForTier(subscriptionTier)
+  const maxConnections = getInvoiceSourceLimitForTier(subscriptionTier)
   if (activeConnections >= maxConnections) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/stripe?error=connection_limit_reached`,
+      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/connections?source=stripe&code=connection_limit_reached`,
     )
   }
 

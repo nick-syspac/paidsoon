@@ -18,13 +18,24 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const updated = await withUserContext(user.id, (tx) =>
-    tx.userProfile.update({
-      where: { userId: user.id },
-      data: { displayName: parsed.data.displayName },
-      select: { displayName: true },
-    }),
-  )
-
-  return NextResponse.json({ displayName: updated.displayName })
+  try {
+    const updated = await withUserContext(user.id, (tx) =>
+      tx.userProfile.upsert({
+        where: { userId: user.id },
+        update: { displayName: parsed.data.displayName },
+        create: {
+          userId: user.id,
+          displayName: parsed.data.displayName,
+          subscriptionTier: "starter",
+          subscriptionStatus: "trialing",
+          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        },
+        select: { displayName: true },
+      }),
+    )
+    return NextResponse.json({ displayName: updated.displayName })
+  } catch (err) {
+    console.error("[PATCH /api/settings/profile] Failed to update display name:", err)
+    return NextResponse.json({ error: "Failed to save display name" }, { status: 500 })
+  }
 }

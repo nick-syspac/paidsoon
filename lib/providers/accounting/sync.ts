@@ -2,7 +2,11 @@
  * Accounting sync orchestrator.
  *
  * `syncConnection(connectionId)` — syncs one accounting connection:
- *   1. Refreshes the access token if it expires within 5 minutes
+ *   1. Refreshes the access token if it expires soon (5 min buffer for Xero;
+ *      MYOB always refreshes — see shouldRefresh). For MYOB, the first API
+ *      call after a fresh refresh tolerates a transient post-refresh 401
+ *      (token propagation delay) via withTokenPropagationRetry instead of
+ *      immediately marking the connection revoked.
  *   2. Fetches invoices (incremental from lastSyncedAt, full on first sync)
  *   3. Fetches contacts for new/updated invoices
  *   4. Upserts TrackedInvoice rows (with a linked InvoiceConnection row)
@@ -21,13 +25,26 @@
  *   - AccountingProviderError({ kind: 'unauthorized' }) → marks connection status = 'revoked'
  *   - AccountingProviderError({ kind: 'rate_limited' }) → records error in sync run, skips
  *   - All other errors → records in sync run error_message, does not crash cron
+ *
+ * Connection status lifecycle (see `resolveConnectionStatusAfterSync`):
+ *   - A newly created connection starts as 'pending_first_sync' (callback does not
+ *     imply invoice import is already complete).
+ *   - The first successful (or partial) sync promotes the connection to 'active'.
+ *   - A failure on that first sync sets status = 'error' so it is visibly actionable
+ *     instead of silently stuck as pending; an already-'active' connection is not
+ *     downgraded by a single transient failure — that failure is recorded on the
+ *     AccountingSyncRun row instead.
+ *   - 'disconnected' is a terminal, user-initiated state and is never overwritten
+ *     by a sync outcome.
  */
 
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
 import { getAccountingProvider } from "@/lib/providers/accounting"
+import { isDemoOrganisationId } from "@/lib/providers/accounting/demoGuard"
 import {
   AccountingProviderError,
+  type AccountingProviderErrorKind,
   type ProviderInvoice,
   type ProviderContact,
 } from "@/lib/providers/accounting/types"
@@ -64,6 +81,43 @@ function shouldRefresh(tokenExpiresAt: Date, provider: string): boolean {
   return tokenExpiresAt.getTime() - Date.now() < BUFFER_MS
 }
 
+/**
+ * Connection statuses that are eligible for a sync attempt.
+ * - 'active' — steady-state connection, already collecting data.
+ * - 'pending_first_sync' — connected but no successful sync has completed yet.
+ * - 'error' — a previous first sync failed; user or cron may retry.
+ * 'disconnected' and 'revoked' are terminal until the user reconnects.
+ */
+const SYNCABLE_STATUSES = new Set(["active", "pending_first_sync", "error"])
+
+/**
+ * Pure function that resolves the next `AccountingConnection.status` given the
+ * status before the sync attempt and its outcome. Returns `null` when the
+ * status should not change.
+ *
+ * Exported for direct unit testing (no DB or network dependencies).
+ */
+export function resolveConnectionStatusAfterSync(
+  currentStatus: string,
+  outcome: "success" | "partial" | "failed",
+  errorKind?: AccountingProviderErrorKind
+): string | null {
+  // A user-initiated disconnect is terminal — never silently resurrect it.
+  if (currentStatus === "disconnected") return null
+
+  if (outcome === "success" || outcome === "partial") {
+    return currentStatus === "active" ? null : "active"
+  }
+
+  // outcome === "failed"
+  if (errorKind === "unauthorized") return "revoked"
+  // Only the first sync attempt downgrades to 'error' — an already-active
+  // connection stays active on a transient failure; the failure is recorded
+  // on the AccountingSyncRun row instead.
+  if (currentStatus === "pending_first_sync") return "error"
+  return null
+}
+
 /** Retry with exponential backoff for transient provider errors */
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -87,6 +141,43 @@ async function withRetry<T>(
     }
   }
   throw lastError
+}
+
+/**
+ * MYOB access tokens can take a moment to propagate through MYOB's backend
+ * immediately after being minted — including right after a *refresh*, not
+ * just after the initial OAuth code exchange (the same quirk already
+ * handled for `getOrganisations` in app/api/integrations/myob/callback/route.ts).
+ * Calling an API with a brand-new token in this window can return a
+ * transient 401 (`OAuthTokenIsInvalid`) even though the token is valid.
+ *
+ * `shouldRefresh`'s 21-minute buffer means *every* MYOB sync refreshes its
+ * token before the first API call, so every sync re-rolls this propagation
+ * race. Without this retry, a transient 401 here is indistinguishable from
+ * a genuinely revoked token and `resolveConnectionStatusAfterSync` would
+ * permanently mark the connection `revoked` (requiring the user to
+ * reconnect) even though nothing was actually wrong with the credential.
+ *
+ * Mirrors TOKEN_PROPAGATION_RETRY_DELAYS_MS in the callback route.
+ */
+const TOKEN_PROPAGATION_RETRY_DELAYS_MS = [1500, 3000, 6000, 10000]
+
+async function withTokenPropagationRetry<T>(
+  fn: () => Promise<T>,
+  connectionId: string
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      const isUnauthorized = err instanceof AccountingProviderError && err.kind === "unauthorized"
+      if (!isUnauthorized || attempt >= TOKEN_PROPAGATION_RETRY_DELAYS_MS.length) throw err
+      console.warn(
+        `[sync] connection ${connectionId} got 401 right after MYOB token refresh, retrying in ${TOKEN_PROPAGATION_RETRY_DELAYS_MS[attempt]}ms (attempt ${attempt + 1})`
+      )
+      await new Promise((resolve) => setTimeout(resolve, TOKEN_PROPAGATION_RETRY_DELAYS_MS[attempt]))
+    }
+  }
 }
 
 export async function syncConnection(connectionId: string): Promise<SyncResult> {
@@ -127,8 +218,17 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     },
   })
 
-  if (!connection || connection.status !== "active") {
-    result.errorMessage = "Connection not found or not active"
+  if (!connection || !SYNCABLE_STATUSES.has(connection.status)) {
+    result.errorMessage = "Connection not found or not syncable"
+    return result
+  }
+
+  // Development seed data holds placeholder tokens and a reserved organisation id.
+  // Never open a provider connection on it — see lib/providers/accounting/demoGuard.ts.
+  if (isDemoOrganisationId(connection.organisationId)) {
+    result.status = "skipped" as SyncResult["status"]
+    result.provider = connection.provider
+    result.errorMessage = "Demo seed connection — sync skipped"
     return result
   }
 
@@ -151,11 +251,17 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     let refreshToken = decryptToken(connection.encryptedRefreshToken)
     let tokenExpiresAt = connection.tokenExpiresAt
 
+    // Tracks whether this run just minted a fresh MYOB token, so the first
+    // API call below knows to tolerate a transient post-refresh 401 instead
+    // of treating it as a genuine revocation (see withTokenPropagationRetry).
+    let justRefreshedMyob = false
+
     if (shouldRefresh(tokenExpiresAt, connection.provider)) {
       const newTokens = await withRetry(() => provider.refreshTokens(refreshToken))
       accessToken = newTokens.accessToken
       refreshToken = newTokens.refreshToken
       tokenExpiresAt = new Date(Date.now() + newTokens.expiresIn * 1000)
+      justRefreshedMyob = connection.provider === "myob"
 
       await prismaAdmin.accountingConnection.update({
         where: { id: connectionId },
@@ -169,12 +275,14 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
 
     // --- Fetch invoices ---
     const modifiedAfter = connection.lastSyncedAt ?? undefined
-    const invoices = await withRetry(() =>
+    const fetchInvoices = () =>
       provider.getInvoices({
         accessToken,
         organisationId: connection.organisationId,
         modifiedAfter,
       })
+    const invoices = await withRetry(() =>
+      justRefreshedMyob ? withTokenPropagationRetry(fetchInvoices, connectionId) : fetchInvoices()
     )
 
     // --- Fetch contacts for invoices ---
@@ -239,27 +347,40 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       }
     }
 
-    // --- Update connection lastSyncedAt ---
+    result.status = result.invoicesSkipped > 0 ? "partial" : "success"
+
+    // --- Update connection lastSyncedAt and, if this was the first
+    // successful sync (or a recovery from 'error'), promote status to 'active' ---
+    const nextStatus = resolveConnectionStatusAfterSync(connection.status, result.status)
     await prismaAdmin.accountingConnection.update({
       where: { id: connectionId },
-      data: { lastSyncedAt: syncStartedAt },
+      data: {
+        lastSyncedAt: syncStartedAt,
+        ...(nextStatus ? { status: nextStatus } : {}),
+      },
     })
-
-    result.status = result.invoicesSkipped > 0 ? "partial" : "success"
   } catch (err) {
-    if (err instanceof AccountingProviderError && err.kind === "unauthorized") {
-      // Token revoked — mark connection so user can reconnect
-      await prismaAdmin.accountingConnection.update({
-        where: { id: connectionId },
-        data: { status: "revoked" },
-      })
+    const errorKind = err instanceof AccountingProviderError ? err.kind : undefined
+
+    if (errorKind === "unauthorized") {
       result.errorMessage = "Access token revoked — user must reconnect"
-    } else if (err instanceof AccountingProviderError && err.kind === "rate_limited") {
+    } else if (errorKind === "rate_limited") {
       result.errorMessage = `Rate limited by ${connection.provider} — will retry next cycle`
     } else {
       result.errorMessage = err instanceof Error ? err.message : "Unknown error"
     }
     result.status = "failed"
+
+    // Mark the connection deterministically: revoked on auth failure, or
+    // 'error' if this was still an unproven first sync. An already-active
+    // connection stays active — the failed run is recorded above.
+    const nextStatus = resolveConnectionStatusAfterSync(connection.status, "failed", errorKind)
+    if (nextStatus) {
+      await prismaAdmin.accountingConnection.update({
+        where: { id: connectionId },
+        data: { status: nextStatus },
+      })
+    }
   }
 
   // --- Write sync run result ---
@@ -418,17 +539,22 @@ function mapProviderStatusToTracked(
 }
 
 /**
- * Sync all active accounting connections.
+ * Sync all connections in a syncable state (active, pending first sync, or
+ * previously errored) so that a stalled first sync or a transient failure is
+ * retried automatically on the next cron run.
  * Called by the cron job. Errors in individual connections do not stop others.
  */
 export async function syncAllActiveConnections(): Promise<SyncResult[]> {
   const connections = await prismaAdmin.accountingConnection.findMany({
-    where: { status: "active" },
-    select: { id: true },
+    where: { status: { in: Array.from(SYNCABLE_STATUSES) } },
+    select: { id: true, organisationId: true },
   })
 
   const results: SyncResult[] = []
   for (const conn of connections) {
+    // Skip development seed connections before any provider call is attempted.
+    if (isDemoOrganisationId(conn.organisationId)) continue
+
     try {
       const result = await syncConnection(conn.id)
       results.push(result)

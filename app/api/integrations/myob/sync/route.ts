@@ -13,6 +13,10 @@ import { syncConnection } from "@/lib/providers/accounting/sync"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
+// Paginated invoice/contact fetches against the provider can take a while —
+// raise the duration cap so a slow-but-successful sync isn't killed mid-request.
+export const maxDuration = 60
+
 const bodySchema = z.object({
   connectionId: z.string().min(1),
 })
@@ -46,7 +50,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Connection is not a MYOB connection" }, { status: 400 })
   }
 
-  if (connection.status !== "active") {
+  // Allow retrying a connection still awaiting its first sync, or one that
+  // previously errored — only 'disconnected' and 'revoked' block a manual sync.
+  const SYNCABLE_STATUSES = new Set(["active", "pending_first_sync", "error"])
+  if (!SYNCABLE_STATUSES.has(connection.status)) {
     return NextResponse.json({ error: "Connection is not active" }, { status: 400 })
   }
 

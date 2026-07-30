@@ -89,6 +89,26 @@ error) and the date/time of the last successful sync in the integrations setting
 - **WHEN** a user views integrations settings and one connection has `status = 'revoked'`
 - **THEN** the system displays a warning banner with a "Reconnect" call-to-action
 
+### Requirement: Settings use a unified Connections destination
+The system SHALL use `/dashboard/settings/connections` as the canonical settings destination
+for all provider setup, including Stripe Connect and accounting integrations.
+
+#### Scenario: User opens settings navigation
+- **WHEN** an authenticated user opens dashboard settings
+- **THEN** navigation shows a single "Connections" tab instead of separate "Stripe Connection" and "Integrations" tabs
+
+#### Scenario: User visits legacy Stripe settings URL
+- **WHEN** a user navigates to `/dashboard/settings/stripe`
+- **THEN** the system redirects to `/dashboard/settings/connections` and preserves existing query parameters
+
+#### Scenario: User visits legacy integrations settings URL
+- **WHEN** a user navigates to `/dashboard/settings/integrations`
+- **THEN** the system redirects to `/dashboard/settings/connections` and preserves existing query parameters
+
+#### Scenario: OAuth callback returns with status query parameters
+- **WHEN** Stripe, Xero, or MYOB callback routes redirect after connect/cancel/error
+- **THEN** the user lands on `/dashboard/settings/connections` and sees provider-appropriate feedback without cross-provider message collision
+
 ## Out of Scope
 
 - Invoice creation or modification in Xero or MYOB

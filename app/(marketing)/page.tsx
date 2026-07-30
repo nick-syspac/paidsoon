@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { isDebugEnabled } from "@/lib/diagnostics/server"
+import DebugDbCheckButton from "@/components/marketing/DebugDbCheckButton"
 
 export const metadata: Metadata = {
   title: "PaidSoon — Automated Invoice Follow-Ups for Freelancers & Small Business",
@@ -42,8 +44,8 @@ const steps = [
 ]
 
 const pricingPreview = [
-  { name: "Starter", price: "A$19/mo", featured: false },
-  { name: "Business", price: "A$49/mo", featured: true },
+  { name: "Starter", price: "$19/mo", featured: false },
+  { name: "Business", price: "$49/mo", featured: true },
   { name: "Accountant Partner", price: "Contact us", featured: false },
 ]
 
@@ -72,6 +74,7 @@ export default function HomePage() {
             How it works →
           </Link>
         </div>
+        {isDebugEnabled() && <DebugDbCheckButton />}
       </section>
 
       {/* Problem */}
@@ -161,17 +164,19 @@ export default function HomePage() {
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">Connects to tools you already use</h2>
           <div className="grid md:grid-cols-4 gap-4">
             {[
-              { name: "Stripe", status: "Available", available: true },
-              { name: "MYOB", status: "Coming soon", available: false },
-              { name: "Xero", status: "Coming soon", available: false },
-              { name: "QuickBooks", status: "Coming soon", available: false },
+              { name: "Stripe", status: "Available" },
+              { name: "MYOB", status: "Early access" },
+              { name: "Xero", status: "Coming soon" },
+              { name: "QuickBooks", status: "Coming soon" },
             ].map((integration) => (
               <div key={integration.name} className="bg-white rounded-lg border border-gray-200 p-5 text-center">
                 <p className="font-semibold text-gray-900">{integration.name}</p>
                 <span
                   className={`mt-2 inline-block text-xs px-2 py-0.5 rounded-full ${
-                    integration.available
+                    integration.status === "Available"
                       ? "bg-green-50 text-green-700"
+                      : integration.status === "Early access"
+                      ? "bg-amber-50 text-amber-700"
                       : "bg-gray-100 text-gray-500"
                   }`}
                 >

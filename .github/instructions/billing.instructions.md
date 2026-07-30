@@ -13,35 +13,49 @@ applyTo: "**/lib/billing*,**/lib/subscriptionPlans*,**/app/api/billing/**,**/app
 
 ## Subscription Tiers
 
-Three tiers defined in `lib/subscriptionPlans.ts` (source of truth):
+Four tiers defined in `lib/subscriptionPlans.ts` (source of truth) — three public, customer-selectable tiers plus one hidden, contact-only tier:
 
-| Tier | Price | Invoice Limit | Seats | Connect Accounts |
-|------|-------|---------------|-------|------------------|
-| `starter` | £9/mo | 10/month | 1 | 1 |
-| `solo` | £19/mo | 30/month | 1 | 1 |
-| `small_business` | £39/mo | 100/month | 3 | 3 |
+| Tier | Visibility | Price (AUD, inc. GST) | Invoice Allowance/period | Seats | Connected Invoice Sources |
+|------|------------|------------------------|---------------------------|-------|----------------------------|
+| `starter` | public | $9/mo | 10 | 1 | 1 |
+| `solo` | public ("Most Popular") | $19/mo | 50 | 1 | 1 |
+| `small_business` | public | $39/mo | 200 | 3 (usable seats not yet implemented) | 1 |
+| `accountant_partner` | contact-only (hidden from pricing page & upgrade recommendations) | contact-us (planned — not yet implemented) | unlimited | unlimited | unlimited |
 
-**Legacy tier names:** `"free"` maps to `"starter"`, `"pro"` maps to `"solo"` — handled by backward-compat logic in `lib/subscriptionPlans.ts`.
+**No legacy tier aliasing.** `normalizeSubscriptionTier` in `lib/subscriptionPlans.ts` returns `starter` for any value outside the four tiers above — there is no `LEGACY_TIER_MAP`. Use `getPublicPlans()` to get only the three customer-selectable tiers (for pricing pages, plan pickers, and upgrade recommendations); it excludes `accountant_partner`.
+
+**Invoice allowance enforcement** (counting, resets, 80% warning, pausing at 100%) is defined by the `chase-volume-entitlement` capability, not by the catalog itself — see `changes/monthly-chase-volume-limits`.
 
 ## Feature Checks
 
 - Use `hasPlanFeature(tier, feature)` from `lib/billing.ts` for feature flag checks.
 - Use `requireFeature(userId, feature)` in route handlers — returns `403` if not entitled.
 - Available feature flags (defined in `lib/subscriptionPlans.ts`):
-  - `basic_email_reminders`, `email_reminder_sequence`, `basic_templates`
-  - `custom_reminder_templates` (small_business only)
-  - `own_email_address` (solo+)
-  - `ai_rewrite`, `tone_settings` (small_business only — scaffolded, not fully implemented)
-  - `payment_status_dashboard`, `overdue_invoice_dashboard` (solo+)
+  - `basic_email_reminders`, `basic_templates`, `paid_soon_branding`, `payment_status_dashboard`,
+    `overdue_invoice_dashboard`, `accounting_integrations`, `promise_to_pay_tracking`,
+    `dispute_pause` (all paid tiers — the core follow-up promise is never gated)
+  - `email_reminder_sequence` (custom timing, solo+), `custom_reminder_templates` (solo+),
+    `custom_sender_name` (solo+), `ai_rewrite`, `tone_settings` (solo+)
+  - `custom_reply_to` (all paid tiers) and `verified_from_domain` (small_business+) —
+    together with `custom_sender_name` these form the sender-identity ladder; there is no
+    single `own_email_address` flag
+  - `customer_specific_sequences`, `multi_template_customer_wording`, `weekly_summary_email`,
+    `csv_export`, `approval_mode`, `contact_suppression`, `team_seats`, `multi_client_management`
+    (planned — not yet implemented on any tier; check `isFeatureImplemented(feature)` /
+    `UNIMPLEMENTED_FEATURES` before presenting these as available)
 - Never add or change features without updating `lib/subscriptionPlans.ts`.
 
 ## Stripe Price IDs
 
-- Stored as env vars — never hardcoded:
+- Stored as env vars — never hardcoded. Exactly three canonical variables, one per public tier:
   - `STRIPE_STARTER_PRICE_ID`
   - `STRIPE_SOLO_PRICE_ID`
   - `STRIPE_SMALL_BUSINESS_PRICE_ID`
-  - `STRIPE_PRO_PRICE_ID` (legacy fallback mapping to Solo)
+  - `accountant_partner` has no Price ID — it is contact-us only, never sold through Stripe Checkout.
+  - `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired — do not reintroduce them.
+- All three Prices must carry `tax_behavior: "inclusive"` (prices are GST-inclusive). This
+  attribute is immutable once set — changing it requires creating a new Price object, not
+  editing the existing one.
 - These must be set in all Vercel environments that use billing.
 
 ## Checkout Flow

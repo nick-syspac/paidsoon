@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 
 const privateBetaScope = [
   "Stripe Connect account connection",
+  "MYOB Business integration (early access)",
   "Invoice monitoring for unpaid and overdue invoices",
   "Automated reminder sequences",
   "Friendly, firm and final notice reminder templates",
@@ -21,7 +22,7 @@ const privateBetaScope = [
 const upcomingUpdates = [
   "Early access onboarding improvements",
   "Accountant partner workflow enhancements",
-  "MYOB Business integration planning",
+  "MYOB Business integration — full production validation",
   "Xero integration planning",
   "Help Centre articles",
   "Public API and webhook documentation",

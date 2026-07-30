@@ -1,13 +1,15 @@
 "use client"
 
 import { useState } from "react"
+import { Turnstile } from "@marsidev/react-turnstile"
 
-const enquiryTypes = ["Sales", "Support", "Accountant Partnership"] as const
+const enquiryTypes = ["Sales", "Support", "Accounting Partnerships"] as const
 
 type FormState = "idle" | "submitting" | "success" | "error"
 
 export function ContactForm() {
   const [formState, setFormState] = useState<FormState>("idle")
+  const [cfToken, setCfToken] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -23,16 +25,21 @@ export function ContactForm() {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          cfToken,
+        }),
       })
 
       if (res.ok) {
         setFormState("success")
       } else {
         setFormState("error")
+        setCfToken(null)
       }
     } catch {
       setFormState("error")
+      setCfToken(null)
     }
   }
 
@@ -109,27 +116,35 @@ export function ContactForm() {
 
       {formState === "error" && (
         <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-sm text-amber-800">
-          The contact form is not yet available. Please email us directly at{" "}
+          We could not send your message right now. Please email us directly at{" "}
           <a href="mailto:support@paidsoon.com.au" className="underline font-medium">
             support@paidsoon.com.au
           </a>
         </div>
       )}
 
+      <Turnstile
+        siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""}
+        options={{ size: "normal" }}
+        onSuccess={setCfToken}
+        onExpire={() => setCfToken(null)}
+        onError={() => setCfToken(null)}
+      />
+
       <button
         type="submit"
-        disabled={formState === "submitting"}
+        disabled={formState === "submitting" || cfToken === null}
         className="w-full bg-blue-600 text-white py-2.5 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         {formState === "submitting" ? "Sending…" : "Send message"}
       </button>
 
       <p className="text-xs text-center text-gray-400">
-        Coming soon — contact{" "}
+        For urgent queries, email{" "}
         <a href="mailto:support@paidsoon.com.au" className="underline">
           support@paidsoon.com.au
         </a>{" "}
-        directly in the meantime.
+        directly.
       </p>
     </form>
   )

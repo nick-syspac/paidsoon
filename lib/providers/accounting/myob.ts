@@ -10,7 +10,14 @@
  *   MYOB_REDIRECT_URI  — OAuth callback URL registered in MYOB developer portal
  *
  * OAuth scopes used (granular, from design decision D9):
- *   sme-sales sme-contacts-customer
+ *   sme-sales sme-contacts-customer sme-company-file
+ *
+ * sme-company-file is required for the company-file list endpoint
+ * (GET https://api.myob.com/accountright/, used by getOrganisations) — this is
+ * a granular scope introduced by MYOB's March 2025 scope changes and is
+ * distinct from the deprecated broad `CompanyFile` scope. Omitting it causes
+ * every call to the company-file list endpoint to fail with a persistent
+ * 401 OAuthTokenIsInvalid, even with a valid, Admin-authorised token.
  *
  * MYOB invoice types covered (all represent accounts-receivable sales):
  *   Sale/Invoice/Service, Sale/Invoice/Item, Sale/Invoice/Professional,
@@ -34,11 +41,18 @@ import {
 
 const MYOB_AUTH_URL = "https://secure.myob.com/oauth2/account/authorize"
 const MYOB_TOKEN_URL = "https://secure.myob.com/oauth2/v1/authorize"
+// The shared host for MYOB's online/cloud (Business/Essentials) API. Exported
+// so the OAuth callback can construct a directly-callable company-file URI
+// (cf_uri) by appending the `businessId` the callback already receives —
+// `MYOB_COMPANY_FILE_LIST_URL + businessId` — instead of calling
+// getOrganisations() (below), which MYOB's docs mark "Not available online"
+// for cloud company files and cannot be used to discover them.
+export const MYOB_COMPANY_FILE_LIST_URL = "https://api.myob.com/accountright/"
 
 // MYOB OData page size (max 1000, MYOB default 400)
 const PAGE_SIZE = 400
 
-const MYOB_SCOPES = ["sme-sales", "sme-contacts-customer"].join(" ")
+const MYOB_SCOPES = ["sme-sales", "sme-contacts-customer", "sme-company-file"].join(" ")
 
 const MYOB_INVOICE_TYPES = [
   "Service",
@@ -57,24 +71,49 @@ function getConfig() {
   return { clientId, clientSecret }
 }
 
+/**
+ * MYOB error responses are a JSON envelope of the shape:
+ *   { Errors: [{ Message, Name?, ErrorCode? }, ...], Information: "..." }
+ * Extract a short, log-friendly summary instead of dumping the raw body —
+ * console/log viewers otherwise collapse the nested `Errors` array to `[…]`,
+ * hiding the actual MYOB error code/message that's needed for diagnosis
+ * (e.g. distinguishing a transient `OAuthTokenIsInvalid` 401 from an
+ * actually-revoked token or a client-key mismatch).
+ */
+function summariseMYOBErrorBody(text: string): string {
+  if (!text) return "(empty body)"
+  try {
+    const parsed = JSON.parse(text) as { Errors?: Array<{ Message?: string; Name?: string; ErrorCode?: string | number }> }
+    if (Array.isArray(parsed.Errors) && parsed.Errors.length > 0) {
+      return parsed.Errors
+        .map((e) => [e.ErrorCode, e.Name, e.Message].filter(Boolean).join(" "))
+        .join("; ")
+    }
+  } catch {
+    // Not JSON — fall through to raw text below.
+  }
+  return text
+}
+
 async function handleProviderResponse(res: Response): Promise<unknown> {
   if (res.ok) return res.json()
 
   const text = await res.text().catch(() => "")
+  const summary = summariseMYOBErrorBody(text)
   if (res.status === 401) {
-    throw new AccountingProviderError("unauthorized", `MYOB 401: ${text}`)
+    throw new AccountingProviderError("unauthorized", `MYOB 401: ${summary}`)
   }
   if (res.status === 429) {
     const retryAfter = Number(res.headers.get("retry-after") ?? 60)
     throw new AccountingProviderError("rate_limited", `MYOB 429 rate limited`, retryAfter)
   }
   if (res.status === 404) {
-    throw new AccountingProviderError("not_found", `MYOB 404: ${text}`)
+    throw new AccountingProviderError("not_found", `MYOB 404: ${summary}`)
   }
   if (res.status >= 500) {
-    throw new AccountingProviderError("server_error", `MYOB ${res.status}: ${text}`)
+    throw new AccountingProviderError("server_error", `MYOB ${res.status}: ${summary}`)
   }
-  throw new AccountingProviderError("unknown", `MYOB ${res.status}: ${text}`)
+  throw new AccountingProviderError("unknown", `MYOB ${res.status}: ${summary}`)
 }
 
 function normaliseMYOBStatus(status: string): ProviderInvoiceStatus {
@@ -108,6 +147,18 @@ export class MyobProvider implements AccountingProvider {
     url.searchParams.set("response_type", "code")
     url.searchParams.set("scope", MYOB_SCOPES)
     url.searchParams.set("state", params.state)
+    // MYOB's docs describe two authorize URL variants: a "silent" one (no
+    // prompt param) that reuses an existing session/grant without
+    // re-presenting the consent screen, and one with `prompt=consent` that
+    // always forces MYOB's full login+consent+company-file screen. Diagnostic
+    // testing (openspec/changes/harden-myob-business-go-live, task 4.1)
+    // observed a real callback returning only `code`/`scope`/`state` — no
+    // `businessId` — which matches the silent-reuse path skipping the
+    // consent step entirely rather than the granular-scope docs' documented
+    // `?code=&businessId=` callback shape. Forcing `prompt=consent` ensures
+    // the company-file consent screen (and therefore `businessId`) is always
+    // presented, even for a MYOB login that has authorised this app before.
+    url.searchParams.set("prompt", "consent")
     return url.toString()
   }
 
@@ -117,11 +168,20 @@ export class MyobProvider implements AccountingProvider {
   }): Promise<TokenSet> {
     const { clientId, clientSecret } = getConfig()
 
+    // MYOB's token-exchange docs list `scope` as a required POST parameter
+    // alongside client_id/client_secret/code/redirect_uri/grant_type. Omitting
+    // it (as this call previously did) doesn't fail the exchange itself — MYOB
+    // still returns a 200 with an access_token — but for granular-scope apps
+    // the resulting token isn't properly bound to the sme-* scopes the user
+    // consented to, and every subsequent API call is rejected with a 401
+    // "OAuthTokenIsInvalid" regardless of how long you wait for propagation.
+    // Must match the scope requested in getAuthorizationUrl().
     const body = new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
       redirect_uri: params.redirectUri,
       code: params.code,
+      scope: MYOB_SCOPES,
       grant_type: "authorization_code",
     })
 
@@ -185,24 +245,51 @@ export class MyobProvider implements AccountingProvider {
 
   /**
    * In MYOB the "organisation" corresponds to a company file (cf_uri).
-   * The cf_uri is returned as the `businessId` query param in the OAuth callback
-   * and must be stored as AccountingConnection.organisationId.
    *
-   * MYOB's token endpoint does not return a company file list directly. The
-   * company file URI is provided during the OAuth callback by MYOB. This method
-   * returns an empty array because the organisation selection is handled at the
-   * callback level (see: app/api/integrations/myob/callback/route.ts).
-   *
-   * NOTE: For multi-file MYOB accounts, MYOB redirects the user to select a
-   * company file as part of the OAuth flow. The selected file's URI is returned
-   * in the `businessId` query parameter on the callback URL.
+   * NOT called from the MYOB connect path. MYOB Business (online/cloud) OAuth
+   * returns `businessId` (and `businessName`) directly on the callback query
+   * string — one company file per grant, nothing to discover — so
+   * `app/api/integrations/myob/callback/route.ts` builds the cf_uri directly
+   * from `businessId` (see `MYOB_COMPANY_FILE_LIST_URL` above) instead of
+   * calling this method. This endpoint (`GET https://api.myob.com/accountright/`)
+   * is also documented "Not available online" for cloud company files, which
+   * is why calling it from the connect path used to fail. It's retained here
+   * only to satisfy the shared `AccountingProvider` interface (Xero's
+   * genuinely multi-tenant implementation still needs and calls it).
    */
-  async getOrganisations(_accessToken: string): Promise<Organisation[]> {
-    // MYOB company file selection happens during the OAuth redirect flow.
-    // The selected file's URI is returned as the `businessId` query parameter
-    // on the callback URL. There is no separate API call required to discover
-    // company files at the getOrganisations step.
-    return []
+  async getOrganisations(accessToken: string): Promise<Organisation[]> {
+    const { clientId } = getConfig()
+    const res = await fetch(MYOB_COMPANY_FILE_LIST_URL, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        // x-myobapi-cftoken: required on every online/OAuth API call per MYOB's
+        // header docs, even calls (like this one) that aren't scoped to a
+        // specific company file yet. Empty string is correct for MYOB Business
+        // online/cloud company files — ownership is established via the OAuth
+        // Bearer token, not company-file credentials. Omitting this header
+        // causes MYOB to reject the otherwise-valid Bearer token with a 401
+        // "OAuthTokenIsInvalid".
+        "x-myobapi-cftoken": "",
+        "x-myobapi-key": clientId,
+        "x-myobapi-version": "v2",
+        Accept: "application/json",
+      },
+    })
+
+    const data = (await handleProviderResponse(res)) as Array<{
+      Id?: string
+      Name?: string
+      Uri?: string
+    }>
+
+    if (!Array.isArray(data)) return []
+
+    return data
+      .filter((cf) => typeof cf.Uri === "string" && cf.Uri.length > 0)
+      .map((cf) => ({
+        id: cf.Uri as string,
+        name: cf.Name && cf.Name.trim().length > 0 ? cf.Name : (cf.Id ?? (cf.Uri as string)),
+      }))
   }
 
   async getInvoices(params: {
@@ -323,6 +410,9 @@ export class MyobProvider implements AccountingProvider {
       const res = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${params.accessToken}`,
+          // x-myobapi-cftoken: empty string is correct for MYOB Business online/cloud
+          // company files — ownership is established via OAuth Bearer token.
+          "x-myobapi-cftoken": "",
           "x-myobapi-key": clientId,
           "x-myobapi-version": "v2",
           Accept: "application/json",

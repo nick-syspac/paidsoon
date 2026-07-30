@@ -6,6 +6,13 @@ import Link from "next/link"
 import { Turnstile } from "@marsidev/react-turnstile"
 import { createClient } from "@/lib/supabase/client"
 import { Spinner } from "@/components/ui/Spinner"
+import {
+  createClientTraceState,
+  persistClientTraceCookie,
+  traceClientEvent,
+  traceRequestHeaders,
+  updateClientTraceStateFromResponse,
+} from "@/lib/diagnostics/client"
 
 export default function SignInPage() {
   const router = useRouter()
@@ -14,17 +21,28 @@ export default function SignInPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [cfToken, setCfToken] = useState<string | null>(null)
+  const [traceState, setTraceState] = useState(createClientTraceState)
 
   async function handleEmailSignIn(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    traceClientEvent(traceState, {
+      stage: "auth.sign_in.client_submit",
+      operation: "submit_email_sign_in_form",
+      subsystem: "auth",
+      component: "app/(auth)/sign-in/page.tsx",
+      event: "start",
+      inputs: { emailPresent: Boolean(email), credentialProvided: Boolean(password), captchaProvided: Boolean(cfToken) },
+    })
 
     const res = await fetch("/api/auth/sign-in", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...traceRequestHeaders(traceState) },
       body: JSON.stringify({ email, password, cfToken }),
     })
+    const nextTraceState = updateClientTraceStateFromResponse(traceState, res)
+    setTraceState(nextTraceState)
 
     setLoading(false)
 
@@ -37,14 +55,42 @@ export default function SignInPage() {
       )
       // Reset token so the widget can issue a fresh one
       setCfToken(null)
+      traceClientEvent(nextTraceState, {
+        level: "warn",
+        stage: "auth.sign_in.client_response",
+        operation: "handle_email_sign_in_failure",
+        subsystem: "auth",
+        component: "app/(auth)/sign-in/page.tsx",
+        event: "failure",
+        http: { method: "POST", route: "/api/auth/sign-in", status: res.status },
+        outputs: { status: res.status, turnstileTokenReset: true },
+      })
       return
     }
 
+    traceClientEvent(nextTraceState, {
+      stage: "auth.sign_in.client_navigation",
+      operation: "navigate_to_dashboard",
+      subsystem: "auth",
+      component: "app/(auth)/sign-in/page.tsx",
+      event: "decision",
+      http: { method: "POST", route: "/api/auth/sign-in", status: res.status },
+      navigation: { from: "/sign-in", to: "/dashboard", decision: "email_sign_in_success" },
+    })
     router.push("/dashboard")
     router.refresh()
   }
 
   async function handleGoogleSignIn() {
+    persistClientTraceCookie(traceState.traceId)
+    traceClientEvent(traceState, {
+      stage: "auth.sign_in.oauth",
+      operation: "initiate_google_oauth",
+      subsystem: "auth",
+      component: "app/(auth)/sign-in/page.tsx",
+      event: "start",
+      inputs: { provider: "google", redirectOrigin: window.location.origin },
+    })
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
       provider: "google",

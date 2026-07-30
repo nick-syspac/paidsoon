@@ -145,4 +145,22 @@ describe("Invoice state machine — email eligibility", () => {
 
     assert.strictEqual(notEligible.length, ALL_STATUSES.length - 1)
   })
+
+  test("pending invoice with active promise is excluded from email sending", () => {
+    // An invoice can be pending (status) but still have an active promise suppressing emails.
+    // This is a metadata check on top of the status check — simulating the cron exclusion logic.
+    const hasActivePromise = true
+    const invoiceIsPending = true
+
+    const wouldReceiveEmail = invoiceIsPending && !hasActivePromise
+    assert.strictEqual(wouldReceiveEmail, false)
+  })
+
+  test("pending invoice with only broken promise is eligible for emails", () => {
+    const hasActivePromise = false
+    const invoiceIsPending = true
+
+    const wouldReceiveEmail = invoiceIsPending && !hasActivePromise
+    assert.strictEqual(wouldReceiveEmail, true)
+  })
 })

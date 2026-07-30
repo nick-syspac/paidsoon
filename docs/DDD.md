@@ -23,8 +23,8 @@ present in the repository (it is documented as absent, not designed).
 
 | Source | Path | Used for | Notes |
 |---|---|---|---|
-| Application code | `app/**`, `lib/**`, `middleware.ts` | Primary truth for all behaviour | App Router |
-| Prisma schema | `prisma/schema.prisma` | Data model | 6 models |
+| Application code | `app/**`, `lib/**`, `proxy.ts` | Primary truth for all behaviour | App Router |
+| Prisma schema | `prisma/schema.prisma` | Data model | User + admin models; includes arrangements |
 | Initial migration | `prisma/migrations/20260531101711_init/migration.sql` | Tables, indexes, FKs | Single migration |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation | Applied manually in Supabase |
 | Prisma config | `prisma.config.ts` | Two-URL migration/runtime split | `DIRECT_URL` vs `DATABASE_URL` |
@@ -41,21 +41,21 @@ below maps logical areas to code modules (there are no Django apps).
 
 | Logical area | Module(s) | Purpose | Key models/services | OpenSpec |
 |---|---|---|---|---|
-| Auth & tenancy | `lib/supabase/**`, `lib/db/**`, `middleware.ts` | Identity, session, RLS scoping | `UserProfile`; `withUserContext`, `prismaAdmin` | `changes/invoice-nudge-mvp/specs/user-auth`, `changes/enforce-rls-via-prisma` |
+| Auth & tenancy | `lib/supabase/**`, `lib/db/**`, `proxy.ts` | Identity, session, RLS scoping | `UserProfile`; `withUserContext`, `prismaAdmin` | `changes/invoice-nudge-mvp/specs/user-auth`, `changes/enforce-rls-via-prisma` |
 | Invoice connection | `lib/providers/**`, `app/api/stripe/connect/**` | Link Stripe, abstract providers | `InvoiceConnection`; `InvoiceProvider` | `.../specs/invoice-connection` |
 | Invoice tracking | `lib/email/catchup.ts`, `app/api/webhooks/stripe-connect/route.ts` | Detect/track overdue invoices | `TrackedInvoice` | `.../specs/invoice-tracking` |
 | Follow-up engine | `app/api/cron/send-emails/route.ts`, `lib/email/**` | Stage progression + send | `TrackedInvoice`, `EmailLog`, `Schedule` | `.../specs/follow-up-sequences`, `.../specs/schedule-config` |
 | Email identity | `app/api/settings/email/route.ts`, `lib/email/send.ts` | Custom verified sender | `EmailSettings` | `.../specs/email-settings`, `changes/rename-to-paidsoon` |
-| Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/update-subscription-plan-tiers`, `.../specs/subscription-billing` |
+| Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell` |
-| Live-mode gating | `lib/liveMode.ts`, `middleware.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
+| Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
 
 ## 4. Backend Application Design
 
 There are no Django apps. The backend is route handlers + `lib` services. Each
 subsection documents a functional module.
 
-### 4.1 Auth & tenancy (`lib/db/**`, `lib/supabase/**`, `middleware.ts`)
+### 4.1 Auth & tenancy (`lib/db/**`, `lib/supabase/**`, `proxy.ts`)
 
 - **Responsibility:** authenticate users, refresh sessions, enforce per-user DB
   isolation.
@@ -69,7 +69,7 @@ subsection documents a functional module.
     `@prisma/adapter-pg` using `DATABASE_URL`; **bypasses RLS**; service paths
     only.
 - **Permissions:** route handlers reject with 401 when `auth.getUser()` returns
-  no user. `middleware.ts` redirects unauthenticated `/dashboard/*` to
+  no user. `proxy.ts` redirects unauthenticated `/dashboard/*` to
   `/sign-in` and authenticated users away from auth pages.
 - **Integration points:** Supabase Auth; Supabase Postgres.
 - **Tests:** `scripts/verify-rls.ts` proves cross-user isolation (seed via
@@ -102,28 +102,63 @@ subsection documents a functional module.
   paid.
 - **Two ingestion paths:**
   1. **Webhook** (`stripe-connect`): verifies signature, handles
-     `invoice.overdue` (create tracked invoice if under tier limit, idempotent)
-     and `invoice.paid` (mark paid).
+     `invoice.overdue` (create tracked invoice, idempotent — always created,
+     never gated by allowance) and `invoice.paid` (mark paid).
   2. **Catch-up scan** (`runCatchUpScan`): cron-time poll across all active
-     Stripe connections, creating missing tracked invoices under tier limits.
+     Stripe connections, creating missing tracked invoices.
 - **Idempotency:** unique key `(externalId, provider, userId)` +
   pre-insert `findFirst` checks.
-- **Tier limits:** `getInvoiceLimitForTier` gates how many active
-  (`pending`/`snoozed`) invoices a user may track.
+- **Chase-volume allowance is not enforced at ingest.** Every synced invoice
+  (Stripe Connect, catch-up scan, and accounting sync — `lib/providers/accounting/sync.ts`)
+  is created and stays visible on the dashboard regardless of the account's
+  plan or remaining allowance. The allowance only governs whether follow-up
+  *begins* for a given invoice — enforced once, in the cron (§4.4) — not
+  whether the invoice is recorded. See the `chase-volume-entitlement` capability
+  (`openspec/changes/monthly-chase-volume-limits`).
 
 ### 4.4 Follow-up engine (`app/api/cron/send-emails/route.ts`, `lib/email/**`)
 
 - **Responsibility:** advance each tracked invoice through stages 1→3 and send.
 - **Flow (cron GET):** auth via `Bearer CRON_SECRET` → `runCatchUpScan()` →
-  resume snoozed invoices whose `snoozedUntil` elapsed → select `pending`
-  invoices with `nextEmailAt <= now` and `currentStage < 3` → for each, resolve
-  freelancer email/name via Supabase admin, `sendFollowUpEmail`, then advance
-  `currentStage`/`nextEmailAt` or mark `sequence_complete` after stage 3.
+  resume snoozed invoices whose `snoozedUntil` elapsed → **detect broken promises**
+  (active promises whose `promisedPayBy` has passed; mark `broken`, notify freelancer) →
+  **detect expired/broken arrangements** (active arrangements whose payment/expiry date has elapsed) →
+  **exclude invoices with active promises or active arrangements** from the email queue → select `pending`
+  invoices with `nextEmailAt <= now` and `currentStage < 3` → compute each
+  distinct account's chase-volume allowance status once for the pass
+  (`getChaseAllowanceStatusesForUsers`, `lib/billing.ts`) → for each invoice,
+  resolve freelancer email/name via Supabase admin; if `currentStage === 0`
+  (first chase) and the account has no remaining allowance, **hold** the
+  invoice (skip it, leave its state untouched, retried on a later pass) —
+  otherwise `sendFollowUpEmail`, set `firstChasedAt` on a first chase, and
+  advance `currentStage`/`nextEmailAt` or mark `sequence_complete` after stage
+  3. A single pass decrements the in-memory allowance figure after each first
+  send so it can never exceed the allowance; the response includes `held`
+  (invoices skipped this pass) and `usageByAccount` (per-account
+  allowance/usage/remaining/atCapacity) so the held condition is observable.
+  Stage 2/3 sends for a sequence already under way are never gated.
+- **Chase-volume allowance model** (`chase-volume-entitlement` capability,
+  `lib/billing.ts`): one unit of allowance is consumed once per invoice, at
+  its first reminder send (not derivable from `EmailLog.stage`, since tone
+  escalation can promote a first send from stage 1 to stage 2 — see §4.6).
+  Consumption is recorded via `TrackedInvoice.firstChasedAt` (set once, never
+  cleared). Usage is measured over `resolveAllowancePeriod()`'s resolved
+  window: the account's billing period
+  (`UserProfile.subscriptionCurrentPeriodStart/End`) → the trial window
+  (account creation → `trialEndsAt`) → the current calendar month in
+  Australia/Melbourne, in that order. No overage charging exists; reaching
+  the allowance pauses new first chases until the period resets.
 - **Services:**
   - `sendFollowUpEmail` (`lib/email/send.ts`) — resolves from-address, renders
-    template, sends via Resend, writes an `EmailLog`.
-  - `resolveFromAddress` — uses custom verified sender when the tier has
-    `own_email_address` and Resend is verified; else system domain.
+    template (including `{{promiseToPayLink}}`, available on every paid tier), sends via Resend,
+    writes an `EmailLog`. Generates and persists `p2pToken` on first send.
+  - `sendP2PNotification` (`lib/email/send.ts`) — sends freelancer notifications for
+    promise received and promise broken events. Goes to the freelancer (not the client).
+  - `generateP2PToken` (`lib/email/send.ts`) — 32-byte cryptographically random hex token.
+  - `resolveFromAddress` — sender-identity ladder: system address + custom reply-to
+    (`custom_reply_to`, all tiers) → custom sender name (`custom_sender_name`, Solo+) →
+    verified custom from-domain (`verified_from_domain`, Small Business+, requires
+    Resend verification).
   - `computeNextEmailAt` (`lib/email/schedule.ts`) — `dueDate + dayOffset`.
   - `renderTemplate` (`lib/email/templates.ts`) — stage 1/2/3 HTML+text.
 - **Background tasks:** exactly one — this cron route. No queue/worker.
@@ -133,25 +168,48 @@ subsection documents a functional module.
 - **GET:** returns settings; if a custom `fromEmail` is set but unverified,
   polls `resend.domains.list()` and flips `resendVerified` when the sending
   domain reports `verified`.
-- **PUT:** gated by `own_email_address`; upserts `EmailSettings`; on email
-  change, triggers `resend.domains.create(...)` and resets verification.
+- **PUT:** gated by `custom_reply_to` (available on every paid tier); a Resend
+  domain-verification call is only triggered for tiers with `verified_from_domain`.
 
 ### 4.6 Billing & entitlements (`app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts`)
 
-- **Plan catalog:** `PLAN_CATALOG` defines `starter`/`solo`/`small_business`
-  with `limits` (chased invoices, seats, connected accounts) and a
-  `features` map. `LEGACY_TIER_MAP` maps `free→starter`, `pro→solo`.
+- **Plan catalog:** `PLAN_CATALOG` defines `starter`/`solo`/`small_business` (public,
+  customer-selectable) and `accountant_partner` (contact-only, hidden from plan
+  listings via `visibility: "contact_only"`) with `limits` (chased invoices, seats,
+  connected invoice sources; `-1` = unlimited) and a `features` map. There is no
+  legacy alias map — `normalizeSubscriptionTier` falls back to `starter` for any
+  unrecognised value.
 - **Entitlement checks:** `requireFeature(userId, feature)` reads the tier via
   `withUserContext` and consults `hasPlanFeature`. Limit helpers:
-  `getInvoiceLimitForTier`, `getStripeConnectionLimitForTier`,
-  `getUserSeatLimitForTier`.
+  `getInvoiceLimitForTier`, `getInvoiceSourceLimitForTier` (Stripe Connect +
+  accounting connections combined, via `countActiveInvoiceSources`),
+  `getUserSeatLimitForTier`. `getPublicPlans()` returns only customer-facing tiers,
+  used by the pricing page, onboarding plan picker, and
+  `getNextTierRecommendation` (never recommends the hidden contact-only tier).
+- **Chase-volume allowance helpers** (`lib/billing.ts`, `chase-volume-entitlement`
+  capability): `resolveAllowancePeriod(account, now)` resolves the current
+  billing/trial/calendar-month window; `getChaseAllowanceStatus(tx, userId)`
+  and the batched `getChaseAllowanceStatusesForUsers(tx, userIds)` return
+  `{ period, allowance, usage, remaining, atCapacity, nearLimit }` for one or
+  many accounts, accepting either a `withUserContext` tx or `prismaAdmin`.
+  `usage` counts `TrackedInvoice` rows whose `firstChasedAt` falls inside the
+  resolved period — **not** `EmailLog.stage`, because
+  `applyToneEscalationStage` (`lib/promiseEscalationPolicy.ts`) can promote a
+  debtor's first reminder from stage 1 to stage 2, so an invoice's first
+  `EmailLog` row is not reliably `stage: 1`. `nearLimit` reuses
+  `isNearLimit`/`DEFAULT_NEAR_LIMIT_THRESHOLD` (0.8) from
+  `lib/dashboardUpsell.ts` as the single 80% threshold definition.
 - **Checkout:** `POST checkout` maps requested tier → price id env var, creates
   (or reuses) a Stripe customer, returns a Checkout session URL.
 - **Portal:** `POST portal` returns a Stripe billing-portal URL.
 - **Webhook (`stripe-billing`):** signature-verified; handles
-  `checkout.session.completed` (set tier/active), `customer.subscription.updated`
-  (resolve tier from price id), `customer.subscription.deleted` (revert to
-  `starter`, pause invoices over the starter limit). **`invoice.payment_failed`
+  `checkout.session.completed` (set tier/active, persist
+  `subscriptionCurrentPeriodStart`/`End` from the Stripe invoice
+  `period_start`/`period_end`), `customer.subscription.updated` (resolve tier
+  from price id, persist the refreshed period start/end), `customer.subscription.deleted`
+  (revert to `starter`, pause invoices over the starter limit — this is a
+  separate, pre-existing concurrent-count safeguard on downgrade, distinct
+  from the chase-volume allowance). **`invoice.payment_failed`
   is not handled** (proposed in `changes/handle-billing-payment-failed-webhook`).
 
 ### 4.7 Dashboard actions (`app/api/invoices/[id]/**`)
@@ -202,7 +260,7 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 
 - **Auth/session logic:** browser client (`lib/supabase/client.ts`) for sign-in;
   server client (`lib/supabase/server.ts`) for RSC/route handlers; refresh in
-  `middleware.ts`.
+  `proxy.ts`.
 - **Tenant context:** implicit `user.id`; no tenant switcher.
 - **RBAC helpers:** none; only `hasPlanFeature`/`requireFeature` entitlement
   gates.
@@ -210,8 +268,9 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 
 ## 6. Database Design
 
-Eight application tables, all owned by a single user (tenant = `userId`). All
-FKs reference `user_profiles.userId` (or parent rows) with `ON DELETE RESTRICT`.
+User-scoped application tables are owned by a single tenant (`userId`) and are
+protected by RLS. FKs reference `user_profiles.userId` (or parent rows) with
+`ON DELETE RESTRICT`.
 
 ### 6.1 Tenancy / profile / connections / config
 
@@ -313,27 +372,34 @@ erDiagram
 
 | Model | Path | Purpose | Key fields | Relationships | Tenant scoped? | Notes |
 |---|---|---|---|---|---|---|
-| `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `stripeSubscriptionId`, `subscriptionCurrentPeriodEnd`, `pendingDowngradeTier`, `stripeScheduleId`, `subscriptionTier`, `subscriptionStatus`, `trialEndsAt`, `onboardingCompletedAt`, `displayName` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | New users start with `subscriptionStatus: "trialing"` and `trialEndsAt: now + 14 days`; `onboardingCompletedAt` is null until plan is chosen on `/onboarding`; `displayName` is used as `{{yourName}}` in reminder emails |
+| `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `stripeSubscriptionId`, `subscriptionCurrentPeriodStart`, `subscriptionCurrentPeriodEnd`, `pendingDowngradeTier`, `stripeScheduleId`, `subscriptionTier`, `subscriptionStatus`, `trialEndsAt`, `onboardingCompletedAt`, `displayName` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | New users start with `subscriptionStatus: "trialing"` and `trialEndsAt: now + 14 days`; `onboardingCompletedAt` is null until plan is chosen on `/onboarding`; `displayName` is used as `{{yourName}}` in reminder emails; `subscriptionCurrentPeriodStart` anchors the chase-volume allowance period (§4.6) and is populated from Stripe's invoice `period_start` alongside `subscriptionCurrentPeriodEnd` |
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
-| `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `own_email_address` |
-| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil` | N—1 profile/connection; 1—N logs | Yes | Unique `(externalId, provider, userId)` |
-| `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject` | N—1 tracked invoice | Yes (via join policy) | Insert via service role |
+| `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `custom_sender_name`/`verified_from_domain` |
+| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later |
+| `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject`, `htmlBody`, `textBody` | N—1 tracked invoice | Yes (via join policy) | Insert via service role; `htmlBody`/`textBody` (nullable) persist the exact rendered content sent, added for the dashboard's email-detail modal — `null` for rows sent before this column existed |
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
+| `PromiseToPay` | `prisma/schema.prisma` | Client payment commitment history per invoice | `trackedInvoiceId`, `userId`, `promisedPayBy`, `promisedAmount`, `clientNotes`, `status`, `breachNotifiedAt` | N—1 tracked invoice | Yes (SELECT only; INSERT/UPDATE via `prismaAdmin`) | `status`: `active` → `kept` / `broken` / `superseded`; indexes on `(trackedInvoiceId, createdAt)` and `(status, promisedPayBy)` |
+| `Arrangement` | `prisma/schema.prisma` | Freelancer-managed agreement for one debtor (single or multi-invoice scope) | `userId`, `debtorEmail`, `arrangementType`, `status`, `promisedPayBy`, `agreedAmount`, `planSchedule`, `expiresAt`, `breachedAt`, `fulfilledAt` | N—1 profile; 1—N coverages | Yes (RLS CRUD) | `arrangementType`: `full_payment` / `partial_payment` / `instalment_plan`; `status`: `active` → `broken` / `fulfilled` / `expired` / `cancelled` |
+| `ArrangementInvoiceCoverage` | `prisma/schema.prisma` | Joins arrangements to covered invoices for suppression/resume behavior | `arrangementId`, `trackedInvoiceId`, `userId`, `debtorEmail` | N—1 arrangement; N—1 tracked invoice | Yes (RLS CRUD) | Unique `(arrangementId, trackedInvoiceId)`; tenant/debtor-safe relational constraints via composite references |
 | `AccountingConnection` | `prisma/schema.prisma` | OAuth connection to Xero or MYOB | `userId`, `provider`, `organisationId`, `organisationName`, `encryptedAccessToken`, `encryptedRefreshToken`, `tokenExpiresAt`, `scopes`, `status`, `lastSyncedAt` | N—1 profile; 1—N sync runs, provider mappings | Yes (RLS) | Unique `(userId, provider, organisationId)`; tokens encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY` |
 | `AccountingSyncRun` | `prisma/schema.prisma` | Sync run history per accounting connection | `accountingConnectionId`, `provider`, `userId`, `startedAt`, `completedAt`, `status`, `invoicesCreated`, `invoicesUpdated`, `invoicesSkipped`, `errorMessage` | N—1 connection | Yes (SELECT only; writes via `prismaAdmin` in cron) | Index on `(accountingConnectionId, startedAt)` |
 | `ProviderInvoiceMapping` | `prisma/schema.prisma` | Maps provider invoice IDs to `TrackedInvoice` | `trackedInvoiceId`, `accountingConnectionId`, `providerInvoiceId`, `providerUpdatedAt`, `providerMetadata` | 1—1 tracked invoice; N—1 connection | Yes (SELECT via JOIN on tracked_invoices.userId) | Unique `(providerInvoiceId, accountingConnectionId)`; `providerUpdatedAt` drives incremental sync |
 | `ProviderContactMapping` | `prisma/schema.prisma` | Maps provider customer/contact IDs for deduplication | `accountingConnectionId`, `providerContactId`, `contactName`, `contactEmail`, `providerMetadata` | N—1 connection | Yes (SELECT via JOIN on accounting_connections.userId) | Unique `(providerContactId, accountingConnectionId)`; `contactEmail` is PII |
 | `OauthState` | `prisma/schema.prisma` | CSRF nonce for accounting OAuth callbacks (10-min TTL) | `userId`, `provider`, `nonce`, `expiresAt` | — | Yes (by userId; SELECT/INSERT/DELETE) | Unique `(nonce)`; expired rows cleaned up by `/api/cron/sync-accounting` |
+| `PlatformRole` | `prisma/schema.prisma` | Platform staff membership | `userId`, `role` (`platform_owner`/`platform_admin`/`platform_support`), `status` (`active`/`disabled`), `grantedBy` | — | No (deny-all RLS; `prismaAdmin` only) | Max one active role per user; `grantedBy` = granting user id |
+| `AdminDevice` | `prisma/schema.prisma` | Enrolled SSH Ed25519 public keys | `userId`, `name`, `publicKeyBytes`, `fingerprint` (UK), `status` (`pending`/`active`/`revoked`/`expired`) | N—1 platform role user; 1—N challenges/sessions | No (deny-all RLS) | `publicKeyBytes` = 32-byte Ed25519 raw key; `fingerprint` = `SHA256:<base64>` |
+| `AdminChallenge` | `prisma/schema.prisma` | Single-use SSH signing nonce | `userId`, `adminDeviceId`, `nonce` (UK), `expiresAt`, `usedAt` | N—1 device | No (deny-all RLS) | Nonce is 32 bytes / 64 hex chars; `usedAt` marks replay prevention |
+| `AdminSession` | `prisma/schema.prisma` | Elevated admin session after key verification | `userId`, `adminDeviceId`, `sessionToken` (UK), `expiresAt`, `revokedAt`, `ipAddress`, `userAgent` | N—1 device | No (deny-all RLS) | Token stored as `admin_session` cookie (HttpOnly/Secure/SameSite=Strict); `revokedAt` enables soft revocation |
+| `AdminAuditEvent` | `prisma/schema.prisma` | Append-only admin action log | `actorUserId`, `action` (enum, 23 values including `admin_tenant_action`), `targetUserId`, `tenantId`, `success`, `metadata` (JSON, action-specific context), `ipAddress`, `requestId` | — | No (deny-all RLS; `prismaAdmin` only) | Never deleted; no UPDATE policy; fire-and-forget write via `logAdminEvent()` |
+| `StaffInvitation` | `prisma/schema.prisma` | Pending platform staff invite | `invitedEmail`, `role`, `token` (UK), `invitedBy`, `status` (`pending`/`accepted`/`expired`/`revoked`), `expiresAt`, `acceptedBy` | — | No (deny-all RLS) | Token is 32 bytes / 64 hex chars; accepted by matching Supabase user email |
 
-> ERDs for RBAC, compliance/controls/obligations/evidence, workflow,
-> integrations registry, audit, AI policy, and vertical models are **not
-> applicable** — no such tables exist.
+> ERDs for compliance/controls/obligations/evidence, workflow, and vertical models are **not applicable** — no such tables exist.
 
 ### 6.4 RLS design
 
-`prisma/rls-policies.sql` enables RLS on all eight tables. Policies key on
+`prisma/rls-policies.sql` enables RLS on user-scoped tables. Policies key on
 `auth.uid()::text = "userId"` for SELECT/INSERT/UPDATE. `email_templates` has a
 DELETE policy (users reset a stage to defaults). Other tables have no DELETE
 policy (app never hard-deletes rows; FKs are `RESTRICT`). `email_logs` SELECT
@@ -341,7 +407,15 @@ and INSERT both use a join-based `EXISTS` check against `tracked_invoices`
 (ownership via `userId`); the cron worker bypasses RLS entirely via `prismaAdmin`
 (service role), so the tightened INSERT policy does not affect it. `ai_usage_logs`
 has a SELECT policy for own rows; INSERTs are `prismaAdmin`-only (no user INSERT
-policy).
+policy). `arrangements` and `arrangement_invoice_coverages` have full tenant-scoped
+CRUD policies.
+
+The six **platform admin tables** (`platform_roles`, `admin_devices`,
+`admin_challenges`, `admin_sessions`, `admin_audit_events`, `staff_invitations`)
+all have deny-all RLS — no `anon` or `authenticated` role may SELECT, INSERT,
+UPDATE, or DELETE from them. All reads and writes go through `prismaAdmin`
+(service role) in admin route handlers that have first passed the three-layer
+admin guard. See `prisma/rls-policies.sql`.
 
 ## 7. API Design
 
@@ -355,27 +429,55 @@ policy).
 | `POST /api/stripe/connect/disconnect` | `.../disconnect/route.ts` | optional `{connectionId}` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` by `stripeCustomerId` | Stripe event → `{received}` | Implemented (no `payment_failed`) |
 | `POST /api/webhooks/stripe-connect` | `.../stripe-connect/route.ts` | provider signature | signature | `prismaAdmin` by account id | Stripe event → `{received}` | Implemented |
-| `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed}` | Implemented |
+| `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed,held,usageByAccount}` | Implemented |
 | `POST /api/invoices/[id]/pause` | `.../pause/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/resume` | `.../resume/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/snooze` | `.../snooze/route.ts` | path `id` | session | `withUserContext` | → `{success,snoozedUntil}` | Implemented |
 | `POST /api/invoices/[id]/resolve` | `.../resolve/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
+| `POST /api/arrangements` | `app/api/arrangements/route.ts` | body `{invoiceIds[], arrangementType, promisedPayBy?, agreedAmount?, currency?, termsNotes?, planSchedule?}` | session | `withUserContext` | → `{arrangement}` | Implemented — freelancer-managed arrangement creation for single/multi-invoice scope |
+| `POST /api/arrangements/[id]/status` | `app/api/arrangements/[id]/status/route.ts` | path `id`; body `{status}` | session | `withUserContext` | → `{arrangement}` | Implemented — lifecycle transitions (`active`, `broken`, `fulfilled`, `expired`, `cancelled`) |
+| `GET /api/arrangements/[id]` | `app/api/arrangements/[id]/route.ts` | path `id` | session | `withUserContext` + explicit `userId` check | → `{arrangement}` (with full `coverages`, each including the covered invoice's `clientName`/`clientEmail`/`amountDue`/`currency`/`status`) | Implemented — full arrangement detail for the dashboard's arrangement-detail modal; 404 if not found or not owned by the requesting user |
+| `POST /api/promise/[token]` | `.../promise/[token]/route.ts` | path `token`; body `{promisedPayBy, promisedAmount?, clientNotes?}` | none (public) | `prismaAdmin` | → `{ok}` | Implemented — client-initiated single-invoice P2P; arrangement-like payloads rejected |
 | `GET/PUT /api/settings/schedule` | `.../schedule/route.ts` | `zod` ascending offsets | session + `email_reminder_sequence` | `withUserContext` upsert | → `{schedule}` / `{success}` | Implemented |
-| `GET/PUT /api/settings/email` | `.../email/route.ts` | `zod` email/name | session + `own_email_address` (PUT) | `withUserContext` | → `{settings}` / `{success}` | Implemented |
+| `GET/PUT /api/settings/email` | `.../email/route.ts` | `zod` email/name | session + `custom_reply_to` (PUT) | `withUserContext` | → `{settings}` / `{success}` | Implemented |
 | `PATCH /api/settings/profile` | `.../profile/route.ts` | `zod` `{displayName}` 1–100 chars | session | `withUserContext` profile update | → `{displayName}` | Implemented |
 | `GET/PUT/DELETE /api/settings/templates` | `.../templates/route.ts` | `zod` subject/body | session + template features | `withUserContext` (PUT/DELETE) | → `{...template}` / `{success}` | Implemented |
 | `GET/POST /api/settings/ai` | `.../ai/route.ts` | `zod` text/stage | session + `ai_rewrite` | `prismaAdmin` (`ai_usage_logs`) | → `{canRewrite}` / `{success, friendly, firm, final_notice}` | Implemented (GPT-4o-mini) |
 | `POST /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | `zod` `{tier}` | session | `withUserContext` profile | `{tier}` → `{scheduledAt}` | Implemented |
+| `GET /api/diagnostics/db-check` | `.../diagnostics/db-check/route.ts` | — | none (public); 404s unless `DEBUG=true` | `prismaAdmin` `SELECT 1` only | → `{ok,message,latencyMs,error?}` | Implemented — debug-only connectivity probe surfaced by a homepage button when `DEBUG=true` |
 | `DELETE /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | — | session | `withUserContext` profile | → `{cancelled}` | Implemented |
 | `GET/POST /api/settings/team/invite` | `.../team/invite/route.ts` | `zod` email | session | (none) | → seats / `{success}` | **Scaffold (not persisted)** || `GET /api/integrations/xero/connect` | `.../xero/connect/route.ts` | — | session + `accounting_integrations` feature | `prismaAdmin` oauth_state insert | → redirect to Xero OAuth | Implemented |
 | `GET /api/integrations/xero/callback` | `.../xero/callback/route.ts` | query `code,state` | session + nonce validation | `withUserContext` upsert accounting_connections | → redirect to settings | Implemented |
 | `POST /api/integrations/xero/disconnect` | `.../xero/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
 | `POST /api/integrations/xero/sync` | `.../xero/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
 | `GET /api/integrations/myob/connect` | `.../myob/connect/route.ts` | — | session + `accounting_integrations` feature | `prismaAdmin` oauth_state insert | → redirect to MYOB OAuth | Implemented |
-| `GET /api/integrations/myob/callback` | `.../myob/callback/route.ts` | query `code,state,businessId` | session + nonce validation | `withUserContext` upsert accounting_connections | → redirect to settings | Implemented |
+| `GET /api/integrations/myob/callback` | `.../myob/callback/route.ts` | query `code,state,businessId,businessName` | session + nonce validation | `withUserContext` upsert accounting_connections | → redirect to settings | Implemented |
 | `POST /api/integrations/myob/disconnect` | `.../myob/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
 | `POST /api/integrations/myob/sync` | `.../myob/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
 | `GET /api/cron/sync-accounting` | `.../cron/sync-accounting/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{totalConnections,succeeded,failed,invoicesCreated,invoicesUpdated}` | Implemented |
+| `POST /api/admin/challenges` | `app/api/admin/challenges/route.ts` | `zod` `{deviceId}` | Layer 1+2 (Supabase session + PlatformRole) | `prismaAdmin` | → `{challengeId, nonce}` | Implemented |
+| `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{signature, publicKeyFingerprint}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{ok}` | Implemented |
+| `POST /api/admin/sessions/revoke` | `app/api/admin/sessions/revoke/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `admin_session` cookie; `{ok}` | Implemented |
+| `GET /api/admin/audit-events` | `app/api/admin/audit-events/route.ts` | query filters + cursor | All 3 layers | `prismaAdmin` | → `{events, nextCursor}` | Implemented |
+| `GET /api/admin/devices` | `app/api/admin/devices/route.ts` | — | All 3 layers | `prismaAdmin` | → `{devices}` (no publicKeyBytes) | Implemented |
+| `POST /api/admin/devices` | `app/api/admin/devices/route.ts` | `zod` `{name, publicKey}` | All 3 layers | `prismaAdmin` | → `{device}` | Implemented |
+| `POST /api/admin/devices/[id]/revoke` | `.../revoke/route.ts` | path `id` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{ok}` | Implemented |
+| `GET /api/admin/staff` | `app/api/admin/staff/route.ts` | — | All 3 layers | `prismaAdmin` | → `{staff}` | Implemented |
+| `POST /api/admin/staff/invitations` | `.../invitations/route.ts` | `zod` `{email, role}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{invitation}` | Implemented |
+| `POST /api/admin/staff/invitations/accept` | `.../accept/route.ts` | `zod` `{token}` | Layer 1+2 (email must match) | `prismaAdmin` | → `{ok}` | Implemented |
+| `POST /api/admin/staff/[userId]/role` | `.../role/route.ts` | `zod` `{role}` | All 3 layers; `minRole: platform_owner` | `prismaAdmin` | → `{ok}` | Implemented |
+| `POST /api/admin/staff/[userId]/disable` | `.../disable/route.ts` | path `userId` | All 3 layers; `minRole: platform_owner` | `prismaAdmin` | → `{ok}` | Implemented |
+| `GET /api/admin/tenants` | `app/api/admin/tenants/route.ts` | query `cursor,limit,search` | All 3 layers | `prismaAdmin` | → `{tenants, nextCursor}` (safe fields); `search` filters by `displayName` (case-insensitive) | Implemented |
+| `GET /api/admin/tenants/[id]` | `.../[id]/route.ts` | path `id` | All 3 layers | `prismaAdmin` | → `{tenant}` (safe fields); logs `tenant_viewed` | Implemented |
+| `POST /api/admin/tenants/[id]/actions/reset-email-from` | `.../reset-email-from/route.ts` | path `id` (userId) | All 3 layers | `prismaAdmin` | → clears `EmailSettings.fromEmail/fromName/replyTo`; logs `admin_tenant_action` with old value in metadata | Implemented |
+| `POST /api/admin/tenants/[id]/actions/extend-trial` | `.../extend-trial/route.ts` | `zod` `{days: 1–30}`; path `id` (userId) | All 3 layers | `prismaAdmin` | → updates `UserProfile.trialEndsAt`; rejects if not trialing; logs `admin_tenant_action` | Implemented |
+| `POST /api/admin/tenants/[id]/actions/trigger-resync` | `.../trigger-resync/route.ts` | `zod` `{connectionId}`; path `id` (userId) | All 3 layers | `prismaAdmin` | → invokes `syncConnection`; verifies connection belongs to tenant; logs `admin_tenant_action` | Implemented |
+| `GET /api/admin/users` | `app/api/admin/users/route.ts` | query `search,cursor,limit` | All 3 layers | `prismaAdmin` | → `{users, nextCursor}` | Implemented (route retained; UI redirects to /admin/tenants) |
+| `GET /api/admin/subscriptions` | `app/api/admin/subscriptions/route.ts` | — | All 3 layers | `prismaAdmin` | → `{tiers}` (counts, no Stripe IDs) | Implemented |
+| `GET /api/admin/integrations` | `app/api/admin/integrations/route.ts` | — | All 3 layers | `prismaAdmin` | → `{byProvider}` (no tokens) | Implemented |
+| `GET /api/admin/email-jobs` | `app/api/admin/email-jobs/route.ts` | query `cursor,limit` | All 3 layers | `prismaAdmin` | → `{jobs}` (no clientEmail) | Implemented |
+| `POST /api/admin/impersonation/start` | `.../start/route.ts` | `zod` `{tenantId}` | All 3 layers; cannot impersonate other admin | `prismaAdmin` | → updates `AdminSession.impersonatedTenantId`; `{ok}` | Implemented |
+| `POST /api/admin/impersonation/end` | `.../end/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `impersonatedTenantId`; `{ok}` | Implemented |
 Canonical vs deprecated: there are no deprecated API aliases. The only
 backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
 
@@ -386,7 +488,7 @@ backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
   (`app/(auth)/sign-in/page.tsx`). OAuth returns to `app/auth/callback/route.ts`
   which calls `exchangeCodeForSession`.
 - **Session model:** Supabase session cookies bridged by `@supabase/ssr`.
-  `middleware.ts` calls `supabase.auth.getUser()` to refresh and to guard
+  `proxy.ts` calls `supabase.auth.getUser()` to refresh and to guard
   `/dashboard/*`.
 - **Backend auth:** every user-facing route handler calls
   `supabase.auth.getUser()` and returns 401 when absent. Webhooks use Stripe
@@ -401,10 +503,36 @@ backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
 - **Cross-tenant enforcement:** Postgres RLS policies; `scripts/verify-rls.ts`
   proves user A cannot read user B's rows even with the `where` clause omitted.
 
+### 8.1 Platform admin authentication
+
+The `/admin` route group adds a **three-layer elevated-privilege guard** on top of normal Supabase auth:
+
+| Layer | Mechanism | Where enforced |
+|---|---|---|
+| 1 | Supabase session — same as `/dashboard` | `proxy.ts` |
+| 2 | `PlatformRole` row in `platform_roles` with `status = active` | `lib/admin/guard.ts` |
+| 3 | `AdminSession` row linked to a verified `AdminDevice` (Ed25519 SSH public key challenge-response) | `lib/admin/guard.ts` + `app/api/admin/challenges/` |
+
+**Challenge-response flow** (browser → server; private key never leaves the device):
+
+1. Browser POSTs `deviceId` to `/api/admin/challenges` → server stores a 32-byte nonce and returns `{challengeId, nonce}`.
+2. Operator runs: `echo "<nonce>" | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n paidsoon-admin-auth` and pastes the armoured signature.
+3. Browser POSTs signature to `/api/admin/challenges/[id]/verify` → server verifies the Ed25519 signature with the stored public key bytes, marks the challenge used, creates an `AdminSession`, and sets the `admin_session` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
+
+**Key observation:** the server stores only the 32-byte Ed25519 *public* key. The *private* key never leaves the operator's machine. For production, a hardware-backed key (YubiKey resident key, macOS Secure Enclave key via `ssh-keygen -t ecdsa-sk`) is strongly recommended because a software private key file can be exfiltrated if the machine is compromised.
+
+**Role hierarchy:** `platform_support < platform_admin < platform_owner`
+
+- `platform_support` — read-only tenant/subscription/email-job views
+- `platform_admin` — all of the above + device revocation + staff invitations
+- `platform_owner` — all of the above + role changes + disable staff
+
+All six admin DB tables have deny-all RLS. Every admin route handler calls `requireAdminElevation()` (all 3 layers) or `requirePlatformRole()` (layers 1+2, for the `/admin/verify` challenge page). Session signing-out revokes the `AdminSession` row and clears the cookie.
+
 ```mermaid
 sequenceDiagram
     participant U as Browser
-    participant MW as middleware.ts
+    participant MW as proxy.ts
     participant RH as Route handler
     participant WC as withUserContext
     participant PG as Postgres (RLS)
@@ -461,35 +589,91 @@ stateDiagram-v2
 
 ## 11. Billing and Entitlements Design
 
-- **Plans** (`lib/subscriptionPlans.ts`):
+- **Plans** (`lib/subscriptionPlans.ts`), prices inclusive of GST:
 
-| Tier | Price/mo | Chased invoices | Seats | Stripe accounts | Notable features |
+| Tier | Visibility | Price/mo | Chased invoices/period | Seats | Connected invoice sources |
 |---|---|---|---|---|---|
-| `starter` | A$9 | 10 | 1 | 1 | basic reminders, branding |
-| `solo` | A$19 | 30 | 1 | 1 | sequence, basic templates, own email, payment+overdue dashboards |
-| `small_business` | A$39 | 100 | 3 | 3 | + custom templates, AI rewrite, tone settings |
+| `starter` | public | A$9 | 10 | 1 | 1 |
+| `solo` | public (marked "Most Popular") | A$19 | 50 | 1 | 1 |
+| `small_business` | public | A$39 | 200 | 3 (usable seats not yet implemented) | 1 |
+| `accountant_partner` | contact-only (hidden from pricing page & upgrade recommendations) | Contact us | Unlimited | Unlimited | Unlimited |
+
+  Feature matrix (✓ = enabled, — = disabled, ◷ = enabled in the catalog but not yet
+  implemented in the product — presentation code must render these as "Coming soon",
+  see `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()`):
+
+| Feature (`SubscriptionFeature`) | Starter | Solo | Small Business | Accountant Partner |
+|---|---|---|---|---|
+| `basic_email_reminders` | ✓ | ✓ | ✓ | ✓ |
+| `email_reminder_sequence` (custom timing) | — | ✓ | ✓ | ✓ |
+| `customer_specific_sequences` ◷ | — | — | ◷ | ◷ |
+| `basic_templates` | ✓ | ✓ | ✓ | ✓ |
+| `custom_reminder_templates` | — | ✓ | ✓ | ✓ |
+| `multi_template_customer_wording` ◷ | — | — | ◷ | ◷ |
+| `paid_soon_branding` | ✓ | ✓ | ✓ | ✓ |
+| `custom_reply_to` | ✓ | ✓ | ✓ | ✓ |
+| `custom_sender_name` | — | ✓ | ✓ | ✓ |
+| `verified_from_domain` | — | — | ✓ | ✓ |
+| `ai_rewrite` | — | ✓ | ✓ | ✓ |
+| `tone_settings` | — | ✓ | ✓ | ✓ |
+| `payment_status_dashboard` | ✓ | ✓ | ✓ | ✓ |
+| `overdue_invoice_dashboard` | ✓ | ✓ | ✓ | ✓ |
+| `accounting_integrations` | ✓ | ✓ | ✓ | ✓ |
+| `promise_to_pay_tracking` | ✓ | ✓ | ✓ | ✓ |
+| `dispute_pause` | ✓ | ✓ | ✓ | ✓ |
+| `weekly_summary_email` ◷ | — | — | ◷ | ◷ |
+| `csv_export` ◷ | — | — | ◷ | ◷ |
+| `approval_mode` ◷ | — | — | ◷ | ◷ |
+| `contact_suppression` ◷ | — | — | ◷ | ◷ |
+| `team_seats` ◷ | — | — | ◷ | ◷ |
+| `multi_client_management` ◷ | — | — | — | ◷ |
 
 - **Features** are a `Record<SubscriptionFeature, boolean>` per plan; checked via
-  `hasPlanFeature`/`requireFeature`.
-- **Legacy mapping:** `free→starter`, `pro→solo` via `LEGACY_TIER_MAP` +
-  `normalizeSubscriptionTier`.
+  `hasPlanFeature`/`requireFeature`. Core follow-up capabilities (sync, the
+  Friendly/Firm/Final progression, auto-stop on payment, promise-to-pay, dispute
+  pause, the debtor dashboard, accounting integrations) are enabled on every paid
+  tier — MYOB's own reminder features are not a substitute for PaidSoon's workflow,
+  so these are not used as upsell levers.
+- **No legacy alias map:** `normalizeSubscriptionTier` returns `starter` for any
+  value not in `{starter, solo, small_business, accountant_partner}`. Previous
+  generations of tier naming (`free`/`pro`/`business`) are not aliased — a stray
+  legacy value surfaces as a visibly wrong plan rather than resolving silently.
+- **Accountant Partner checkout:** `accountant_partner` has `monthlyPriceAud: null` (contact-us
+  pricing); the Stripe Checkout route returns an error for this tier. Provisioning is manual.
+  It is `visibility: "contact_only"` — `getPublicPlans()` excludes it from the pricing page,
+  the onboarding plan picker, and `getNextTierRecommendation`.
+- **Unlimited limits:** `accountant_partner` has `-1` for all limits in `PlanLimits`; the
+  `getInvoiceLimitForTier` / `getInvoiceSourceLimitForTier` / `getUserSeatLimitForTier`
+  helpers in `lib/billing.ts` normalise -1 to `Number.MAX_SAFE_INTEGER` for comparisons.
+  `getInvoiceSourceLimitForTier` covers Stripe Connect accounts and accounting
+  connections combined (`countActiveInvoiceSources`), replacing the earlier
+  Stripe-only connection limit.
 - **Checkout → activation:** `POST /api/billing/checkout` → Stripe Checkout →
   `checkout.session.completed` webhook sets `subscriptionTier` (from
   `selectedTier` metadata) and `subscriptionStatus = active`.
 - **Updates/cancellation:** `customer.subscription.updated` resolves tier from
   the price id (`PRICE_ID_TO_TIER`); `customer.subscription.deleted` reverts to
   `starter`, sets `cancelled`, and pauses invoices exceeding the starter limit.
+- **Price IDs:** the webhook's `PRICE_ID_TO_TIER` map has exactly three entries —
+  `STRIPE_STARTER_PRICE_ID→starter`, `STRIPE_SOLO_PRICE_ID→solo`,
+  `STRIPE_SMALL_BUSINESS_PRICE_ID→small_business`. `STRIPE_BUSINESS_PRICE_ID` and
+  `STRIPE_PRO_PRICE_ID` have been retired (see `changes/restore-three-tier-pricing`).
 - **Portal:** `POST /api/billing/portal` → Stripe billing portal.
 - **Trial/free handling:** `trialing` is treated as active; there is no separate
-  free plan — `starter` is the paid entry tier (schema's `"free"` default maps
-  to `starter`).
+  free plan — `starter` is the paid entry tier (schema's `subscriptionTier` default
+  is `"starter"`).
+- **GST:** all three prices are inclusive of GST. The corresponding Stripe Price
+  objects must carry `tax_behavior: "inclusive"` — this attribute is immutable
+  once set, so it must be confirmed before pricing/checkout changes, not after.
 - **Not implemented:** `invoice.payment_failed` → `past_due`
-  (`changes/handle-billing-payment-failed-webhook`); add-ons; usage events.
+  (`changes/handle-billing-payment-failed-webhook`); add-ons; usage events;
+  monthly chased-invoice allowance enforcement semantics (counting, warning,
+  pausing) — see `changes/monthly-chase-volume-limits`.
 
 ## 12. AI Rewrite Design
 
 `app/api/settings/ai/route.ts` gates on the `ai_rewrite` plan feature
-(`small_business` tier only).
+(`solo` tier and above).
 
 **GET** returns `{ canRewrite: boolean }`.
 
@@ -532,8 +716,8 @@ RAG/vector store, no LLM fallback.
   - **Stripe Billing** — subscriptions/portal (`app/api/billing/**`).
   - **Resend** — email + domain verification.
   - **Supabase** — auth + DB.
-  - **Xero** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/xero.ts`). Solo+ tier.
-  - **MYOB Business** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/myob.ts`). Solo+ tier.
+  - **Xero** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/xero.ts`). Available on every paid tier (`accounting_integrations`).
+  - **MYOB Business** — pull-based accounting invoice sync via OAuth 2.0 (`lib/providers/accounting/myob.ts`). Available on every paid tier (`accounting_integrations`).
 
 ### Accounting Provider Architecture
 
@@ -593,7 +777,7 @@ favour of "PaidSoon" / `paidsoon.com`.
 | API/web runtime | Single Next.js 16 app on Vercel | `docs/runbooks/vercel.md` |
 | Worker runtime | None — cron route on same deployment | `vercel.json` |
 | Scheduler | Vercel Cron `0 9 * * *` (prod only) → `/api/cron/send-emails` | `vercel.json`, `docs/runbooks/vercel.md` |
-| Database | Supabase Postgres; runtime via pooled `authenticator` role | `prisma.config.ts`, `lib/db/admin.ts` |
+| Database | Supabase Postgres; runtime via the shared pooler as `postgres.[ref]`, RLS applied per-transaction by `withUserContext` | `prisma.config.ts`, `lib/db/admin.ts` |
 | Migrations | `prisma migrate` via `DIRECT_URL` (owner) | `prisma.config.ts` |
 | RLS bootstrap | `prisma/rls-policies.sql` applied manually in Supabase | `prisma/rls-policies.sql`, `docs/runbooks/supabase.md` |
 | Object storage / Redis | None | — |
@@ -614,7 +798,7 @@ The exhaustive, code-checked list lives in `docs/runbooks/README.md`
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
 `SUPABASE_SECRET_KEY`, `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`,
 `LIVE`, `CRON_SECRET`, `STRIPE_SECRET_KEY`,
-`STRIPE_{STARTER,SOLO,SMALL_BUSINESS,PRO}_PRICE_ID`,
+`STRIPE_{STARTER,SOLO,SMALL_BUSINESS}_PRICE_ID`,
 `STRIPE_CONNECT_CLIENT_ID`, `STRIPE_BILLING_WEBHOOK_SECRET`,
 `STRIPE_CONNECT_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
 `RESEND_FROM_NAME`.
@@ -652,7 +836,7 @@ automated tests; only pure helpers are unit-tested.
 - **Webhook/cron auth:** Stripe signatures; `CRON_SECRET` bearer.
 - **OAuth CSRF:** Stripe Connect `state == user.id` check.
 - **AI governance:** `ai_usage_logs` records model name, feature, token counts,
-  and estimated cost per call; gated to `small_business` tier via
+  and estimated cost per call; gated to `solo` tier and above via
   `requireFeature`.
 - **PII handling:** client name/email and invoice amounts are stored; **no
   documented retention, minimisation, or deletion** policy. RLS prevents
@@ -688,15 +872,15 @@ automated tests; only pure helpers are unit-tested.
 | Email settings | Yes | Specified | `app/api/settings/email/route.ts` | `.../email-settings` | Resend verify poll |
 | Manual actions | Yes | Specified | `app/api/invoices/[id]/**` | `.../dashboard` | pause/resume/snooze/resolve |
 | Dashboard + upsell | Yes | Specified | `app/dashboard/page.tsx`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell` | Gated modules |
-| Billing tiers | Yes | Specified | `lib/subscriptionPlans.ts`, `app/api/billing/**` | `changes/update-subscription-plan-tiers` | 3 tiers |
-| Live-mode gating | Yes | Specified | `lib/liveMode.ts`, `middleware.ts` | `changes/live-mode-auth-gate-banner` | `LIVE` flag |
+| Billing tiers | Yes | Specified | `lib/subscriptionPlans.ts`, `app/api/billing/**` | `changes/restore-three-tier-pricing` | 3 public tiers + 1 hidden contact-only tier |
+| Live-mode gating | Yes | Specified | `lib/liveMode.ts`, `proxy.ts` | `changes/live-mode-auth-gate-banner` | `LIVE` flag |
 | Login spinner | Yes | Specified | `components/ui/Spinner.tsx`, `app/(auth)/**` | `changes/login-loading-spinner` | — |
 | Logout redirect | Yes | Specified | `app/auth/sign-out/route.ts` | `changes/logout-redirect-homepage` | → `/` |
 | Rename to PaidSoon | Yes | Specified | `app/layout.tsx`, `lib/email/send.ts` | `changes/rename-to-paidsoon` | Brand flip |
 | How-it-works gating | Yes | Specified | `app/page.tsx` | `changes/expand-how-it-works-with-plan-gated-features` | Tasks all checked |
 | Environment runbooks | Yes (docs) | Specified | `docs/runbooks/**` | `changes/build-environment-runbooks` | Replaces old SETUP/GO-LIVE |
 | Basic templates | Yes | Specified | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite`, `changes/templates-sidebar-help` | GET/PUT/DELETE; persists to `email_templates`; sidebar with variable chips |
-| Custom templates | Yes | Specified | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite` | Persisted via `withUserContext`; gated to `small_business` |
+| Custom templates | Yes | Specified | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite` | Persisted via `withUserContext`; gated to `business`+ |
 | AI rewrite | Yes | Specified | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | GPT-4o-mini; usage logged; UI embedded in templates page |
 | Subscription plan switching | Yes | Specified | `app/api/billing/{checkout,downgrade}/route.ts` | `changes/subscription-plan-switching` | Upgrade mid-cycle; deferred downgrade via Stripe Schedule |
 | Team seats / invites | Partially implemented | Not specified | `app/api/settings/team/invite/route.ts` | — | No persistence |
@@ -741,7 +925,7 @@ automated tests; only pure helpers are unit-tested.
 ## 23. Appendix A — Code Path Index
 
 **Auth & tenancy**
-- `lib/supabase/server.ts`, `lib/supabase/client.ts`, `middleware.ts`
+- `lib/supabase/server.ts`, `lib/supabase/client.ts`, `proxy.ts`
 - `lib/db/withUserContext.ts`, `lib/db/admin.ts`, `lib/actions/auth.ts`
 - `app/(auth)/sign-in/page.tsx`, `app/(auth)/sign-up/page.tsx`,
   `app/auth/callback/route.ts`, `app/auth/sign-out/route.ts`

@@ -38,7 +38,7 @@ applyTo: "**/vercel.json,**/next.config*,**/app/api/cron/**"
 | `STRIPE_SECRET_KEY` | Server | Stripe API key (test or live) |
 | `STRIPE_STARTER_PRICE_ID` | Server | Stripe price for Starter tier |
 | `STRIPE_SOLO_PRICE_ID` | Server | Stripe price for Solo tier |
-| `STRIPE_SMALL_BUSINESS_PRICE_ID` | Server | Stripe price for Small Business tier |
+| `STRIPE_SMALL_BUSINESS_PRICE_ID` | Server | Stripe price for Small Business tier (`accountant_partner` is contact-us only, no Price ID) |
 | `STRIPE_CONNECT_CLIENT_ID` | Server | Stripe Connect OAuth client ID |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | Server | Billing webhook signature secret |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | Server | Connect webhook signature secret |

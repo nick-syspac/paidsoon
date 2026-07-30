@@ -16,9 +16,6 @@ const PRICE_ID_TO_TIER: Record<string, SubscriptionTier> = {
   ...(process.env.STRIPE_SOLO_PRICE_ID
     ? { [process.env.STRIPE_SOLO_PRICE_ID]: "solo" as const }
     : {}),
-  ...(process.env.STRIPE_PRO_PRICE_ID
-    ? { [process.env.STRIPE_PRO_PRICE_ID]: "solo" as const }
-    : {}),
   ...(process.env.STRIPE_SMALL_BUSINESS_PRICE_ID
     ? { [process.env.STRIPE_SMALL_BUSINESS_PRICE_ID]: "small_business" as const }
     : {}),
@@ -67,6 +64,7 @@ export async function POST(request: Request) {
           expand: ["latest_invoice"],
         })
         const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null
+        const periodStart = latestInvoice?.period_start ? new Date(latestInvoice.period_start * 1000) : null
         const periodEnd = latestInvoice?.period_end ? new Date(latestInvoice.period_end * 1000) : null
         await prisma.userProfile.update({
           where: { userId },
@@ -76,6 +74,7 @@ export async function POST(request: Request) {
             trialEndsAt: null,
             stripeCustomerId: session.customer as string,
             stripeSubscriptionId: subscriptionId,
+            subscriptionCurrentPeriodStart: periodStart,
             subscriptionCurrentPeriodEnd: periodEnd,
           },
         })
@@ -107,6 +106,7 @@ export async function POST(request: Request) {
           expand: ["latest_invoice"],
         })
         const latestInv = subExpanded.latest_invoice as Stripe.Invoice | null
+        const periodStart = latestInv?.period_start ? new Date(latestInv.period_start * 1000) : null
         const periodEnd = latestInv?.period_end ? new Date(latestInv.period_end * 1000) : null
         await prisma.userProfile.update({
           where: { userId: profile.userId },
@@ -114,6 +114,7 @@ export async function POST(request: Request) {
             subscriptionTier: tier,
             subscriptionStatus: subscription.status,
             stripeSubscriptionId: subscription.id,
+            subscriptionCurrentPeriodStart: periodStart,
             subscriptionCurrentPeriodEnd: periodEnd,
             ...(scheduleExecuted
               ? { pendingDowngradeTier: null, stripeScheduleId: null }

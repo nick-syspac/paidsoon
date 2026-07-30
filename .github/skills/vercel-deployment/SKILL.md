@@ -16,7 +16,7 @@ Confirmed implemented (Vercel hosting with Vercel Cron).
 - `package.json` — build scripts
 - `docs/runbooks/README.md` — env var matrix
 - `docs/runbooks/vercel.md` — Vercel runbook
-- `middleware.ts` — edge middleware (LIVE gate)
+- `proxy.ts` — edge proxy (LIVE gate, formerly middleware.ts)
 
 ## Key Configuration
 
@@ -62,7 +62,7 @@ All env vars documented in `docs/runbooks/README.md`.
 ## Runtime Considerations
 - All routes use Node.js runtime (default)
 - Do **not** set `export const runtime = "edge"` on any route using Prisma
-- Middleware (`middleware.ts`) runs on Edge runtime — no Prisma there
+- Proxy (`proxy.ts`, formerly `middleware.ts`) runs on Edge runtime — no Prisma there
 
 ## Preview vs Production
 | Setting | Preview | Production |

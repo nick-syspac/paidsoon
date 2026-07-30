@@ -9,10 +9,16 @@
     "lint": "eslint",
     "test": "node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
     "verify-rls": "node --import tsx scripts/verify-rls.ts",
+    "db:seed": "SEED_ENV=local node --import tsx scripts/seed-preview.ts",
+    "db:seed:reset": "SEED_ENV=local SEED_RESET_ONLY=true node --import tsx scripts/seed-preview.ts",
     "seed:local": "SEED_ENV=local node --import tsx scripts/seed-preview.ts",
     "seed:preview": "SEED_ENV=preview node --import tsx scripts/seed-preview.ts",
     "verify-seed": "node --import tsx scripts/verify-seed.ts",
-    "db:reset:local": "SEED_ENV=local node --import tsx scripts/db-reset-local.ts"
+    "db:reset:local": "SEED_ENV=local node --import tsx scripts/db-reset-local.ts",
+    "seed:admin-owner": "node --import tsx scripts/seed-admin-owner.ts",
+    "get:admin-devices": "node --import tsx scripts/get-admin-devices.ts",
+    "reset:myob-connection": "node --import tsx scripts/reset-myob-connection.ts",
+    "backfill:chase-volume-limits": "node --import tsx scripts/backfill-chase-volume-limits.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.74",
@@ -42,6 +48,7 @@
     "sanitize-html": "^2.17.5",
     "stripe": "^22.1.1",
     "tailwind-merge": "^3.6.0",
+    "vercel": "^56.3.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -57,5 +64,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "tar": "^7.5.22"
   }
 }

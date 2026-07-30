@@ -9,10 +9,14 @@ import {
   isNearLimit,
 } from "@/lib/dashboardUpsell"
 
-test("next-tier recommendation follows plan ladder", () => {
+test("next-tier recommendation follows the public plan ladder", () => {
   assert.equal(getNextTierRecommendation("starter"), "solo")
   assert.equal(getNextTierRecommendation("solo"), "small_business")
+})
+
+test("next-tier recommendation never suggests the hidden contact-only tier", () => {
   assert.equal(getNextTierRecommendation("small_business"), null)
+  assert.equal(getNextTierRecommendation("accountant_partner"), null)
 })
 
 test("near-limit helper returns true at threshold or above", () => {
@@ -49,12 +53,13 @@ test("near-limit or intent upgrades copy context in model", () => {
   assert.equal(nearLimitModel.nearLimit, true)
 
   const intentModel = buildDashboardUpsellModel({
-    tier: "solo",
+    tier: "starter",
     usageCount: 1,
-    usageLimit: 30,
+    usageLimit: 20,
     showResolved: true,
     featureIntent: "templates",
   })
+  // featureIntent "templates" is a recognised intent signal → nearLimit = true
   assert.equal(intentModel.nearLimit, true)
-  assert.equal(intentModel.recommendedTier, "small_business")
+  assert.equal(intentModel.recommendedTier, "solo")
 })

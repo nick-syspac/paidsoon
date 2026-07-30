@@ -13,7 +13,7 @@ const faqs = [
   },
   {
     q: "What accounting software does PaidSoon support?",
-    a: "PaidSoon currently supports Stripe Connect in private beta. MYOB Business, Xero and QuickBooks Online integrations are planned.",
+    a: "PaidSoon currently supports Stripe Connect in private beta. MYOB Business is available to early-access users while we finish validating full production support; Xero and QuickBooks Online integrations are planned.",
   },
   {
     q: "Does PaidSoon send emails in my name?",

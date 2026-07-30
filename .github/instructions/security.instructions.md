@@ -8,7 +8,7 @@ applyTo: "**/*.ts,**/*.tsx"
 
 - Always authenticate via `supabase.auth.getUser()` on the server. Never trust client-supplied user IDs.
 - Return `401` immediately if no valid session is found — before any DB query or business logic.
-- The middleware in `middleware.ts` protects all `/dashboard` routes. Do not weaken it.
+- The proxy in `proxy.ts` (formerly `middleware.ts` — renamed per the Next.js 16 file convention) protects all `/dashboard` routes. Do not weaken it.
 - Sign-out redirects to `/` — never to a URL derived from user input (open redirect prevention).
 - The `LIVE` env var gates sign-in/sign-up — this is the pre-launch access control.
 

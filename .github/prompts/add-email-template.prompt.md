@@ -72,7 +72,7 @@ const formatted = new Intl.NumberFormat("en-GB", {
 ```
 
 ### Custom Templates (scaffolded feature)
-- `custom_reminder_templates` flag is `small_business` tier only
+- `custom_reminder_templates` flag is `business`+ tier only (`accountant_partner` also has it, but that tier is planned/not yet implemented)
 - Routes exist at `/api/settings/templates` but are not yet persistent
 - When implementing fully: validate and sanitize user-provided template strings
 - Never allow template strings to execute arbitrary code

@@ -26,7 +26,7 @@ PaidSoon is a micro-SaaS for automating overdue invoice follow-ups. Stack: Next.
 - `app/api/**` — all API route handlers
 - `app/dashboard/**` — dashboard UI
 - `components/**` — React components
-- `middleware.ts` — auth middleware
+- `proxy.ts` — auth proxy (formerly middleware)
 - `tests/**` — existing tests
 - `docs/DDD.md` — design document
 

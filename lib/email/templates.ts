@@ -4,6 +4,7 @@ interface TemplateVars {
   amountDue: string // pre-formatted, e.g. "$4,500.00"
   dueDate: string   // pre-formatted date string
   paymentUrl?: string
+  p2pLink?: string  // promise-to-pay URL; only present for Business+ users
   freelancerName: string
   daysOverdue?: number
   firmDeadline?: string
@@ -23,12 +24,16 @@ export interface ResolvedTemplateVars {
   yourName: string
   daysOverdue: string      // integer string | "" for Stage 1/2
   firmDeadline: string     // formatted date | "" for Stage 1/2
+  promiseToPayLink: string // <a href="...">Confirm payment date →</a> | ""
 }
 
 export function resolveVars(stage: 1 | 2 | 3, vars: TemplateVars): ResolvedTemplateVars {
   const invoiceRef = vars.invoiceNumber ? `Invoice ${vars.invoiceNumber}` : "your invoice"
   const paymentLink = vars.paymentUrl
     ? `<a href="${vars.paymentUrl}">Pay invoice →</a>`
+    : ""
+  const promiseToPayLink = vars.p2pLink
+    ? `<a href="${vars.p2pLink}">Confirm when you'll pay →</a>`
     : ""
   const isStage3 = stage === 3
   return {
@@ -40,6 +45,7 @@ export function resolveVars(stage: 1 | 2 | 3, vars: TemplateVars): ResolvedTempl
     yourName: vars.freelancerName,
     daysOverdue: isStage3 && vars.daysOverdue != null ? String(vars.daysOverdue) : "",
     firmDeadline: isStage3 && vars.firmDeadline != null ? vars.firmDeadline : "",
+    promiseToPayLink,
   }
 }
 
@@ -66,11 +72,13 @@ export const DEFAULT_STAGE_1 = {
   htmlBody: `<p>Hi {{clientName}},</p>
 <p>Just a quick heads-up that {{invoiceRef}} for <strong>{{amountDue}}</strong> became due on {{dueDate}}. Things get busy — totally understand!</p>
 <p>{{paymentLink}}</p>
+<p>{{promiseToPayLink}}</p>
 <p>Thanks so much,<br>{{yourName}}</p>`,
   textBody: `Hi {{clientName}},
 
 Just a quick heads-up that {{invoiceRef}} for {{amountDue}} became due on {{dueDate}}. Things get busy — totally understand!
 {{paymentLink}}
+{{promiseToPayLink}}
 Thanks so much,
 {{yourName}}`,
 }
@@ -80,11 +88,13 @@ export const DEFAULT_STAGE_2 = {
   htmlBody: `<p>Hi {{clientName}},</p>
 <p>I'm following up on {{invoiceRef}} for <strong>{{amountDue}}</strong>, which was due on {{dueDate}} and remains outstanding. Could you let me know when we can expect payment, or if there are any questions I can help with?</p>
 <p>{{paymentLink}}</p>
+<p>{{promiseToPayLink}}</p>
 <p>Best,<br>{{yourName}}</p>`,
   textBody: `Hi {{clientName}},
 
 I'm following up on {{invoiceRef}} for {{amountDue}}, which was due on {{dueDate}} and remains outstanding. Could you let me know when we can expect payment, or if there are any questions I can help with?
 {{paymentLink}}
+{{promiseToPayLink}}
 Best,
 {{yourName}}`,
 }
@@ -95,6 +105,7 @@ export const DEFAULT_STAGE_3 = {
 <p>I'm writing regarding {{invoiceRef}} for <strong>{{amountDue}}</strong>, which is now <strong>{{daysOverdue}} days</strong> past its due date of {{dueDate}}. Per our agreement, payment was expected on that date.</p>
 <p>Please arrange payment via the link below by <strong>{{firmDeadline}}</strong>, or contact me immediately to discuss.</p>
 <p>{{paymentLink}}</p>
+<p>{{promiseToPayLink}}</p>
 <p>{{yourName}}</p>`,
   textBody: `Dear {{clientName}},
 
@@ -102,6 +113,7 @@ I'm writing regarding {{invoiceRef}} for {{amountDue}}, which is now {{daysOverd
 
 Please arrange payment by {{firmDeadline}}, or contact me immediately to discuss.
 {{paymentLink}}
+{{promiseToPayLink}}
 {{yourName}}`,
 }
 
@@ -133,6 +145,7 @@ export function buildTemplateVars(opts: {
   currency: string
   dueDate: Date
   paymentUrl?: string
+  p2pLink?: string
   freelancerName: string
 }): TemplateVars {
   const now = new Date()
@@ -148,6 +161,7 @@ export function buildTemplateVars(opts: {
     amountDue: formatCurrency(opts.amountDue, opts.currency),
     dueDate: formatDate(opts.dueDate),
     paymentUrl: opts.paymentUrl,
+    p2pLink: opts.p2pLink,
     freelancerName: opts.freelancerName,
     daysOverdue,
     firmDeadline: formatDate(firmDeadlineDate),

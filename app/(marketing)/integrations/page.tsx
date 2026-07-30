@@ -4,7 +4,7 @@ import Link from "next/link"
 export const metadata: Metadata = {
   title: "Integrations — PaidSoon",
   description:
-    "PaidSoon integrates with Stripe Connect today, with MYOB Business, Xero, and QuickBooks Online planned. Connect your accounting software and automate invoice follow-ups.",
+    "PaidSoon integrates with Stripe Connect today. MYOB Business is available to early-access users, with Xero and QuickBooks Online planned. Connect your accounting software and automate invoice follow-ups.",
 }
 
 const integrations = [
@@ -12,31 +12,33 @@ const integrations = [
     name: "Stripe Connect",
     description:
       "Connect your Stripe account via OAuth. PaidSoon monitors your Stripe invoices and automatically sends follow-up reminders when they go overdue.",
-    available: true,
     status: "Available",
   },
   {
     name: "MYOB Business",
     description:
-      "MYOB Business integration — planned support for importing invoice data from MYOB and managing follow-ups from PaidSoon.",
-    available: false,
-    status: "Planned",
+      "Connect a MYOB Business company file to import invoice data and manage follow-ups from PaidSoon. Available to early-access users while we finish validating full production support.",
+    status: "Early access",
   },
   {
     name: "Xero",
     description:
       "Xero integration to sync overdue invoices automatically and trigger PaidSoon's reminder sequences.",
-    available: false,
     status: "Planned",
   },
   {
     name: "QuickBooks Online",
     description:
       "QuickBooks Online integration for automated invoice monitoring and follow-up emails.",
-    available: false,
     status: "Planned",
   },
 ]
+
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  Available: "bg-green-50 text-green-700",
+  "Early access": "bg-amber-50 text-amber-700",
+  Planned: "bg-gray-100 text-gray-500",
+}
 
 export default function IntegrationsPage() {
   return (
@@ -56,9 +58,7 @@ export default function IntegrationsPage() {
                 <h2 className="font-semibold text-gray-900 text-lg">{integration.name}</h2>
                 <span
                   className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                    integration.available
-                      ? "bg-green-50 text-green-700"
-                      : "bg-gray-100 text-gray-500"
+                    STATUS_BADGE_STYLES[integration.status] ?? "bg-gray-100 text-gray-500"
                   }`}
                 >
                   {integration.status}

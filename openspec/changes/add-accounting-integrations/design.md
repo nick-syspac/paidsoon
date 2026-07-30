@@ -170,6 +170,42 @@ Do NOT request `sme-company-file` (legacy broad scope) or any payroll/banking/pa
 The `CompanyFile` scope deprecation refers to the legacy broad scope — the new granular
 `sme-*` scopes are the replacement and are available now.
 
+### D10 — Unified Connections settings route with backward-compatible redirects
+
+**Decision:** Introduce `/dashboard/settings/connections` as the canonical settings page for
+all external provider setup. Replace separate top-level tabs ("Stripe Connection" and
+"Integrations") with a single "Connections" tab. Keep legacy URLs operational via redirects:
+
+- `/dashboard/settings/stripe` → `/dashboard/settings/connections`
+- `/dashboard/settings/integrations` → `/dashboard/settings/connections`
+
+All redirects must preserve query parameters to keep existing OAuth callback flows and saved
+bookmarks functional.
+
+**Rationale:** Users conceptualise provider setup as one job ("connect my systems"), not two
+separate destinations. A unified page reduces navigation branching and removes ambiguity about
+where to connect Stripe vs accounting providers.
+
+**Compatibility notes:** Existing API routes currently hardcode callback redirect targets to
+legacy settings URLs. During implementation, update those targets to the canonical route and
+leave legacy URL redirects in place to avoid breaking in-flight OAuth authorisations.
+
+**Alternative considered:** Keep separate tabs and add cross-links. Rejected: still creates a
+split mental model and does not reduce callback-path coupling.
+
+### D11 — MYOB sandbox verification is a manual pre-archive QA gate
+
+**Decision:** Keep real MYOB developer sandbox verification as a manual QA gate outside CI,
+required before archive sign-off for this change.
+
+**Rationale:** The repo test suite intentionally avoids live third-party dependencies. MYOB
+end-to-end validation depends on credentials, tenant state, and provider availability that are
+not suitable for deterministic CI execution.
+
+**Validation evidence:** Archive readiness requires timestamped, redacted sandbox evidence
+showing all five MYOB invoice types, expected `BalanceDue` presence, and successful requests
+with required `x-myobapi-key` / `x-myobapi-version` headers.
+
 ## Risks / Trade-offs
 
 | Risk | Mitigation |

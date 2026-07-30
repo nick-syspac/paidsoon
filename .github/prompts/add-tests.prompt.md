@@ -37,7 +37,7 @@ describe("ModuleName", () => {
     })
 
     test("returns false when feature not in tier", () => {
-      const result = hasPlanFeature("starter", "own_email_address")
+      const result = hasPlanFeature("starter", "verified_from_domain")
       assert.strictEqual(result, false)
     })
   })

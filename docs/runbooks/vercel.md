@@ -46,7 +46,7 @@ Vercel → Project → **Settings → Environment Variables**. Add every row fro
 | `NEXT_PUBLIC_SUPABASE_URL` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
 | `SUPABASE_SECRET_KEY` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
-| `DATABASE_URL` | ✓ (prod `authenticator` pooler) | ✓ (dev `authenticator` pooler) | ✓ (dev `authenticator` pooler) |
+| `DATABASE_URL` | ✓ (prod `postgres.[ref]` pooler) | ✓ (dev `postgres.[ref]` pooler) | ✓ (dev `postgres.[ref]` pooler) |
 | `DIRECT_URL` | ✓ (prod direct) | ✓ (dev direct) | ✓ (dev direct) |
 | `NEXT_PUBLIC_APP_URL` | ✓ (`https://paidsoon.com`) | ✓ (preview URL — see §2.2) | ✓ (your preference) |
 | `CRON_SECRET` | ✓ (required) | — | — |
@@ -54,7 +54,6 @@ Vercel → Project → **Settings → Environment Variables**. Add every row fro
 | `STRIPE_STARTER_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
 | `STRIPE_SOLO_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
 | `STRIPE_SMALL_BUSINESS_PRICE_ID` | ✓ (live `price_…`) | ✓ (test `price_…`) | ✓ (test `price_…`) |
-| `STRIPE_PRO_PRICE_ID` | optional legacy Solo fallback | optional legacy Solo fallback | optional legacy Solo fallback |
 | `STRIPE_CONNECT_CLIENT_ID` | ✓ (live `ca_…`) | ✓ (test `ca_…`) | ✓ (test `ca_…`) |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | ✓ (dashboard `whsec_…`) | — | — |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | ✓ (dashboard `whsec_…`) | — | — |
@@ -125,6 +124,19 @@ Vercel auto-detects this on import. Verify in **Settings → Cron Jobs** that th
 
 > **Cron does NOT fire on Preview deployments.** Vercel only schedules cron jobs against the Production deployment. To exercise the email path on a preview (or locally), use the manual trigger in §6 below.
 
+### 4.1 Function duration overrides
+
+The accounting integration routes that run an inline provider sync (MYOB/Xero OAuth
+callback + company-file/organisation selection, the manual `sync` routes, the admin
+resync action, and the `/api/cron/sync-accounting` cron) each set
+`export const maxDuration = 60` in their route file. Token exchange, a short retry
+window for MYOB's token-propagation delay, and paginated invoice/contact fetches can
+exceed Vercel's default serverless function duration, which would otherwise abort the
+request mid-sync. 60s fits within the Hobby plan's ceiling; raise it (Pro: up to 300s,
+Enterprise: up to 900s) if `syncAllActiveConnections` ever approaches the cap as the
+user base grows — see the open question about batching in
+[openspec/changes/add-accounting-integrations/design.md](../../openspec/changes/add-accounting-integrations/design.md).
+
 ---
 
 ## 5. `CRON_SECRET`
@@ -159,7 +171,17 @@ curl -i https://paidsoon-pr-42.vercel.app/api/cron/send-emails \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-Expected response: `200` with JSON `{ ok: true, emailsSent, errors, processed }`.
+Expected response: `200` with JSON `{ ok: true, emailsSent, errors, processed, held, usageByAccount }`.
+
+- `held` — first-chase invoices skipped this pass because their account had no remaining
+  chase-volume allowance for the current billing period (their state is left untouched, so
+  they are retried on the next pass — see `chase-volume-entitlement` in
+  [openspec/changes/monthly-chase-volume-limits](../../openspec/changes/monthly-chase-volume-limits)).
+  A non-zero `held` count with an otherwise-healthy `errors: 0` is expected behaviour, not a
+  failure — it means one or more accounts are at capacity, not that sending broke.
+- `usageByAccount` — per-account `{ userId, allowance, usage, remaining, atCapacity }` for
+  every account that had at least one invoice due this pass, so the held condition above is
+  observable without a DB query.
 
 Wrong / missing `CRON_SECRET` → `401 Unauthorized`.
 

@@ -3,13 +3,17 @@
 import { useState } from "react"
 
 export function UpgradeBanner({
-  trackedCount,
+  usage,
+  allowance,
+  periodEnd,
   tierName,
-  tierLimit,
+  atCapacity,
 }: {
-  trackedCount: number
+  usage: number
+  allowance: number
+  periodEnd: Date
   tierName: string
-  tierLimit: number
+  atCapacity: boolean
 }) {
   const [loading, setLoading] = useState(false)
 
@@ -27,15 +31,33 @@ export function UpgradeBanner({
     setLoading(false)
   }
 
+  const resetDate = new Date(periodEnd).toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+  })
+
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center justify-between gap-4">
       <div>
-        <p className="text-sm font-medium text-amber-900">
-          You&apos;ve reached your {tierName} plan limit ({trackedCount}/{tierLimit} invoices tracked).
-        </p>
-        <p className="text-xs text-amber-700 mt-0.5">
-          Upgrade to unlock higher monthly volume and advanced reminder capabilities.
-        </p>
+        {atCapacity ? (
+          <>
+            <p className="text-sm font-medium text-amber-900">
+              You&apos;ve used all {allowance} chases in your {tierName} plan this period.
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              New chases resume on {resetDate}. Reminders already under way keep sending.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-amber-900">
+              You&apos;ve used {usage} of {allowance} chases in your {tierName} plan this period.
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Resets {resetDate}. Upgrade to unlock higher monthly volume.
+            </p>
+          </>
+        )}
       </div>
       <button
         onClick={handleUpgrade}
@@ -47,3 +69,4 @@ export function UpgradeBanner({
     </div>
   )
 }
+

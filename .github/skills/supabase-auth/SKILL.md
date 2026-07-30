@@ -13,7 +13,7 @@ Confirmed implemented in this codebase (Supabase Auth via `@supabase/ssr@0.10.3`
 ## Files to Inspect
 - `lib/supabase/server.ts` — server client factory
 - `lib/supabase/client.ts` — browser client factory
-- `middleware.ts` — session refresh + auth gate
+- `proxy.ts` — session refresh + auth gate
 - `app/auth/callback/route.ts` — OAuth code exchange
 - `app/auth/sign-out/route.ts` — sign-out handler
 - `app/(auth)/sign-in/page.tsx` — sign-in page

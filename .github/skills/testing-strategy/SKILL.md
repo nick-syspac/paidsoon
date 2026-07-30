@@ -41,11 +41,11 @@ tests/
 ### Pure Function Test
 ```ts
 describe("hasPlanFeature", () => {
-  test("starter does not have own_email_address", () => {
-    assert.strictEqual(hasPlanFeature("starter", "own_email_address"), false)
+  test("starter does not have verified_from_domain", () => {
+    assert.strictEqual(hasPlanFeature("starter", "verified_from_domain"), false)
   })
-  test("solo has own_email_address", () => {
-    assert.strictEqual(hasPlanFeature("solo", "own_email_address"), true)
+  test("small_business has verified_from_domain", () => {
+    assert.strictEqual(hasPlanFeature("small_business", "verified_from_domain"), true)
   })
 })
 ```

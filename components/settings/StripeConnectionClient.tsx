@@ -32,14 +32,21 @@ export function StripeConnectionClient({
   }
 
   return (
-    <div className="max-w-lg space-y-4">
-      <h2 className="text-base font-medium text-gray-900">Stripe Connection</h2>
-      <p className="text-sm text-gray-500">
-        Connect your Stripe account so PaidSoon can detect overdue invoices automatically.
-      </p>
-      <p className="text-xs text-gray-400">
-        Connected accounts: {connectedCount}/{maxConnections}
-      </p>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-400">
+            Payments
+          </p>
+          <h2 className="text-lg font-semibold text-gray-900">Stripe</h2>
+          <p className="text-sm text-gray-500">
+            Connect your Stripe account so PaidSoon can detect overdue invoices automatically.
+          </p>
+        </div>
+        <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+          {connectedCount}/{maxConnections} connected
+        </div>
+      </div>
 
       {successMessage && (
         <div className="bg-green-50 border border-green-200 rounded-md px-4 py-2 text-sm text-green-800">
@@ -61,7 +68,7 @@ export function StripeConnectionClient({
           {connections.map((connection) => (
             <div
               key={connection.id}
-              className="border border-gray-200 rounded-lg p-4 flex items-center justify-between"
+              className="rounded-xl border border-gray-200 bg-gray-50 p-4 flex items-center justify-between gap-4"
             >
               <div>
                 <p className="text-sm font-medium text-gray-900">Connected</p>
@@ -72,7 +79,7 @@ export function StripeConnectionClient({
               <button
                 onClick={() => handleDisconnect(connection.id)}
                 disabled={disconnecting}
-                className="text-sm text-red-600 hover:text-red-800 disabled:opacity-40"
+                className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm px-3 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-40"
               >
                 {disconnecting ? "Disconnecting..." : "Disconnect"}
               </button>
@@ -84,15 +91,15 @@ export function StripeConnectionClient({
       {canConnectMore ? (
         <a
           href="/api/stripe/connect/authorize"
-          className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
-          Connect Stripe Account
+          {connectedCount > 0 ? "Connect another Stripe account" : "Connect Stripe"}
         </a>
       ) : (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
           You&apos;ve reached your plan limit for Stripe connections. Upgrade your subscription to connect more accounts.
         </div>
       )}
-    </div>
+    </section>
   )
 }
