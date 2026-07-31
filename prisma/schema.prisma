@@ -401,6 +401,44 @@ model OauthState {
 }
 
 // ---------------------------------------------------------------------------
+// Scheduled Job Orchestration (Railway Celery — dispatcher claims + status)
+// Internal orchestration tables: no end-user-facing route reads/writes these.
+// Written exclusively by the Railway Celery worker (trusted/admin DB role,
+// same RLS-bypass posture as prismaAdmin) — see
+// openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md.
+// ---------------------------------------------------------------------------
+
+model ScheduledTaskClaim {
+  id           String    @id @default(cuid())
+  workflow     String // 'reminder_email' | 'accounting_sync' | 'promise_followup' | 'arrangement_lifecycle' | 'debtor_summary' | 'integration_retry' | 'reconciliation'
+  claimKey     String    @unique @map("claim_key") // e.g. "{entityId}:{stage}:{scheduledDate}" — enforces idempotent claiming at the DB level
+  entityId     String    @map("entity_id") // e.g. trackedInvoiceId / accountingConnectionId
+  userId       String?   @map("user_id") // owning tenant, when the workflow is tenant-scoped
+  status       String    @default("queued") // 'queued' | 'started' | 'processing' | 'sent' | 'failed' | 'retrying'
+  attempts     Int       @default(0)
+  lastError    String?   @map("last_error") // sanitised, no PII
+  scheduledFor DateTime  @map("scheduled_for")
+  claimedAt    DateTime? @map("claimed_at")
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, scheduledFor])
+  @@index([workflow, status])
+  @@map("scheduled_task_claims")
+}
+
+model DispatcherHeartbeat {
+  id         String   @id @default(cuid())
+  dispatcher String   @unique // identity of the Celery Beat instance, e.g. "celery-beat"
+  lastRunAt  DateTime @map("last_run_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("dispatcher_heartbeats")
+}
+
+// ---------------------------------------------------------------------------
 // Platform Admin Models
 // ---------------------------------------------------------------------------
 

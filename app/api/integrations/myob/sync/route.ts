@@ -9,7 +9,7 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { syncConnection } from "@/lib/providers/accounting/sync"
+import { triggerSyncNow } from "@/lib/providers/accounting/triggerSyncNow"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -57,6 +57,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Connection is not active" }, { status: 400 })
   }
 
-  const result = await syncConnection(connectionId)
+  const result = await triggerSyncNow(connectionId, user.id)
   return NextResponse.json(result)
 }

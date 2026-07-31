@@ -1,0 +1,14 @@
+# Railway deployment config for the PaidSoon scheduled-job worker.
+# Deploy as three Railway services from this same repo/directory, each
+# overriding the start command with one of the Procfile's process types:
+#   - worker : celery -A paidsoon_worker.celery_app worker
+#   - beat   : celery -A paidsoon_worker.celery_app beat   (run exactly ONE instance)
+#   - web    : uvicorn paidsoon_worker.http_server:app     ("trigger now" HTTP surface)
+# See worker/README.md for setup steps.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

@@ -432,6 +432,11 @@ admin guard. See `prisma/rls-policies.sql`.
 | `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` by `stripeCustomerId` | Stripe event → `{received}` | Implemented (no `payment_failed`) |
 | `POST /api/webhooks/stripe-connect` | `.../stripe-connect/route.ts` | provider signature | signature | `prismaAdmin` by account id | Stripe event → `{received}` | Implemented |
 | `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed,held,usageByAccount}` | Implemented |
+| `GET /api/cron/scheduling-watchdog` | `.../cron/scheduling-watchdog/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{ok,stale,lastRunAt}` | Implemented — alerts via email if the Railway Celery Beat heartbeat is stale/missing; see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
+| `POST /api/internal/jobs/send-reminder` | `.../internal/jobs/send-reminder/route.ts` | `zod` `{userId,trackedInvoiceId}` | `Bearer INTERNAL_JOBS_SECRET` | `withUserContext` | → `{outcome,...}` | Implemented — called by the Railway Celery `reminder_email` task, not public |
+| `POST /api/internal/jobs/sync-connection` | `.../internal/jobs/sync-connection/route.ts` | `zod` `{accountingConnectionId}` | `Bearer INTERNAL_JOBS_SECRET` | `syncConnection` (`prismaAdmin`) | → `SyncResult` | Implemented — called by the Railway Celery `accounting_sync` task, not public |
+| `POST /api/internal/jobs/promise-arrangement-sweep` | `.../internal/jobs/promise-arrangement-sweep/route.ts` | — | `Bearer INTERNAL_JOBS_SECRET` | `prismaAdmin` | → `{brokenPromises,arrangementsUpdated}` | Implemented — called by the Railway Celery sweep task, not public |
+| `POST /api/internal/jobs/catchup-snooze-sweep` | `.../internal/jobs/catchup-snooze-sweep/route.ts` | — | `Bearer INTERNAL_JOBS_SECRET` | `prismaAdmin` | → `{snoozedResumed}` | Implemented — called by the Railway Celery sweep task, not public |
 | `POST /api/invoices/[id]/pause` | `.../pause/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/resume` | `.../resume/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/snooze` | `.../snooze/route.ts` | path `id` | session | `withUserContext` | → `{success,snoozedUntil}` | Implemented |
@@ -777,12 +782,12 @@ favour of "PaidSoon" / `paidsoon.com`.
 | Local dev | `npm install` → `vercel env pull .env.local` → `npm run dev` | `README.md` |
 | Build | `prisma generate && next build` | `package.json` |
 | API/web runtime | Single Next.js 16 app on Vercel | `docs/runbooks/vercel.md` |
-| Worker runtime | None — cron route on same deployment | `vercel.json` |
-| Scheduler | Vercel Cron `0 9 * * *` (prod only) → `/api/cron/send-emails` | `vercel.json`, `docs/runbooks/vercel.md` |
-| Database | Supabase Postgres; runtime via the shared pooler as `postgres.[ref]`, RLS applied per-transaction by `withUserContext` | `prisma.config.ts`, `lib/db/admin.ts` |
+| Worker runtime | Cron routes on the same Vercel deployment today; a Railway Celery worker + Celery Beat + Redis is being introduced to take over scheduled business workflows (dispatcher claims due work from Postgres, enqueues one task per item onto Redis, tasks call back into `app/api/internal/jobs/*` for the actual business logic) — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). Not yet deployed; runs in parallel with the existing Vercel Cron jobs during burn-in before the old jobs are removed. | `worker/`, `openspec/changes/migrate-scheduled-jobs-to-railway-celery/` |
+| Scheduler | Vercel Cron `0 9 * * *` → `/api/cron/send-emails`; `0 2 * * *` → `/api/cron/sync-accounting`; `0 12 * * *` → `/api/cron/scheduling-watchdog` (Hobby plan caps cron frequency at once daily) | `vercel.json`, `docs/runbooks/vercel.md` |
+| Database | Supabase Postgres; runtime via the shared pooler as `postgres.[ref]`, RLS applied per-transaction by `withUserContext`. Two internal orchestration tables (`scheduled_task_claims`, `dispatcher_heartbeats`) have RLS enabled with no policies — written only by the Railway worker's trusted DB role. | `prisma.config.ts`, `lib/db/admin.ts`, `prisma/schema.prisma` |
 | Migrations | `prisma migrate` via `DIRECT_URL` (owner) | `prisma.config.ts` |
 | RLS bootstrap | `prisma/rls-policies.sql` applied manually in Supabase | `prisma/rls-policies.sql`, `docs/runbooks/supabase.md` |
-| Object storage / Redis | None | — |
+| Object storage / Redis | Redis is being introduced as the Celery broker/queue for the Railway worker (transient state only, never a source of truth) | `worker/.env.example` |
 | Email | Resend | `docs/runbooks/resend.md` |
 | Secrets / env | Vercel env + `.env.local`; canonical matrix | `docs/runbooks/README.md` |
 | CI workflows | **None** (`.github/` has only `prompts/` + `skills/`, no `workflows/`) | (file tree) |
