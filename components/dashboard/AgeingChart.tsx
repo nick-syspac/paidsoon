@@ -33,7 +33,9 @@ export function AgeingChart({ buckets, currency = "usd" }: { buckets: AgeingBuck
                     style={{ height: `${heightPercent}%` }}
                   />
                 </div>
-                <span className="mt-2 text-xs text-gray-500 text-center">{bucket.label}</span>
+                <span className="mt-2 flex h-8 items-start justify-center text-xs text-gray-500 text-center">
+                  {bucket.label}
+                </span>
               </div>
             )
           })}
