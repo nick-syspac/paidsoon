@@ -12,6 +12,13 @@ class Config:
     INTERNAL_JOBS_SECRET = os.environ.get("INTERNAL_JOBS_SECRET", "")
     PAIDSOON_APP_URL = os.environ.get("PAIDSOON_APP_URL", "").rstrip("/")
     WORKER_TRIGGER_SECRET = os.environ.get("WORKER_TRIGGER_SECRET", "")
+    # Only needed if PAIDSOON_APP_URL points at a Vercel deployment with
+    # Deployment Protection (Vercel Authentication) enabled, e.g. dev/preview
+    # domains — see Vercel project Settings -> Deployment Protection ->
+    # Protection Bypass for Automation.
+    VERCEL_AUTOMATION_BYPASS_SECRET = os.environ.get(
+        "VERCEL_AUTOMATION_BYPASS_SECRET", ""
+    )
     DISPATCHER_NAME = os.environ.get("DISPATCHER_NAME", "celery-beat")
 
     # How often the Beat dispatcher runs (design.md: 1-5 minutes).

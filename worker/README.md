@@ -48,6 +48,13 @@ something that can be provisioned for you:
 6. Set matching `INTERNAL_JOBS_SECRET` and `WORKER_TRIGGER_SECRET` values on
    the Vercel project (`vercel env add`) — these must be identical on both
    sides.
+7. If `PAIDSOON_APP_URL` points at a Vercel deployment with Deployment
+   Protection (Vercel Authentication) enabled — e.g. a protected `dev.*`
+   domain — generate a bypass secret in Vercel: Project Settings →
+   Deployment Protection → Protection Bypass for Automation. Set the same
+   value as `VERCEL_AUTOMATION_BYPASS_SECRET` on all three Railway services.
+   Without it, every internal-jobs call gets a 401 with a Vercel SSO
+   redirect page instead of reaching the route handler.
 7. Watch logs (`railway logs`) for the first few dispatch cycles before
    relying on it; keep the existing Vercel Cron jobs running in parallel
    during burn-in (see design.md Migration Plan).
