@@ -1,7 +1,26 @@
 import unittest
 from datetime import datetime, timezone
 
-from paidsoon_worker.db import _claim_key
+from paidsoon_worker.db import _claim_key, _sanitize_conninfo
+
+
+class SanitizeConninfoTests(unittest.TestCase):
+    def test_strips_prisma_only_params(self):
+        url = "postgresql://postgres.ref:pw@host:6543/postgres?pgbouncer=true&connection_limit=5"
+        self.assertEqual(
+            _sanitize_conninfo(url), "postgresql://postgres.ref:pw@host:6543/postgres"
+        )
+
+    def test_keeps_other_query_params(self):
+        url = "postgresql://postgres.ref:pw@host:6543/postgres?sslmode=require&pgbouncer=true"
+        self.assertEqual(
+            _sanitize_conninfo(url),
+            "postgresql://postgres.ref:pw@host:6543/postgres?sslmode=require",
+        )
+
+    def test_no_query_string_is_unchanged(self):
+        url = "postgresql://postgres.ref:pw@host:6543/postgres"
+        self.assertEqual(_sanitize_conninfo(url), url)
 
 
 class ClaimKeyTests(unittest.TestCase):

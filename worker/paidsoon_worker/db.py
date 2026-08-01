@@ -10,16 +10,39 @@ from __future__ import annotations
 import contextlib
 from datetime import datetime, timezone
 from typing import Any, Iterator
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import psycopg
 from psycopg.rows import dict_row
 
 from .config import Config
 
+# Query params like `pgbouncer` / `connection_limit` are Prisma-only hints,
+# not real libpq keywords — psycopg rejects them outright. Strip them so the
+# same DATABASE_URL value can be shared with the Next.js app's Prisma config.
+_UNSUPPORTED_CONNINFO_PARAMS = {"pgbouncer", "connection_limit"}
+
+
+def _sanitize_conninfo(url: str) -> str:
+    parts = urlsplit(url)
+    query = [
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key not in _UNSUPPORTED_CONNINFO_PARAMS
+    ]
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
 
 @contextlib.contextmanager
 def get_conn() -> Iterator[psycopg.Connection]:
-    with psycopg.connect(Config.DATABASE_URL, row_factory=dict_row) as conn:
+    # prepare_threshold=None disables server-side prepared statements: Supavisor's
+    # transaction-pooling mode can hand this connection a different backend server
+    # between transactions, so a statement prepared earlier may not exist anymore.
+    with psycopg.connect(
+        _sanitize_conninfo(Config.DATABASE_URL),
+        row_factory=dict_row,
+        prepare_threshold=None,
+    ) as conn:
         yield conn
 
 
