@@ -1,5 +1,9 @@
+import logging
+import sys
+
 from celery import Celery
 from celery.schedules import schedule
+from celery.signals import setup_logging
 
 from .config import Config
 
@@ -13,6 +17,20 @@ app = Celery(
 app.conf.timezone = "UTC"
 app.conf.task_acks_late = True
 app.conf.worker_prefetch_multiplier = 1
+
+
+@setup_logging.connect
+def _configure_logging(**kwargs):
+    # Celery's default logging goes to stderr, which Railway flags as "error"
+    # for every line regardless of the actual log level. Route to stdout instead.
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(
+        logging.Formatter("[%(asctime)s: %(levelname)s/%(processName)s] %(message)s")
+    )
+    root_logger = logging.getLogger()
+    root_logger.handlers = [handler]
+    root_logger.setLevel(logging.INFO)
+
 
 # Celery Beat schedule — run this app's `beat` process (Procfile) as exactly
 # ONE Railway instance (design.md "Single Celery Beat Instance"). Each entry
