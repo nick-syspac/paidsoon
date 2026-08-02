@@ -64,6 +64,21 @@ const STAGE_LABELS: Record<number, string> = {
   3: "3 of 3 sent",
 }
 
+const PROMISE_STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  kept: "Kept",
+  broken: "Broken",
+  superseded: "Superseded",
+}
+
+const BULK_ACTION_PAST_TENSE: Record<string, string> = {
+  pause: "paused",
+  resume: "resumed",
+  snooze: "snoozed",
+  "cancel-snooze": "un-snoozed",
+  resolve: "resolved",
+}
+
 function formatCurrency(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -116,8 +131,9 @@ export function InvoiceTable({
 }) {
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [loadingId, setLoadingId] = useState<string | null>(null)
-  const [confirmResolve, setConfirmResolve] = useState<string | null>(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [bulkActionError, setBulkActionError] = useState<string | null>(null)
+  const [confirmBulkResolve, setConfirmBulkResolve] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [arrangementType, setArrangementType] = useState<"full_payment" | "partial_payment">("full_payment")
   const [promisedPayBy, setPromisedPayBy] = useState("")
@@ -128,6 +144,7 @@ export function InvoiceTable({
   const [selectedArrangementId, setSelectedArrangementId] = useState<string | null>(null)
   const [arrangementDetail, setArrangementDetail] = useState<ArrangementDetail | null>(null)
   const [arrangementDetailLoading, setArrangementDetailLoading] = useState(false)
+  const [selectedPromiseInvoiceId, setSelectedPromiseInvoiceId] = useState<string | null>(null)
   const [arrangementDetailError, setArrangementDetailError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -171,12 +188,39 @@ export function InvoiceTable({
     setArrangementDetailError(null)
   }
 
-  async function doAction(id: string, action: "pause" | "resume" | "snooze" | "resolve") {
-    setLoadingId(id)
-    await fetch(`/api/invoices/${id}/${action}`, { method: "POST" })
-    setLoadingId(null)
-    setConfirmResolve(null)
+  function openPromiseDetail(invoiceId: string) {
+    setSelectedPromiseInvoiceId(invoiceId)
+  }
+
+  function closePromiseDetail() {
+    setSelectedPromiseInvoiceId(null)
+  }
+
+  const selectedPromiseInvoice = selectedPromiseInvoiceId
+    ? invoices.find((inv) => inv.id === selectedPromiseInvoiceId) ?? null
+    : null
+
+  const selectedInvoices = invoices.filter((inv) => selectedIds.includes(inv.id))
+  const canSnooze = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "pending")
+  const canPause = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "pending")
+  const canResume = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "paused")
+  const canCancelSnooze =
+    selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "snoozed")
+
+  async function doBulkAction(action: "pause" | "resume" | "snooze" | "cancel-snooze" | "resolve") {
+    if (selectedIds.length === 0) return
+    setBulkActionLoading(true)
+    setBulkActionError(null)
+    const responses = await Promise.all(
+      selectedIds.map((id) => fetch(`/api/invoices/${id}/${action}`, { method: "POST" }))
+    )
+    setBulkActionLoading(false)
+    setConfirmBulkResolve(false)
+    setSelectedIds([])
     router.refresh()
+    if (responses.some((response) => !response.ok)) {
+      setBulkActionError(`Some invoices could not be ${BULK_ACTION_PAST_TENSE[action]}. Please try again.`)
+    }
   }
 
   function toggleSelected(id: string, checked: boolean) {
@@ -292,9 +336,81 @@ export function InvoiceTable({
             </button>
             {arrangementError && <p className="text-xs text-red-600">{arrangementError}</p>}
           </div>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => doBulkAction("snooze")}
+              disabled={!canSnooze || bulkActionLoading}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Snooze
+            </button>
+            <button
+              type="button"
+              onClick={() => doBulkAction("pause")}
+              disabled={!canPause || bulkActionLoading}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Pause
+            </button>
+            <button
+              type="button"
+              onClick={() => doBulkAction("resume")}
+              disabled={!canResume || bulkActionLoading}
+              className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Resume
+            </button>
+            <button
+              type="button"
+              onClick={() => doBulkAction("cancel-snooze")}
+              disabled={!canCancelSnooze || bulkActionLoading}
+              className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Cancel snooze
+            </button>
+            <button
+              type="button"
+              onClick={() => createArrangement(selectedIds)}
+              disabled={selectedIds.length === 0 || arrangementSubmitting}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Arrange
+            </button>
+            {confirmBulkResolve ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => doBulkAction("resolve")}
+                  disabled={bulkActionLoading}
+                  className="text-xs text-green-700 hover:text-green-900 border border-green-200 rounded px-3 py-1.5 font-medium disabled:opacity-40"
+                >
+                  Confirm resolve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmBulkResolve(false)}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmBulkResolve(true)}
+                disabled={selectedIds.length === 0}
+                className="text-xs text-gray-500 hover:text-gray-700 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
+              >
+                Resolve
+              </button>
+            )}
+          </div>
+          {bulkActionError && <p className="text-xs text-red-600 mt-2">{bulkActionError}</p>}
         </div>
       )}
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[960px] text-sm">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
             {!showResolved && (
@@ -315,7 +431,6 @@ export function InvoiceTable({
             <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Promise</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Arrangement</th>
-            {!showResolved && <th className="px-4 py-3" />}
           </tr>
         </thead>
         <tbody>
@@ -325,7 +440,6 @@ export function InvoiceTable({
               ? { label: "Held — allowance", color: "bg-amber-100 text-amber-800" }
               : STATUS_LABELS[inv.status] ?? { label: inv.status, color: "bg-gray-100 text-gray-600" }
             const isExpanded = expandedId === inv.id
-            const isLoading = loadingId === inv.id
             const p2p = getP2PStatus(inv.promisesToPay)
             const arrangement = deriveArrangementStatus(inv.arrangementCoverages)
             const isBrokenPriority = isArrangementHighPriority(arrangement)
@@ -385,15 +499,22 @@ export function InvoiceTable({
                       {status.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td
+                    className={`px-4 py-3 ${p2p || brokenPromiseCount > 0 ? "cursor-pointer" : ""}`}
+                    onClick={(event) => {
+                      if (!p2p && brokenPromiseCount === 0) return
+                      event.stopPropagation()
+                      openPromiseDetail(inv.id)
+                    }}
+                  >
                     {p2p?.type === "active" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 hover:underline">
                         🤝 Pays {formatDate(p2p.promise.promisedPayBy)}
                       </span>
                     )}
                     {p2p?.type === "broken" && (
                       <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-100"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-100 hover:underline"
                         title={`Promised ${formatDate(p2p.promise.promisedPayBy)} — not paid`}
                       >
                         ⚠️ Missed{p2p.brokenCount > 1 ? ` (${p2p.brokenCount}×)` : ""}
@@ -401,7 +522,7 @@ export function InvoiceTable({
                     )}
                     {brokenPromiseCount > 0 && (
                       <span
-                        className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${
+                        className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border hover:underline ${
                           isPromisePriority
                             ? "bg-red-50 text-red-700 border-red-100"
                             : "bg-amber-50 text-amber-700 border-amber-100"
@@ -436,75 +557,11 @@ export function InvoiceTable({
                       </span>
                     )}
                   </td>
-                  {!showResolved && (
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      {inv.status === "pending" && (
-                        <>
-                          <button
-                            onClick={() => doAction(inv.id, "snooze")}
-                            disabled={isLoading}
-                            className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-40"
-                          >
-                            Snooze
-                          </button>
-                          <button
-                            onClick={() => doAction(inv.id, "pause")}
-                            disabled={isLoading}
-                            className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-40"
-                          >
-                            Pause
-                          </button>
-                          <button
-                            onClick={() => createArrangement([inv.id])}
-                            disabled={arrangementSubmitting}
-                            className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-40"
-                          >
-                            Arrange
-                          </button>
-                        </>
-                      )}
-                      {inv.status === "paused" && (
-                        <button
-                          onClick={() => doAction(inv.id, "resume")}
-                          disabled={isLoading}
-                          className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-40"
-                        >
-                          Resume
-                        </button>
-                      )}
-                      {confirmResolve === inv.id ? (
-                        <>
-                          <button
-                            onClick={() => doAction(inv.id, "resolve")}
-                            disabled={isLoading}
-                            className="text-xs text-green-600 hover:text-green-800 font-medium"
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            onClick={() => setConfirmResolve(null)}
-                            className="text-xs text-gray-400"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmResolve(inv.id)}
-                          className="text-xs text-gray-400 hover:text-gray-700"
-                        >
-                          Resolve
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  )}
                 </tr>
 
                 {isExpanded && (
                   <tr className="bg-gray-50">
-                  <td colSpan={showResolved ? 8 : 10} className="px-4 py-3">
+                  <td colSpan={showResolved ? 8 : 9} className="px-4 py-3">
                       {arrangement && (
                         <div className="mb-3 text-xs text-gray-700">
                           <p className="font-medium text-gray-600 mb-1">Arrangement</p>
@@ -559,7 +616,8 @@ export function InvoiceTable({
             )
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {selectedEmailLog && (
         <DetailModal
@@ -638,6 +696,37 @@ export function InvoiceTable({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+        </DetailModal>
+      )}
+
+      {selectedPromiseInvoice && (
+        <DetailModal title="Promise history" onClose={closePromiseDetail}>
+          {selectedPromiseInvoice.promisesToPay.length === 0 ? (
+            <p className="text-xs text-gray-400">No promise history for this invoice.</p>
+          ) : (
+            <div className="space-y-3">
+              {selectedPromiseInvoice.promisesToPay.map((promise) => (
+                <div key={promise.id} className="text-xs text-gray-700 border-b border-gray-100 pb-2 last:border-0">
+                  <div className="flex flex-wrap gap-4">
+                    <span className="font-medium text-gray-900">
+                      {PROMISE_STATUS_LABELS[promise.status] ?? promise.status}
+                    </span>
+                    <span>Pay by: {formatDate(promise.promisedPayBy)}</span>
+                    <span>
+                      Amount:
+                      {promise.promisedAmount
+                        ? ` ${formatCurrency(promise.promisedAmount, selectedPromiseInvoice.currency)}`
+                        : " Full balance"}
+                    </span>
+                    <span className="text-gray-400">Submitted: {formatDate(promise.createdAt)}</span>
+                  </div>
+                  {promise.clientNotes && (
+                    <p className="mt-1 whitespace-pre-wrap text-gray-600">{promise.clientNotes}</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </DetailModal>

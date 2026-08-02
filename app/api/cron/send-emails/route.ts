@@ -1,10 +1,10 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
-import { sendFollowUpEmail, sendP2PNotification, resolveFreelancerName } from "@/lib/email/send"
+import { sendFollowUpEmail, resolveFreelancerName } from "@/lib/email/send"
 import { computeNextEmailAt } from "@/lib/email/schedule"
-import { runCatchUpScan } from "@/lib/email/catchup"
 import { getChaseAllowanceStatusesForUsers } from "@/lib/billing"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { runCatchupAndSnoozeSweep, runPromiseAndArrangementBreachSweep } from "@/lib/email/breachSweep"
 import {
   applyTimingEscalation,
   applyToneEscalationStage,
@@ -20,103 +20,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // 1. Run catch-up scan to detect new overdue invoices
-  await runCatchUpScan()
+  // 1-2. Catch-up scan for new overdue invoices + resume snoozed invoices
+  // (shared with the Railway Celery catchup_and_snooze sweep task).
+  await runCatchupAndSnoozeSweep()
 
-  // 2. Resume any snoozed invoices where snoozedUntil has passed
-  await prisma.trackedInvoice.updateMany({
-    where: {
-      status: "snoozed",
-      snoozedUntil: { lte: new Date() },
-    },
-    data: { status: "pending", snoozedUntil: null },
-  })
-
-  // 3. Detect broken promises: active promises whose date has passed and the
-  //    invoice is not yet paid or resolved. Mark broken and notify freelancer.
-  const brokenPromises = await prisma.promiseToPay.findMany({
-    where: {
-      status: "active",
-      promisedPayBy: { lt: new Date() },
-      trackedInvoice: {
-        status: { notIn: ["paid", "manually_resolved"] },
-      },
-    },
-    include: {
-      trackedInvoice: {
-        include: {
-          userProfile: { select: { userId: true, displayName: true } },
-        },
-      },
-    },
-  })
-
-  if (brokenPromises.length > 0) {
-    const supabaseAdminBreach = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SECRET_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-
-    for (const bp of brokenPromises) {
-      await prisma.promiseToPay.update({
-        where: { id: bp.id },
-        data: { status: "broken", breachNotifiedAt: new Date() },
-      })
-
-      // Count total broken promises for this client email (for the notification)
-      const brokenCount = await prisma.promiseToPay.count({
-        where: {
-          status: "broken",
-          trackedInvoice: { clientEmail: bp.trackedInvoice.clientEmail },
-        },
-      })
-
-      try {
-        const { data: ud } = await supabaseAdminBreach.auth.admin.getUserById(
-          bp.trackedInvoice.userId
-        )
-        const freelancerEmail = ud?.user?.email ?? ""
-        const freelancerName = resolveFreelancerName(
-          bp.trackedInvoice.userProfile.displayName,
-          ud?.user?.user_metadata?.full_name,
-          ud?.user?.email,
-        )
-        await sendP2PNotification(
-          "promise_broken",
-          bp.trackedInvoice,
-          bp,
-          freelancerEmail,
-          freelancerName,
-          brokenCount,
-        )
-      } catch (err) {
-        console.error(`Breach notification failed for promise ${bp.id}:`, err)
-      }
-    }
-  }
-
-  // 4. Detect arrangement breaches/expiry and update lifecycle status.
-  const activeArrangements = await prisma.arrangement.findMany({
-    where: {
-      status: "active",
-      OR: [
-        { promisedPayBy: { lt: new Date() } },
-        { promisedPayBy: null, expiresAt: { lt: new Date() } },
-      ],
-    },
-    select: { id: true, promisedPayBy: true },
-  })
-
-  for (const arrangement of activeArrangements) {
-    await prisma.arrangement.update({
-      where: { id: arrangement.id },
-      data:
-        arrangement.promisedPayBy != null
-          ? { status: "broken", breachedAt: new Date() }
-          : { status: "expired" },
-    })
-  }
+  // 3-4. Detect broken promises + arrangement breaches/expiry (shared with
+  // the Railway Celery promise_followup/arrangement_lifecycle sweep tasks).
+  await runPromiseAndArrangementBreachSweep()
 
   // 5. Find invoices with active promises or active arrangements — these must
   //    not receive emails this cycle.

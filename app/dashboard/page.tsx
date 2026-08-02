@@ -1,28 +1,50 @@
 import { createClient } from "@/lib/supabase/server"
-import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
-import { getPlanByTier, hasPlanFeature } from "@/lib/subscriptionPlans"
-import { getChaseAllowanceStatus } from "@/lib/billing"
-import { buildDashboardUpsellModel } from "@/lib/dashboardUpsell"
-import { InvoiceTable } from "@/components/dashboard/InvoiceTable"
-import { LockedDashboardPreview } from "@/components/dashboard/LockedDashboardPreview"
-import { UpgradeBanner } from "@/components/dashboard/UpgradeBanner"
-import Link from "next/link"
-import { buildBrokenPromiseCountsByDebtor } from "@/lib/promiseEscalationPolicy"
+import { loadDashboardContext } from "@/lib/dashboard/loadDashboardContext"
+import {
+  ACTIVE_INVOICE_STATUSES,
+  loadDashboardInvoices,
+} from "@/lib/dashboard/loadDashboardInvoices"
+import {
+  computeHeldInvoiceIds,
+  loadBrokenPromiseCountsByDebtor,
+  loadEscalationThreshold,
+} from "@/lib/dashboard/loadDashboardRiskSignals"
+import { buildOverviewCards } from "@/lib/dashboard/overviewCards"
+import { OverviewCards } from "@/components/dashboard/OverviewCards"
+import { loadDashboardMetrics } from "@/lib/dashboard/loadDashboardMetrics"
+import { buildAgeingBuckets, buildCashWaitingSummary } from "@/lib/dashboard/ageing"
+import { buildTopKpiCards } from "@/lib/dashboard/topKpiCards"
+import { buildBiggestDebtors } from "@/lib/dashboard/biggestDebtors"
+import { buildAttentionItems } from "@/lib/dashboard/attentionRequired"
+import { buildReminderFunnel } from "@/lib/dashboard/reminderActivity"
+import { buildCollectionPerformance, buildRecentPayments } from "@/lib/dashboard/collectionMetrics"
+import { buildPaymentTrend } from "@/lib/dashboard/paymentTrend"
+import { buildAiSummary } from "@/lib/dashboard/aiSummary"
+import { TopKpiCards } from "@/components/dashboard/TopKpiCards"
+import { CashWaitingSummary } from "@/components/dashboard/CashWaitingSummary"
+import { AgeingChart } from "@/components/dashboard/AgeingChart"
+import { RecentPayments } from "@/components/dashboard/RecentPayments"
+import { AttentionRequired } from "@/components/dashboard/AttentionRequired"
+import { ReminderActivityFunnel } from "@/components/dashboard/ReminderActivityFunnel"
+import { CollectionPerformance } from "@/components/dashboard/CollectionPerformance"
+import { BiggestDebtors } from "@/components/dashboard/BiggestDebtors"
+import { PaymentTrendChart } from "@/components/dashboard/PaymentTrendChart"
+import { AiSummaryCard } from "@/components/dashboard/AiSummaryCard"
 import {
   createServerTraceContext,
   traceEvent,
-  traceOperation,
   warnIfProductionDebugEnabled,
 } from "@/lib/diagnostics/server"
 import { summariseAuthForTrace } from "@/lib/diagnostics/shared"
-import { buildDashboardRenderTraceSummary } from "@/lib/diagnostics/dashboard"
 
-export default async function DashboardPage({
+const COMPONENT = "app/dashboard/page.tsx"
+
+export default async function DashboardOverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ resolved?: string; intent?: string }>
+  searchParams: Promise<{ resolved?: string }>
 }) {
   const requestHeaders = await headers()
   const traceContext = createServerTraceContext({
@@ -32,23 +54,7 @@ export default async function DashboardPage({
   warnIfProductionDebugEnabled(traceContext)
 
   const supabase = await createClient()
-  const { data: { user } } = await traceOperation(
-    traceContext,
-    {
-      traceId: traceContext.traceId,
-      stage: "dashboard.page.auth",
-      operation: "supabase.auth.getUser",
-      subsystem: "dashboard",
-      component: "app/dashboard/page.tsx",
-    },
-    () => supabase.auth.getUser(),
-    {
-      success: (result) => ({
-        auth: summariseAuthForTrace({ user: result.data.user }),
-        outputs: { userPresent: Boolean(result.data.user) },
-      }),
-    },
-  )
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     traceEvent(
       () => ({
@@ -56,321 +62,140 @@ export default async function DashboardPage({
         stage: "dashboard.page.redirect",
         operation: "redirect_unauthenticated_page",
         subsystem: "dashboard",
-        component: "app/dashboard/page.tsx",
+        component: COMPONENT,
         event: "decision",
         navigation: { from: "/dashboard", to: "/sign-in", decision: "page_unauthenticated" },
-        auth: summariseAuthForTrace({ user }),
+        auth: summariseAuthForTrace({ user: null }),
       }),
       traceContext,
     )
     redirect("/sign-in")
   }
 
+  // Legacy link support: `/dashboard?resolved=1` used to render the resolved
+  // invoice view on this same route — it now lives at its own route
+  // (openspec/changes/add-dashboard-overview).
   const params = await searchParams
-  const showResolved = params.resolved === "1"
-  const featureIntent = params.intent ?? null
-  traceEvent(
-    () => ({
-      traceId: traceContext.traceId,
-      stage: "dashboard.page.search_params",
-      operation: "interpret_search_params",
-      subsystem: "dashboard",
-      component: "app/dashboard/page.tsx",
-      event: "decision",
-      inputs: { resolved: params.resolved ?? null, intentPresent: featureIntent !== null },
-      outputs: { showResolved, featureIntentPresent: featureIntent !== null },
-    }),
-    traceContext,
-  )
-
-  const activeStatuses = ["pending", "paused", "snoozed", "sequence_complete"]
-  const resolvedStatuses = ["paid", "manually_resolved"]
-
-  const { profile, connection, chaseAllowance } = await traceOperation(
-    traceContext,
-    {
-      traceId: traceContext.traceId,
-      stage: "dashboard.page.initial_data",
-      operation: "withUserContext.dashboardInitialData",
-      subsystem: "dashboard",
-      component: "app/dashboard/page.tsx",
-      auth: summariseAuthForTrace({ user }),
-      tenant: { context: "user_rls" },
-    },
-    () =>
-      withUserContext(
-        user.id,
-        async (tx) => {
-          // Sequential, not Promise.all: queries on a single interactive
-          // transaction's `tx` share one underlying pg connection — firing them
-          // concurrently triggers a pg client deprecation warning and is unsafe.
-          const profile = await tx.userProfile.findUnique({ where: { userId: user.id } })
-          const connection = await tx.invoiceConnection.findFirst({
-            where: { userId: user.id, isActive: true },
-          })
-          const chaseAllowance = await getChaseAllowanceStatus(tx, user.id)
-          return { profile, connection, chaseAllowance }
-        },
-      ),
-    {
-      success: (result) => ({
-        outputs: {
-          profilePresent: Boolean(result.profile),
-          connectionPresent: Boolean(result.connection),
-          chaseUsage: result.chaseAllowance?.usage ?? null,
-          chaseAllowance: result.chaseAllowance?.allowance ?? null,
-        },
+  if (params.resolved === "1") {
+    traceEvent(
+      () => ({
+        traceId: traceContext.traceId,
+        stage: "dashboard.page.redirect",
+        operation: "redirect_legacy_resolved_param",
+        subsystem: "dashboard",
+        component: COMPONENT,
+        event: "decision",
+        navigation: { from: "/dashboard?resolved=1", to: "/dashboard/resolved", decision: "legacy_query_param" },
       }),
-    },
-  )
-
-  const plan = getPlanByTier(profile?.subscriptionTier)
-  const canViewPaymentStatus = hasPlanFeature(plan.id, "payment_status_dashboard")
-  const canViewOverdue = hasPlanFeature(plan.id, "overdue_invoice_dashboard")
-  const atLimit = !showResolved && (chaseAllowance?.atCapacity ?? false)
-  const nearLimit = !showResolved && (chaseAllowance?.nearLimit ?? false)
-
-  if (showResolved && !canViewPaymentStatus) {
-    redirect("/dashboard")
+      traceContext,
+    )
+    redirect("/dashboard/resolved")
   }
 
-  const canShowDashboardModule = showResolved ? canViewPaymentStatus : canViewOverdue
-  traceEvent(
-    () => ({
-      traceId: traceContext.traceId,
-      stage: "dashboard.page.feature_gates",
-      operation: "evaluate_dashboard_access",
-      subsystem: "dashboard",
-      component: "app/dashboard/page.tsx",
-      event: "decision",
-      outputs: {
-        tier: plan.id,
-        canViewPaymentStatus,
-        canViewOverdue,
-        canShowDashboardModule,
-        atLimit,
-        nearLimit,
-        showResolved,
-      },
-    }),
+  const { profile, chaseAllowance } = await loadDashboardContext(user.id, traceContext, COMPONENT)
+
+  const activeInvoices = await loadDashboardInvoices(
+    user.id,
+    ACTIVE_INVOICE_STATUSES,
+    { nextEmailAt: "asc" },
     traceContext,
+    COMPONENT,
   )
 
-  const invoices = canShowDashboardModule
-    ? await traceOperation(
-        traceContext,
-        {
-          traceId: traceContext.traceId,
-          stage: "dashboard.page.invoice_load",
-          operation: "withUserContext.trackedInvoice.findMany",
-          subsystem: "dashboard",
-          component: "app/dashboard/page.tsx",
-          tenant: { context: "user_rls" },
-          inputs: { showResolved },
-        },
-        () =>
-          withUserContext(user.id, (tx) =>
-            tx.trackedInvoice.findMany({
-              where: {
-                userId: user.id,
-                status: { in: showResolved ? resolvedStatuses : activeStatuses },
-              },
-              orderBy: showResolved ? { updatedAt: "desc" } : { nextEmailAt: "asc" },
-              include: {
-                emailLogs: { orderBy: { sentAt: "asc" } },
-                promisesToPay: {
-                  orderBy: { createdAt: "desc" },
-                },
-                arrangementCoverages: {
-                  orderBy: { createdAt: "desc" },
-                  include: {
-                    arrangement: {
-                      include: {
-                        coverages: { select: { trackedInvoiceId: true } },
-                      },
-                    },
-                  },
-                },
-              },
-            }),
-          ),
-        { success: (result) => ({ outputs: { invoiceCount: result.length } }) },
-      )
-    : []
-
-  const promisePolicy = canShowDashboardModule
-    ? await traceOperation(
-        traceContext,
-        {
-          traceId: traceContext.traceId,
-          stage: "dashboard.page.promise_policy_load",
-          operation: "withUserContext.promiseEscalationPolicy.findUnique",
-          subsystem: "dashboard",
-          component: "app/dashboard/page.tsx",
-          tenant: { context: "user_rls" },
-        },
-        () =>
-          withUserContext(user.id, (tx) =>
-            tx.promiseEscalationPolicy.findUnique({
-              where: { userId: user.id },
-              select: { escalationThreshold: true },
-            }),
-          ),
-        { success: (result) => ({ outputs: { policyPresent: Boolean(result), escalationThreshold: result?.escalationThreshold ?? null } }) },
-      )
-    : null
-
-  const brokenByDebtor = canShowDashboardModule
-    ? await traceOperation(
-        traceContext,
-        {
-          traceId: traceContext.traceId,
-          stage: "dashboard.page.broken_promise_load",
-          operation: "withUserContext.promiseToPay.findMany",
-          subsystem: "dashboard",
-          component: "app/dashboard/page.tsx",
-          tenant: { context: "user_rls" },
-        },
-        () =>
-          withUserContext(user.id, async (tx) => {
-            const rows = await tx.promiseToPay.findMany({
-              where: { userId: user.id, status: "broken" },
-              select: {
-                trackedInvoice: { select: { clientEmail: true } },
-              },
-            })
-
-            return buildBrokenPromiseCountsByDebtor(
-              rows.map((row) => ({ clientEmail: row.trackedInvoice.clientEmail }))
-            )
-          }),
-        { success: (result) => ({ outputs: { debtorCount: Object.keys(result).length } }) },
-      )
-    : {}
-
-  // An invoice is "held" when it is due for its first reminder but the
-  // account has no remaining allowance this period — visible on the
-  // dashboard, not discarded, and picked up automatically once the period
-  // rolls over (see openspec/changes/monthly-chase-volume-limits).
-  const heldInvoiceIds = new Set<string>(
-    !showResolved && atLimit
-      ? invoices
-          .filter(
-            (invoice) =>
-              invoice.status === "pending" &&
-              invoice.currentStage === 0 &&
-              invoice.nextEmailAt !== null &&
-              invoice.nextEmailAt <= new Date(),
-          )
-          .map((invoice) => invoice.id)
-      : [],
+  const brokenPromiseCountsByDebtor = await loadBrokenPromiseCountsByDebtor(
+    user.id,
+    traceContext,
+    COMPONENT,
   )
+  const escalationThreshold = await loadEscalationThreshold(user.id, traceContext, COMPONENT)
+  const { paidInvoices, paidCountAllTime, manuallyResolvedCountAllTime, remindersSentToday } =
+    await loadDashboardMetrics(user.id, traceContext, COMPONENT)
 
-  const renderSummary = buildDashboardRenderTraceSummary({
-    canShowDashboardModule,
-    invoiceCount: invoices.length,
-    showResolved,
-    hasConnection: Boolean(connection),
-    atLimit,
+  const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
+
+  const cards = buildOverviewCards({
+    activeInvoices,
+    chaseAllowance,
+    brokenPromiseCountsByDebtor,
+    escalationThreshold,
+    heldInvoiceCount: heldInvoiceIds.size,
   })
+
+  const now = new Date()
+  const currency = activeInvoices[0]?.currency ?? paidInvoices[0]?.currency ?? "usd"
+
+  const topKpiCards = buildTopKpiCards({
+    activeInvoices,
+    paidInvoices,
+    paidCountAllTime,
+    manuallyResolvedCountAllTime,
+    now,
+  })
+  const ageingBuckets = buildAgeingBuckets(activeInvoices, now)
+  const cashWaitingSummary = buildCashWaitingSummary(ageingBuckets)
+  const biggestDebtors = buildBiggestDebtors(activeInvoices, now)
+  const attentionItems = buildAttentionItems({ activeInvoices, paidInvoices, now })
+  const reminderFunnel = buildReminderFunnel({ activeInvoices, paidInvoices, remindersSentToday, now })
+  const recentPayments = buildRecentPayments(paidInvoices)
+  const collectionPerformance = buildCollectionPerformance({
+    paidInvoices,
+    paidCountAllTime,
+    manuallyResolvedCountAllTime,
+    now,
+  })
+  const paymentTrend = buildPaymentTrend({ activeInvoices, paidInvoices, now })
+  const aiSummaryLines = buildAiSummary({
+    displayName: profile?.displayName ?? null,
+    activeInvoices,
+    paidInvoices,
+    brokenPromiseCountsByDebtor,
+    now,
+  })
+
   traceEvent(
     () => ({
       traceId: traceContext.traceId,
       stage: "dashboard.page.render",
-      operation: "render_dashboard_page",
+      operation: "render_dashboard_overview",
       subsystem: "dashboard",
-      component: "app/dashboard/page.tsx",
+      component: COMPONENT,
       event: "complete",
-      outputs: renderSummary,
+      outputs: { cardSeverities: Object.fromEntries(cards.map((card) => [card.id, card.severity])) },
     }),
     traceContext,
   )
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">
-          {showResolved ? "Resolved Invoices" : "Overdue Invoices"}
-        </h1>
-        <div className="flex items-center gap-3">
-          {showResolved ? (
-            <Link
-              href="/dashboard"
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              ← Active invoices
-            </Link>
-          ) : canViewPaymentStatus ? (
-            <Link
-              href="/dashboard?resolved=1"
-              className="text-sm text-gray-500 hover:text-gray-900"
-            >
-              View resolved
-            </Link>
-          ) : null}
-          {!connection && !showResolved && canShowDashboardModule && (
-            <a
-              href="/dashboard/settings/connections"
-              className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700"
-            >
-              Connect Stripe →
-            </a>
-          )}
-        </div>
+      <h1 className="text-xl font-semibold text-gray-900">Overview</h1>
+
+      <AiSummaryCard lines={aiSummaryLines} />
+
+      <TopKpiCards cards={topKpiCards} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CashWaitingSummary summary={cashWaitingSummary} currency={currency} />
+        <AgeingChart buckets={ageingBuckets} currency={currency} />
       </div>
 
-      {!showResolved && canShowDashboardModule && chaseAllowance && (
-        <p className="text-xs text-gray-500">
-          {chaseAllowance.usage} of {chaseAllowance.allowance} chases used this period · resets{" "}
-          {chaseAllowance.period.end.toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
-        </p>
-      )}
+      <AttentionRequired items={attentionItems} />
 
-      {(atLimit || nearLimit) && canShowDashboardModule && chaseAllowance && (
-        <UpgradeBanner
-          usage={chaseAllowance.usage}
-          allowance={chaseAllowance.allowance}
-          periodEnd={chaseAllowance.period.end}
-          tierName={plan.name}
-          atCapacity={chaseAllowance.atCapacity}
-        />
-      )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <RecentPayments payments={recentPayments} />
+        <ReminderActivityFunnel steps={reminderFunnel} />
+      </div>
 
-      {!canShowDashboardModule && (
-        <LockedDashboardPreview
-          model={buildDashboardUpsellModel({
-            tier: plan.id,
-            usageCount: chaseAllowance?.usage ?? 0,
-            usageLimit: plan.limits.chasedInvoicesPerMonth,
-            periodEnd: chaseAllowance?.period.end ?? null,
-            featureIntent,
-            showResolved,
-          })}
-        />
-      )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CollectionPerformance performance={collectionPerformance} currency={currency} />
+        <BiggestDebtors debtors={biggestDebtors} />
+      </div>
 
-      {canShowDashboardModule && invoices.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <p className="text-lg">
-            {showResolved ? "No resolved invoices yet." : "No overdue invoices tracked."}
-          </p>
-          <p className="text-sm mt-1">
-            {showResolved
-              ? "Paid and manually resolved invoices will appear here."
-              : connection
-              ? "Sit back — we'll alert you when something goes overdue."
-              : "Connect your Stripe account to get started."}
-          </p>
-        </div>
-      ) : canShowDashboardModule ? (
-        <InvoiceTable
-          invoices={invoices}
-          showResolved={showResolved}
-          brokenPromiseCountsByDebtor={brokenByDebtor}
-          escalationThreshold={promisePolicy?.escalationThreshold ?? 2}
-          heldInvoiceIds={heldInvoiceIds}
-        />
-      ) : null}
+      <PaymentTrendChart points={paymentTrend} />
+
+      <div>
+        <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
+        <OverviewCards cards={cards} />
+      </div>
     </div>
   )
 }

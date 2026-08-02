@@ -29,7 +29,7 @@ const TRANSITIONS: Array<{
   },
   {
     operation: "snooze",
-    allowed: ["pending", "snoozed"],
+    allowed: ["pending"],
     result: "snoozed",
   },
   {
@@ -37,6 +37,11 @@ const TRANSITIONS: Array<{
     // resolve accepts any status (no status filter in route)
     allowed: ["pending", "paused", "snoozed", "sequence_complete"],
     result: "manually_resolved",
+  },
+  {
+    operation: "cancel-snooze",
+    allowed: ["snoozed"],
+    result: "pending",
   },
 ]
 
@@ -99,8 +104,8 @@ describe("Invoice state machine — snooze", () => {
     assert.strictEqual(transitionTo("pending", "snooze"), "snoozed")
   })
 
-  test("snoozed → snoozed (re-snooze extends the window)", () => {
-    assert.strictEqual(transitionTo("snoozed", "snooze"), "snoozed")
+  test("already-snoozed invoices cannot be re-snoozed", () => {
+    assert.strictEqual(canTransition("snoozed", "snooze"), false)
   })
 
   test("paused invoices cannot be snoozed", () => {
@@ -110,6 +115,23 @@ describe("Invoice state machine — snooze", () => {
   test("resolved invoices cannot be snoozed", () => {
     assert.strictEqual(canTransition("manually_resolved", "snooze"), false)
     assert.strictEqual(canTransition("paid", "snooze"), false)
+  })
+})
+
+describe("Invoice state machine — cancel-snooze", () => {
+  test("snoozed → pending", () => {
+    assert.strictEqual(transitionTo("snoozed", "cancel-snooze"), "pending")
+  })
+
+  test("only snoozed invoices can have their snooze cancelled", () => {
+    const notCancellable = ALL_STATUSES.filter((s) => s !== "snoozed")
+    for (const status of notCancellable) {
+      assert.strictEqual(
+        canTransition(status, "cancel-snooze"),
+        false,
+        `Expected status "${status}" to NOT be cancel-snoozable`
+      )
+    }
   })
 })
 

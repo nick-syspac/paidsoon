@@ -1,0 +1,49 @@
+---
+title: Pause reminders on an invoice
+description: Temporarily stop automated follow-up emails for one or more invoices.
+lastVerified: 2026-08-02
+---
+
+If a client disputes a charge, needs more time, or you simply want to hold off, you can pause an
+invoice's reminder sequence without losing its follow-up history.
+
+## Before you start
+
+The invoice you want to pause must currently have a **Pending** status — invoices that are
+already paused, snoozed, paid, or resolved use different controls (see
+[manually resolve an invoice](/help/manually-resolve-an-invoice)).
+
+## Steps
+
+1. Go to your dashboard's invoice table (`/dashboard`).
+2. Select one or more invoices using the checkboxes. A bulk action bar appears at the top of the
+   table once at least one invoice is selected.
+3. Click **Pause**.
+
+## What you'll see
+
+The selected invoices immediately show a **Paused** status badge. No further reminder emails are
+sent for them while paused.
+
+<Callout title="No dedicated 'dispute' button">
+  PaidSoon's pause action is generic — there isn't a separate "mark as disputed" control. Use
+  **Pause** whenever you need to stop the reminder sequence for any reason, including a dispute,
+  and add context in your own records if you need to track why.
+</Callout>
+
+## What happens next
+
+Paused invoices stay in your dashboard but are skipped by the reminder cron until you resume
+them. To resume, select the paused invoice(s) and click **Resume** — reminders pick back up from
+where the schedule would normally place them.
+
+## Common problems
+
+- **"Resume" is disabled** — you can only resume invoices that are currently **Paused**; check
+  your selection doesn't include invoices in a different status.
+- **Client paid while paused** — once your invoice source reports the invoice as paid, it moves
+  to a paid status automatically on the next sync, regardless of pause state.
+
+## Related tutorial
+
+[Manually resolve an invoice](/help/manually-resolve-an-invoice)

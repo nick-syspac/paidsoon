@@ -1,0 +1,53 @@
+---
+title: Configure your first reminder sequence
+description: Set when PaidSoon sends your three follow-up emails after an invoice becomes overdue.
+lastVerified: 2026-08-02
+---
+
+PaidSoon sends up to three follow-up emails per invoice, spaced out after the due date. This
+tutorial shows you where to set the timing.
+
+## Before you start
+
+You need at least one connected invoice source (see
+[connect Xero](/help/connect-xero) or [connect MYOB Business](/help/connect-myob)) so there are
+invoices for the schedule to apply to.
+
+## Steps
+
+1. Go to **Settings → Schedule** (`/dashboard/settings/schedule`).
+2. You'll see three fields, one per reminder stage:
+   - **Email 1 — days after due date**
+   - **Email 2 — days after due date**
+   - **Email 3 — days after due date**
+3. Enter how many days after the due date each email should send (for example, 3, 10, and 21).
+4. Click **Save schedule**.
+
+## What you'll see
+
+After saving, a **Saved!** confirmation appears briefly under the form.
+
+<Callout title="On the Starter plan?">
+  Starter accounts use a fixed default schedule (day 3, day 10, day 21) and the fields are
+  read-only, with a message noting that custom timing is available on higher plans. Every plan
+  still gets the full three-stage reminder sequence — only the ability to change the timing is
+  plan-gated.
+</Callout>
+
+## What happens next
+
+New and existing overdue invoices are scheduled against the saved timing. Changing the schedule
+does not resend emails that have already gone out — it only affects when future reminders send.
+
+## Common problems
+
+- **Fields are greyed out and won't save** — this means custom timing isn't available on your
+  current plan; the schedule still runs on the default 3/10/21-day timing.
+- **An invoice didn't get a reminder on the expected day** — check whether it's been
+  [paused](/help/pause-reminders) or has an active
+  [promise to pay](/help/record-a-promise-to-pay), both of which suspend the schedule for that
+  invoice.
+
+## Related tutorial
+
+[Pause reminders on an invoice](/help/pause-reminders)

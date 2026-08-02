@@ -262,6 +262,18 @@ CREATE POLICY "users can delete own oauth states"
   USING (auth.uid()::text = "userId");
 
 -- ---------------------------------------------------------------------------
+-- scheduled_task_claims / dispatcher_heartbeats
+-- Internal Railway Celery orchestration state. No end-user-facing route reads
+-- or writes these — the Celery worker connects with a trusted/admin role
+-- (same RLS-bypass posture as prismaAdmin, documented in
+-- openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md).
+-- RLS is enabled with no policies: the `authenticated` role has no access at
+-- all, matching the dashboard never needing to query these tables directly.
+-- ---------------------------------------------------------------------------
+ALTER TABLE scheduled_task_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dispatcher_heartbeats ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------------
 -- promise_to_pay
 -- Users can read their own promise records. Inserts and updates are
 -- performed via prismaAdmin (service role): the public promise endpoint uses

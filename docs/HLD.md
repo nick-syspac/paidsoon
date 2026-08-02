@@ -47,7 +47,7 @@ endpoint (`app/api/settings/team/invite/route.ts`).
 | Product | Single product: overdue-invoice follow-up automation |
 | Tenancy | One user = one tenant; isolation via Postgres RLS |
 | Frontend + Backend | One Next.js 16 app (App Router); API = route handlers |
-| Async processing | One Vercel Cron job → one route handler (no worker/queue) |
+| Async processing | Two Vercel Cron jobs → route handlers today (no worker/queue in production yet). A Railway Celery + Redis worker is being introduced to take over scheduled business workflows (dispatcher + queue + retry/backoff) while running in parallel during burn-in — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). Not yet deployed to production. |
 | Verticals / RBAC / workflow / control library | **Not present** |
 
 ---
@@ -390,8 +390,8 @@ terms appear nowhere in the code and must not be treated as part of this system.
 | Concern | Actual configuration | Evidence |
 |---|---|---|
 | Frontend + API hosting | Vercel (single Next.js deployment) | `docs/runbooks/vercel.md`, `vercel.json` |
-| Worker hosting | None — cron invokes a route on the same deployment | `vercel.json` crons |
-| Scheduler | Vercel Cron, daily `0 9 * * *` → `/api/cron/send-emails` | `vercel.json` |
+| Worker hosting | None in production yet — cron invokes a route on the same deployment. A Railway Celery worker/Beat/Redis stack is scaffolded (`worker/`) and intended to take over, running in parallel during burn-in before the Vercel crons it replaces are removed. | `vercel.json` crons, `worker/`, [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
+| Scheduler | Vercel Cron: `0 9 * * *` → `/api/cron/send-emails`, `0 2 * * *` → `/api/cron/sync-accounting`, `0 12 * * *` → `/api/cron/scheduling-watchdog` | `vercel.json` |
 | Database | Supabase Postgres (`paidsoon-dev`, `paidsoon-prod`) | `docs/runbooks/supabase.md` |
 | DB connections | `DATABASE_URL` (shared pooler, `postgres.[ref]`, RLS applied by `withUserContext`'s `SET LOCAL ROLE authenticated`) + `DIRECT_URL` (owner, migrations) | `prisma.config.ts`, `lib/db/admin.ts` |
 | Auth | Supabase Auth | `docs/runbooks/supabase.md` |

@@ -43,15 +43,25 @@ applyTo: "**/vercel.json,**/next.config*,**/app/api/cron/**"
 | `STRIPE_BILLING_WEBHOOK_SECRET` | Server | Billing webhook signature secret |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | Server | Connect webhook signature secret |
 | `CRON_SECRET` | Server | Bearer token for cron authentication |
+| `INTERNAL_JOBS_SECRET` | Server | Bearer token for Railway Celery worker \u2192 Next.js internal job calls |
+| `RAILWAY_WORKER_URL` | Server | Railway worker base URL (optional \u2014 enables async "sync now"/"trigger now") |
+| `WORKER_TRIGGER_SECRET` | Server | Bearer token for Next.js \u2192 Railway worker "trigger now" calls |
+| `OPS_ALERT_EMAIL` | Server | Recipient for the scheduling-watchdog stale-heartbeat alert |
 | `LIVE` | Server | `true` = enable sign-in/sign-up |
 
 ## Cron Job Rules
 
-- The single cron job is defined in `vercel.json`:
+- Cron jobs are defined in `vercel.json`:
   ```json
-  { "path": "/api/cron/send-emails", "schedule": "0 9 * * *" }
+  { "path": "/api/cron/send-emails", "schedule": "0 9 * * *" },
+  { "path": "/api/cron/sync-accounting", "schedule": "0 2 * * *" },
+  { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" }
   ```
-- It runs daily at 09:00 UTC.
+- `send-emails` runs daily at 09:00 UTC, `sync-accounting` daily at 02:00 UTC.
+- `scheduling-watchdog` runs daily at 12:00 UTC and alerts if the Railway Celery Beat dispatcher's heartbeat (see
+  [migrate-scheduled-jobs-to-railway-celery](../../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md))
+  is stale — Vercel Hobby plan caps cron frequency at once daily, so this is the most frequent schedule available
+  without upgrading to Pro.
 - **Authentication:** The cron handler checks `Authorization: Bearer CRON_SECRET`. Never remove this check.
 - Cron jobs must use `prismaAdmin` (RLS bypass is intentional — cron processes all users).
 - Do not add additional cron jobs without updating `vercel.json` and documenting in `docs/DDD.md`.

@@ -1,0 +1,60 @@
+---
+title: Connect PaidSoon to MYOB Business
+description: Authorise PaidSoon to read overdue invoices from your MYOB Business company file.
+lastVerified: 2026-08-02
+---
+
+Connect your MYOB Business company file so PaidSoon can import overdue invoices and start sending
+reminder sequences.
+
+<Callout title="Early access">
+  MYOB Business support is available to early-access users while PaidSoon finishes validating
+  full production support. If you hit an issue, please let us know at
+  support@paidsoon.com.au — early feedback directly shapes what ships next.
+</Callout>
+
+## Before you start
+
+- You need to be signed in to PaidSoon and have access to the MYOB Business company file you want
+  to connect.
+- Unlike Xero, MYOB doesn't offer a company-file picker inside PaidSoon — MYOB's own sign-in
+  screen determines which company file you're authorising, so make sure you sign in to MYOB with
+  the account tied to the right company file.
+
+## Steps
+
+1. Go to **Settings → Connections** (`/dashboard/settings/connections`).
+2. Under **Accounting Integrations**, find the MYOB Business card and click **Connect MYOB
+   Business**.
+3. Sign in to MYOB and authorise PaidSoon when prompted.
+4. MYOB redirects you back to **Settings → Connections** automatically — there's no separate
+   company-file selection step inside PaidSoon.
+
+## What you'll see
+
+The MYOB Business card shows **Importing…** while PaidSoon completes its first invoice import.
+MYOB connections can occasionally take slightly longer to become active right after authorising,
+since MYOB's own systems need a short moment to fully activate a new connection.
+
+<Callout title="Still importing after a couple of minutes?">
+  Click **Sync now** on the card to retry manually. If the card shows **Sync error**, click
+  **Retry sync** — if it keeps failing, contact support@paidsoon.com.au.
+</Callout>
+
+## What happens next
+
+Once the card shows **Active**, your overdue MYOB Business invoices appear in your PaidSoon
+dashboard and become eligible for your configured
+[reminder schedule](/help/configure-reminder-schedule).
+
+## Common problems
+
+- **Connection authorised but no invoices appear** — click **Sync now**; first-sync timing can
+  vary slightly for MYOB.
+- **Repeated "Sync error"** — disconnect and reconnect. Since this is an early-access
+  integration, please report persistent errors to support@paidsoon.com.au with your business
+  name so we can investigate.
+
+## Related tutorial
+
+[Import your outstanding invoices](/help/import-outstanding-invoices)
