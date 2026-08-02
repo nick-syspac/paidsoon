@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
@@ -6,10 +6,9 @@ import { DEFAULT_STAGE_1 } from "@/lib/email/templates"
 import { TemplatesClient } from "@/components/settings/TemplatesClient"
 
 export default async function TemplatesSettingsPage() {
-  const supabase = await createClient()
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await getAuthenticatedUser()
   if (!user) redirect("/sign-in")
 
   const profile = await withUserContext(user.id, (tx) =>

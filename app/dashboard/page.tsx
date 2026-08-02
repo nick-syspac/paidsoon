@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { loadDashboardContext } from "@/lib/dashboard/loadDashboardContext"
@@ -53,8 +53,7 @@ export default async function DashboardOverviewPage({
   })
   warnIfProductionDebugEnabled(traceContext)
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthenticatedUser()
   if (!user) {
     traceEvent(
       () => ({
@@ -92,24 +91,29 @@ export default async function DashboardOverviewPage({
     redirect("/dashboard/resolved")
   }
 
-  const { profile, chaseAllowance } = await loadDashboardContext(user.id, traceContext, COMPONENT)
-
-  const activeInvoices = await loadDashboardInvoices(
-    user.id,
-    ACTIVE_INVOICE_STATUSES,
-    { nextEmailAt: "asc" },
-    traceContext,
-    COMPONENT,
-  )
-
-  const brokenPromiseCountsByDebtor = await loadBrokenPromiseCountsByDebtor(
-    user.id,
-    traceContext,
-    COMPONENT,
-  )
-  const escalationThreshold = await loadEscalationThreshold(user.id, traceContext, COMPONENT)
-  const { paidInvoices, paidCountAllTime, manuallyResolvedCountAllTime, remindersSentToday } =
-    await loadDashboardMetrics(user.id, traceContext, COMPONENT)
+  // These 5 loaders each open their own independent `withUserContext`
+  // transaction (separate connections/tx, not a shared `tx` client), so
+  // running them concurrently is safe and avoids paying for 5 sequential
+  // network round-trips to the database on every dashboard load.
+  const [
+    { profile, chaseAllowance },
+    activeInvoices,
+    brokenPromiseCountsByDebtor,
+    escalationThreshold,
+    { paidInvoices, paidCountAllTime, manuallyResolvedCountAllTime, remindersSentToday },
+  ] = await Promise.all([
+    loadDashboardContext(user.id, traceContext, COMPONENT),
+    loadDashboardInvoices(
+      user.id,
+      ACTIVE_INVOICE_STATUSES,
+      { nextEmailAt: "asc" },
+      traceContext,
+      COMPONENT,
+    ),
+    loadBrokenPromiseCountsByDebtor(user.id, traceContext, COMPONENT),
+    loadEscalationThreshold(user.id, traceContext, COMPONENT),
+    loadDashboardMetrics(user.id, traceContext, COMPONENT),
+  ])
 
   const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
 

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getPlanByTier, hasPlanFeature } from "@/lib/subscriptionPlans"
@@ -39,8 +39,7 @@ export default async function DashboardInvoicesPage({
   })
   warnIfProductionDebugEnabled(traceContext)
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthenticatedUser()
   if (!user) {
     traceEvent(
       () => ({
@@ -89,22 +88,21 @@ export default async function DashboardInvoicesPage({
     traceContext,
   )
 
-  const invoices = canViewOverdue
-    ? await loadDashboardInvoices(
-        user.id,
-        ACTIVE_INVOICE_STATUSES,
-        { nextEmailAt: "asc" },
-        traceContext,
-        COMPONENT,
-      )
-    : []
-
-  const brokenPromiseCountsByDebtor = canViewOverdue
-    ? await loadBrokenPromiseCountsByDebtor(user.id, traceContext, COMPONENT)
-    : {}
-  const escalationThreshold = canViewOverdue
-    ? await loadEscalationThreshold(user.id, traceContext, COMPONENT)
-    : 2
+  // Independent `withUserContext` transactions — safe and faster to run
+  // concurrently rather than one after another.
+  const [invoices, brokenPromiseCountsByDebtor, escalationThreshold] = canViewOverdue
+    ? await Promise.all([
+        loadDashboardInvoices(
+          user.id,
+          ACTIVE_INVOICE_STATUSES,
+          { nextEmailAt: "asc" },
+          traceContext,
+          COMPONENT,
+        ),
+        loadBrokenPromiseCountsByDebtor(user.id, traceContext, COMPONENT),
+        loadEscalationThreshold(user.id, traceContext, COMPONENT),
+      ])
+    : [[], {}, 2]
 
   const heldInvoiceIds = computeHeldInvoiceIds(invoices, atLimit)
 

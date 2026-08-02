@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { StripeConnectionClient } from "@/components/settings/StripeConnectionClient"
@@ -18,8 +18,7 @@ export default async function ConnectionsSettingsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthenticatedUser()
   if (!user) redirect("/sign-in")
 
   const params = await searchParams
