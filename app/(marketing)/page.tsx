@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { isDebugEnabled } from "@/lib/diagnostics/server"
 import DebugDbCheckButton from "@/components/marketing/DebugDbCheckButton"
+import { getPublicPlans } from "@/lib/subscriptionPlans"
+import { formatPlanPrice } from "@/lib/planPresentation"
 
 export const metadata: Metadata = {
   title: "PaidSoon — Automated Invoice Follow-Ups for Freelancers & Small Business",
@@ -43,11 +45,11 @@ const steps = [
   { n: "4", title: "Reminders go out automatically", body: "Polite, professional follow-ups without lifting a finger." },
 ]
 
-const pricingPreview = [
-  { name: "Starter", price: "$19/mo", featured: false },
-  { name: "Business", price: "$49/mo", featured: true },
-  { name: "Accountant Partner", price: "Contact us", featured: false },
-]
+const pricingPreview = getPublicPlans().map((plan) => ({
+  name: plan.name,
+  price: formatPlanPrice(plan.monthlyPriceAud),
+  featured: Boolean(plan.popular),
+}))
 
 export default function HomePage() {
   return (
