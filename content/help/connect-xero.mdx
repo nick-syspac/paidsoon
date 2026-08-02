@@ -1,0 +1,57 @@
+---
+title: Connect PaidSoon to Xero
+description: Authorise PaidSoon to read overdue invoices from your Xero organisation.
+lastVerified: 2026-08-02
+---
+
+Connect your Xero organisation so PaidSoon can automatically import overdue invoices and start
+sending reminder sequences on your behalf.
+
+## Before you start
+
+- You need to be signed in to PaidSoon and have admin access to the Xero organisation you want to
+  connect.
+- Each PaidSoon account has a limit on how many invoice sources (Stripe and accounting
+  connections combined) it can connect at once — check your plan's connection limit under
+  **Settings → Connections** if you already have a connection set up.
+
+## Steps
+
+1. Go to **Settings → Connections** (`/dashboard/settings/connections`).
+2. Under **Accounting Integrations**, find the Xero card and click **Connect Xero**.
+3. You'll be redirected to Xero to sign in and authorise PaidSoon.
+4. If your Xero login has access to more than one organisation, Xero will ask you to pick one on
+   PaidSoon's organisation-selection screen before continuing.
+5. Once authorised, PaidSoon redirects you back to **Settings → Connections**.
+
+## What you'll see
+
+Right after connecting, the Xero card shows a status of **Importing…** while PaidSoon pulls in
+your overdue invoices for the first time. This can take a little while for organisations with a
+lot of invoice history.
+
+<Callout title="First sync still running?">
+  If the card still says **Importing…** after a minute or two, click **Sync now** on the card to
+  retry. If it shows **Sync error**, click **Retry sync** — if it keeps failing, contact
+  support@paidsoon.com.au.
+</Callout>
+
+## What happens next
+
+Once the status badge changes to **Active**, your overdue Xero invoices appear in your PaidSoon
+dashboard and are eligible for automated reminder sequences based on your
+[reminder schedule](/help/configure-reminder-schedule). PaidSoon keeps syncing periodically after
+the first import, and you can trigger a manual **Sync now** at any time from the connection card.
+
+## Common problems
+
+- **"No organisations found in your account"** — make sure the Xero user you signed in with has
+  access to at least one organisation.
+- **Connection stuck on "Sync error"** — click **Retry sync**. If it fails repeatedly, disconnect
+  and reconnect Xero.
+- **Reached your connection limit** — disconnect an unused source under **Settings →
+  Connections**, or upgrade your plan for a higher connection limit.
+
+## Related tutorial
+
+[Import your outstanding invoices](/help/import-outstanding-invoices)

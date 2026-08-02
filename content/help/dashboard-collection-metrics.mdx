@@ -1,0 +1,59 @@
+---
+title: Read your dashboard's collection metrics
+description: Understand the KPI cards and charts on your PaidSoon dashboard.
+lastVerified: 2026-08-02
+---
+
+Your dashboard (`/dashboard`) surfaces a handful of metrics so you can see whether your follow-ups
+are actually working, without digging through individual invoices.
+
+## Before you start
+
+Metrics become meaningful once you have some invoice history — a brand-new account will show
+mostly zeros or dashes until invoices are imported and some are paid or resolved.
+
+## What each metric shows
+
+### Top KPI cards
+
+- **Outstanding invoices** — total amount and count of everything currently active.
+- **Overdue invoices** — total amount and count of invoices past their due date.
+- **Money collected this month** — sum of invoices paid since the 1st of the current month.
+- **Average days to payment** — average time between an invoice being created and being paid.
+- **Collection success rate** — the share of resolved invoices that were paid (rather than
+  manually resolved as unrecoverable).
+
+### Collection Performance
+
+A compact panel showing money recovered this week, money recovered this month, average
+reminder-to-payment time, and your overall collection rate.
+
+### Reminder Activity
+
+A step-by-step funnel: invoices awaiting their first reminder, reminders sent today, and invoices
+paid today.
+
+<Callout title="Opened and Clicked show as 'not set up yet'">
+  The funnel includes placeholders for email open and click tracking. PaidSoon doesn't have email
+  open/click tracking wired up yet, so these two steps intentionally show no number rather than a
+  made-up one — this isn't a bug.
+</Callout>
+
+## What happens next
+
+Use **Average days to payment** and **Collection success rate** as your headline indicators of
+whether your reminder sequence is working. If those aren't trending the way you'd like, consider
+adjusting your [reminder schedule](/help/configure-reminder-schedule) timing.
+
+## Common problems
+
+- **Metrics show "—" instead of a number** — this means there isn't enough history yet (e.g. no
+  payments recorded), not an error.
+- **Numbers look lower than expected** — check whether some invoices are
+  [paused](/help/pause-reminders) or have an active
+  [promise to pay](/help/record-a-promise-to-pay), since those pause the reminder sequence
+  without affecting whether the invoice is still outstanding.
+
+## Related tutorial
+
+[Manually resolve an invoice](/help/manually-resolve-an-invoice)

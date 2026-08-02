@@ -1,0 +1,47 @@
+---
+title: Manually resolve an invoice
+description: Mark an invoice as settled outside PaidSoon's normal payment sync.
+lastVerified: 2026-08-02
+---
+
+If a client paid you directly (bank transfer, cash, or anything your invoice source won't
+automatically detect), you can manually resolve the invoice so PaidSoon stops chasing it.
+
+## Before you start
+
+Only resolve an invoice once you're confident it's genuinely settled — manually resolving does
+not record a payment in your accounting software or Stripe; it only stops PaidSoon's reminders.
+
+## Steps
+
+1. Go to your dashboard's invoice table (`/dashboard`).
+2. Select the invoice (or invoices) you want to resolve using the checkboxes.
+3. Click **Resolve** in the bulk action bar.
+4. Click **Confirm resolve** to finish.
+
+## What you'll see
+
+The invoice's status badge changes to **Resolved**, and it moves out of your active invoice list
+into **Resolved Invoices** (`/dashboard/resolved`), alongside invoices your source reports as
+paid.
+
+## What happens next
+
+Resolved invoices no longer receive reminder emails and are excluded from your active overdue
+totals. They still count toward your all-time collection-rate metric on the dashboard.
+
+<Callout title="This can't be undone from the dashboard">
+  There's currently no "un-resolve" action — if you resolve an invoice by mistake, contact
+  support@paidsoon.com.au.
+</Callout>
+
+## Common problems
+
+- **Invoice reappears as unpaid after resolving** — if your invoice source re-syncs and still
+  reports the invoice as outstanding, check with your accounting software directly; PaidSoon
+  reflects what your source reports.
+- **Accidentally resolved the wrong invoice** — contact support@paidsoon.com.au for help.
+
+## Related tutorial
+
+[Read your dashboard's collection metrics](/help/dashboard-collection-metrics)

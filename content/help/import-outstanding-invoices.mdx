@@ -1,0 +1,56 @@
+---
+title: Import your outstanding invoices
+description: How PaidSoon brings your overdue invoices in from Stripe, Xero, or MYOB Business.
+lastVerified: 2026-08-02
+---
+
+Once you've connected an invoice source, PaidSoon automatically imports your outstanding invoices
+so they can enter your reminder sequence.
+
+## Before you start
+
+Connect at least one invoice source first:
+
+- [Connect PaidSoon to Xero](/help/connect-xero)
+- [Connect PaidSoon to MYOB Business](/help/connect-myob)
+- Or connect Stripe directly via **Settings → Connections**
+
+## Steps
+
+1. After connecting a source, PaidSoon runs a first import automatically — you don't need to do
+   anything.
+2. Go to **Settings → Connections** to check progress. Each connection card shows one of:
+   - **Importing…** — the first import is still running
+   - **Active** — the first import completed and invoices are syncing normally
+   - **Sync error** — the last import attempt failed
+3. To trigger an import manually at any time, click **Sync now** on the connection card
+   (**Retry sync** if the connection is in an error state).
+
+## What you'll see
+
+While an import is running, the connection card shows **Importing…**. Once it finishes, the card
+updates to **Active** and shows the timestamp of the last successful sync. A short history of
+recent sync runs (start time, invoices created/updated, and any error) is also shown on the card.
+
+## What happens next
+
+Imported invoices appear in your dashboard's invoice table with a **Pending** status and become
+eligible for your configured [reminder schedule](/help/configure-reminder-schedule). PaidSoon
+keeps re-syncing periodically after the first import to pick up new invoices and payment updates.
+
+<Callout title="Invoice missing after import?">
+  PaidSoon only imports invoices that match your source's overdue criteria at the time of sync.
+  If an invoice becomes overdue after the last sync, it will appear on the next sync — click
+  **Sync now** to check immediately rather than waiting.
+</Callout>
+
+## Common problems
+
+- **Import seems stuck on "Importing…"** — click **Sync now** to retry; large invoice histories
+  can take longer on the very first import.
+- **"Sync error" keeps appearing** — click **Retry sync**; if it persists, disconnect and
+  reconnect the source (see the Xero or MYOB tutorials above).
+
+## Related tutorial
+
+[Configure your first reminder sequence](/help/configure-reminder-schedule)
