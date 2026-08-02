@@ -201,9 +201,7 @@ export function InvoiceTable({
     : null
 
   const selectedInvoices = invoices.filter((inv) => selectedIds.includes(inv.id))
-  const canSnooze =
-    selectedInvoices.length > 0 &&
-    selectedInvoices.every((inv) => inv.status === "pending" || inv.status === "snoozed")
+  const canSnooze = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "pending")
   const canPause = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "pending")
   const canResume = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "paused")
   const canCancelSnooze =

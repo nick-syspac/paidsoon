@@ -193,11 +193,11 @@ describe("Invoice route handlers", () => {
       assert.ok(snoozedAt < before + 8 * 24 * 60 * 60 * 1000)
     })
 
-    test("queries pending and snoozed invoices", async () => {
+    test("queries only pending invoices", async () => {
       mockFindFirstResult = { id: "inv-1", status: "pending", userId: "user-123" }
       await snoozeRoute(makeRequest(), makeParams("inv-1"))
-      const args = lastFindFirstArgs as { where: { status: { in: string[] } } }
-      assert.deepStrictEqual(args.where.status.in.sort(), ["pending", "snoozed"].sort())
+      const args = lastFindFirstArgs as { where: { status: string } }
+      assert.strictEqual(args.where.status, "pending")
     })
   })
 
@@ -414,11 +414,11 @@ describe("POST /api/invoices/[id]/snooze", () => {
     assert.ok(snoozedAt < before + 8 * 24 * 60 * 60 * 1000)
   })
 
-  test("queries pending and snoozed invoices", async () => {
-    mockFindFirstResult = { id: "inv-1", status: "pending", userId: "user-123" }
-    await snoozeRoute(makeRequest(), makeParams("inv-1"))
-    const args = lastFindFirstArgs as { where: { status: { in: string[] } } }
-    assert.deepStrictEqual(args.where.status.in.sort(), ["pending", "snoozed"].sort())
+test("queries only pending invoices", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "pending", userId: "user-123" }
+      await snoozeRoute(makeRequest(), makeParams("inv-1"))
+      const args = lastFindFirstArgs as { where: { status: string } }
+      assert.strictEqual(args.where.status, "pending")
   })
 })
 

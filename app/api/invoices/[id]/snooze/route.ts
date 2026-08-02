@@ -15,7 +15,7 @@ export async function POST(_req: Request, { params }: Params) {
 
   const result = await withUserContext(user.id, async (tx) => {
     const invoice = await tx.trackedInvoice.findFirst({
-      where: { id, userId: user.id, status: { in: ["pending", "snoozed"] } },
+      where: { id, userId: user.id, status: "pending" },
     })
     if (!invoice) return { ok: false as const }
 

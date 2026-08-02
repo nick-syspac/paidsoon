@@ -29,7 +29,7 @@ const TRANSITIONS: Array<{
   },
   {
     operation: "snooze",
-    allowed: ["pending", "snoozed"],
+    allowed: ["pending"],
     result: "snoozed",
   },
   {
@@ -104,8 +104,8 @@ describe("Invoice state machine — snooze", () => {
     assert.strictEqual(transitionTo("pending", "snooze"), "snoozed")
   })
 
-  test("snoozed → snoozed (re-snooze extends the window)", () => {
-    assert.strictEqual(transitionTo("snoozed", "snooze"), "snoozed")
+  test("already-snoozed invoices cannot be re-snoozed", () => {
+    assert.strictEqual(canTransition("snoozed", "snooze"), false)
   })
 
   test("paused invoices cannot be snoozed", () => {
