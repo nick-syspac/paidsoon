@@ -4,12 +4,18 @@ import { prismaAdmin } from "@/lib/db/admin"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-// Comfortably larger than the dispatcher's own 1-5 minute interval so a
-// normal gap between cycles never false-positives. Note: this cron itself
-// only runs once daily (Vercel Hobby plan caps cron frequency at once per
-// day — see design.md), so an outage can go undetected for up to ~24h;
-// tightening this requires a Vercel Pro upgrade.
-const STALE_THRESHOLD_MINUTES = 20
+// Computed from the Railway worker's own heartbeat cadence (this Vercel
+// project must be given the SAME DISPATCH_INTERVAL_SECONDS value set on the
+// Railway worker — see docs/runbooks/README.md env matrix) times a
+// multiplier, rather than a hardcoded constant, so the two can't silently
+// drift apart. Defaults reproduce the previous hardcoded 20 minutes exactly
+// (120s x 10 = 1200s = 20min). Note: this cron itself only runs once daily
+// (Vercel Hobby plan caps cron frequency at once per day — see design.md),
+// so an outage can go undetected for up to ~24h; tightening this requires a
+// Vercel Pro upgrade.
+const DISPATCH_INTERVAL_SECONDS = Number(process.env.DISPATCH_INTERVAL_SECONDS ?? "120")
+const STALE_THRESHOLD_MULTIPLIER = Number(process.env.STALE_THRESHOLD_MULTIPLIER ?? "10")
+const STALE_THRESHOLD_MINUTES = (DISPATCH_INTERVAL_SECONDS * STALE_THRESHOLD_MULTIPLIER) / 60
 
 /**
  * GET /api/cron/scheduling-watchdog

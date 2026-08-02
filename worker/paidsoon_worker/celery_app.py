@@ -39,26 +39,33 @@ def _configure_logging(**kwargs):
 app.conf.beat_schedule = {
     "dispatch-reminder-emails": {
         "task": "dispatcher.dispatch_reminder_emails",
-        "schedule": schedule(run_every=Config.DISPATCH_INTERVAL_SECONDS),
+        "schedule": schedule(run_every=Config.DISPATCH_REMINDER_INTERVAL_SECONDS),
     },
     "dispatch-accounting-sync": {
         "task": "dispatcher.dispatch_accounting_sync",
-        "schedule": schedule(run_every=Config.DISPATCH_INTERVAL_SECONDS),
+        "schedule": schedule(
+            run_every=Config.DISPATCH_ACCOUNTING_SYNC_INTERVAL_SECONDS
+        ),
     },
     "dispatch-catchup-and-snooze-sweep": {
         "task": "dispatcher.dispatch_catchup_and_snooze_sweep",
-        "schedule": schedule(run_every=Config.DISPATCH_INTERVAL_SECONDS),
+        "schedule": schedule(run_every=Config.DISPATCH_CATCHUP_SNOOZE_INTERVAL_SECONDS),
     },
     "dispatch-promise-arrangement-sweep": {
         "task": "dispatcher.dispatch_promise_arrangement_sweep",
-        "schedule": schedule(run_every=Config.DISPATCH_INTERVAL_SECONDS),
+        "schedule": schedule(
+            run_every=Config.DISPATCH_PROMISE_ARRANGEMENT_INTERVAL_SECONDS
+        ),
     },
     "recovery-sweep": {
         "task": "dispatcher.recovery_sweep",
-        "schedule": schedule(run_every=max(Config.DISPATCH_INTERVAL_SECONDS, 300)),
+        "schedule": schedule(
+            run_every=max(Config.DISPATCH_RECOVERY_SWEEP_INTERVAL_SECONDS, 300)
+        ),
     },
     "write-heartbeat": {
         "task": "dispatcher.write_heartbeat",
+        # Beat-liveness signal only — intentionally NOT split per-task; see config.py.
         "schedule": schedule(run_every=Config.DISPATCH_INTERVAL_SECONDS),
     },
 }

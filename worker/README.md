@@ -20,6 +20,24 @@ pip install -r requirements.txt
 cp .env.example .env   # fill in real values
 ```
 
+## Beat schedule
+
+Each entry in `paidsoon_worker/celery_app.py`'s `beat_schedule` reads its own env var (see
+`.env.example`), defaulting to `DISPATCH_INTERVAL_SECONDS` (default `120`s) when unset:
+
+| Beat entry | Env var | Default |
+|---|---|---|
+| `dispatch-reminder-emails` | `DISPATCH_REMINDER_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
+| `dispatch-accounting-sync` | `DISPATCH_ACCOUNTING_SYNC_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
+| `dispatch-catchup-and-snooze-sweep` | `DISPATCH_CATCHUP_SNOOZE_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
+| `dispatch-promise-arrangement-sweep` | `DISPATCH_PROMISE_ARRANGEMENT_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
+| `recovery-sweep` | `DISPATCH_RECOVERY_SWEEP_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS`, floored at 300s |
+| `write-heartbeat` | `DISPATCH_INTERVAL_SECONDS` directly (not per-task — this is the Beat-liveness signal the Vercel watchdog checks) | `120` |
+
+`DISPATCH_INTERVAL_SECONDS` must be set to the same value on the Vercel project as on this
+worker — the watchdog (`app/api/cron/scheduling-watchdog/route.ts`) computes its staleness
+threshold from it. See `docs/runbooks/README.md`'s env matrix.
+
 Run each process in its own terminal (matches `Procfile`):
 
 ```bash
