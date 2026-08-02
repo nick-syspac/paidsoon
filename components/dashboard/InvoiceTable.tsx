@@ -64,6 +64,13 @@ const STAGE_LABELS: Record<number, string> = {
   3: "3 of 3 sent",
 }
 
+const PROMISE_STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  kept: "Kept",
+  broken: "Broken",
+  superseded: "Superseded",
+}
+
 function formatCurrency(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -128,6 +135,7 @@ export function InvoiceTable({
   const [selectedArrangementId, setSelectedArrangementId] = useState<string | null>(null)
   const [arrangementDetail, setArrangementDetail] = useState<ArrangementDetail | null>(null)
   const [arrangementDetailLoading, setArrangementDetailLoading] = useState(false)
+  const [selectedPromiseInvoiceId, setSelectedPromiseInvoiceId] = useState<string | null>(null)
   const [arrangementDetailError, setArrangementDetailError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -170,6 +178,18 @@ export function InvoiceTable({
     setArrangementDetail(null)
     setArrangementDetailError(null)
   }
+
+  function openPromiseDetail(invoiceId: string) {
+    setSelectedPromiseInvoiceId(invoiceId)
+  }
+
+  function closePromiseDetail() {
+    setSelectedPromiseInvoiceId(null)
+  }
+
+  const selectedPromiseInvoice = selectedPromiseInvoiceId
+    ? invoices.find((inv) => inv.id === selectedPromiseInvoiceId) ?? null
+    : null
 
   async function doBulkAction(action: "pause" | "resume" | "snooze" | "resolve") {
     if (selectedIds.length === 0) return
@@ -450,15 +470,22 @@ export function InvoiceTable({
                       {status.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td
+                    className={`px-4 py-3 ${p2p || brokenPromiseCount > 0 ? "cursor-pointer" : ""}`}
+                    onClick={(event) => {
+                      if (!p2p && brokenPromiseCount === 0) return
+                      event.stopPropagation()
+                      openPromiseDetail(inv.id)
+                    }}
+                  >
                     {p2p?.type === "active" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 hover:underline">
                         🤝 Pays {formatDate(p2p.promise.promisedPayBy)}
                       </span>
                     )}
                     {p2p?.type === "broken" && (
                       <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-100"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-100 hover:underline"
                         title={`Promised ${formatDate(p2p.promise.promisedPayBy)} — not paid`}
                       >
                         ⚠️ Missed{p2p.brokenCount > 1 ? ` (${p2p.brokenCount}×)` : ""}
@@ -466,7 +493,7 @@ export function InvoiceTable({
                     )}
                     {brokenPromiseCount > 0 && (
                       <span
-                        className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${
+                        className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border hover:underline ${
                           isPromisePriority
                             ? "bg-red-50 text-red-700 border-red-100"
                             : "bg-amber-50 text-amber-700 border-amber-100"
@@ -640,6 +667,37 @@ export function InvoiceTable({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+        </DetailModal>
+      )}
+
+      {selectedPromiseInvoice && (
+        <DetailModal title="Promise history" onClose={closePromiseDetail}>
+          {selectedPromiseInvoice.promisesToPay.length === 0 ? (
+            <p className="text-xs text-gray-400">No promise history for this invoice.</p>
+          ) : (
+            <div className="space-y-3">
+              {selectedPromiseInvoice.promisesToPay.map((promise) => (
+                <div key={promise.id} className="text-xs text-gray-700 border-b border-gray-100 pb-2 last:border-0">
+                  <div className="flex flex-wrap gap-4">
+                    <span className="font-medium text-gray-900">
+                      {PROMISE_STATUS_LABELS[promise.status] ?? promise.status}
+                    </span>
+                    <span>Pay by: {formatDate(promise.promisedPayBy)}</span>
+                    <span>
+                      Amount:
+                      {promise.promisedAmount
+                        ? ` ${formatCurrency(promise.promisedAmount, selectedPromiseInvoice.currency)}`
+                        : " Full balance"}
+                    </span>
+                    <span className="text-gray-400">Submitted: {formatDate(promise.createdAt)}</span>
+                  </div>
+                  {promise.clientNotes && (
+                    <p className="mt-1 whitespace-pre-wrap text-gray-600">{promise.clientNotes}</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </DetailModal>
