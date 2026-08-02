@@ -25,7 +25,7 @@ let lastUpdateArgs: unknown = null
 let mockFindFirstResult: unknown = null
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let pauseRoute: any, resumeRoute: any, snoozeRoute: any, resolveRoute: any
+let pauseRoute: any, resumeRoute: any, snoozeRoute: any, resolveRoute: any, cancelSnoozeRoute: any
 
 describe("Invoice route handlers", () => {
   // ─── Module mocks + route imports ─────────────────────────────────────────
@@ -66,6 +66,7 @@ describe("Invoice route handlers", () => {
     ;({ POST: resumeRoute } = await import("@/app/api/invoices/[id]/resume/route"))
     ;({ POST: snoozeRoute } = await import("@/app/api/invoices/[id]/snooze/route"))
     ;({ POST: resolveRoute } = await import("@/app/api/invoices/[id]/resolve/route"))
+    ;({ POST: cancelSnoozeRoute } = await import("@/app/api/invoices/[id]/cancel-snooze/route"))
   })
 
   // ─── Helper ───────────────────────────────────────────────────────────────
@@ -238,6 +239,52 @@ describe("Invoice route handlers", () => {
       await resolveRoute(makeRequest(), makeParams("inv-1"))
       const args = lastUpdateArgs as { data: { status: string } }
       assert.strictEqual(args.data.status, "manually_resolved")
+    })
+  })
+
+  // ─── Cancel snooze ────────────────────────────────────────────────────────
+
+  describe("POST /api/invoices/[id]/cancel-snooze", () => {
+    beforeEach(() => {
+      mockUser = { id: "user-123" }
+      lastFindFirstArgs = null
+      lastUpdateArgs = null
+      mockFindFirstResult = null
+    })
+
+    test("returns 401 when unauthenticated", async () => {
+      mockUser = null
+      const res = await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+      assert.strictEqual(res.status, 401)
+    })
+
+    test("returns 404 when invoice not found or not snoozed", async () => {
+      mockFindFirstResult = null
+      const res = await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+      assert.strictEqual(res.status, 404)
+    })
+
+    test("returns 200 and resumes invoice when found", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "snoozed", userId: "user-123" }
+      const res = await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+      assert.strictEqual(res.status, 200)
+      const body = await res.json()
+      assert.strictEqual(body.success, true)
+    })
+
+    test("queries only snoozed invoices", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "snoozed", userId: "user-123" }
+      await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+      const args = lastFindFirstArgs as { where: { status: string } }
+      assert.strictEqual(args.where.status, "snoozed")
+    })
+
+    test("clears status to pending and snoozedUntil to null", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "snoozed", userId: "user-123" }
+      await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+      const args = lastUpdateArgs as { data: { status: string; snoozedUntil: unknown } }
+      assert.strictEqual(args.data.status, "pending")
+      assert.strictEqual(args.data.snoozedUntil, null)
     })
   })
 })
@@ -413,5 +460,51 @@ describe("POST /api/invoices/[id]/resolve", () => {
     await resolveRoute(makeRequest(), makeParams("inv-1"))
     const args = lastUpdateArgs as { data: { status: string } }
     assert.strictEqual(args.data.status, "manually_resolved")
+  })
+})
+
+// ─── Cancel snooze route ───────────────────────────────────────────────────────
+
+describe("POST /api/invoices/[id]/cancel-snooze", () => {
+  beforeEach(() => {
+    mockUser = { id: "user-123" }
+    lastFindFirstArgs = null
+    lastUpdateArgs = null
+    mockFindFirstResult = null
+  })
+
+  test("returns 401 when unauthenticated", async () => {
+    mockUser = null
+    const res = await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+    assert.strictEqual(res.status, 401)
+  })
+
+  test("returns 404 when invoice not found or not snoozed", async () => {
+    mockFindFirstResult = null
+    const res = await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+    assert.strictEqual(res.status, 404)
+  })
+
+  test("returns 200 and resumes invoice when found", async () => {
+    mockFindFirstResult = { id: "inv-1", status: "snoozed", userId: "user-123" }
+    const res = await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+    assert.strictEqual(res.status, 200)
+    const body = await res.json()
+    assert.strictEqual(body.success, true)
+  })
+
+  test("queries only snoozed invoices", async () => {
+    mockFindFirstResult = { id: "inv-1", status: "snoozed", userId: "user-123" }
+    await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+    const args = lastFindFirstArgs as { where: { status: string } }
+    assert.strictEqual(args.where.status, "snoozed")
+  })
+
+  test("clears status to pending and snoozedUntil to null", async () => {
+    mockFindFirstResult = { id: "inv-1", status: "snoozed", userId: "user-123" }
+    await cancelSnoozeRoute(makeRequest(), makeParams("inv-1"))
+    const args = lastUpdateArgs as { data: { status: string; snoozedUntil: unknown } }
+    assert.strictEqual(args.data.status, "pending")
+    assert.strictEqual(args.data.snoozedUntil, null)
   })
 })

@@ -38,6 +38,11 @@ const TRANSITIONS: Array<{
     allowed: ["pending", "paused", "snoozed", "sequence_complete"],
     result: "manually_resolved",
   },
+  {
+    operation: "cancel-snooze",
+    allowed: ["snoozed"],
+    result: "pending",
+  },
 ]
 
 function canTransition(from: InvoiceStatus, operation: string): boolean {
@@ -110,6 +115,23 @@ describe("Invoice state machine — snooze", () => {
   test("resolved invoices cannot be snoozed", () => {
     assert.strictEqual(canTransition("manually_resolved", "snooze"), false)
     assert.strictEqual(canTransition("paid", "snooze"), false)
+  })
+})
+
+describe("Invoice state machine — cancel-snooze", () => {
+  test("snoozed → pending", () => {
+    assert.strictEqual(transitionTo("snoozed", "cancel-snooze"), "pending")
+  })
+
+  test("only snoozed invoices can have their snooze cancelled", () => {
+    const notCancellable = ALL_STATUSES.filter((s) => s !== "snoozed")
+    for (const status of notCancellable) {
+      assert.strictEqual(
+        canTransition(status, "cancel-snooze"),
+        false,
+        `Expected status "${status}" to NOT be cancel-snoozable`
+      )
+    }
   })
 })
 

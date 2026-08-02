@@ -71,6 +71,14 @@ const PROMISE_STATUS_LABELS: Record<string, string> = {
   superseded: "Superseded",
 }
 
+const BULK_ACTION_PAST_TENSE: Record<string, string> = {
+  pause: "paused",
+  resume: "resumed",
+  snooze: "snoozed",
+  "cancel-snooze": "un-snoozed",
+  resolve: "resolved",
+}
+
 function formatCurrency(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -124,6 +132,7 @@ export function InvoiceTable({
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [bulkActionError, setBulkActionError] = useState<string | null>(null)
   const [confirmBulkResolve, setConfirmBulkResolve] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [arrangementType, setArrangementType] = useState<"full_payment" | "partial_payment">("full_payment")
@@ -191,16 +200,29 @@ export function InvoiceTable({
     ? invoices.find((inv) => inv.id === selectedPromiseInvoiceId) ?? null
     : null
 
-  async function doBulkAction(action: "pause" | "resume" | "snooze" | "resolve") {
+  const selectedInvoices = invoices.filter((inv) => selectedIds.includes(inv.id))
+  const canSnooze =
+    selectedInvoices.length > 0 &&
+    selectedInvoices.every((inv) => inv.status === "pending" || inv.status === "snoozed")
+  const canPause = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "pending")
+  const canResume = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "paused")
+  const canCancelSnooze =
+    selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "snoozed")
+
+  async function doBulkAction(action: "pause" | "resume" | "snooze" | "cancel-snooze" | "resolve") {
     if (selectedIds.length === 0) return
     setBulkActionLoading(true)
-    await Promise.all(
+    setBulkActionError(null)
+    const responses = await Promise.all(
       selectedIds.map((id) => fetch(`/api/invoices/${id}/${action}`, { method: "POST" }))
     )
     setBulkActionLoading(false)
     setConfirmBulkResolve(false)
     setSelectedIds([])
     router.refresh()
+    if (responses.some((response) => !response.ok)) {
+      setBulkActionError(`Some invoices could not be ${BULK_ACTION_PAST_TENSE[action]}. Please try again.`)
+    }
   }
 
   function toggleSelected(id: string, checked: boolean) {
@@ -320,7 +342,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => doBulkAction("snooze")}
-              disabled={selectedIds.length === 0 || bulkActionLoading}
+              disabled={!canSnooze || bulkActionLoading}
               className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Snooze
@@ -328,7 +350,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => doBulkAction("pause")}
-              disabled={selectedIds.length === 0 || bulkActionLoading}
+              disabled={!canPause || bulkActionLoading}
               className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Pause
@@ -336,10 +358,18 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => doBulkAction("resume")}
-              disabled={selectedIds.length === 0 || bulkActionLoading}
+              disabled={!canResume || bulkActionLoading}
               className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Resume
+            </button>
+            <button
+              type="button"
+              onClick={() => doBulkAction("cancel-snooze")}
+              disabled={!canCancelSnooze || bulkActionLoading}
+              className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Cancel snooze
             </button>
             <button
               type="button"
@@ -378,6 +408,7 @@ export function InvoiceTable({
               </button>
             )}
           </div>
+          {bulkActionError && <p className="text-xs text-red-600 mt-2">{bulkActionError}</p>}
         </div>
       )}
       <div className="overflow-x-auto">

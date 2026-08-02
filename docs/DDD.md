@@ -440,6 +440,7 @@ admin guard. See `prisma/rls-policies.sql`.
 | `POST /api/invoices/[id]/pause` | `.../pause/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/resume` | `.../resume/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/snooze` | `.../snooze/route.ts` | path `id` | session | `withUserContext` | → `{success,snoozedUntil}` | Implemented |
+| `POST /api/invoices/[id]/cancel-snooze` | `.../cancel-snooze/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented — manually ends an in-progress snooze early, clearing `snoozedUntil` and returning the invoice to `pending` |
 | `POST /api/invoices/[id]/resolve` | `.../resolve/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/arrangements` | `app/api/arrangements/route.ts` | body `{invoiceIds[], arrangementType, promisedPayBy?, agreedAmount?, currency?, termsNotes?, planSchedule?}` | session | `withUserContext` | → `{arrangement}` | Implemented — freelancer-managed arrangement creation for single/multi-invoice scope |
 | `POST /api/arrangements/[id]/status` | `app/api/arrangements/[id]/status/route.ts` | path `id`; body `{status}` | session | `withUserContext` | → `{arrangement}` | Implemented — lifecycle transitions (`active`, `broken`, `fulfilled`, `expired`, `cancelled`) |
