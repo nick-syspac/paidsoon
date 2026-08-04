@@ -62,6 +62,19 @@ For launch readiness review and final go/no-go criteria, use:
 
 - [go-live-decision-matrix.md](./go-live-decision-matrix.md) — operator decision matrix with owner, ETA, and evidence fields.
 
+## Release Notes Workflow
+
+For every release, update both release-note documents in lockstep using the same
+internal reference ID:
+
+1. Add or update the internal source-of-truth entry in
+     `docs/release-notes/internal-release-notes.md`.
+2. Add the customer-facing entry at the top of
+     `docs/release-notes/customer-release-notes.md`.
+3. Keep customer wording outcome-focused, avoid internal-only implementation
+     detail, and ensure all items map to shipped behavior.
+4. Confirm both files use newest-first ordering and retain the template headings.
+
 For Local development only, run sections 1–3 against test mode / dev project, then `npm run dev`. See each runbook's "Local" column for the dev posture.
 
 ## Environment-variable matrix
