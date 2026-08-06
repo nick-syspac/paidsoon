@@ -249,6 +249,27 @@ model EmailLog {
 }
 
 // ---------------------------------------------------------------------------
+// Weekly Debtor Summary Deliveries
+// ---------------------------------------------------------------------------
+
+model WeeklyDebtorSummaryDelivery {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  weekStart       DateTime  @map("week_start")
+  status          String    @default("sending") // 'sending' | 'sent' | 'failed'
+  resendMessageId String?   @map("resend_message_id")
+  lastError       String?   @map("last_error")
+  subject         String
+  sentAt          DateTime? @map("sent_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, weekStart])
+  @@index([status, weekStart])
+  @@map("weekly_debtor_summary_deliveries")
+}
+
+// ---------------------------------------------------------------------------
 // AI Usage Logs (Small Business tier — ai_rewrite feature)
 // ---------------------------------------------------------------------------
 

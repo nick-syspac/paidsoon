@@ -13,6 +13,7 @@ from .config import Config
 from .tasks import (
     catchup_snooze_sweep_task,
     promise_arrangement_sweep_task,
+    weekly_debtor_summary_task,
     send_reminder_task,
     sync_connection_task,
 )
@@ -54,6 +55,15 @@ def dispatch_promise_arrangement_sweep() -> bool:
     return bool(claim_id)
 
 
+@app.task(name="dispatcher.dispatch_weekly_debtor_summary")
+def dispatch_weekly_debtor_summary() -> int:
+    claims = db.claim_due_weekly_debtor_summaries()
+    for claim in claims:
+        weekly_debtor_summary_task.delay(claim["id"], claim["user_id"])
+    logger.info("dispatch_weekly_debtor_summary claimed %d", len(claims))
+    return len(claims)
+
+
 @app.task(name="dispatcher.recovery_sweep")
 def recovery_sweep() -> int:
     """Reclaims claims stuck in 'processing'/'started' past the expected
@@ -77,6 +87,8 @@ def _reenqueue(row: dict) -> None:
         catchup_snooze_sweep_task.delay(row["id"])
     elif workflow == "promise_arrangement_sweep":
         promise_arrangement_sweep_task.delay(row["id"])
+    elif workflow == "debtor_summary":
+        weekly_debtor_summary_task.delay(row["id"], row["user_id"])
     else:
         logger.error(
             "recovery_sweep: unknown workflow %r for claim %s", workflow, row["id"]

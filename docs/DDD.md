@@ -629,7 +629,7 @@ stateDiagram-v2
 | `accounting_integrations` | ✓ | ✓ | ✓ | ✓ |
 | `promise_to_pay_tracking` | ✓ | ✓ | ✓ | ✓ |
 | `dispute_pause` | ✓ | ✓ | ✓ | ✓ |
-| `weekly_summary_email` ◷ | — | — | ◷ | ◷ |
+| `weekly_summary_email` | — | — | ✓ | ✓ |
 | `csv_export` ◷ | — | — | ◷ | ◷ |
 | `approval_mode` ◷ | — | — | ◷ | ◷ |
 | `contact_suppression` ◷ | — | — | ◷ | ◷ |

@@ -1,7 +1,8 @@
 # PaidSoon Railway Celery Worker
 
 Background-processing service for PaidSoon's scheduled business workflows
-(accounting sync, reminder emails, promise-to-pay follow-ups). See
+(accounting sync, reminder emails, promise-to-pay follow-ups, weekly debtor
+summaries). See
 [openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md)
 for the architecture.
 
@@ -31,6 +32,7 @@ Each entry in `paidsoon_worker/celery_app.py`'s `beat_schedule` reads its own en
 | `dispatch-accounting-sync` | `DISPATCH_ACCOUNTING_SYNC_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
 | `dispatch-catchup-and-snooze-sweep` | `DISPATCH_CATCHUP_SNOOZE_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
 | `dispatch-promise-arrangement-sweep` | `DISPATCH_PROMISE_ARRANGEMENT_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
+| `dispatch-weekly-debtor-summary` | weekly cron (`crontab(minute=0, hour=9, day_of_week="mon")`) | fixed Monday 09:00 UTC |
 | `recovery-sweep` | `DISPATCH_RECOVERY_SWEEP_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS`, floored at 300s |
 | `write-heartbeat` | `DISPATCH_INTERVAL_SECONDS` directly (not per-task — this is the Beat-liveness signal the Vercel watchdog checks) | `120` |
 

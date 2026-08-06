@@ -8,7 +8,7 @@ only. This module is the only place raw SQL against those two tables lives.
 from __future__ import annotations
 
 import contextlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -139,6 +139,51 @@ def claim_due_accounting_connections(
                 {
                     "claim_key": claim_key,
                     "entity_id": row["id"],
+                    "user_id": row["user_id"],
+                },
+            ).fetchone()
+            if inserted:
+                claimed.append(inserted)
+        return claimed
+
+
+def claim_due_weekly_debtor_summaries() -> list[dict[str, Any]]:
+    """Claims every eligible tenant for this week's debtor summary.
+
+    The claim key is stable for the current UTC week, so repeated dispatches
+    during the same week are idempotent at the database layer.
+    """
+    week_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start -= timedelta(days=week_start.weekday())
+
+    with get_conn() as conn, conn.transaction():
+        rows = conn.execute(
+            """
+            SELECT "userId" AS user_id
+            FROM user_profiles
+            WHERE "subscriptionTier" IN ('small_business', 'accountant_partner')
+              AND "subscriptionTier" IS NOT NULL
+            ORDER BY "userId"
+            """
+        ).fetchall()
+
+        claimed: list[dict[str, Any]] = []
+        for row in rows:
+            claim_key = _claim_key(row["user_id"], "debtor_summary", week_start)
+            inserted = conn.execute(
+                """
+                INSERT INTO scheduled_task_claims
+                    (id, workflow, claim_key, entity_id, user_id, status,
+                     scheduled_for, claimed_at, created_at, updated_at)
+                VALUES
+                    (gen_random_uuid()::text, 'debtor_summary', %(claim_key)s,
+                     %(entity_id)s, %(user_id)s, 'queued', now(), now(), now(), now())
+                ON CONFLICT (claim_key) DO NOTHING
+                RETURNING id, entity_id, user_id
+                """,
+                {
+                    "claim_key": claim_key,
+                    "entity_id": row["user_id"],
                     "user_id": row["user_id"],
                 },
             ).fetchone()

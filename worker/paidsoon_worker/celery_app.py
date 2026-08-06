@@ -3,6 +3,7 @@ import sys
 
 from celery import Celery
 from celery.schedules import schedule
+from celery.schedules import crontab
 from celery.signals import setup_logging
 
 from .config import Config
@@ -56,6 +57,10 @@ app.conf.beat_schedule = {
         "schedule": schedule(
             run_every=Config.DISPATCH_PROMISE_ARRANGEMENT_INTERVAL_SECONDS
         ),
+    },
+    "dispatch-weekly-debtor-summary": {
+        "task": "dispatcher.dispatch_weekly_debtor_summary",
+        "schedule": crontab(minute=0, hour=9, day_of_week="mon"),
     },
     "recovery-sweep": {
         "task": "dispatcher.recovery_sweep",

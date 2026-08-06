@@ -290,6 +290,14 @@ CREATE POLICY "users can view own promises to pay"
 -- prismaAdmin (service role) which bypasses RLS by design.
 
 -- ---------------------------------------------------------------------------
+-- weekly_debtor_summary_deliveries
+-- Internal-only deliverability log for the weekly debtor summary worker.
+-- No user-facing route reads or writes this table; the Railway worker uses
+-- prismaAdmin-style access to track idempotent sends per tenant/week.
+-- ---------------------------------------------------------------------------
+ALTER TABLE weekly_debtor_summary_deliveries ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------------
 -- promise_escalation_policies
 -- Users can read and update their own retry/escalation configuration.
 -- ---------------------------------------------------------------------------
