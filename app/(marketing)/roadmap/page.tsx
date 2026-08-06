@@ -19,39 +19,31 @@ const available = [
   "Weekly debtor summary email",
 ]
 
-const plannedNext = [
-  "MYOB Business integration — full production support (sandbox validation in progress)",
-  "Xero integration",
-  "Improved accountant partner dashboard",
-  "Client-level settings for bookkeepers and accountants",
-  "More configurable reminder schedules",
-  "Enhanced email deliverability controls",
-  "CSV import for businesses not yet connected to an accounting platform",
+const phase1 = [
+  "Promise to pay",
+  "Disputes",
+  "Customer payment scoring",
 ]
 
-const spendLeakMvp = [
-  "Recurring subscription and recurring payment detection",
-  "Subscription price increase detection",
-  "Duplicate invoice and duplicate payment detection",
-  "Upcoming contract and renewal alerts",
-  "Supplier spend dashboard with concentration and trend views",
-  "AI savings recommendations with estimated annual impact",
-  "Combined cash-flow view pairing PaidSoon receivables with SpendLeak payables",
+const phase2 = [
+  "Spendleak",
+  "Cash forecasting",
+  "AI owner digest",
+  "Subscription detection",
 ]
 
-const later = [
-  "QuickBooks Online integration",
-  "Advanced reporting",
-  "Team member roles and permissions",
-  "More automation rules",
-  "API and webhook documentation",
+const phase3 = [
+  "Benchmark against similar businesses",
+  "Predict insolvency risk",
+  "Automatic payment plans",
+  "AI cashflow coach",
 ]
 
-const spendLeakLater = [
-  "Identity-provider usage correlation for forgotten software subscriptions",
-  "Anonymous expense benchmarking by business size or profile",
-  "Deeper supplier-risk analysis and single-point-of-failure alerts",
-  "Cloud-cost optimization recommendations for infrastructure-heavy businesses",
+const phase4 = [
+  "Industry benchmarking",
+  "Bank integrations",
+  "Lending readiness score",
+  "Working capital optimisation",
 ]
 
 export default function RoadmapPage() {
@@ -105,67 +97,70 @@ export default function RoadmapPage() {
 
           <div className="border-t border-gray-100 pt-10">
             <div className="flex items-center gap-3 mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Planned next</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Phase 1</h2>
               <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium">
                 Planned
               </span>
             </div>
             <ul className="space-y-2">
-              {plannedNext.map((item) => (
+              {phase1.map((item) => (
                 <li key={item} className="flex gap-2 text-sm text-gray-600">
                   <span className="text-blue-400 mt-0.5">◦</span>
                   {item}
                 </li>
               ))}
             </ul>
-
-            <div className="mt-8 rounded-2xl border border-blue-100 bg-white p-6">
-              <h3 className="text-base font-semibold text-gray-900">SpendLeak MVP</h3>
-              <p className="mt-2 text-sm text-gray-600">
-                The first SpendLeak release is planned as a practical spend-efficiency layer that
-                helps owners understand where cash is leaking and what to act on next.
-              </p>
-              <ul className="mt-4 space-y-2">
-                {spendLeakMvp.map((item) => (
-                  <li key={item} className="flex gap-2 text-sm text-gray-600">
-                    <span className="text-blue-400 mt-0.5">◦</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
 
           <div className="border-t border-gray-100 pt-10">
             <div className="flex items-center gap-3 mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Later</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Phase 2</h2>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium">
+                Planned
+              </span>
+            </div>
+            <ul className="space-y-2">
+              {phase2.map((item) => (
+                <li key={item} className="flex gap-2 text-sm text-gray-600">
+                  <span className="text-blue-400 mt-0.5">◦</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="border-t border-gray-100 pt-10">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Phase 3</h2>
               <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 font-medium">
                 Future
               </span>
             </div>
             <ul className="space-y-2">
-              {later.map((item) => (
+              {phase3.map((item) => (
                 <li key={item} className="flex gap-2 text-sm text-gray-500">
                   <span className="mt-0.5">◦</span>
                   {item}
                 </li>
               ))}
             </ul>
+          </div>
 
-            <div className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-6">
-              <h3 className="text-base font-semibold text-gray-900">SpendLeak later-stage ideas</h3>
-              <p className="mt-2 text-sm text-gray-600">
-                These are intentionally later-stage items, not part of the initial SpendLeak MVP.
-              </p>
-              <ul className="mt-4 space-y-2">
-                {spendLeakLater.map((item) => (
-                  <li key={item} className="flex gap-2 text-sm text-gray-500">
-                    <span className="mt-0.5">◦</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+          <div className="border-t border-gray-100 pt-10">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Phase 4</h2>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 font-medium">
+                Future
+              </span>
             </div>
+            <ul className="space-y-2">
+              {phase4.map((item) => (
+                <li key={item} className="flex gap-2 text-sm text-gray-500">
+                  <span className="mt-0.5">◦</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
