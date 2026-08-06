@@ -35,6 +35,13 @@ Stripe accounts, user seats, custom from-address, reminder templates, accounting
 integrations, AI rewrite, tone settings)
 (`lib/subscriptionPlans.ts`).
 
+**Planned product direction:** the public roadmap now introduces **SpendLeak** as a planned
+spend-side companion to PaidSoon. The intent is not to turn this repository into an accounting
+package, but to extend the platform over time into a broader financial-operations layer on top of
+Xero and MYOB: PaidSoon for cash collection, SpendLeak for spend efficiency and cash-out analysis.
+That direction is roadmap-only at the time of writing unless and until concrete implementation
+lands in code.
+
 **There is no multi-vertical platform.** PaidSoon is a single product, single
 tenant-type system (one freelancer = one tenant, keyed by Supabase
 `auth.users.id`). There are no organisations, workspaces, teams, RBAC roles,
@@ -65,8 +72,8 @@ endpoint (`app/api/settings/team/invite/route.ts`).
 | Stripe Connect | Read freelancer invoices; OAuth connection | `app/api/stripe/connect/**`, `lib/providers/stripe.ts` |
 | Stripe Billing | Platform subscription billing + customer portal | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts` |
 | Resend | Transactional email delivery + sender-domain verification | `lib/email/send.ts`, `app/api/settings/email/route.ts` |
-| Xero | Read accounts-receivable invoices and contacts via OAuth 2.0 | `lib/providers/accounting/xero.ts`, `app/api/integrations/xero/**` |
-| MYOB Business | Read accounts-receivable invoices and contacts via OAuth 2.0 | `lib/providers/accounting/myob.ts`, `app/api/integrations/myob/**` |
+| Xero | Read accounts-receivable invoices and contacts via OAuth 2.0 today; planned roadmap source for spend-side SpendLeak analyses later | `lib/providers/accounting/xero.ts`, `app/api/integrations/xero/**` |
+| MYOB Business | Read accounts-receivable invoices and contacts via OAuth 2.0 today; planned roadmap source for spend-side SpendLeak analyses later | `lib/providers/accounting/myob.ts`, `app/api/integrations/myob/**` |
 | Vercel | Hosting + Cron scheduler | `vercel.json`, `docs/runbooks/vercel.md` |
 | Invoice client (recipient) | Receives reminder emails; not a system user | `lib/email/templates.ts` |
 

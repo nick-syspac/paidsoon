@@ -40,6 +40,11 @@ model UserProfile {
   emailTemplates        EmailTemplate[]
   aiUsageLogs           AiUsageLog[]
   accountingConnections AccountingConnection[]
+  importedBills         ImportedBill[]
+  importedBankTransactions ImportedBankTransaction[]
+  supplierProfiles      SupplierProfile[]
+  spendInsights         SpendInsight[]
+  cashForecastSnapshots CashForecastSnapshot[]
 
   @@map("user_profiles")
 }
@@ -334,6 +339,11 @@ model AccountingConnection {
   syncRuns                AccountingSyncRun[]
   providerInvoiceMappings ProviderInvoiceMapping[]
   providerContactMappings ProviderContactMapping[]
+  importedBills           ImportedBill[]
+  importedBankTransactions ImportedBankTransaction[]
+  supplierProfiles        SupplierProfile[]
+  spendInsights           SpendInsight[]
+  cashForecastSnapshots   CashForecastSnapshot[]
 
   @@unique([userId, provider, organisationId])
   @@map("accounting_connections")
@@ -419,6 +429,138 @@ model OauthState {
   @@index([nonce])
   @@index([expiresAt])
   @@map("oauth_states")
+}
+
+// ---------------------------------------------------------------------------
+// SpendLeak Foundation Read Models
+// ---------------------------------------------------------------------------
+
+model ImportedBill {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  accountingConnectionId String    @map("accounting_connection_id")
+  providerBillId         String    @map("provider_bill_id")
+  providerContactId      String?   @map("provider_contact_id")
+  supplierName           String    @map("supplier_name")
+  supplierReference      String?   @map("supplier_reference")
+  documentNumber         String?   @map("document_number")
+  expenseAccountCode     String?   @map("expense_account_code")
+  expenseAccountName     String?   @map("expense_account_name")
+  amountCents            Int       @map("amount_cents")
+  gstCents               Int?      @map("gst_cents")
+  currency               String    @default("usd")
+  dueDate                DateTime? @map("due_date")
+  paidDate               DateTime? @map("paid_date")
+  status                 String    @default("open")
+  providerUpdatedAt      DateTime? @map("provider_updated_at")
+  providerMetadata       Json?     @map("provider_metadata")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile          UserProfile          @relation(fields: [userId], references: [userId])
+  accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+
+  @@unique([accountingConnectionId, providerBillId])
+  @@index([userId, status, dueDate])
+  @@index([userId, supplierName])
+  @@map("imported_bills")
+}
+
+model ImportedBankTransaction {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  accountingConnectionId String    @map("accounting_connection_id")
+  providerTransactionId  String    @map("provider_transaction_id")
+  providerContactId      String?   @map("provider_contact_id")
+  accountName            String?   @map("account_name")
+  accountCode            String?   @map("account_code")
+  description            String
+  reference              String?
+  counterpartyName       String?   @map("counterparty_name")
+  amountCents            Int       @map("amount_cents")
+  currency               String    @default("usd")
+  transactionDate        DateTime  @map("transaction_date")
+  providerUpdatedAt      DateTime? @map("provider_updated_at")
+  providerMetadata       Json?     @map("provider_metadata")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile          UserProfile          @relation(fields: [userId], references: [userId])
+  accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+
+  @@unique([accountingConnectionId, providerTransactionId])
+  @@index([userId, transactionDate])
+  @@index([userId, counterpartyName])
+  @@map("imported_bank_transactions")
+}
+
+model SupplierProfile {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  accountingConnectionId String    @map("accounting_connection_id")
+  providerSupplierId     String    @map("provider_supplier_id")
+  supplierName           String    @map("supplier_name")
+  supplierEmail          String?   @map("supplier_email")
+  abn                    String?
+  paymentTerms           String?   @map("payment_terms")
+  defaultAccountCode     String?   @map("default_account_code")
+  defaultAccountName     String?   @map("default_account_name")
+  providerMetadata       Json?     @map("provider_metadata")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile          UserProfile          @relation(fields: [userId], references: [userId])
+  accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+
+  @@unique([accountingConnectionId, providerSupplierId])
+  @@index([userId, supplierName])
+  @@map("supplier_profiles")
+}
+
+model SpendInsight {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  accountingConnectionId String?   @map("accounting_connection_id")
+  findingType            String    @map("finding_type")
+  subjectKey             String    @map("subject_key")
+  severity               String    @default("medium")
+  summary                String
+  state                  String    @default("open")
+  estimatedMonthlyCents  Int?      @map("estimated_monthly_cents")
+  estimatedAnnualCents   Int?      @map("estimated_annual_cents")
+  evidence               Json
+  detectedAt             DateTime  @default(now()) @map("detected_at")
+  resolvedAt             DateTime? @map("resolved_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile          UserProfile           @relation(fields: [userId], references: [userId])
+  accountingConnection AccountingConnection? @relation(fields: [accountingConnectionId], references: [id])
+
+  @@unique([userId, findingType, subjectKey])
+  @@index([userId, state, severity])
+  @@index([userId, detectedAt])
+  @@map("spend_insights")
+}
+
+model CashForecastSnapshot {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  accountingConnectionId String?   @map("accounting_connection_id")
+  currentCashCents       Int       @map("current_cash_cents")
+  receivablesCents       Int       @default(0) @map("receivables_cents")
+  payablesCents          Int       @default(0) @map("payables_cents")
+  predictedMonthEndCents Int?      @map("predicted_month_end_cents")
+  runwayDays             Int?      @map("runway_days")
+  assumptions            Json?     @map("assumptions")
+  snapshotAt             DateTime  @default(now()) @map("snapshot_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+
+  userProfile          UserProfile           @relation(fields: [userId], references: [userId])
+  accountingConnection AccountingConnection? @relation(fields: [accountingConnectionId], references: [id])
+
+  @@index([userId, snapshotAt])
+  @@map("cash_forecast_snapshots")
 }
 
 // ---------------------------------------------------------------------------

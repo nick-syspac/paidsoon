@@ -262,6 +262,66 @@ CREATE POLICY "users can delete own oauth states"
   USING (auth.uid()::text = "userId");
 
 -- ---------------------------------------------------------------------------
+-- imported_bills
+-- Users can read their own imported bills. Writes are performed by sync code
+-- via prismaAdmin.
+-- ---------------------------------------------------------------------------
+ALTER TABLE imported_bills ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own imported bills"
+  ON imported_bills FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- imported_bank_transactions
+-- Users can read their own imported bank transactions. Writes are performed by
+-- sync code via prismaAdmin.
+-- ---------------------------------------------------------------------------
+ALTER TABLE imported_bank_transactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own imported bank transactions"
+  ON imported_bank_transactions FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- supplier_profiles
+-- Users can read their own supplier profiles. Writes are performed by sync
+-- code via prismaAdmin.
+-- ---------------------------------------------------------------------------
+ALTER TABLE supplier_profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own supplier profiles"
+  ON supplier_profiles FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- spend_insights
+-- Users can read and update the lifecycle state of their own spend insights.
+-- Inserts are performed by the insight pipeline via prismaAdmin.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_insights ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own spend insights"
+  ON spend_insights FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "users can update own spend insights"
+  ON spend_insights FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cash_forecast_snapshots
+-- Users can read their own forecast snapshots. Writes are performed by the
+-- forecasting pipeline via prismaAdmin.
+-- ---------------------------------------------------------------------------
+ALTER TABLE cash_forecast_snapshots ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can view own cash forecast snapshots"
+  ON cash_forecast_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
 -- scheduled_task_claims / dispatcher_heartbeats
 -- Internal Railway Celery orchestration state. No end-user-facing route reads
 -- or writes these — the Celery worker connects with a trusted/admin role
