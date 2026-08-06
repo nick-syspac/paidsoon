@@ -67,6 +67,16 @@ export default function AboutPage() {
                 <dd>12 657 226 125</dd>
               </div>
               <div className="flex gap-2">
+                <dt className="font-medium text-gray-700 w-16">Address</dt>
+                <dd>
+                  Level 4
+                  <br />
+                  152 Elizabeth Street
+                  <br />
+                  Melbourne. VIC. 3000
+                </dd>
+              </div>
+              <div className="flex gap-2">
                 <dt className="font-medium text-gray-700 w-16">Country</dt>
                 <dd>Australian owned and operated</dd>
               </div>
