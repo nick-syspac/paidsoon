@@ -15,36 +15,36 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model UserProfile {
-  id                           String    @id @default(cuid())
-  userId                       String    @unique // maps to auth.users.id in Supabase
-  stripeCustomerId             String?   @unique
-  stripeSubscriptionId         String?   @map("stripe_subscription_id")
+  id                             String    @id @default(cuid())
+  userId                         String    @unique // maps to auth.users.id in Supabase
+  stripeCustomerId               String?   @unique
+  stripeSubscriptionId           String?   @map("stripe_subscription_id")
   subscriptionCurrentPeriodStart DateTime? @map("subscription_current_period_start")
-  subscriptionCurrentPeriodEnd DateTime? @map("subscription_current_period_end")
-  pendingDowngradeTier         String?   @map("pending_downgrade_tier")
-  stripeScheduleId             String?   @map("stripe_schedule_id")
-  subscriptionTier             String    @default("starter") // 'starter' | 'solo' | 'small_business' | 'accountant_partner'
-  subscriptionStatus           String    @default("active") // 'active' | 'trialing' | 'cancelled' | 'past_due'
-  trialEndsAt                  DateTime? @map("trial_ends_at")
-  onboardingCompletedAt        DateTime? @map("onboarding_completed_at")
-  displayName                  String?   @map("display_name")
-  createdAt                    DateTime  @default(now())
-  updatedAt                    DateTime  @updatedAt
+  subscriptionCurrentPeriodEnd   DateTime? @map("subscription_current_period_end")
+  pendingDowngradeTier           String?   @map("pending_downgrade_tier")
+  stripeScheduleId               String?   @map("stripe_schedule_id")
+  subscriptionTier               String    @default("starter") // 'starter' | 'solo' | 'small_business' | 'accountant_partner'
+  subscriptionStatus             String    @default("active") // 'active' | 'trialing' | 'cancelled' | 'past_due'
+  trialEndsAt                    DateTime? @map("trial_ends_at")
+  onboardingCompletedAt          DateTime? @map("onboarding_completed_at")
+  displayName                    String?   @map("display_name")
+  createdAt                      DateTime  @default(now())
+  updatedAt                      DateTime  @updatedAt
 
-  invoiceConnections    InvoiceConnection[]
-  schedule              Schedule?
-  emailSettings         EmailSettings?
-  trackedInvoices       TrackedInvoice[]
-  arrangements          Arrangement[]
-  promiseEscalationPolicy PromiseEscalationPolicy?
-  emailTemplates        EmailTemplate[]
-  aiUsageLogs           AiUsageLog[]
-  accountingConnections AccountingConnection[]
-  importedBills         ImportedBill[]
+  invoiceConnections       InvoiceConnection[]
+  schedule                 Schedule?
+  emailSettings            EmailSettings?
+  trackedInvoices          TrackedInvoice[]
+  arrangements             Arrangement[]
+  promiseEscalationPolicy  PromiseEscalationPolicy?
+  emailTemplates           EmailTemplate[]
+  aiUsageLogs              AiUsageLog[]
+  accountingConnections    AccountingConnection[]
+  importedBills            ImportedBill[]
   importedBankTransactions ImportedBankTransaction[]
-  supplierProfiles      SupplierProfile[]
-  spendInsights         SpendInsight[]
-  cashForecastSnapshots CashForecastSnapshot[]
+  supplierProfiles         SupplierProfile[]
+  spendInsights            SpendInsight[]
+  cashForecastSnapshots    CashForecastSnapshot[]
 
   @@map("user_profiles")
 }
@@ -131,8 +131,8 @@ model TrackedInvoice {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  userProfile            UserProfile             @relation(fields: [userId], references: [userId])
-  invoiceConnection      InvoiceConnection       @relation(fields: [invoiceConnectionId], references: [id])
+  userProfile            UserProfile                  @relation(fields: [userId], references: [userId])
+  invoiceConnection      InvoiceConnection            @relation(fields: [invoiceConnectionId], references: [id])
   emailLogs              EmailLog[]
   providerInvoiceMapping ProviderInvoiceMapping?
   promisesToPay          PromiseToPay[]
@@ -149,41 +149,41 @@ model TrackedInvoice {
 // ---------------------------------------------------------------------------
 
 model Arrangement {
-  id              String   @id @default(cuid())
-  userId          String   @map("user_id")
-  debtorEmail     String   @map("debtor_email")
-  debtorName      String?  @map("debtor_name")
-  arrangementType String   @map("arrangement_type") // 'full_payment' | 'partial_payment' | 'instalment_plan'
-  status          String   @default("active") // 'active' | 'broken' | 'fulfilled' | 'expired' | 'cancelled'
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  debtorEmail     String    @map("debtor_email")
+  debtorName      String?   @map("debtor_name")
+  arrangementType String    @map("arrangement_type") // 'full_payment' | 'partial_payment' | 'instalment_plan'
+  status          String    @default("active") // 'active' | 'broken' | 'fulfilled' | 'expired' | 'cancelled'
   promisedPayBy   DateTime? @map("promised_pay_by")
-  agreedAmount    Int?     @map("agreed_amount") // amount in cents; optional for full balance commitments
-  currency        String   @default("usd")
-  planSchedule    Json?    @map("plan_schedule") // instalment metadata when arrangementType = 'instalment_plan'
-  termsNotes      String?  @map("terms_notes")
+  agreedAmount    Int?      @map("agreed_amount") // amount in cents; optional for full balance commitments
+  currency        String    @default("usd")
+  planSchedule    Json?     @map("plan_schedule") // instalment metadata when arrangementType = 'instalment_plan'
+  termsNotes      String?   @map("terms_notes")
   expiresAt       DateTime? @map("expires_at")
   breachedAt      DateTime? @map("breached_at")
   fulfilledAt     DateTime? @map("fulfilled_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   userProfile UserProfile                  @relation(fields: [userId], references: [userId])
   coverages   ArrangementInvoiceCoverage[]
 
+  @@unique([id, userId, debtorEmail])
   @@index([userId, status])
   @@index([userId, debtorEmail])
-  @@unique([id, userId, debtorEmail])
   @@map("arrangements")
 }
 
 model ArrangementInvoiceCoverage {
-  id              String   @id @default(cuid())
-  arrangementId   String   @map("arrangement_id")
-  trackedInvoiceId String  @map("tracked_invoice_id")
-  userId          String   @map("user_id")
-  debtorEmail     String   @map("debtor_email")
-  createdAt       DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  arrangementId    String   @map("arrangement_id")
+  trackedInvoiceId String   @map("tracked_invoice_id")
+  userId           String   @map("user_id")
+  debtorEmail      String   @map("debtor_email")
+  createdAt        DateTime @default(now()) @map("created_at")
 
-  arrangement Arrangement @relation(fields: [arrangementId, userId, debtorEmail], references: [id, userId, debtorEmail])
+  arrangement    Arrangement    @relation(fields: [arrangementId, userId, debtorEmail], references: [id, userId, debtorEmail])
   trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId, userId, debtorEmail], references: [id, userId, clientEmail])
 
   @@unique([arrangementId, trackedInvoiceId])
@@ -219,14 +219,14 @@ model PromiseToPay {
 }
 
 model PromiseEscalationPolicy {
-  id                     String   @id @default(cuid())
-  userId                 String   @unique @map("user_id")
-  retryLimit             Int      @default(2) @map("retry_limit")
-  escalationThreshold    Int      @default(2) @map("escalation_threshold")
-  timingEscalationEnabled Boolean @default(false) @map("timing_escalation_enabled")
-  toneEscalationEnabled   Boolean @default(false) @map("tone_escalation_enabled")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  id                      String   @id @default(cuid())
+  userId                  String   @unique @map("user_id")
+  retryLimit              Int      @default(2) @map("retry_limit")
+  escalationThreshold     Int      @default(2) @map("escalation_threshold")
+  timingEscalationEnabled Boolean  @default(false) @map("timing_escalation_enabled")
+  toneEscalationEnabled   Boolean  @default(false) @map("tone_escalation_enabled")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
 
   userProfile UserProfile @relation(fields: [userId], references: [userId])
 
@@ -245,8 +245,8 @@ model EmailLog {
   resendMessageId  String?
   fromAddress      String
   subject          String
-  htmlBody         String? @map("html_body") // rendered HTML body at send time; null for rows predating this column
-  textBody         String? @map("text_body") // rendered text body at send time; null for rows predating this column
+  htmlBody         String?  @map("html_body") // rendered HTML body at send time; null for rows predating this column
+  textBody         String?  @map("text_body") // rendered text body at send time; null for rows predating this column
 
   trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
 
@@ -335,15 +335,15 @@ model AccountingConnection {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  userProfile             UserProfile              @relation(fields: [userId], references: [userId])
-  syncRuns                AccountingSyncRun[]
-  providerInvoiceMappings ProviderInvoiceMapping[]
-  providerContactMappings ProviderContactMapping[]
-  importedBills           ImportedBill[]
+  userProfile              UserProfile               @relation(fields: [userId], references: [userId])
+  syncRuns                 AccountingSyncRun[]
+  providerInvoiceMappings  ProviderInvoiceMapping[]
+  providerContactMappings  ProviderContactMapping[]
+  importedBills            ImportedBill[]
   importedBankTransactions ImportedBankTransaction[]
-  supplierProfiles        SupplierProfile[]
-  spendInsights           SpendInsight[]
-  cashForecastSnapshots   CashForecastSnapshot[]
+  supplierProfiles         SupplierProfile[]
+  spendInsights            SpendInsight[]
+  cashForecastSnapshots    CashForecastSnapshot[]
 
   @@unique([userId, provider, organisationId])
   @@map("accounting_connections")
@@ -495,19 +495,19 @@ model ImportedBankTransaction {
 }
 
 model SupplierProfile {
-  id                     String    @id @default(cuid())
-  userId                 String    @map("user_id")
-  accountingConnectionId String    @map("accounting_connection_id")
-  providerSupplierId     String    @map("provider_supplier_id")
-  supplierName           String    @map("supplier_name")
-  supplierEmail          String?   @map("supplier_email")
+  id                     String   @id @default(cuid())
+  userId                 String   @map("user_id")
+  accountingConnectionId String   @map("accounting_connection_id")
+  providerSupplierId     String   @map("provider_supplier_id")
+  supplierName           String   @map("supplier_name")
+  supplierEmail          String?  @map("supplier_email")
   abn                    String?
-  paymentTerms           String?   @map("payment_terms")
-  defaultAccountCode     String?   @map("default_account_code")
-  defaultAccountName     String?   @map("default_account_name")
-  providerMetadata       Json?     @map("provider_metadata")
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
+  paymentTerms           String?  @map("payment_terms")
+  defaultAccountCode     String?  @map("default_account_code")
+  defaultAccountName     String?  @map("default_account_name")
+  providerMetadata       Json?    @map("provider_metadata")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
@@ -544,17 +544,17 @@ model SpendInsight {
 }
 
 model CashForecastSnapshot {
-  id                     String    @id @default(cuid())
-  userId                 String    @map("user_id")
-  accountingConnectionId String?   @map("accounting_connection_id")
-  currentCashCents       Int       @map("current_cash_cents")
-  receivablesCents       Int       @default(0) @map("receivables_cents")
-  payablesCents          Int       @default(0) @map("payables_cents")
-  predictedMonthEndCents Int?      @map("predicted_month_end_cents")
-  runwayDays             Int?      @map("runway_days")
-  assumptions            Json?     @map("assumptions")
-  snapshotAt             DateTime  @default(now()) @map("snapshot_at")
-  createdAt              DateTime  @default(now()) @map("created_at")
+  id                     String   @id @default(cuid())
+  userId                 String   @map("user_id")
+  accountingConnectionId String?  @map("accounting_connection_id")
+  currentCashCents       Int      @map("current_cash_cents")
+  receivablesCents       Int      @default(0) @map("receivables_cents")
+  payablesCents          Int      @default(0) @map("payables_cents")
+  predictedMonthEndCents Int?     @map("predicted_month_end_cents")
+  runwayDays             Int?     @map("runway_days")
+  assumptions            Json?    @map("assumptions")
+  snapshotAt             DateTime @default(now()) @map("snapshot_at")
+  createdAt              DateTime @default(now()) @map("created_at")
 
   userProfile          UserProfile           @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection? @relation(fields: [accountingConnectionId], references: [id])
@@ -657,6 +657,11 @@ enum AdminAuditAction {
   resume_invoices
   trigger_email
   mark_invoice_paid
+  training_content_created
+  training_content_updated
+  training_submitted_for_review
+  training_published
+  training_restored
 }
 
 enum StaffInvitationStatus {
@@ -741,10 +746,10 @@ model AdminSession {
   ipAddress            String    @map("ip_address")
   userAgent            String    @map("user_agent")
 
-  platformRole       PlatformRole       @relation(fields: [userId], references: [userId])
-  adminDevice        AdminDevice        @relation(fields: [adminDeviceId], references: [id])
-  adminChallenge     AdminChallenge     @relation(fields: [adminChallengeId], references: [id])
-  adminAuditEvents   AdminAuditEvent[] // link to audit events created during this session
+  platformRole     PlatformRole      @relation(fields: [userId], references: [userId])
+  adminDevice      AdminDevice       @relation(fields: [adminDeviceId], references: [id])
+  adminChallenge   AdminChallenge    @relation(fields: [adminChallengeId], references: [id])
+  adminAuditEvents AdminAuditEvent[] // link to audit events created during this session
 
   @@index([userId, expiresAt])
   @@index([impersonatedUserId, startedAt])
@@ -771,7 +776,7 @@ model AdminAuditEvent {
   success                Boolean
   reason                 String?
   metadata               Json?
-  details                Json?            // context-specific data (old/new values, counts, etc.)
+  details                Json? // context-specific data (old/new values, counts, etc.)
   createdAt              DateTime         @default(now()) @map("created_at")
 
   adminSession AdminSession? @relation(fields: [adminSessionId], references: [id])
@@ -806,16 +811,95 @@ model StaffInvitation {
 // ---------------------------------------------------------------------------
 
 model AuditRetentionLog {
-  id               String    @id @default(cuid())
-  timestamp        DateTime  @default(now())
-  recordsArchived  Int       @map("records_archived")
-  s3Path           String?   @map("s3_path")
-  success          Boolean   @default(true)
-  errorMessage     String?   @map("error_message")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id              String   @id @default(cuid())
+  timestamp       DateTime @default(now())
+  recordsArchived Int      @map("records_archived")
+  s3Path          String?  @map("s3_path")
+  success         Boolean  @default(true)
+  errorMessage    String?  @map("error_message")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([timestamp])
   @@index([success])
   @@map("audit_retention_logs")
 }
 
+enum TrainingLifecycleState {
+  draft
+  review
+  published
+}
+
+enum TrainingAudience {
+  public
+  signed_in
+}
+
+enum TrainingDestinationValidationStatus {
+  pending
+  valid
+  invalid
+  deprecated
+}
+
+model TrainingContent {
+  id              String                 @id @default(cuid())
+  slug            String                 @unique
+  title           String
+  summary         String?
+  content         Json
+  lifecycleState  TrainingLifecycleState @default(draft) @map("lifecycle_state")
+  audience        TrainingAudience       @default(signed_in)
+  featureKey      String?                @map("feature_key")
+  routeHint       String?                @map("route_hint")
+  destinationKeys Json?                  @map("destination_keys")
+  publishedAt     DateTime?              @map("published_at")
+  createdBy       String                 @map("created_by")
+  updatedBy       String                 @map("updated_by")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  revisions         TrainingRevision[]
+  destinationUsages TrainingDestinationUsage[]
+
+  @@index([lifecycleState, audience, publishedAt])
+  @@map("training_content")
+}
+
+model TrainingRevision {
+  id                     String                 @id @default(cuid())
+  trainingContentId      String                 @map("training_content_id")
+  revisionNumber         Int                    @map("revision_number")
+  snapshot               Json
+  snapshotState          TrainingLifecycleState @map("snapshot_state")
+  changeNote             String?                @map("change_note")
+  actorUserId            String                 @map("actor_user_id")
+  restoredFromRevisionId String?                @map("restored_from_revision_id")
+  createdAt              DateTime               @default(now()) @map("created_at")
+
+  trainingContent       TrainingContent    @relation(fields: [trainingContentId], references: [id], onDelete: Cascade)
+  restoredFromRevision  TrainingRevision?  @relation("TrainingRevisionRestoreLineage", fields: [restoredFromRevisionId], references: [id])
+  restoredIntoRevisions TrainingRevision[] @relation("TrainingRevisionRestoreLineage")
+
+  @@unique([trainingContentId, revisionNumber])
+  @@index([trainingContentId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("training_revisions")
+}
+
+model TrainingDestinationUsage {
+  id                String                              @id @default(cuid())
+  trainingContentId String                              @map("training_content_id")
+  destinationKey    String                              @map("destination_key")
+  validationStatus  TrainingDestinationValidationStatus @default(pending) @map("validation_status")
+  lastValidatedAt   DateTime?                           @map("last_validated_at")
+  validationDetails Json?                               @map("validation_details")
+  createdAt         DateTime                            @default(now()) @map("created_at")
+  updatedAt         DateTime                            @updatedAt @map("updated_at")
+
+  trainingContent TrainingContent @relation(fields: [trainingContentId], references: [id], onDelete: Cascade)
+
+  @@unique([trainingContentId, destinationKey])
+  @@index([destinationKey, validationStatus])
+  @@map("training_destination_usages")
+}

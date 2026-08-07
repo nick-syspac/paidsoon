@@ -34,8 +34,8 @@ describe("diagnostic tracing configuration", () => {
   })
 
   test("identifies production-like environments", () => {
-    assert.equal(isProductionLikeEnvironment({ VERCEL_ENV: "production" }), true)
-    assert.equal(isProductionLikeEnvironment({ APP_ENV: "staging" }), true)
+    assert.equal(isProductionLikeEnvironment({ VERCEL_ENV: "production", NODE_ENV: "test" }), true)
+    assert.equal(isProductionLikeEnvironment({ APP_ENV: "staging", NODE_ENV: "test" }), true)
     assert.equal(isProductionLikeEnvironment({ VERCEL_ENV: "preview", NODE_ENV: "test" }), false)
   })
 })

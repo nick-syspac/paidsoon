@@ -494,3 +494,38 @@ CREATE POLICY "retention deny update anon"   ON audit_retention_logs FOR UPDATE 
 CREATE POLICY "retention deny update auth"   ON audit_retention_logs FOR UPDATE TO authenticated  USING (false);
 CREATE POLICY "retention deny delete anon"   ON audit_retention_logs FOR DELETE TO anon           USING (false);
 CREATE POLICY "retention deny delete auth"   ON audit_retention_logs FOR DELETE TO authenticated  USING (false);
+
+-- ---------------------------------------------------------------------------
+-- Training Studio Tables (admin-authored platform content)
+-- Deny-all for anon and authenticated roles (prismaAdmin only)
+-- ---------------------------------------------------------------------------
+ALTER TABLE training_content ENABLE ROW LEVEL SECURITY;
+ALTER TABLE training_revisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE training_destination_usages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "training content deny select anon"    ON training_content            FOR SELECT TO anon          USING (false);
+CREATE POLICY "training content deny select auth"    ON training_content            FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "training content deny insert anon"    ON training_content            FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "training content deny insert auth"    ON training_content            FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "training content deny update anon"    ON training_content            FOR UPDATE TO anon           USING (false);
+CREATE POLICY "training content deny update auth"    ON training_content            FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "training content deny delete anon"    ON training_content            FOR DELETE TO anon           USING (false);
+CREATE POLICY "training content deny delete auth"    ON training_content            FOR DELETE TO authenticated  USING (false);
+
+CREATE POLICY "training revisions deny select anon"  ON training_revisions          FOR SELECT TO anon          USING (false);
+CREATE POLICY "training revisions deny select auth"  ON training_revisions          FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "training revisions deny insert anon"  ON training_revisions          FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "training revisions deny insert auth"  ON training_revisions          FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "training revisions deny update anon"  ON training_revisions          FOR UPDATE TO anon           USING (false);
+CREATE POLICY "training revisions deny update auth"  ON training_revisions          FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "training revisions deny delete anon"  ON training_revisions          FOR DELETE TO anon           USING (false);
+CREATE POLICY "training revisions deny delete auth"  ON training_revisions          FOR DELETE TO authenticated  USING (false);
+
+CREATE POLICY "training destinations deny select anon" ON training_destination_usages FOR SELECT TO anon          USING (false);
+CREATE POLICY "training destinations deny select auth" ON training_destination_usages FOR SELECT TO authenticated  USING (false);
+CREATE POLICY "training destinations deny insert anon" ON training_destination_usages FOR INSERT TO anon           WITH CHECK (false);
+CREATE POLICY "training destinations deny insert auth" ON training_destination_usages FOR INSERT TO authenticated  WITH CHECK (false);
+CREATE POLICY "training destinations deny update anon" ON training_destination_usages FOR UPDATE TO anon           USING (false);
+CREATE POLICY "training destinations deny update auth" ON training_destination_usages FOR UPDATE TO authenticated  USING (false);
+CREATE POLICY "training destinations deny delete anon" ON training_destination_usages FOR DELETE TO anon           USING (false);
+CREATE POLICY "training destinations deny delete auth" ON training_destination_usages FOR DELETE TO authenticated  USING (false);

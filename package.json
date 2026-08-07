@@ -14,6 +14,8 @@
     "seed:local": "SEED_ENV=local node --import tsx scripts/seed-preview.ts",
     "seed:preview": "SEED_ENV=preview node --import tsx scripts/seed-preview.ts",
     "verify-seed": "node --import tsx scripts/verify-seed.ts",
+    "import:help-mdx": "node --import tsx scripts/import-help-mdx.ts --dry-run",
+    "import:help-mdx:write": "node --import tsx scripts/import-help-mdx.ts --write",
     "db:reset:local": "SEED_ENV=local node --import tsx scripts/db-reset-local.ts",
     "seed:admin-owner": "node --import tsx scripts/seed-admin-owner.ts",
     "get:admin-devices": "node --import tsx scripts/get-admin-devices.ts",
