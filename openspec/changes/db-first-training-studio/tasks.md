@@ -50,8 +50,8 @@
 
 - [x] 7.1 Add DB-backed read route(s) for published content by slug.
 - [x] 7.2 Enforce audience visibility checks server-side for every read request.
-- [ ] 7.3 Keep existing help URL structure stable through cutover.
-- [ ] 7.4 Add redirect/compat handling where legacy links require translation.
+- [x] 7.3 Keep existing help URL structure stable through cutover.
+- [x] 7.4 Add redirect/compat handling where legacy links require translation.
 
 ## 8. DB-Backed Search Path
 
@@ -73,15 +73,15 @@
 
 ## 10. Cutover and Cleanup
 
-- [ ] 10.1 Switch help read/search paths from MDX source pipeline to DB-backed services.
-- [ ] 10.2 Verify unresolved destination link fallback routes to top-level help topic.
+- [x] 10.1 Switch help read/search paths from MDX source pipeline to DB-backed services.
+- [x] 10.2 Verify unresolved destination link fallback routes to top-level help topic.
 - [ ] 10.3 Freeze and retire MDX files as source-of-truth after successful cutover.
-- [ ] 10.4 Keep rollback plan ready (read from legacy source if critical issues emerge).
+- [x] 10.4 Keep rollback plan ready (read from legacy source if critical issues emerge).
 
 ## 11. Testing and Verification
 
 - [x] 11.1 Add tests for lifecycle transitions and invalid state changes.
-- [ ] 11.2 Add tests for revision immutability and restore-as-new-revision behavior.
+- [x] 11.2 Add tests for revision immutability and restore-as-new-revision behavior.
 - [x] 11.3 Add tests for audience-gated content read and search.
 - [x] 11.4 Add tests for destination-key resolver and fallback redirects.
 - [ ] 11.5 Add migration verification checks for imported records and rendering fidelity.
@@ -89,7 +89,7 @@
 
 ## 12. Documentation Updates
 
-- [ ] 12.1 Update DDD with new training content models and lifecycle semantics after implementation.
-- [ ] 12.2 Update DDD API route table with training studio/admin and reader/search endpoints.
-- [ ] 12.3 Update runbooks with migration/cutover operational steps and rollback guidance.
-- [ ] 12.4 Document destination-key governance and fallback policy.
+- [x] 12.1 Update DDD with new training content models and lifecycle semantics after implementation.
+- [x] 12.2 Update DDD API route table with training studio/admin and reader/search endpoints.
+- [x] 12.3 Update runbooks with migration/cutover operational steps and rollback guidance.
+- [x] 12.4 Document destination-key governance and fallback policy.

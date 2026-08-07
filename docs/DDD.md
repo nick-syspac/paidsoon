@@ -234,7 +234,22 @@ subsection documents a functional module.
 - `settings/team/invite` — GET reports seats; POST validates email and seat
   limit but **does not persist** (no membership model).
 
-### 4.9 Not applicable
+### 4.9 Training content destination governance and fallback
+
+- Destination keys are platform-defined identifiers resolved by
+  `lib/help/destinations.ts`.
+- Guide authoring stores destination keys on `TrainingContent.destinationKeys`
+  and tracks validation status in `training_destination_usages`.
+- Reader-facing resolution uses a safe fallback contract: unresolved,
+  unauthorized, or unavailable destination keys resolve to top-level help
+  (`/help`) rather than returning broken links.
+- Audience compatibility is enforced at resolution time. A destination that
+  requires signed-in access is never surfaced as a navigable route to anonymous
+  readers.
+- This keeps historic guide links stable during destination refactors while
+  preserving least-privilege visibility.
+
+### 4.10 Not applicable
 
 Compliance/control-library, workflow engine, CMS, vertical_setup, RTO,
 integrations registry, and any `apps/api/apps/**` modules — **not present**.
@@ -396,6 +411,9 @@ erDiagram
 | `AdminSession` | `prisma/schema.prisma` | Elevated admin session after key verification | `userId`, `adminDeviceId`, `sessionToken` (UK), `expiresAt`, `revokedAt`, `ipAddress`, `userAgent` | N—1 device | No (deny-all RLS) | Token stored as `admin_session` cookie (HttpOnly/Secure/SameSite=Strict); `revokedAt` enables soft revocation |
 | `AdminAuditEvent` | `prisma/schema.prisma` | Append-only admin action log | `actorUserId`, `action` (enum, 23 values including `admin_tenant_action`), `targetUserId`, `tenantId`, `success`, `metadata` (JSON, action-specific context), `ipAddress`, `requestId` | — | No (deny-all RLS; `prismaAdmin` only) | Never deleted; no UPDATE policy; fire-and-forget write via `logAdminEvent()` |
 | `StaffInvitation` | `prisma/schema.prisma` | Pending platform staff invite | `invitedEmail`, `role`, `token` (UK), `invitedBy`, `status` (`pending`/`accepted`/`expired`/`revoked`), `expiresAt`, `acceptedBy` | — | No (deny-all RLS) | Token is 32 bytes / 64 hex chars; accepted by matching Supabase user email |
+| `TrainingContent` | `prisma/schema.prisma` | DB-backed help/training guide record | `slug` (UK), `title`, `summary`, `content` (JSON), `lifecycleState`, `audience`, `destinationKeys`, `publishedAt`, `createdBy`, `updatedBy` | 1—N revisions; 1—N destination usages | No (deny-all RLS; `prismaAdmin` only) | Lifecycle: `draft` → `review` → `published`; only `published` rows are reader-visible |
+| `TrainingRevision` | `prisma/schema.prisma` | Immutable snapshot history for TrainingContent | `trainingContentId`, `revisionNumber`, `snapshot`, `snapshotState`, `changeNote`, `actorUserId`, `restoredFromRevisionId` | N—1 TrainingContent; optional self-reference for restore lineage | No (deny-all RLS; `prismaAdmin` only) | Unique `(trainingContentId, revisionNumber)`; restore writes a new revision instead of mutating history |
+| `TrainingDestinationUsage` | `prisma/schema.prisma` | Tracks destination-key validation state per guide | `trainingContentId`, `destinationKey`, `validationStatus`, `lastValidatedAt`, `validationDetails` | N—1 TrainingContent | No (deny-all RLS; `prismaAdmin` only) | Unique `(trainingContentId, destinationKey)`; supports governance of destination key drift |
 
 > ERDs for compliance/controls/obligations/evidence, workflow, and vertical models are **not applicable** — no such tables exist.
 
@@ -418,6 +436,12 @@ all have deny-all RLS — no `anon` or `authenticated` role may SELECT, INSERT,
 UPDATE, or DELETE from them. All reads and writes go through `prismaAdmin`
 (service role) in admin route handlers that have first passed the three-layer
 admin guard. See `prisma/rls-policies.sql`.
+
+The three **training content tables** (`training_content`, `training_revisions`,
+`training_destination_usages`) also have deny-all RLS. They are platform-authored
+content stores, so user/session roles cannot read or mutate them directly. Reader
+and admin APIs access them via `prismaAdmin`, with audience visibility checks
+enforced server-side before content is returned.
 
 ## 7. API Design
 
@@ -486,6 +510,16 @@ admin guard. See `prisma/rls-policies.sql`.
 | `GET /api/admin/email-jobs` | `app/api/admin/email-jobs/route.ts` | query `cursor,limit` | All 3 layers | `prismaAdmin` | → `{jobs}` (no clientEmail) | Implemented |
 | `POST /api/admin/impersonation/start` | `.../start/route.ts` | `zod` `{tenantId}` | All 3 layers; cannot impersonate other admin | `prismaAdmin` | → updates `AdminSession.impersonatedTenantId`; `{ok}` | Implemented |
 | `POST /api/admin/impersonation/end` | `.../end/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `impersonatedTenantId`; `{ok}` | Implemented |
+| `GET /api/admin/training` | `app/api/admin/training/route.ts` | query `state,audience,q,limit` (`zod`) | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{items}` | Implemented |
+| `POST /api/admin/training` | `app/api/admin/training/route.ts` | `zod` `{title,slug,summary?,content,audience,featureKey?,routeHint?,destinationKeys?}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented |
+| `GET /api/admin/training/[id]` | `app/api/admin/training/[id]/route.ts` | path `id` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` (with revisions + destination usages) | Implemented |
+| `PATCH /api/admin/training/[id]` | `app/api/admin/training/[id]/route.ts` | `zod` draft update payload | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (draft-only edits) |
+| `POST /api/admin/training/[id]/submit-review` | `app/api/admin/training/[id]/submit-review/route.ts` | path `id` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (`draft` → `review`) |
+| `POST /api/admin/training/[id]/publish` | `app/api/admin/training/[id]/publish/route.ts` | `zod` `{changeNote?}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (`review` → `published` + revision snapshot) |
+| `GET /api/admin/training/[id]/revisions` | `app/api/admin/training/[id]/revisions/route.ts` | path `id` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{items}` | Implemented |
+| `POST /api/admin/training/[id]/restore` | `app/api/admin/training/[id]/restore/route.ts` | `zod` `{revisionId,changeNote?}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (restore-as-new-revision; state reset to `draft`) |
+| `GET /api/help/content/[slug]` | `app/api/help/content/[slug]/route.ts` | path `slug` | public/signed-in based on audience | `prismaAdmin` + server-side audience filter | → `{item}` | Implemented (published-only) |
+| `GET /api/help/search-db` | `app/api/help/search-db/route.ts` | query `q,limit` (`zod`) | public/signed-in based on audience | `prismaAdmin` + server-side audience filter | → `{results}` | Implemented |
 Canonical vs deprecated: there are no deprecated API aliases. The only
 backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
 

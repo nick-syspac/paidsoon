@@ -121,6 +121,8 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `SEED_USER_PASSWORD` | omit (defaults to `PaidSoonDev!2026`) | set a non-default value | — (never set in production) | [preview-seed-data.md](../preview-seed-data.md) — password for the seeded sign-in accounts |
 | `SEED_SKIP_AUTH` | omit or `false` | omit or `false` | — (never set in production) | [preview-seed-data.md](../preview-seed-data.md) — `true` skips Supabase Auth user creation (no sign-in) |
 | `SEED_RESET_ONLY` | omit or `false` | omit or `false` | — (never set in production) | [preview-seed-data.md](../preview-seed-data.md) — `true` deletes seed-owned rows and exits |
+| `TRAINING_IMPORT_ALLOW_WRITE` | `yes` only for controlled import runs; otherwise unset | unset | unset until approved cutover window | [scripts/import-help-mdx.ts](../../scripts/import-help-mdx.ts) — safety switch for one-time `--write` import mode |
+| `TRAINING_IMPORT_ACTOR_USER_ID` | platform admin/owner UUID used for audit attribution | unset | set only during approved import run | [scripts/import-help-mdx.ts](../../scripts/import-help-mdx.ts) — required in `--write` mode to stamp `createdBy`/`updatedBy` and revision actor |
 | `NEXT_PUBLIC_COMPANY_ABN` | omit or set to company ABN | omit or set to company ABN | ABN of Syspac Pty Ltd (e.g., `12 345 678 901`) | [MarketingFooter](../../components/marketing/MarketingFooter.tsx) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `1x00000000000000000000AA` (CF test key — always passes) | `1x00000000000000000000AA` (CF test key) | real site key from [Cloudflare Turnstile dashboard](https://dash.cloudflare.com/) | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |
 | `TURNSTILE_SECRET_KEY` | `1x0000000000000000000000000000000AA` (CF test secret) | `1x0000000000000000000000000000000AA` (CF test secret) | real secret key from Cloudflare Turnstile dashboard | [cloudflare-turnstile-auth change](../../openspec/changes/cloudflare-turnstile-auth/proposal.md) |
@@ -132,6 +134,36 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `ADMIN_MAX_FAILED_ATTEMPTS` | `10` | `10` | `5` — failed challenge attempts before temporary lockout | [app/api/admin/challenges/route.ts](../../app/api/admin/challenges/route.ts) |
 | `PLATFORM_OWNER_EMAIL` | Supabase user email of first platform owner | — | Supabase user email of first platform owner | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only; never read at runtime |
 | `ADMIN_SSH_PUBLIC_KEY` | contents of `~/.ssh/id_ed25519.pub` (optional device enrol) | — | contents of operator public key (optional first-device enrol) | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only; server never stores or uses the private key |
+
+## Training content import and cutover (DB-first)
+
+Use this sequence for the one-time import from `content/help` into `training_content`.
+
+1. Preflight checks:
+     - `npm run lint`
+     - `npx tsc --noEmit`
+     - `npm run test`
+2. Dry-run parse/mapping validation:
+     - `npm run import:help-mdx`
+     - Confirm report has expected guide count and review all flagged guides.
+3. Approved write window:
+     - Set `TRAINING_IMPORT_ALLOW_WRITE=yes`.
+     - Set `TRAINING_IMPORT_ACTOR_USER_ID` to the platform owner/admin user id.
+     - Run `npm run import:help-mdx:write`.
+4. Post-import verification:
+     - Verify expected `training_content` row count and slugs.
+     - Verify `training_revisions` created for each imported guide.
+     - Spot-check `/help` and key guide routes in browser as anon and signed-in.
+
+Rollback guidance:
+
+- The current help page keeps MDX fallback behavior when DB content is missing/unavailable.
+- If import output is not acceptable, do not rerun `--write` immediately. Fix flagged content/mapper rules first, then rerun dry-run.
+- If a bad write run occurred, either:
+  - Re-run write mode after correcting source/mapper to upsert correct records and append new revisions, or
+  - Remove imported `training_content` rows for the affected slugs inside a controlled maintenance window.
+
+Do not leave `TRAINING_IMPORT_ALLOW_WRITE=yes` set after the import window.
 
 ### Where each var is consumed in code
 
@@ -165,6 +197,8 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `RESEND_FROM_EMAIL` | [lib/email/send.ts](../../lib/email/send.ts), [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) |
 | `RESEND_FROM_NAME` | [lib/email/send.ts](../../lib/email/send.ts) |
 | `OPENAI_API_KEY` | `lib/email/ai-rewrite.ts` (to be created) — server-side only, never browser |
+| `TRAINING_IMPORT_ALLOW_WRITE` | [scripts/import-help-mdx.ts](../../scripts/import-help-mdx.ts) — guard required to enable one-time DB write mode |
+| `TRAINING_IMPORT_ACTOR_USER_ID` | [scripts/import-help-mdx.ts](../../scripts/import-help-mdx.ts) — required actor attribution for write-mode imports |
 | `SEED_ENV` | [scripts/seed-preview.ts](../../scripts/seed-preview.ts) — environment safety gate; never used by the application itself |
 | `NEXT_PUBLIC_COMPANY_ABN` | [components/marketing/MarketingFooter.tsx](../../components/marketing/MarketingFooter.tsx) — optional; footer shows placeholder if absent |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | [app/(auth)/sign-in/page.tsx](../../app/(auth)/sign-in/page.tsx), [app/(auth)/sign-up/page.tsx](../../app/(auth)/sign-up/page.tsx), [components/marketing/ContactForm.tsx](../../components/marketing/ContactForm.tsx) — widget site key (browser-safe) |
