@@ -28,6 +28,15 @@ const PROBE_EXTERNAL_A = "rls-verify-invoice-a"
 const PROBE_EXTERNAL_B = "rls-verify-invoice-b"
 const PROBE_ACCOUNTING_ORG_A = "rls-verify-accounting-org-a"
 const PROBE_ACCOUNTING_ORG_B = "rls-verify-accounting-org-b"
+const PROBE_SPEND_INSIGHT_A = "rls-verify-spend-insight-a"
+const PROBE_SPEND_INSIGHT_B = "rls-verify-spend-insight-b"
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message
+  }
+  return String(err)
+}
 
 async function seed() {
   // Two user profiles, two connections, two invoices — one per user.
@@ -72,9 +81,38 @@ async function seed() {
       dueDate: new Date("2026-01-01"),
     },
   })
+
+  await prismaAdmin.spendInsight.create({
+    data: {
+      id: PROBE_SPEND_INSIGHT_A,
+      userId: USER_A,
+      findingType: "duplicate_spend",
+      subjectKey: "seed-a",
+      severity: "medium",
+      summary: "Seeded insight A",
+      state: "open",
+      evidence: { source: "verify-rls", sample: "A" },
+    },
+  })
+
+  await prismaAdmin.spendInsight.create({
+    data: {
+      id: PROBE_SPEND_INSIGHT_B,
+      userId: USER_B,
+      findingType: "duplicate_spend",
+      subjectKey: "seed-b",
+      severity: "medium",
+      summary: "Seeded insight B",
+      state: "open",
+      evidence: { source: "verify-rls", sample: "B" },
+    },
+  })
 }
 
 async function cleanup() {
+  await prismaAdmin.spendInsight.deleteMany({
+    where: { id: { in: [PROBE_SPEND_INSIGHT_A, PROBE_SPEND_INSIGHT_B] } },
+  })
   await prismaAdmin.accountingConnection.deleteMany({
     where: { organisationId: { in: [PROBE_ACCOUNTING_ORG_A, PROBE_ACCOUNTING_ORG_B] } },
   })
@@ -187,6 +225,46 @@ async function main() {
     fail(`expected 0 rows without user context, got ${noContextRows.length}`)
   }
   console.log("  ✓ saw nothing")
+
+  console.log("\nCheck 6: withUserContext(USER_A) can update lifecycle spend insight fields")
+  const resolvedAt = new Date("2026-01-02T00:00:00.000Z")
+  const lifecycleRows = await withUserContext(USER_A, (tx) =>
+    tx.$queryRawUnsafe<{ id: string; state: string }[]>(
+      `UPDATE spend_insights
+       SET state = $1,
+           resolved_at = $2
+       WHERE id = $3
+       RETURNING id, state`,
+      "resolved",
+      resolvedAt,
+      PROBE_SPEND_INSIGHT_A,
+    ),
+  )
+  if (lifecycleRows.length !== 1 || lifecycleRows[0].state !== "resolved") {
+    await cleanup()
+    fail("expected lifecycle update on own spend insight to succeed")
+  }
+  console.log("  ✓ lifecycle update succeeded")
+
+  console.log("\nCheck 7: withUserContext(USER_A) cannot update pipeline-owned spend insight fields")
+  let blockedPipelineFieldUpdate = false
+  try {
+    await withUserContext(USER_A, (tx) =>
+      tx.$executeRawUnsafe(
+        `UPDATE spend_insights SET summary = $1 WHERE id = $2`,
+        "Tampered summary",
+        PROBE_SPEND_INSIGHT_A,
+      ),
+    )
+  } catch (err) {
+    blockedPipelineFieldUpdate = /permission denied|insufficient privilege/i.test(errorMessage(err))
+  }
+
+  if (!blockedPipelineFieldUpdate) {
+    await cleanup()
+    fail("expected non-lifecycle spend insight update to be blocked")
+  }
+  console.log("  ✓ non-lifecycle update blocked")
 
   await cleanup()
   console.log("\nPASS: RLS is enforced.")

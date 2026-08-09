@@ -296,7 +296,9 @@ CREATE OR REPLACE POLICY "users can view own supplier profiles"
 
 -- ---------------------------------------------------------------------------
 -- spend_insights
--- Users can read and update the lifecycle state of their own spend insights.
+-- Users can read their own spend insights. UPDATE is row-scoped by RLS and
+-- column-scoped by GRANT so authenticated users can mutate lifecycle fields
+-- only (`state`, `resolved_at`).
 -- Inserts are performed by the insight pipeline via prismaAdmin.
 -- ---------------------------------------------------------------------------
 ALTER TABLE spend_insights ENABLE ROW LEVEL SECURITY;
@@ -309,6 +311,9 @@ CREATE OR REPLACE POLICY "users can update own spend insights"
   ON spend_insights FOR UPDATE
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
+
+REVOKE UPDATE ON TABLE spend_insights FROM authenticated;
+GRANT UPDATE (state, resolved_at) ON TABLE spend_insights TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- cash_forecast_snapshots

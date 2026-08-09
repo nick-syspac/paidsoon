@@ -428,8 +428,10 @@ and INSERT both use a join-based `EXISTS` check against `tracked_invoices`
 (ownership via `userId`); the cron worker bypasses RLS entirely via `prismaAdmin`
 (service role), so the tightened INSERT policy does not affect it. `ai_usage_logs`
 has a SELECT policy for own rows; INSERTs are `prismaAdmin`-only (no user INSERT
-policy). `arrangements` and `arrangement_invoice_coverages` have full tenant-scoped
-CRUD policies.
+policy). `spend_insights` keeps row-scoped UPDATE via RLS, and Postgres column
+grants restrict `authenticated` updates to lifecycle fields only (`state`,
+`resolved_at`). `arrangements` and `arrangement_invoice_coverages` have full
+tenant-scoped CRUD policies.
 
 The six **platform admin tables** (`platform_roles`, `admin_devices`,
 `admin_challenges`, `admin_sessions`, `admin_audit_events`, `staff_invitations`)
