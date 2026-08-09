@@ -395,6 +395,7 @@ erDiagram
 | `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `custom_sender_name`/`verified_from_domain` |
 | `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later |
 | `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject`, `htmlBody`, `textBody` | N—1 tracked invoice | Yes (via join policy) | Insert via service role; `htmlBody`/`textBody` (nullable) persist the exact rendered content sent, added for the dashboard's email-detail modal — `null` for rows sent before this column existed |
+| `WeeklyDebtorSummaryDelivery` | `prisma/schema.prisma` | Internal idempotency/audit log for weekly debtor summary sends | `userId`, `weekStart`, `status`, `resendMessageId`, `lastError`, `subject`, `sentAt` | — | No (service role only) | Unique `(userId, weekStart)`; used by the weekly debtor summary sender to ensure one send per tenant per week |
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
 | `PromiseToPay` | `prisma/schema.prisma` | Client payment commitment history per invoice | `trackedInvoiceId`, `userId`, `promisedPayBy`, `promisedAmount`, `clientNotes`, `status`, `breachNotifiedAt` | N—1 tracked invoice | Yes (SELECT only; INSERT/UPDATE via `prismaAdmin`) | `status`: `active` → `kept` / `broken` / `superseded`; indexes on `(trackedInvoiceId, createdAt)` and `(status, promisedPayBy)` |
@@ -867,9 +868,10 @@ automated tests; only pure helpers are unit-tested.
 - **Service-role escalation:** `prismaAdmin` bypasses RLS; restricted by
   convention to cron, webhooks, and post-signup bootstrap
   (`lib/actions/auth.ts`); imports are grep-able by design.
-- **Data access controls:** RLS policies on all eight tables; `email_templates`
-  has a DELETE policy (users reset a stage to defaults); other tables have no
-  DELETE policy (FKs `RESTRICT`).
+- **Data access controls:** RLS policies on all eight user-scoped tables plus
+  the internal `weekly_debtor_summary_deliveries` log; `email_templates` has a
+  DELETE policy (users reset a stage to defaults); other tables have no DELETE
+  policy (FKs `RESTRICT`).
 - **Storage access controls:** N/A (no object storage).
 - **Encryption:** delegated to managed platforms. **Gap:**
   `stripeConnectAccountId` is documented as app-encrypted but stored in plaintext

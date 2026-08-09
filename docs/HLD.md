@@ -177,7 +177,7 @@ no `apps/*` or `packages/*` workspaces.
 | Invoice providers | `lib/providers/**` | Provider abstraction; Stripe implementation | In-process | `stripe` only today |
 | Email | `lib/email/**` | Templates, schedule math, send, catch-up scan | In-process | Resend |
 | Cron handler | `app/api/cron/send-emails/route.ts` | Catch-up + dispatch sequence | Vercel serverless | Triggered by `vercel.json` cron |
-| Prisma schema | `prisma/schema.prisma` | 8 application models | Build/migrate | Generated client → `lib/generated/prisma` |
+| Prisma schema | `prisma/schema.prisma` | 9 application models | Build/migrate | Generated client → `lib/generated/prisma` |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation policies (applied manually in Supabase) | Postgres | Not run by `prisma migrate` |
 | Generated Prisma client | `lib/generated/prisma/**` | Generated at `prisma generate` (build step) | In-process | Git-ignored output |
 | Runbooks | `docs/runbooks/**` | Operator setup (Supabase, Stripe, Resend, Vercel) | Docs | Canonical env-var matrix |
