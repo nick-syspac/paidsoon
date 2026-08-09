@@ -2,6 +2,7 @@ import { buildAgeingBuckets, buildCashWaitingSummary } from "@/lib/dashboard/age
 import { buildBiggestDebtors, type DebtorSummary } from "@/lib/dashboard/biggestDebtors"
 import { formatCents, formatShortDate, startOfUtcDay } from "@/lib/dashboard/format"
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
+import { groupByCurrency } from "@/lib/dashboard/currencyGrouping"
 
 export type WeeklyDebtorSummaryInvoice = Pick<
   InvoiceWithRelations,
@@ -12,7 +13,12 @@ export interface WeeklyDebtorSummaryPayload {
   asOf: Date
   overdueInvoiceCount: number
   debtorCount: number
+  currencySections: WeeklyDebtorSummaryCurrencySection[]
+}
+
+export interface WeeklyDebtorSummaryCurrencySection {
   currency: string
+  overdueInvoiceCount: number
   totalOutstanding: number
   cashWaiting: ReturnType<typeof buildCashWaitingSummary>
   biggestDebtors: DebtorSummary[]
@@ -53,20 +59,25 @@ export function buildWeeklyDebtorSummaryPayload(
     return new Date(invoice.dueDate) <= asOf
   })
 
-  const currency = overdueInvoices[0]?.currency ?? invoices[0]?.currency ?? "usd"
-  const biggestDebtors = buildBiggestDebtors(overdueInvoices, asOf, 5)
-  const ageingBuckets = buildAgeingBuckets(overdueInvoices, asOf)
-  const cashWaiting = buildCashWaitingSummary(ageingBuckets)
   const debtorCount = new Set(overdueInvoices.map((invoice) => invoice.clientEmail.toLowerCase())).size
+  const currencySections = groupByCurrency(overdueInvoices).map(({ currency: sectionCurrency, items }) => {
+    const ageingBuckets = buildAgeingBuckets(items, asOf)
+    const cashWaiting = buildCashWaitingSummary(ageingBuckets)
+
+    return {
+      currency: sectionCurrency,
+      overdueInvoiceCount: items.length,
+      totalOutstanding: cashWaiting.outstanding,
+      cashWaiting,
+      biggestDebtors: buildBiggestDebtors(items, asOf, 5),
+    }
+  })
 
   return {
     asOf,
     overdueInvoiceCount: overdueInvoices.length,
     debtorCount,
-    currency,
-    totalOutstanding: cashWaiting.outstanding,
-    cashWaiting,
-    biggestDebtors,
+    currencySections,
   }
 }
 
@@ -76,32 +87,46 @@ export function buildWeeklyDebtorSummaryEmail(input: {
 }): WeeklyDebtorSummaryEmailContent {
   const asOfLabel = formatShortDate(input.payload.asOf)
   const subject = `Weekly debtor summary for ${input.tenantName}`
-  const totalOutstandingLabel = formatCurrency(input.payload.totalOutstanding, input.payload.currency)
+  const currencySectionsHtml =
+    input.payload.currencySections.length > 0
+      ? input.payload.currencySections
+          .map((section) => {
+            const debtorLines =
+              section.biggestDebtors.length > 0
+                ? section.biggestDebtors
+                    .map(
+                      (debtor, index) =>
+                        `<li><strong>${index + 1}. ${escapeHtml(debtor.clientName)}</strong> (${escapeHtml(
+                          debtor.clientEmail,
+                        )}) — ${escapeHtml(formatCurrency(debtor.amountOwed, debtor.currency))} across ${debtor.invoiceCount} invoice${debtor.invoiceCount === 1 ? "" : "s"}; oldest ${debtor.maxDaysOverdue} day${debtor.maxDaysOverdue === 1 ? "" : "s"} overdue</li>`,
+                    )
+                    .join("")
+                : "<li>No overdue invoices right now.</li>"
 
-  const debtorLines =
-    input.payload.biggestDebtors.length > 0
-      ? input.payload.biggestDebtors
-          .map(
-            (debtor, index) =>
-              `<li><strong>${index + 1}. ${escapeHtml(debtor.clientName)}</strong> (${escapeHtml(
-                debtor.clientEmail,
-              )}) — ${escapeHtml(formatCurrency(debtor.amountOwed, debtor.currency))} across ${debtor.invoiceCount} invoice${debtor.invoiceCount === 1 ? "" : "s"}; oldest ${debtor.maxDaysOverdue} day${debtor.maxDaysOverdue === 1 ? "" : "s"} overdue</li>`,
-          )
+            return `
+              <section>
+                <h3>${escapeHtml(section.currency.toUpperCase())}</h3>
+                <ul>
+                  <li><strong>${section.overdueInvoiceCount}</strong> overdue invoice${section.overdueInvoiceCount === 1 ? "" : "s"}</li>
+                  <li><strong>${escapeHtml(formatCurrency(section.totalOutstanding, section.currency))}</strong> outstanding</li>
+                </ul>
+                <p>Ageing snapshot: current ${escapeHtml(formatCurrency(section.cashWaiting.current, section.currency))}, 1-30 ${escapeHtml(formatCurrency(section.cashWaiting.d1to30, section.currency))}, 31-60 ${escapeHtml(formatCurrency(section.cashWaiting.d31to60, section.currency))}, 60+ ${escapeHtml(formatCurrency(section.cashWaiting.d60plus, section.currency))}.</p>
+                <p>Top debtors:</p>
+                <ol>${debtorLines}</ol>
+              </section>
+            `
+          })
           .join("")
-      : "<li>No overdue invoices right now.</li>"
+      : "<p>No overdue invoices right now.</p>"
 
-  const bucketSummary = input.payload.cashWaiting
   const html = `
     <p>Hi ${escapeHtml(input.tenantName)},</p>
     <p>Here is your weekly debtor summary as of ${escapeHtml(asOfLabel)}.</p>
     <ul>
       <li><strong>${input.payload.overdueInvoiceCount}</strong> overdue invoice${input.payload.overdueInvoiceCount === 1 ? "" : "s"}</li>
       <li><strong>${input.payload.debtorCount}</strong> debtor${input.payload.debtorCount === 1 ? "" : "s"}</li>
-      <li><strong>${escapeHtml(totalOutstandingLabel)}</strong> outstanding</li>
     </ul>
-    <p>Ageing snapshot: current ${escapeHtml(formatCurrency(bucketSummary.current, input.payload.currency))}, 1-30 ${escapeHtml(formatCurrency(bucketSummary.d1to30, input.payload.currency))}, 31-60 ${escapeHtml(formatCurrency(bucketSummary.d31to60, input.payload.currency))}, 60+ ${escapeHtml(formatCurrency(bucketSummary.d60plus, input.payload.currency))}.</p>
-    <p>Top debtors:</p>
-    <ol>${debtorLines}</ol>
+    ${currencySectionsHtml}
     <p>Thanks,<br>PaidSoon</p>
   `
 
@@ -111,16 +136,21 @@ export function buildWeeklyDebtorSummaryEmail(input: {
     `Here is your weekly debtor summary as of ${asOfLabel}.`,
     `Overdue invoices: ${input.payload.overdueInvoiceCount}`,
     `Debtors: ${input.payload.debtorCount}`,
-    `Outstanding: ${totalOutstandingLabel}`,
-    `Ageing snapshot: current ${formatCurrency(bucketSummary.current, input.payload.currency)}, 1-30 ${formatCurrency(bucketSummary.d1to30, input.payload.currency)}, 31-60 ${formatCurrency(bucketSummary.d31to60, input.payload.currency)}, 60+ ${formatCurrency(bucketSummary.d60plus, input.payload.currency)}`,
     "",
-    "Top debtors:",
-    ...input.payload.biggestDebtors.map(
-      (debtor, index) =>
-        `${index + 1}. ${debtor.clientName} (${debtor.clientEmail}) - ${formatCurrency(debtor.amountOwed, debtor.currency)} across ${debtor.invoiceCount} invoice${debtor.invoiceCount === 1 ? "" : "s"}; oldest ${debtor.maxDaysOverdue} day${debtor.maxDaysOverdue === 1 ? "" : "s"} overdue`,
-    ),
-    input.payload.biggestDebtors.length === 0 ? "No overdue invoices right now." : undefined,
-    "",
+    ...input.payload.currencySections.flatMap((section) => [
+      `${section.currency.toUpperCase()}:`,
+      `Overdue invoices: ${section.overdueInvoiceCount}`,
+      `Outstanding: ${formatCurrency(section.totalOutstanding, section.currency)}`,
+      `Ageing snapshot: current ${formatCurrency(section.cashWaiting.current, section.currency)}, 1-30 ${formatCurrency(section.cashWaiting.d1to30, section.currency)}, 31-60 ${formatCurrency(section.cashWaiting.d31to60, section.currency)}, 60+ ${formatCurrency(section.cashWaiting.d60plus, section.currency)}`,
+      "Top debtors:",
+      ...(section.biggestDebtors.length > 0
+        ? section.biggestDebtors.map(
+            (debtor, index) =>
+              `${index + 1}. ${debtor.clientName} (${debtor.clientEmail}) - ${formatCurrency(debtor.amountOwed, debtor.currency)} across ${debtor.invoiceCount} invoice${debtor.invoiceCount === 1 ? "" : "s"}; oldest ${debtor.maxDaysOverdue} day${debtor.maxDaysOverdue === 1 ? "" : "s"} overdue`,
+          )
+        : ["No overdue invoices right now."]),
+      "",
+    ]),
     "Thanks,",
     "PaidSoon",
   ].filter((line): line is string => line !== undefined)
