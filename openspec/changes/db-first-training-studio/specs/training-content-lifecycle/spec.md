@@ -25,3 +25,12 @@ Reader-facing help/training surfaces SHALL return only `published` guides.
 #### Scenario: Draft or review guide is requested by slug
 - **WHEN** a reader requests a guide that is not in `published` state
 - **THEN** the reader API does not expose the guide as visible content
+
+### Requirement: Lifecycle audit actions are persistable in PostgreSQL
+
+Lifecycle transition audit actions SHALL be backed by matching PostgreSQL enum values in `AdminAuditAction`.
+
+#### Scenario: Training lifecycle action is logged
+- **WHEN** the system records a lifecycle audit event such as `training_content_created`, `training_content_updated`, `training_submitted_for_review`, `training_published`, or `training_restored`
+- **THEN** the corresponding `AdminAuditEvent` insert is accepted by PostgreSQL without enum rejection
+- **AND** migration SQL includes `ALTER TYPE "AdminAuditAction" ADD VALUE ...` for each newly introduced lifecycle action

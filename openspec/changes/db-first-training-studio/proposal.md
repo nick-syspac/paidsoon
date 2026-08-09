@@ -14,6 +14,7 @@ The business now needs a dedicated Training Studio operated by internal staff in
 - **NEW**: Fallback behavior for unresolved destination keys: redirect to top-level help topic.
 - **NEW**: DB-backed search path for published training/help content.
 - **NEW**: One-time import from existing MDX Help Centre files in `content/help`.
+- **NEW**: Follow-up generated Prisma migration to add missing training lifecycle audit actions to the existing `AdminAuditAction` PostgreSQL enum.
 - **MODIFIED**: Help content delivery pipeline migrates from MDX source-of-truth to DB source-of-truth.
 
 ## Capabilities
@@ -73,6 +74,7 @@ The business now needs a dedicated Training Studio operated by internal staff in
 - **Routing**: PaidSoon destination key resolver is introduced for in-content product navigation.
 - **Operations**: One-time import tooling from `content/help` is required for initial migration.
 - **Auditability**: Authoring/review/publish actions should be captured in admin audit events.
+- **Migration Integrity**: Prisma schema enum updates must be matched by generated SQL enum migrations to prevent runtime audit insert rejection.
 
 ## Out of Scope
 
@@ -115,3 +117,4 @@ The business now needs a dedicated Training Studio operated by internal staff in
 - Revision history is immutable; restore operations create new revisions.
 - Help/search surfaces read from DB-backed published content.
 - Existing `content/help` guides are imported one time with stable slugs and usable formatting.
+- Training lifecycle audit actions are accepted by both generated Prisma client and PostgreSQL enum at runtime.

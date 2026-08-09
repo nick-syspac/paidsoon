@@ -8,7 +8,7 @@
   imported bills, imported bank transactions, supplier profiles, spend insights, and forecast
   snapshots
 - [x] 1.3 Add or extend RLS policies for all new SpendLeak tables in `prisma/rls-policies.sql`
-- [ ] 1.4 Generate a Prisma migration for the SpendLeak foundation schema
+- [x] 1.4 Generate a Prisma migration for the SpendLeak foundation schema
 - [ ] 1.5 Update `docs/DDD.md` with the new data model and any new user-facing/API surfaces once
   implementation is complete
 

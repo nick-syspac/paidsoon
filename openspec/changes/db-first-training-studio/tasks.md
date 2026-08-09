@@ -12,6 +12,7 @@
 - [ ] 2.5 Create and apply Prisma migration for new models.
 - [x] 2.6 Update RLS policies and access strategy for admin-authored platform content.
 - [ ] 2.7 Run `npm run verify-rls` after policy changes.
+- [x] 2.8 Generate and apply follow-up Prisma migration that adds `training_content_created`, `training_content_updated`, `training_submitted_for_review`, `training_published`, and `training_restored` to PostgreSQL enum `AdminAuditAction`.
 
 ## 3. Admin Authoring API
 

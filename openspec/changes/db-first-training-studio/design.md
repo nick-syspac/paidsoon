@@ -152,6 +152,18 @@ Migration safeguards:
 - Validation pass for slug collisions and link integrity.
 - Manual review queue for component-rich pages that do not map cleanly.
 
+### 10. Admin Audit Enum Migration Parity
+
+Decision:
+Whenever new admin audit actions are added to `AdminAuditAction` in the Prisma schema, a generated migration must add matching values to the existing PostgreSQL enum in the same delivery window.
+
+Rationale:
+- Prevents runtime drift where generated Prisma types accept action literals that the database rejects.
+- Preserves audit completeness for lifecycle actions (`training_content_created`, `training_content_updated`, `training_submitted_for_review`, `training_published`, `training_restored`).
+
+Enforcement rule:
+- Migration verification must include an explicit check that SQL contains `ALTER TYPE "AdminAuditAction" ADD VALUE ...` statements for every newly introduced action.
+
 ## Data Model Outline
 
 Planned logical entities (names indicative):
