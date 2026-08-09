@@ -1,31 +1,47 @@
 /**
- * SSH Ed25519 key parsing and signature verification utilities for admin challenge-response.
+ * SSH public key parsing and signature verification utilities for admin challenge-response.
  *
  * Supports:
- *   - Parsing OpenSSH `ssh-ed25519` public keys (RFC 4253 wire format, base64-encoded)
+ *   - Parsing OpenSSH public keys (RFC 4253 wire format, base64-encoded)
+ *   - Supported key types: `ssh-ed25519`, `ecdsa-sha2-nistp256`
  *   - Computing SHA-256 fingerprints in `SHA256:<base64>` format
  *   - Verifying `ssh-keygen -Y sign` armoured signatures with a fixed namespace
  *
- * The private key is NEVER stored or transmitted. Only the 32-byte public key
- * bytes and their fingerprint are retained in the database.
+ * The private key is NEVER stored or transmitted. Only public key verification
+ * material and key fingerprint are retained in the database.
  */
 
 import * as crypto from "crypto"
 
 const OPENSSH_ED25519_KEY_TYPE = "ssh-ed25519"
+const OPENSSH_ECDSA_P256_KEY_TYPE = "ecdsa-sha2-nistp256"
+const OPENSSH_ECDSA_P256_CURVE = "nistp256"
 const REQUIRED_NAMESPACE = "paidsoon-admin-auth"
+
+export type SupportedAdminKeyType =
+  | typeof OPENSSH_ED25519_KEY_TYPE
+  | typeof OPENSSH_ECDSA_P256_KEY_TYPE
+
+export interface ParsedOpenSshPublicKey {
+  keyType: SupportedAdminKeyType
+  /**
+   * Verification key bytes persisted in the DB.
+   * - Ed25519: raw 32-byte public key
+   * - ECDSA P-256: SPKI DER public key
+   */
+  publicKeyBytes: Buffer
+  fingerprint: string
+}
 
 // ---------------------------------------------------------------------------
 // Public key parsing
 // ---------------------------------------------------------------------------
 
 /**
- * Parse an OpenSSH `ssh-ed25519` public key string and return the raw 32-byte
- * Ed25519 public key suitable for use with Node `crypto`.
- *
- * Throws if the key is not a valid `ssh-ed25519` key.
+ * Parse a supported OpenSSH public key string and return verification key
+ * material suitable for server-side signature verification.
  */
-export function parseOpenSshEd25519PublicKey(rawPubKey: string): Buffer {
+export function parseOpenSshPublicKey(rawPubKey: string): ParsedOpenSshPublicKey {
   const trimmed = rawPubKey.trim()
   const parts = trimmed.split(/\s+/)
 
@@ -35,10 +51,6 @@ export function parseOpenSshEd25519PublicKey(rawPubKey: string): Buffer {
 
   const [keyType, b64Data] = parts
 
-  if (keyType !== OPENSSH_ED25519_KEY_TYPE) {
-    throw new Error(`Unsupported key type: ${keyType}. Only ${OPENSSH_ED25519_KEY_TYPE} is supported.`)
-  }
-
   let keyBlob: Buffer
   try {
     keyBlob = Buffer.from(b64Data, "base64")
@@ -46,48 +58,94 @@ export function parseOpenSshEd25519PublicKey(rawPubKey: string): Buffer {
     throw new Error("Malformed OpenSSH public key: base64 decode failed")
   }
 
+  const fingerprint = computeBlobFingerprint(keyBlob)
+
+  const parsedKeyType = normalizeSupportedKeyType(keyType)
+  const parsedBlob = parseOpenSshKeyBlob(keyBlob)
+
+  if (parsedBlob.keyType !== parsedKeyType) {
+    throw new Error(`Key blob type mismatch: expected ${parsedKeyType}`)
+  }
+
+  if (parsedBlob.keyType === OPENSSH_ED25519_KEY_TYPE) {
+    return {
+      keyType: parsedBlob.keyType,
+      publicKeyBytes: parsedBlob.publicKeyBytes,
+      fingerprint,
+    }
+  }
+
+  return {
+    keyType: parsedBlob.keyType,
+    publicKeyBytes: parsedBlob.publicKeyBytes,
+    fingerprint,
+  }
+}
+
+/**
+ * Backward-compatible helper retained for existing tests and call sites.
+ * Throws unless the key is a valid `ssh-ed25519` key.
+ */
+export function parseOpenSshEd25519PublicKey(rawPubKey: string): Buffer {
+  const parsed = parseOpenSshPublicKey(rawPubKey)
+  if (parsed.keyType !== OPENSSH_ED25519_KEY_TYPE) {
+    throw new Error(`Unsupported key type: ${parsed.keyType}. Only ${OPENSSH_ED25519_KEY_TYPE} is supported.`)
+  }
+  return parsed.publicKeyBytes
+}
+
+function parseOpenSshKeyBlob(
+  keyBlob: Buffer
+): { keyType: SupportedAdminKeyType; publicKeyBytes: Buffer } {
   // Wire format (RFC 4253):
   //   [4 bytes: length of key type string]
   //   [key type string bytes]
-  //   [4 bytes: length of public key bytes]
-  //   [public key bytes]
+  //   [type-specific fields...]
   let offset = 0
 
-  const readUint32 = (buf: Buffer, pos: number): number => {
-    if (pos + 4 > buf.length) throw new Error("Malformed key blob: unexpected end of data")
-    return buf.readUInt32BE(pos)
-  }
-
-  const readString = (buf: Buffer, pos: number): { value: Buffer; nextOffset: number } => {
-    const len = readUint32(buf, pos)
-    const start = pos + 4
-    const end = start + len
-    if (end > buf.length) throw new Error("Malformed key blob: string length exceeds buffer")
-    return { value: buf.subarray(start, end), nextOffset: end }
-  }
-
-  // Read key type
-  const { value: keyTypeBytes, nextOffset: afterKeyType } = readString(keyBlob, offset)
+  const { value: keyTypeBytes, nextOffset: afterKeyType } = readBufferString(keyBlob, offset, "Malformed key blob")
   offset = afterKeyType
 
-  if (keyTypeBytes.toString("utf8") !== OPENSSH_ED25519_KEY_TYPE) {
-    throw new Error(`Key blob type mismatch: expected ${OPENSSH_ED25519_KEY_TYPE}`)
+  const keyType = normalizeSupportedKeyType(keyTypeBytes.toString("utf8"))
+
+  if (keyType === OPENSSH_ED25519_KEY_TYPE) {
+    const { value: pubKeyBytes, nextOffset: afterPubKey } = readBufferString(keyBlob, offset, "Malformed key blob")
+    offset = afterPubKey
+
+    if (pubKeyBytes.length !== 32) {
+      throw new Error(`Invalid Ed25519 public key length: expected 32 bytes, got ${pubKeyBytes.length}`)
+    }
+
+    if (offset !== keyBlob.length) {
+      throw new Error("Malformed key blob: unexpected trailing bytes")
+    }
+
+    return { keyType, publicKeyBytes: Buffer.from(pubKeyBytes) }
   }
 
-  // Read raw public key bytes
-  const { value: pubKeyBytes, nextOffset: afterPubKey } = readString(keyBlob, offset)
-  offset = afterPubKey
+  const { value: curveNameBytes, nextOffset: afterCurveName } = readBufferString(keyBlob, offset, "Malformed key blob")
+  offset = afterCurveName
 
-  if (pubKeyBytes.length !== 32) {
-    throw new Error(`Invalid Ed25519 public key length: expected 32 bytes, got ${pubKeyBytes.length}`)
+  const curveName = curveNameBytes.toString("utf8")
+  if (curveName !== OPENSSH_ECDSA_P256_CURVE) {
+    throw new Error(`Unsupported ECDSA curve: ${curveName}. Only ${OPENSSH_ECDSA_P256_CURVE} is supported.`)
   }
 
-  // Ensure no trailing bytes
+  const { value: ecPointBytes, nextOffset: afterEcPoint } = readBufferString(keyBlob, offset, "Malformed key blob")
+  offset = afterEcPoint
+
   if (offset !== keyBlob.length) {
     throw new Error("Malformed key blob: unexpected trailing bytes")
   }
 
-  return Buffer.from(pubKeyBytes)
+  if (ecPointBytes.length !== 65 || ecPointBytes[0] !== 0x04) {
+    throw new Error("Invalid P-256 public key point: expected uncompressed 65-byte EC point")
+  }
+
+  return {
+    keyType,
+    publicKeyBytes: buildEcdsaP256SpkiFromUncompressedPoint(Buffer.from(ecPointBytes)),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +173,10 @@ export function computeKeyFingerprint(rawPubKey: string): string {
     throw new Error("Malformed OpenSSH public key: base64 decode failed")
   }
 
+  return computeBlobFingerprint(keyBlob)
+}
+
+function computeBlobFingerprint(keyBlob: Buffer): string {
   const hash = crypto.createHash("sha256").update(keyBlob).digest("base64")
   // Remove trailing '=' padding to match OpenSSH fingerprint format
   return `SHA256:${hash.replace(/=+$/, "")}`
@@ -134,8 +196,10 @@ export interface VerifySshKeySigOpts {
   namespace: string
   /** The armoured signature output from `ssh-keygen -Y sign`. */
   signature: string
-  /** The raw 32-byte Ed25519 public key bytes (from `parseOpenSshEd25519PublicKey`). */
+  /** Verification key bytes stored on the device row. */
   publicKeyBytes: Buffer
+  /** Enrolled key type on the device row. */
+  keyType: string
 }
 
 /**
@@ -147,7 +211,7 @@ export interface VerifySshKeySigOpts {
  * cannot be parsed.
  */
 export function verifySshKeySig(opts: VerifySshKeySigOpts): boolean {
-  const { nonce, namespace, signature, publicKeyBytes } = opts
+  const { nonce, namespace, signature, publicKeyBytes, keyType } = opts
 
   // Enforce fixed namespace — never accept signatures from another context.
   if (namespace !== REQUIRED_NAMESPACE) {
@@ -191,18 +255,33 @@ export function verifySshKeySig(opts: VerifySshKeySigOpts): boolean {
     nonce,
   })
 
-  // Build a Node crypto public key from the raw Ed25519 bytes.
-  const pubKey = crypto.createPublicKey({
-    key: buildDerPublicKey(publicKeyBytes),
-    format: "der",
-    type: "spki",
-  })
+  const parsedKeyType = normalizeSupportedKeyType(keyType)
+  if (parsed.signatureType !== parsedKeyType) {
+    throw new Error(`Signature key type mismatch: expected ${parsedKeyType}, got ${parsed.signatureType}`)
+  }
+
+  const pubKey = createVerificationPublicKey(parsedKeyType, publicKeyBytes)
+  const verifyAlgorithm = parsedKeyType === OPENSSH_ED25519_KEY_TYPE ? null : parsed.hashAlgorithm
+  const signatureBytes =
+    parsedKeyType === OPENSSH_ED25519_KEY_TYPE
+      ? parsed.signatureBytes
+      : parseEcdsaSshSignatureToDer(parsed.signatureBytes)
 
   try {
-    return crypto.verify(null, message, pubKey, parsed.signatureBytes)
+    return crypto.verify(verifyAlgorithm, message, pubKey, signatureBytes)
   } catch {
     return false
   }
+}
+
+function createVerificationPublicKey(keyType: SupportedAdminKeyType, publicKeyBytes: Buffer): crypto.KeyObject {
+  if (keyType === OPENSSH_ED25519_KEY_TYPE) {
+    // Backward compatibility: older rows store raw 32-byte Ed25519 key bytes.
+    const derSpki = publicKeyBytes.length === 32 ? buildDerPublicKey(publicKeyBytes) : publicKeyBytes
+    return crypto.createPublicKey({ key: derSpki, format: "der", type: "spki" })
+  }
+
+  return crypto.createPublicKey({ key: publicKeyBytes, format: "der", type: "spki" })
 }
 
 // ---------------------------------------------------------------------------
@@ -236,6 +315,7 @@ interface ParsedSshSig {
   version: number
   namespace: string
   hashAlgorithm: string
+  signatureType: SupportedAdminKeyType
   signatureBytes: Buffer
 }
 
@@ -291,10 +371,17 @@ function parseSshSigBlob(blob: Buffer): ParsedSshSig {
   // The nested signature blob is itself a wire-encoded SSH signature:
   //   [string: sig type]
   //   [string: sig bytes]
-  const { nextOffset: afterSigType } = readString(sigBlobRaw, 0)
+  const { value: sigType, nextOffset: afterSigType } = readString(sigBlobRaw, 0)
+  const signatureType = normalizeSupportedKeyType(sigType)
   const { raw: signatureBytes } = readString(sigBlobRaw, afterSigType)
 
-  return { version, namespace, hashAlgorithm, signatureBytes: Buffer.from(signatureBytes) }
+  return {
+    version,
+    namespace,
+    hashAlgorithm,
+    signatureType,
+    signatureBytes: Buffer.from(signatureBytes),
+  }
 }
 
 interface SshSigMessageOpts {
@@ -351,6 +438,41 @@ function encodeString(value: string | Buffer): Buffer {
   return Buffer.concat([len, data])
 }
 
+function parseEcdsaSshSignatureToDer(signatureBytes: Buffer): Buffer {
+  // OpenSSH ECDSA signature payload: string(r) + string(s)
+  let offset = 0
+  const { value: rRaw, nextOffset: afterR } = readBufferString(signatureBytes, offset, "Malformed ECDSA signature")
+  offset = afterR
+  const { value: sRaw, nextOffset: afterS } = readBufferString(signatureBytes, offset, "Malformed ECDSA signature")
+  offset = afterS
+
+  if (offset !== signatureBytes.length) {
+    throw new Error("Malformed ECDSA signature: unexpected trailing bytes")
+  }
+
+  const derR = derIntegerFromUnsigned(Buffer.from(rRaw))
+  const derS = derIntegerFromUnsigned(Buffer.from(sRaw))
+  return derSequence(Buffer.concat([derR, derS]))
+}
+
+function derIntegerFromUnsigned(value: Buffer): Buffer {
+  if (value.length === 0) {
+    return Buffer.from([0x02, 0x01, 0x00])
+  }
+
+  let normalized = Buffer.from(value)
+
+  while (normalized.length > 1 && normalized[0] === 0x00 && (normalized[1] & 0x80) === 0) {
+    normalized = normalized.subarray(1)
+  }
+
+  if ((normalized[0] & 0x80) !== 0) {
+    normalized = Buffer.concat([Buffer.from([0x00]), normalized])
+  }
+
+  return Buffer.concat([Buffer.from([0x02]), derLength(normalized.length), normalized])
+}
+
 /**
  * Build a DER-encoded SubjectPublicKeyInfo (SPKI) structure for an Ed25519 public key.
  * This is the format accepted by `crypto.createPublicKey({ format: "der", type: "spki" })`.
@@ -368,12 +490,62 @@ function buildDerPublicKey(rawKeyBytes: Buffer): Buffer {
 
   // BIT STRING: 0x03 | length | 0x00 (no unused bits) | key bytes
   const bitString = Buffer.concat([
-    Buffer.from([0x03, rawKeyBytes.length + 1, 0x00]),
+    Buffer.from([0x03]),
+    derLength(rawKeyBytes.length + 1),
+    Buffer.from([0x00]),
     rawKeyBytes,
   ])
 
   const spki = derSequence(Buffer.concat([algorithmId, bitString]))
   return spki
+}
+
+function buildEcdsaP256SpkiFromUncompressedPoint(uncompressedPoint: Buffer): Buffer {
+  // AlgorithmIdentifier for P-256:
+  //   id-ecPublicKey (1.2.840.10045.2.1)
+  //   prime256v1 (1.2.840.10045.3.1.7)
+  const ecPublicKeyOid = Buffer.from([0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01])
+  const prime256v1Oid = Buffer.from([0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07])
+  const algorithmId = derSequence(Buffer.concat([ecPublicKeyOid, prime256v1Oid]))
+
+  const bitString = Buffer.concat([
+    Buffer.from([0x03]),
+    derLength(uncompressedPoint.length + 1),
+    Buffer.from([0x00]),
+    uncompressedPoint,
+  ])
+
+  return derSequence(Buffer.concat([algorithmId, bitString]))
+}
+
+function normalizeSupportedKeyType(keyType: string): SupportedAdminKeyType {
+  if (keyType === OPENSSH_ED25519_KEY_TYPE || keyType === OPENSSH_ECDSA_P256_KEY_TYPE) {
+    return keyType
+  }
+  throw new Error(
+    `Unsupported key type: ${keyType}. Only ${OPENSSH_ED25519_KEY_TYPE} and ${OPENSSH_ECDSA_P256_KEY_TYPE} are supported.`
+  )
+}
+
+function readUint32(buf: Buffer, pos: number, errPrefix: string): number {
+  if (pos + 4 > buf.length) {
+    throw new Error(`${errPrefix}: unexpected end of data`)
+  }
+  return buf.readUInt32BE(pos)
+}
+
+function readBufferString(
+  buf: Buffer,
+  pos: number,
+  errPrefix: string
+): { value: Buffer; nextOffset: number } {
+  const len = readUint32(buf, pos, errPrefix)
+  const start = pos + 4
+  const end = start + len
+  if (end > buf.length) {
+    throw new Error(`${errPrefix}: string length exceeds buffer`)
+  }
+  return { value: buf.subarray(start, end), nextOffset: end }
 }
 
 function derSequence(content: Buffer): Buffer {

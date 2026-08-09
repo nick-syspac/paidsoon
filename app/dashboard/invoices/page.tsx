@@ -88,21 +88,27 @@ export default async function DashboardInvoicesPage({
     traceContext,
   )
 
-  // Independent `withUserContext` transactions — safe and faster to run
-  // concurrently rather than one after another.
-  const [invoices, brokenPromiseCountsByDebtor, escalationThreshold] = canViewOverdue
-    ? await Promise.all([
-        loadDashboardInvoices(
-          user.id,
-          ACTIVE_INVOICE_STATUSES,
-          { nextEmailAt: "asc" },
-          traceContext,
-          COMPONENT,
-        ),
-        loadBrokenPromiseCountsByDebtor(user.id, traceContext, COMPONENT),
-        loadEscalationThreshold(user.id, traceContext, COMPONENT),
-      ])
-    : [[], {}, 2]
+  let invoices: Awaited<ReturnType<typeof loadDashboardInvoices>> = []
+  let brokenPromiseCountsByDebtor: Record<string, number> = {}
+  let escalationThreshold = 2
+
+  if (canViewOverdue) {
+    // Keep dashboard loaders sequential to avoid overlapping db-adapter query
+    // execution on shared request scope clients.
+    invoices = await loadDashboardInvoices(
+      user.id,
+      ACTIVE_INVOICE_STATUSES,
+      { nextEmailAt: "asc" },
+      traceContext,
+      COMPONENT,
+    )
+    brokenPromiseCountsByDebtor = await loadBrokenPromiseCountsByDebtor(
+      user.id,
+      traceContext,
+      COMPONENT,
+    )
+    escalationThreshold = await loadEscalationThreshold(user.id, traceContext, COMPONENT)
+  }
 
   const heldInvoiceIds = computeHeldInvoiceIds(invoices, atLimit)
 

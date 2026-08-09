@@ -78,21 +78,27 @@ export default async function DashboardResolvedPage({
     traceContext,
   )
 
-  // Independent `withUserContext` transactions — safe and faster to run
-  // concurrently rather than one after another.
-  const [invoices, brokenPromiseCountsByDebtor, escalationThreshold] = canViewPaymentStatus
-    ? await Promise.all([
-        loadDashboardInvoices(
-          user.id,
-          RESOLVED_INVOICE_STATUSES,
-          { updatedAt: "desc" },
-          traceContext,
-          COMPONENT,
-        ),
-        loadBrokenPromiseCountsByDebtor(user.id, traceContext, COMPONENT),
-        loadEscalationThreshold(user.id, traceContext, COMPONENT),
-      ])
-    : [[], {}, 2]
+  let invoices: Awaited<ReturnType<typeof loadDashboardInvoices>> = []
+  let brokenPromiseCountsByDebtor: Record<string, number> = {}
+  let escalationThreshold = 2
+
+  if (canViewPaymentStatus) {
+    // Keep dashboard loaders sequential to avoid overlapping db-adapter query
+    // execution on shared request scope clients.
+    invoices = await loadDashboardInvoices(
+      user.id,
+      RESOLVED_INVOICE_STATUSES,
+      { updatedAt: "desc" },
+      traceContext,
+      COMPONENT,
+    )
+    brokenPromiseCountsByDebtor = await loadBrokenPromiseCountsByDebtor(
+      user.id,
+      traceContext,
+      COMPONENT,
+    )
+    escalationThreshold = await loadEscalationThreshold(user.id, traceContext, COMPONENT)
+  }
 
   const renderSummary = buildDashboardRenderTraceSummary({
     canShowDashboardModule: canViewPaymentStatus,

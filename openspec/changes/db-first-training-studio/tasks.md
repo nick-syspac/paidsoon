@@ -84,7 +84,7 @@
 - [x] 11.2 Add tests for revision immutability and restore-as-new-revision behavior.
 - [x] 11.3 Add tests for audience-gated content read and search.
 - [x] 11.4 Add tests for destination-key resolver and fallback redirects.
-- [ ] 11.5 Add migration verification checks for imported records and rendering fidelity.
+- [x] 11.5 Add migration verification checks for imported records and rendering fidelity.
 - [x] 11.6 Run `npm run lint`, `npx tsc --noEmit`, and `npm run test`.
 
 ## 12. Documentation Updates

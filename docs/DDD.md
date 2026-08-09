@@ -406,7 +406,7 @@ erDiagram
 | `ProviderContactMapping` | `prisma/schema.prisma` | Maps provider customer/contact IDs for deduplication | `accountingConnectionId`, `providerContactId`, `contactName`, `contactEmail`, `providerMetadata` | N—1 connection | Yes (SELECT via JOIN on accounting_connections.userId) | Unique `(providerContactId, accountingConnectionId)`; `contactEmail` is PII |
 | `OauthState` | `prisma/schema.prisma` | CSRF nonce for accounting OAuth callbacks (10-min TTL) | `userId`, `provider`, `nonce`, `expiresAt` | — | Yes (by userId; SELECT/INSERT/DELETE) | Unique `(nonce)`; expired rows cleaned up by `/api/cron/sync-accounting` |
 | `PlatformRole` | `prisma/schema.prisma` | Platform staff membership | `userId`, `role` (`platform_owner`/`platform_admin`/`platform_support`), `status` (`active`/`disabled`), `grantedBy` | — | No (deny-all RLS; `prismaAdmin` only) | Max one active role per user; `grantedBy` = granting user id |
-| `AdminDevice` | `prisma/schema.prisma` | Enrolled SSH Ed25519 public keys | `userId`, `name`, `publicKeyBytes`, `fingerprint` (UK), `status` (`pending`/`active`/`revoked`/`expired`) | N—1 platform role user; 1—N challenges/sessions | No (deny-all RLS) | `publicKeyBytes` = 32-byte Ed25519 raw key; `fingerprint` = `SHA256:<base64>` |
+| `AdminDevice` | `prisma/schema.prisma` | Enrolled admin SSH public keys | `userId`, `name`, `publicKeyBytes`, `fingerprint` (UK), `keyType`, `status` (`pending`/`active`/`revoked`/`expired`) | N—1 platform role user; 1—N challenges/sessions | No (deny-all RLS) | Supported key types: `ssh-ed25519`, `ecdsa-sha2-nistp256`; `fingerprint` = `SHA256:<base64>` |
 | `AdminChallenge` | `prisma/schema.prisma` | Single-use SSH signing nonce | `userId`, `adminDeviceId`, `nonce` (UK), `expiresAt`, `usedAt` | N—1 device | No (deny-all RLS) | Nonce is 32 bytes / 64 hex chars; `usedAt` marks replay prevention |
 | `AdminSession` | `prisma/schema.prisma` | Elevated admin session after key verification | `userId`, `adminDeviceId`, `sessionToken` (UK), `expiresAt`, `revokedAt`, `ipAddress`, `userAgent` | N—1 device | No (deny-all RLS) | Token stored as `admin_session` cookie (HttpOnly/Secure/SameSite=Strict); `revokedAt` enables soft revocation |
 | `AdminAuditEvent` | `prisma/schema.prisma` | Append-only admin action log | `actorUserId`, `action` (enum, 23 values including `admin_tenant_action`), `targetUserId`, `tenantId`, `success`, `metadata` (JSON, action-specific context), `ipAddress`, `requestId` | — | No (deny-all RLS; `prismaAdmin` only) | Never deleted; no UPDATE policy; fire-and-forget write via `logAdminEvent()` |
@@ -488,7 +488,7 @@ enforced server-side before content is returned.
 | `POST /api/integrations/myob/sync` | `.../myob/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
 | `GET /api/cron/sync-accounting` | `.../cron/sync-accounting/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{totalConnections,succeeded,failed,invoicesCreated,invoicesUpdated}` | Implemented |
 | `POST /api/admin/challenges` | `app/api/admin/challenges/route.ts` | `zod` `{deviceId}` | Layer 1+2 (Supabase session + PlatformRole) | `prismaAdmin` | → `{challengeId, nonce}` | Implemented |
-| `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{signature, publicKeyFingerprint}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{ok}` | Implemented |
+| `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{deviceId, signature}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{sessionId, expiresAt}` | Implemented |
 | `POST /api/admin/sessions/revoke` | `app/api/admin/sessions/revoke/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `admin_session` cookie; `{ok}` | Implemented |
 | `GET /api/admin/audit-events` | `app/api/admin/audit-events/route.ts` | query filters + cursor | All 3 layers | `prismaAdmin` | → `{events, nextCursor}` | Implemented |
 | `GET /api/admin/devices` | `app/api/admin/devices/route.ts` | — | All 3 layers | `prismaAdmin` | → `{devices}` (no publicKeyBytes) | Implemented |
@@ -553,15 +553,15 @@ The `/admin` route group adds a **three-layer elevated-privilege guard** on top 
 |---|---|---|
 | 1 | Supabase session — same as `/dashboard` | `proxy.ts` |
 | 2 | `PlatformRole` row in `platform_roles` with `status = active` | `lib/admin/guard.ts` |
-| 3 | `AdminSession` row linked to a verified `AdminDevice` (Ed25519 SSH public key challenge-response) | `lib/admin/guard.ts` + `app/api/admin/challenges/` |
+| 3 | `AdminSession` row linked to a verified `AdminDevice` (SSH public key challenge-response) | `lib/admin/guard.ts` + `app/api/admin/challenges/` |
 
 **Challenge-response flow** (browser → server; private key never leaves the device):
 
 1. Browser POSTs `deviceId` to `/api/admin/challenges` → server stores a 32-byte nonce and returns `{challengeId, nonce}`.
-2. Operator runs: `echo "<nonce>" | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n paidsoon-admin-auth` and pastes the armoured signature.
-3. Browser POSTs signature to `/api/admin/challenges/[id]/verify` → server verifies the Ed25519 signature with the stored public key bytes, marks the challenge used, creates an `AdminSession`, and sets the `admin_session` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
+2. Operator runs: `echo "<nonce>" | ssh-keygen -Y sign -f <enrolled-private-key> -n paidsoon-admin-auth` and pastes the armoured signature.
+3. Browser POSTs signature to `/api/admin/challenges/[id]/verify` → server verifies the SSH signature with the stored device key bytes, marks the challenge used, creates an `AdminSession`, and sets the `admin_session` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
 
-**Key observation:** the server stores only the 32-byte Ed25519 *public* key. The *private* key never leaves the operator's machine. For production, a hardware-backed key (YubiKey resident key, macOS Secure Enclave key via `ssh-keygen -t ecdsa-sk`) is strongly recommended because a software private key file can be exfiltrated if the machine is compromised.
+**Key observation:** the server stores only public-key verification material (plus fingerprint and key type). The *private* key never leaves the operator's machine. Supported key types are `ssh-ed25519` and `ecdsa-sha2-nistp256` (Touch ID Secure Enclave).
 
 **Role hierarchy:** `platform_support < platform_admin < platform_owner`
 

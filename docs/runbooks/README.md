@@ -54,6 +54,7 @@ For a brand-new production setup, work through the runbooks in this order:
 6. Post-deploy fixups — see the last section of [vercel.md](./vercel.md).
 7. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
 8. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
+     Touch ID path: [admin-touchid.md](./admin-touchid.md).
 9. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
 10. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
 11. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
@@ -139,6 +140,8 @@ This is the only place where env-var values are listed. Every runbook **referenc
 
 Use this sequence for the one-time import from `content/help` into `training_content`.
 
+Before starting, make sure the target database has the current Prisma schema applied. If `training_content` is missing, run `npx prisma migrate deploy` against the target `DIRECT_URL` first.
+
 1. Preflight checks:
      - `npm run lint`
      - `npx tsc --noEmit`
@@ -153,6 +156,7 @@ Use this sequence for the one-time import from `content/help` into `training_con
 4. Post-import verification:
      - Verify expected `training_content` row count and slugs.
      - Verify `training_revisions` created for each imported guide.
+     - Run `npm run verify:training-import` to validate source-to-DB body/title/summary fidelity and help-link integrity.
      - Spot-check `/help` and key guide routes in browser as anon and signed-in.
 
 Rollback guidance:

@@ -5,7 +5,7 @@
 import { test, describe } from "node:test"
 import assert from "node:assert/strict"
 import * as crypto from "node:crypto"
-import { parseOpenSshEd25519PublicKey, computeKeyFingerprint } from "@/lib/admin/ssh"
+import { parseOpenSshPublicKey, parseOpenSshEd25519PublicKey, computeKeyFingerprint } from "@/lib/admin/ssh"
 
 describe("Device enrolment key validation", () => {
   function makeOpenSshKey() {
@@ -22,6 +22,28 @@ describe("Device enrolment key validation", () => {
     const wireBlob = Buffer.concat([keyTypeLenBuf, keyTypeBuf, pubKeyLenBuf, rawPubKeyBytes])
     const b64 = wireBlob.toString("base64")
     return { rawPubKey: `${keyTypeStr} ${b64}`, rawPubKeyBytes }
+  }
+
+  function makeOpenSshEcdsaP256Key() {
+    const { publicKey } = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+    const spki = publicKey.export({ format: "der", type: "spki" }) as Buffer
+    const uncompressedPoint = Buffer.from(spki.subarray(spki.length - 65))
+
+    const encStr = (value: string | Buffer) => {
+      const d = typeof value === "string" ? Buffer.from(value, "utf8") : value
+      const l = Buffer.allocUnsafe(4)
+      l.writeUInt32BE(d.length)
+      return Buffer.concat([l, d])
+    }
+
+    const keyTypeStr = "ecdsa-sha2-nistp256"
+    const wireBlob = Buffer.concat([
+      encStr(keyTypeStr),
+      encStr("nistp256"),
+      encStr(uncompressedPoint),
+    ])
+
+    return { rawPubKey: `${keyTypeStr} ${wireBlob.toString("base64")}` }
   }
 
   test("invalid key format is rejected", () => {
@@ -43,6 +65,13 @@ describe("Device enrolment key validation", () => {
     const parsed = parseOpenSshEd25519PublicKey(rawPubKey)
     assert.equal(parsed.length, 32)
     assert.ok(parsed.equals(rawPubKeyBytes))
+  })
+
+  test("valid ecdsa-sha2-nistp256 key is parsed successfully", () => {
+    const { rawPubKey } = makeOpenSshEcdsaP256Key()
+    const parsed = parseOpenSshPublicKey(rawPubKey)
+    assert.equal(parsed.keyType, "ecdsa-sha2-nistp256")
+    assert.ok(parsed.publicKeyBytes.length > 65)
   })
 
   test("duplicate fingerprint detection - same key produces same fingerprint", () => {

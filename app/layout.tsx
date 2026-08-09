@@ -31,7 +31,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {showNotLiveBanner ? (
           <div
             className="w-full bg-amber-100 border-b border-amber-300 text-amber-900 text-center text-sm font-medium py-2 px-4"

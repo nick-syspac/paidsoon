@@ -3,7 +3,7 @@ import { z } from "zod/v4"
 import { prismaAdmin } from "@/lib/db/admin"
 import { requireAdminElevation, AdminGuardError } from "@/lib/admin/guard"
 import { logAdminEvent } from "@/lib/admin/audit"
-import { parseOpenSshEd25519PublicKey, computeKeyFingerprint } from "@/lib/admin/ssh"
+import { parseOpenSshPublicKey } from "@/lib/admin/ssh"
 import { getIpAddress, getUserAgent, generateRequestId } from "@/lib/admin/request"
 
 const EnrolSchema = z.object({
@@ -83,9 +83,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Parse and validate the SSH public key
   let pubKeyBytes: Uint8Array<ArrayBuffer>
   let fingerprint: string
+  let keyType: string
   try {
-    pubKeyBytes = parseOpenSshEd25519PublicKey(publicKey) as Uint8Array<ArrayBuffer>
-    fingerprint = computeKeyFingerprint(publicKey)
+    const parsedKey = parseOpenSshPublicKey(publicKey)
+    pubKeyBytes = parsedKey.publicKeyBytes as Uint8Array<ArrayBuffer>
+    fingerprint = parsedKey.fingerprint
+    keyType = parsedKey.keyType
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Invalid public key", code: "invalid_key_format" },
@@ -107,7 +110,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       label,
       publicKeyBytes: pubKeyBytes,
       publicKeyFingerprint: fingerprint,
-      keyType: "ssh-ed25519",
+      keyType,
       status: "active",
       createdBy: ctx.userId,
     },

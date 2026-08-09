@@ -14,6 +14,7 @@ import { test, describe } from "node:test"
 import assert from "node:assert/strict"
 import * as crypto from "node:crypto"
 import {
+  parseOpenSshPublicKey,
   parseOpenSshEd25519PublicKey,
   computeKeyFingerprint,
   verifySshKeySig,
@@ -49,6 +50,32 @@ function generateTestKeyPair() {
   const rawPubKey = `${keyTypeStr} ${b64} test-key`
 
   return { privateKey, publicKey, rawPubKey, rawPubKeyBytes }
+}
+
+function generateTestEcdsaP256KeyPair() {
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+  const spki = publicKey.export({ format: "der", type: "spki" }) as Buffer
+  const uncompressedPoint = Buffer.from(spki.subarray(spki.length - 65))
+
+  const encStr = (value: string | Buffer) => {
+    const d = typeof value === "string" ? Buffer.from(value, "utf8") : value
+    const l = Buffer.allocUnsafe(4)
+    l.writeUInt32BE(d.length)
+    return Buffer.concat([l, d])
+  }
+
+  const keyType = "ecdsa-sha2-nistp256"
+  const wireBlob = Buffer.concat([
+    encStr(keyType),
+    encStr("nistp256"),
+    encStr(uncompressedPoint),
+  ])
+
+  return {
+    privateKey,
+    publicKey,
+    rawPubKey: `${keyType} ${wireBlob.toString("base64")} test-key`,
+  }
 }
 
 /**
@@ -116,6 +143,101 @@ function signNonce(nonce: string, namespace: string, privateKey: crypto.KeyObjec
   return `-----BEGIN SSH SIGNATURE-----\n${b64}\n-----END SSH SIGNATURE-----\n`
 }
 
+function signNonceEcdsaP256(nonce: string, namespace: string, privateKey: crypto.KeyObject): string {
+  const hashAlgorithm = "sha256"
+  const msgData = Buffer.from(nonce + "\n", "utf8")
+  const hashedMsg = crypto.createHash(hashAlgorithm).update(msgData).digest()
+
+  const pubKey = crypto.createPublicKey(privateKey)
+  const spkiDer = pubKey.export({ format: "der", type: "spki" }) as Buffer
+  const uncompressedPoint = Buffer.from(spkiDer.subarray(spkiDer.length - 65))
+
+  const encodeStr = (s: string | Buffer) => {
+    const d = typeof s === "string" ? Buffer.from(s, "utf8") : s
+    const l = Buffer.allocUnsafe(4)
+    l.writeUInt32BE(d.length)
+    return Buffer.concat([l, d])
+  }
+  const encodeUint32 = (n: number) => {
+    const b = Buffer.allocUnsafe(4)
+    b.writeUInt32BE(n)
+    return b
+  }
+
+  const keyTypeStr = "ecdsa-sha2-nistp256"
+  const pubKeyWire = Buffer.concat([
+    encodeStr(keyTypeStr),
+    encodeStr("nistp256"),
+    encodeStr(uncompressedPoint),
+  ])
+
+  const toSign = Buffer.concat([
+    Buffer.from("SSHSIG"),
+    encodeStr(namespace),
+    encodeStr(""),
+    encodeStr(hashAlgorithm),
+    encodeStr(hashedMsg),
+  ])
+
+  const derSig = crypto.sign(hashAlgorithm, toSign, privateKey)
+  const ecdsaSigBlob = derEcdsaSigToSshBlob(derSig)
+  const nestedSigBlob = Buffer.concat([encodeStr(keyTypeStr), encodeStr(ecdsaSigBlob)])
+
+  const sigBlob = Buffer.concat([
+    Buffer.from("SSHSIG"),
+    encodeUint32(1),
+    encodeStr(pubKeyWire),
+    encodeStr(namespace),
+    encodeStr(""),
+    encodeStr(hashAlgorithm),
+    encodeStr(nestedSigBlob),
+  ])
+
+  const b64 = sigBlob.toString("base64").match(/.{1,64}/g)!.join("\n")
+  return `-----BEGIN SSH SIGNATURE-----\n${b64}\n-----END SSH SIGNATURE-----\n`
+}
+
+function derEcdsaSigToSshBlob(derSig: Buffer): Buffer {
+  if (derSig.length < 8 || derSig[0] !== 0x30) {
+    throw new Error("Invalid DER ECDSA signature")
+  }
+
+  let offset = 2
+  if ((derSig[1] & 0x80) !== 0) {
+    const lenBytes = derSig[1] & 0x7f
+    offset = 2 + lenBytes
+  }
+
+  const readDerInt = (): Buffer => {
+    if (offset >= derSig.length || derSig[offset] !== 0x02) {
+      throw new Error("Invalid DER ECDSA signature integer")
+    }
+    const len = derSig[offset + 1]
+    const start = offset + 2
+    const end = start + len
+    if (end > derSig.length) {
+      throw new Error("Invalid DER ECDSA integer length")
+    }
+    offset = end
+    let value = Buffer.from(derSig.subarray(start, end))
+    while (value.length > 1 && value[0] === 0x00) {
+      value = value.subarray(1)
+    }
+    return value
+  }
+
+  const r = readDerInt()
+  const s = readDerInt()
+
+  const encodeStr = (value: Buffer) => {
+    const l = Buffer.allocUnsafe(4)
+    l.writeUInt32BE(value.length)
+    return Buffer.concat([l, value])
+  }
+
+  return Buffer.concat([encodeStr(r), encodeStr(s)])
+}
+
 // ---------------------------------------------------------------------------
 // parseOpenSshEd25519PublicKey
 // ---------------------------------------------------------------------------
@@ -165,8 +287,18 @@ describe("parseOpenSshEd25519PublicKey", () => {
     const rawPubKey = `ssh-ed25519 ${blob.toString("base64")}`
     assert.throws(
       () => parseOpenSshEd25519PublicKey(rawPubKey),
-      /Key blob type mismatch/
+      /Unsupported key type/
     )
+  })
+})
+
+describe("parseOpenSshPublicKey", () => {
+  test("parses a supported ecdsa-sha2-nistp256 key", () => {
+    const { rawPubKey } = generateTestEcdsaP256KeyPair()
+    const parsed = parseOpenSshPublicKey(rawPubKey)
+    assert.equal(parsed.keyType, "ecdsa-sha2-nistp256")
+    assert.ok(parsed.publicKeyBytes.length > 65)
+    assert.match(parsed.fingerprint, /^SHA256:[A-Za-z0-9+/]{43}$/)
   })
 })
 
@@ -208,6 +340,7 @@ describe("verifySshKeySig", () => {
       namespace: "paidsoon-admin-auth",
       signature: sig,
       publicKeyBytes: rawPubKeyBytes,
+      keyType: "ssh-ed25519",
     })
     assert.equal(result, true)
   })
@@ -224,6 +357,7 @@ describe("verifySshKeySig", () => {
       namespace: "paidsoon-admin-auth",
       signature: sig,
       publicKeyBytes: rawPubKeyBytes,
+      keyType: "ssh-ed25519",
     })
     assert.equal(result, false)
   })
@@ -237,6 +371,7 @@ describe("verifySshKeySig", () => {
       namespace: "paidsoon-admin-auth",
       signature: sig,
       publicKeyBytes: rawPubKeyBytes,
+      keyType: "ssh-ed25519",
     })
     assert.equal(result, false)
   })
@@ -252,6 +387,7 @@ describe("verifySshKeySig", () => {
           namespace: "wrong-namespace",
           signature: sig,
           publicKeyBytes: rawPubKeyBytes,
+          keyType: "ssh-ed25519",
         }),
       /Invalid namespace/
     )
@@ -266,6 +402,7 @@ describe("verifySshKeySig", () => {
           namespace: "paidsoon-admin-auth",
           signature: "not-a-valid-signature",
           publicKeyBytes: rawPubKeyBytes,
+          keyType: "ssh-ed25519",
         }),
       /Malformed SSH signature/
     )
@@ -282,7 +419,42 @@ describe("verifySshKeySig", () => {
           namespace: "paidsoon-admin-auth",
           signature: sig,
           publicKeyBytes: Buffer.from("tooshort"),
+          keyType: "ssh-ed25519",
         })
+    )
+  })
+
+  test("valid ECDSA P-256 signature verifies successfully", () => {
+    const { privateKey, rawPubKey } = generateTestEcdsaP256KeyPair()
+    const parsed = parseOpenSshPublicKey(rawPubKey)
+    const nonce = "p256-nonce"
+    const sig = signNonceEcdsaP256(nonce, "paidsoon-admin-auth", privateKey)
+
+    const result = verifySshKeySig({
+      nonce,
+      namespace: "paidsoon-admin-auth",
+      signature: sig,
+      publicKeyBytes: parsed.publicKeyBytes,
+      keyType: parsed.keyType,
+    })
+
+    assert.equal(result, true)
+  })
+
+  test("signature key type mismatch throws", () => {
+    const { privateKey, rawPubKeyBytes } = generateTestKeyPair()
+    const sig = signNonce("nonce", "paidsoon-admin-auth", privateKey)
+
+    assert.throws(
+      () =>
+        verifySshKeySig({
+          nonce: "nonce",
+          namespace: "paidsoon-admin-auth",
+          signature: sig,
+          publicKeyBytes: rawPubKeyBytes,
+          keyType: "ecdsa-sha2-nistp256",
+        }),
+      /Signature key type mismatch/
     )
   })
 })
