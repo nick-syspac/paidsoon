@@ -21,7 +21,7 @@
 import "./_loadEnv"
 import { createClient } from "@supabase/supabase-js"
 import { prismaAdmin } from "@/lib/db/admin"
-import { parseOpenSshEd25519PublicKey, computeKeyFingerprint } from "@/lib/admin/ssh"
+import { parseOpenSshPublicKey } from "@/lib/admin/ssh"
 
 const PLATFORM_OWNER_EMAIL = process.env.PLATFORM_OWNER_EMAIL
 const ADMIN_SSH_PUBLIC_KEY = process.env.ADMIN_SSH_PUBLIC_KEY
@@ -91,10 +91,13 @@ async function main() {
   if (ADMIN_SSH_PUBLIC_KEY) {
     let pubKeyBytes: Uint8Array<ArrayBuffer>
     let fingerprint: string
+    let keyType: string
 
     try {
-      pubKeyBytes = parseOpenSshEd25519PublicKey(ADMIN_SSH_PUBLIC_KEY) as Uint8Array<ArrayBuffer>
-      fingerprint = computeKeyFingerprint(ADMIN_SSH_PUBLIC_KEY)
+      const parsedKey = parseOpenSshPublicKey(ADMIN_SSH_PUBLIC_KEY)
+      pubKeyBytes = parsedKey.publicKeyBytes as Uint8Array<ArrayBuffer>
+      fingerprint = parsedKey.fingerprint
+      keyType = parsedKey.keyType
     } catch (err) {
       console.error("Error: Invalid ADMIN_SSH_PUBLIC_KEY:", err instanceof Error ? err.message : err)
       process.exit(1)
@@ -113,7 +116,7 @@ async function main() {
           label: ADMIN_DEVICE_LABEL,
           publicKeyBytes: pubKeyBytes,
           publicKeyFingerprint: fingerprint,
-          keyType: "ssh-ed25519",
+          keyType,
           status: "active",
           createdBy: "seed-admin-owner-script",
         },

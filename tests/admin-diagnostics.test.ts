@@ -27,6 +27,7 @@ function makeProfile(overrides: Partial<UserProfile> = {}): UserProfile {
     userId: "user-1",
     stripeCustomerId: null,
     stripeSubscriptionId: null,
+    subscriptionCurrentPeriodStart: null,
     subscriptionCurrentPeriodEnd: null,
     pendingDowngradeTier: null,
     stripeScheduleId: null,

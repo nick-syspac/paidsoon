@@ -50,11 +50,11 @@ function DeviceEnrolForm({ onSuccess }: DeviceEnrolFormProps) {
         />
       </div>
       <div>
-        <label className="block text-sm text-gray-300 mb-1">SSH Public Key (ssh-ed25519 ...)</label>
+        <label className="block text-sm text-gray-300 mb-1">SSH Public Key (ssh-ed25519 or ecdsa-sha2-nistp256)</label>
         <textarea
           value={publicKey}
           onChange={(e) => setPublicKey(e.target.value)}
-          placeholder="ssh-ed25519 AAAA..."
+          placeholder="ssh-ed25519 AAAA... or ecdsa-sha2-nistp256 AAAA..."
           required
           rows={3}
           className="w-full bg-gray-800 border border-gray-700 text-white rounded px-3 py-2 text-sm font-mono"
@@ -114,7 +114,9 @@ export default function AdminDevicesPageClient({
               <th className="px-4 py-3">Fingerprint</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Last Used</th>
-              <th className="px-4 py-3"></th>
+              <th className="px-4 py-3">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>

@@ -2,11 +2,13 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { isDebugEnabled } from "@/lib/diagnostics/server"
 import DebugDbCheckButton from "@/components/marketing/DebugDbCheckButton"
+import { getPublicPlans } from "@/lib/subscriptionPlans"
+import { formatPlanPrice } from "@/lib/planPresentation"
 
 export const metadata: Metadata = {
-  title: "PaidSoon — Automated Invoice Follow-Ups for Freelancers & Small Business",
+  title: "PaidSoon — Financial Control for Australian Businesses",
   description:
-    "PaidSoon connects to your Stripe account and automatically sends escalating reminder emails when clients are late paying invoices. Stop chasing. Start getting paid.",
+    "Xero and MYOB tell you what happened. PaidSoon tells you what needs attention today, what happens next, and what action to take to improve cashflow.",
 }
 
 const features = [
@@ -43,11 +45,11 @@ const steps = [
   { n: "4", title: "Reminders go out automatically", body: "Polite, professional follow-ups without lifting a finger." },
 ]
 
-const pricingPreview = [
-  { name: "Starter", price: "$19/mo", featured: false },
-  { name: "Business", price: "$49/mo", featured: true },
-  { name: "Accountant Partner", price: "Contact us", featured: false },
-]
+const pricingPreview = getPublicPlans().map((plan) => ({
+  name: plan.name,
+  price: formatPlanPrice(plan.monthlyPriceAud),
+  featured: Boolean(plan.popular),
+}))
 
 export default function HomePage() {
   return (
@@ -55,13 +57,12 @@ export default function HomePage() {
       {/* Hero */}
       <section className="max-w-3xl mx-auto px-4 pt-24 pb-20 text-center">
         <h1 className="text-4xl font-bold text-gray-900 leading-tight">
-          Stop chasing overdue invoices.<br />
-          <span className="text-blue-600">Let software do it for you.</span>
+          Accounting software records the past.<br />
+          <span className="text-blue-600">PaidSoon helps you control the future.</span>
         </h1>
         <p className="mt-6 text-lg text-gray-500 max-w-xl mx-auto">
-          PaidSoon connects to your Stripe account and automatically sends a polite,
-          escalating sequence of follow-up emails when clients are late — so you never
-          have to play bad cop again.
+          PaidSoon turns your accounting and payment data into practical next actions so
+          you can collect faster, control spending, and stay ahead of cashflow pressure.
         </p>
         <div className="mt-8 flex items-center justify-center gap-4">
           <Link
@@ -75,6 +76,31 @@ export default function HomePage() {
           </Link>
         </div>
         {isDebugEnabled() && <DebugDbCheckButton />}
+      </section>
+
+      {/* Purpose alignment */}
+      <section className="py-16 border-y border-gray-100">
+        <div className="max-w-4xl mx-auto px-4">
+          <h2 className="text-2xl font-bold text-gray-900 text-center">
+            Xero and MYOB tell you what happened.
+            <span className="block text-blue-600 mt-1">PaidSoon tells you:</span>
+          </h2>
+          <ul className="mt-8 grid md:grid-cols-2 gap-4">
+            {[
+              "What needs attention today.",
+              "What will happen next month.",
+              "What action you should take.",
+              "How to improve cashflow.",
+              "Where you're losing money.",
+              "Which customers are becoming risky.",
+              "Whether you'll have enough cash for wages, tax, and suppliers.",
+            ].map((item) => (
+              <li key={item} className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
       {/* Problem */}
@@ -189,6 +215,44 @@ export default function HomePage() {
             <Link href="/integrations" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
               View all integrations →
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Now / future */}
+      <section className="py-20">
+        <div className="max-w-4xl mx-auto px-4">
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">Now and next</h2>
+          <p className="text-center text-gray-500 max-w-2xl mx-auto mb-10">
+            PaidSoon is rolling out in phases, starting with stronger payment follow-up control and
+            expanding into broader financial operations guidance.
+          </p>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-6">
+              <h3 className="text-base font-semibold text-blue-900 mb-3">Phase 1 focus</h3>
+              <ul className="space-y-2 text-sm text-blue-900">
+                {[
+                  "Promise to pay",
+                  "Disputes",
+                  "Customer payment scoring",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span>•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Future phases</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Spendleak, forecasting, AI owner guidance, insolvency and lending signals, bank
+                integrations, and working capital optimisation.
+              </p>
+              <Link href="/roadmap" className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                View full Phase 1-4 roadmap →
+              </Link>
+            </div>
           </div>
         </div>
       </section>

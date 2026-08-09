@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { SubscriptionClient } from "@/components/settings/SubscriptionClient"
@@ -9,8 +9,7 @@ export default async function SubscriptionPage({
 }: {
   searchParams: Promise<{ success?: string; cancelled?: string; tier?: string; plan?: string }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthenticatedUser()
   if (!user) redirect("/sign-in")
 
   const params = await searchParams

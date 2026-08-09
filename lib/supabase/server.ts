@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { cache } from "react"
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -26,3 +27,16 @@ export async function createClient() {
     }
   )
 }
+
+/**
+ * `supabase.auth.getUser()` makes a network round-trip to Supabase Auth to
+ * validate the JWT (required — do not swap for the unvalidated `getSession()`).
+ * `/dashboard` layouts/pages each called it independently, so a single
+ * navigation issued it repeatedly (layout + page, sometimes more). Wrapping
+ * it in React's `cache()` dedupes it to one call per request across every
+ * Server Component that calls this within the same render pass.
+ */
+export const getAuthenticatedUser = cache(async () => {
+  const supabase = await createClient()
+  return supabase.auth.getUser()
+})

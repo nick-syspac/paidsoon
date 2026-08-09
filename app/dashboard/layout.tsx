@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
@@ -28,7 +28,6 @@ export default async function DashboardLayout({
   })
   warnIfProductionDebugEnabled(traceContext)
 
-  const supabase = await createClient()
   const { data: { user } } = await traceOperation(
     traceContext,
     {
@@ -38,7 +37,7 @@ export default async function DashboardLayout({
       subsystem: "dashboard",
       component: "app/dashboard/layout.tsx",
     },
-    () => supabase.auth.getUser(),
+    () => getAuthenticatedUser(),
     {
       success: (result) => ({
         auth: summariseAuthForTrace({ user: result.data.user }),

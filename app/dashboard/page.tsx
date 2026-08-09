@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { loadDashboardContext } from "@/lib/dashboard/loadDashboardContext"
@@ -14,24 +14,16 @@ import {
 import { buildOverviewCards } from "@/lib/dashboard/overviewCards"
 import { OverviewCards } from "@/components/dashboard/OverviewCards"
 import { loadDashboardMetrics } from "@/lib/dashboard/loadDashboardMetrics"
-import { buildAgeingBuckets, buildCashWaitingSummary } from "@/lib/dashboard/ageing"
-import { buildTopKpiCards } from "@/lib/dashboard/topKpiCards"
-import { buildBiggestDebtors } from "@/lib/dashboard/biggestDebtors"
 import { buildAttentionItems } from "@/lib/dashboard/attentionRequired"
 import { buildReminderFunnel } from "@/lib/dashboard/reminderActivity"
-import { buildCollectionPerformance, buildRecentPayments } from "@/lib/dashboard/collectionMetrics"
+import { buildRecentPayments } from "@/lib/dashboard/collectionMetrics"
 import { buildPaymentTrend } from "@/lib/dashboard/paymentTrend"
-import { buildAiSummary } from "@/lib/dashboard/aiSummary"
-import { TopKpiCards } from "@/components/dashboard/TopKpiCards"
-import { CashWaitingSummary } from "@/components/dashboard/CashWaitingSummary"
-import { AgeingChart } from "@/components/dashboard/AgeingChart"
 import { RecentPayments } from "@/components/dashboard/RecentPayments"
 import { AttentionRequired } from "@/components/dashboard/AttentionRequired"
 import { ReminderActivityFunnel } from "@/components/dashboard/ReminderActivityFunnel"
-import { CollectionPerformance } from "@/components/dashboard/CollectionPerformance"
-import { BiggestDebtors } from "@/components/dashboard/BiggestDebtors"
 import { PaymentTrendChart } from "@/components/dashboard/PaymentTrendChart"
-import { AiSummaryCard } from "@/components/dashboard/AiSummaryCard"
+import { CurrencySummarySection } from "@/components/dashboard/CurrencySummarySection"
+import { buildCurrencyDashboardSummaries } from "@/lib/dashboard/currencySummary"
 import {
   createServerTraceContext,
   traceEvent,
@@ -53,8 +45,7 @@ export default async function DashboardOverviewPage({
   })
   warnIfProductionDebugEnabled(traceContext)
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthenticatedUser()
   if (!user) {
     traceEvent(
       () => ({
@@ -92,8 +83,9 @@ export default async function DashboardOverviewPage({
     redirect("/dashboard/resolved")
   }
 
+  // Keep dashboard loaders sequential to avoid overlapping db-adapter query
+  // execution on shared request scope clients.
   const { profile, chaseAllowance } = await loadDashboardContext(user.id, traceContext, COMPONENT)
-
   const activeInvoices = await loadDashboardInvoices(
     user.id,
     ACTIVE_INVOICE_STATUSES,
@@ -101,15 +93,18 @@ export default async function DashboardOverviewPage({
     traceContext,
     COMPONENT,
   )
-
   const brokenPromiseCountsByDebtor = await loadBrokenPromiseCountsByDebtor(
     user.id,
     traceContext,
     COMPONENT,
   )
   const escalationThreshold = await loadEscalationThreshold(user.id, traceContext, COMPONENT)
-  const { paidInvoices, paidCountAllTime, manuallyResolvedCountAllTime, remindersSentToday } =
-    await loadDashboardMetrics(user.id, traceContext, COMPONENT)
+  const {
+    paidInvoices,
+    paidCountAllTime,
+    manuallyResolvedCountAllTime,
+    remindersSentToday,
+  } = await loadDashboardMetrics(user.id, traceContext, COMPONENT)
 
   const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
 
@@ -122,35 +117,20 @@ export default async function DashboardOverviewPage({
   })
 
   const now = new Date()
-  const currency = activeInvoices[0]?.currency ?? paidInvoices[0]?.currency ?? "usd"
-
-  const topKpiCards = buildTopKpiCards({
+  const currencySummaries = buildCurrencyDashboardSummaries({
     activeInvoices,
     paidInvoices,
+    displayName: profile?.displayName ?? null,
+    brokenPromiseCountsByDebtor,
     paidCountAllTime,
     manuallyResolvedCountAllTime,
     now,
   })
-  const ageingBuckets = buildAgeingBuckets(activeInvoices, now)
-  const cashWaitingSummary = buildCashWaitingSummary(ageingBuckets)
-  const biggestDebtors = buildBiggestDebtors(activeInvoices, now)
   const attentionItems = buildAttentionItems({ activeInvoices, paidInvoices, now })
   const reminderFunnel = buildReminderFunnel({ activeInvoices, paidInvoices, remindersSentToday, now })
   const recentPayments = buildRecentPayments(paidInvoices)
-  const collectionPerformance = buildCollectionPerformance({
-    paidInvoices,
-    paidCountAllTime,
-    manuallyResolvedCountAllTime,
-    now,
-  })
   const paymentTrend = buildPaymentTrend({ activeInvoices, paidInvoices, now })
-  const aiSummaryLines = buildAiSummary({
-    displayName: profile?.displayName ?? null,
-    activeInvoices,
-    paidInvoices,
-    brokenPromiseCountsByDebtor,
-    now,
-  })
+  const showCurrencyHeadings = currencySummaries.length > 1
 
   traceEvent(
     () => ({
@@ -169,25 +149,19 @@ export default async function DashboardOverviewPage({
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-gray-900">Overview</h1>
 
-      <AiSummaryCard lines={aiSummaryLines} />
-
-      <TopKpiCards cards={topKpiCards} />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <CashWaitingSummary summary={cashWaitingSummary} currency={currency} />
-        <AgeingChart buckets={ageingBuckets} currency={currency} />
-      </div>
+      {currencySummaries.map((summary) => (
+        <CurrencySummarySection
+          key={summary.currency}
+          summary={summary}
+          showCurrencyHeading={showCurrencyHeadings}
+        />
+      ))}
 
       <AttentionRequired items={attentionItems} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <RecentPayments payments={recentPayments} />
         <ReminderActivityFunnel steps={reminderFunnel} />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <CollectionPerformance performance={collectionPerformance} currency={currency} />
-        <BiggestDebtors debtors={biggestDebtors} />
       </div>
 
       <PaymentTrendChart points={paymentTrend} />

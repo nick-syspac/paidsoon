@@ -35,6 +35,13 @@ Stripe accounts, user seats, custom from-address, reminder templates, accounting
 integrations, AI rewrite, tone settings)
 (`lib/subscriptionPlans.ts`).
 
+**Planned product direction:** the public roadmap now introduces **SpendLeak** as a planned
+spend-side companion to PaidSoon. The intent is not to turn this repository into an accounting
+package, but to extend the platform over time into a broader financial-operations layer on top of
+Xero and MYOB: PaidSoon for cash collection, SpendLeak for spend efficiency and cash-out analysis.
+That direction is roadmap-only at the time of writing unless and until concrete implementation
+lands in code.
+
 **There is no multi-vertical platform.** PaidSoon is a single product, single
 tenant-type system (one freelancer = one tenant, keyed by Supabase
 `auth.users.id`). There are no organisations, workspaces, teams, RBAC roles,
@@ -65,8 +72,8 @@ endpoint (`app/api/settings/team/invite/route.ts`).
 | Stripe Connect | Read freelancer invoices; OAuth connection | `app/api/stripe/connect/**`, `lib/providers/stripe.ts` |
 | Stripe Billing | Platform subscription billing + customer portal | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts` |
 | Resend | Transactional email delivery + sender-domain verification | `lib/email/send.ts`, `app/api/settings/email/route.ts` |
-| Xero | Read accounts-receivable invoices and contacts via OAuth 2.0 | `lib/providers/accounting/xero.ts`, `app/api/integrations/xero/**` |
-| MYOB Business | Read accounts-receivable invoices and contacts via OAuth 2.0 | `lib/providers/accounting/myob.ts`, `app/api/integrations/myob/**` |
+| Xero | Read accounts-receivable invoices and contacts via OAuth 2.0 today; planned roadmap source for spend-side SpendLeak analyses later | `lib/providers/accounting/xero.ts`, `app/api/integrations/xero/**` |
+| MYOB Business | Read accounts-receivable invoices and contacts via OAuth 2.0 today; planned roadmap source for spend-side SpendLeak analyses later | `lib/providers/accounting/myob.ts`, `app/api/integrations/myob/**` |
 | Vercel | Hosting + Cron scheduler | `vercel.json`, `docs/runbooks/vercel.md` |
 | Invoice client (recipient) | Receives reminder emails; not a system user | `lib/email/templates.ts` |
 
@@ -170,7 +177,7 @@ no `apps/*` or `packages/*` workspaces.
 | Invoice providers | `lib/providers/**` | Provider abstraction; Stripe implementation | In-process | `stripe` only today |
 | Email | `lib/email/**` | Templates, schedule math, send, catch-up scan | In-process | Resend |
 | Cron handler | `app/api/cron/send-emails/route.ts` | Catch-up + dispatch sequence | Vercel serverless | Triggered by `vercel.json` cron |
-| Prisma schema | `prisma/schema.prisma` | 8 application models | Build/migrate | Generated client → `lib/generated/prisma` |
+| Prisma schema | `prisma/schema.prisma` | 9 application models | Build/migrate | Generated client → `lib/generated/prisma` |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation policies (applied manually in Supabase) | Postgres | Not run by `prisma migrate` |
 | Generated Prisma client | `lib/generated/prisma/**` | Generated at `prisma generate` (build step) | In-process | Git-ignored output |
 | Runbooks | `docs/runbooks/**` | Operator setup (Supabase, Stripe, Resend, Vercel) | Docs | Canonical env-var matrix |
@@ -472,7 +479,7 @@ batching) before invoice volume grows.
 |---|---|---|---|---|
 | Subscription tier default | Code | **Resolved by `changes/restore-three-tier-pricing`** — `prisma/schema.prisma` now defaults `subscriptionTier` to `"starter"`, matching `lib/subscriptionPlans.ts` | Resolved | n/a |
 | Subscription tier rename migration | Code | **Resolved by `changes/restore-three-tier-pricing`** — a migration normalises any stray `subscriptionTier` values (e.g. `business`) to the current tier set | Resolved | n/a |
-| New pricing features not in code | Pricing page | **Resolved by `changes/restore-three-tier-pricing`** — capabilities without an implementation (`weekly_summary_email`, `csv_export`, `approval_mode`, `contact_suppression`, `team_seats`, `customer_specific_sequences`, `multi_template_customer_wording`, `multi_client_management`) are tracked via `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()` and labelled "Coming soon" wherever shown; `promise_to_pay_tracking` is now implemented and enabled on every paid tier, so it is no longer a gap | Resolved | n/a |
+| New pricing features not in code | Pricing page | **Partially resolved** — `weekly_summary_email` is now implemented and shown where enabled; the remaining unimplemented capabilities (`csv_export`, `approval_mode`, `contact_suppression`, `team_seats`, `customer_specific_sequences`, `multi_template_customer_wording`, `multi_client_management`) stay tracked via `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()` and continue to render as "Coming soon" where applicable; `promise_to_pay_tracking` remains implemented and enabled on every paid tier | In progress | n/a |
 | `STRIPE_BUSINESS_PRICE_ID` env var | Code | **Resolved by `changes/restore-three-tier-pricing`** — `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired; the canonical set is `STRIPE_STARTER_PRICE_ID` / `STRIPE_SOLO_PRICE_ID` / `STRIPE_SMALL_BUSINESS_PRICE_ID` | Resolved | n/a |
 | `stripeConnectAccountId` encryption | Code | Schema comment claims app-layer encryption; no code encrypts it | Medium — overstated security control | Implement encryption or correct the comment |
 | `invoice.payment_failed` | OpenSpec | Listed as required webhook event; no handler in code | Medium — `past_due` not reflected promptly | Implement `changes/handle-billing-payment-failed-webhook` |

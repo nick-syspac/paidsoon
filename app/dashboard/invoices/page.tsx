@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getPlanByTier, hasPlanFeature } from "@/lib/subscriptionPlans"
@@ -39,8 +39,7 @@ export default async function DashboardInvoicesPage({
   })
   warnIfProductionDebugEnabled(traceContext)
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthenticatedUser()
   if (!user) {
     traceEvent(
       () => ({
@@ -89,22 +88,27 @@ export default async function DashboardInvoicesPage({
     traceContext,
   )
 
-  const invoices = canViewOverdue
-    ? await loadDashboardInvoices(
-        user.id,
-        ACTIVE_INVOICE_STATUSES,
-        { nextEmailAt: "asc" },
-        traceContext,
-        COMPONENT,
-      )
-    : []
+  let invoices: Awaited<ReturnType<typeof loadDashboardInvoices>> = []
+  let brokenPromiseCountsByDebtor: Record<string, number> = {}
+  let escalationThreshold = 2
 
-  const brokenPromiseCountsByDebtor = canViewOverdue
-    ? await loadBrokenPromiseCountsByDebtor(user.id, traceContext, COMPONENT)
-    : {}
-  const escalationThreshold = canViewOverdue
-    ? await loadEscalationThreshold(user.id, traceContext, COMPONENT)
-    : 2
+  if (canViewOverdue) {
+    // Keep dashboard loaders sequential to avoid overlapping db-adapter query
+    // execution on shared request scope clients.
+    invoices = await loadDashboardInvoices(
+      user.id,
+      ACTIVE_INVOICE_STATUSES,
+      { nextEmailAt: "asc" },
+      traceContext,
+      COMPONENT,
+    )
+    brokenPromiseCountsByDebtor = await loadBrokenPromiseCountsByDebtor(
+      user.id,
+      traceContext,
+      COMPONENT,
+    )
+    escalationThreshold = await loadEscalationThreshold(user.id, traceContext, COMPONENT)
+  }
 
   const heldInvoiceIds = computeHeldInvoiceIds(invoices, atLimit)
 

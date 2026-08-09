@@ -4,7 +4,7 @@ import Link from "next/link"
 export const metadata: Metadata = {
   title: "About PaidSoon — Syspac Pty Ltd",
   description:
-    "PaidSoon is an automated invoice follow-up tool for Australian freelancers, sole traders and small businesses. Operated by Syspac Pty Ltd, ABN 12 657 226 125.",
+    "PaidSoon is the financial control platform for Australian businesses. Operated by Syspac Pty Ltd, ABN 12 657 226 125.",
 }
 
 export default function AboutPage() {
@@ -15,35 +15,41 @@ export default function AboutPage() {
 
         <div className="prose prose-gray max-w-none text-gray-600 space-y-6">
           <p className="text-lg leading-relaxed">
-            PaidSoon was built to solve a simple but painful problem for small businesses: getting
-            paid should not depend on remembering to chase every overdue invoice yourself.
+            <strong className="text-gray-900">
+              PaidSoon is the financial control platform for Australian businesses.
+            </strong>
           </p>
 
           <p>
-            Many freelancers, sole traders and small businesses do good work, send invoices on time,
-            and then lose hours following up late payments. The conversations can feel awkward,
-            reminders are easy to forget, and cash flow becomes harder to plan.
+            Your accounting software records what has already happened. PaidSoon turns that
+            information into practical actions that help you collect money sooner, control
+            spending, prepare for upcoming bills and make better financial decisions.
           </p>
 
           <p>
-            PaidSoon automates the follow-up process. It connects to your payment or accounting
-            platform, monitors unpaid invoices, and sends polite, professional reminders on your
-            behalf. You stay in control of the tone, timing and escalation path, while PaidSoon
-            handles the repetitive chasing.
+            <strong className="text-gray-900">
+              Accounting records the past. PaidSoon helps you control the future.
+            </strong>
+          </p>
+
+          <p>
+            PaidSoon connects to your payment and accounting systems, surfaces what needs attention
+            next, and helps you stay ahead of cash flow pressure with practical follow-up,
+            planning and control.
           </p>
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mt-10 mb-4">Why we built it</h2>
             <p>
-              We believe invoice follow-up should be consistent, professional and calm. PaidSoon
-              helps business owners:
+              We believe business owners need more than static records. PaidSoon helps Australian
+              businesses turn financial information into practical control by helping them:
             </p>
             <ul className="list-disc pl-5 space-y-2 mt-3">
-              <li>reduce time spent chasing overdue invoices</li>
-              <li>improve cash-flow visibility</li>
-              <li>keep client relationships professional</li>
-              <li>track promises to pay and disputes</li>
-              <li>give accountants and bookkeepers better debtor visibility</li>
+              <li>collect money sooner</li>
+              <li>control spending with clearer priorities</li>
+              <li>prepare for upcoming bills with better visibility</li>
+              <li>keep follow-up and cash decisions practical and consistent</li>
+              <li>make better financial decisions with less guesswork</li>
             </ul>
           </section>
 
@@ -52,9 +58,9 @@ export default function AboutPage() {
               Built for Australian small businesses
             </h2>
             <p>
-              PaidSoon is designed for Australian businesses that want a simple, affordable way to
-              improve payment follow-up without introducing heavy finance software or complex debt
-              collection processes.
+              PaidSoon is designed for Australian businesses that want a simple, affordable layer
+              of financial control on top of the systems they already use, without adding heavy
+              finance software or complex operational overhead.
             </p>
           </section>
 
@@ -65,6 +71,16 @@ export default function AboutPage() {
               <div className="flex gap-2">
                 <dt className="font-medium text-gray-700 w-16">ABN</dt>
                 <dd>12 657 226 125</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="font-medium text-gray-700 w-16">Address</dt>
+                <dd>
+                  Level 4
+                  <br />
+                  152 Elizabeth Street
+                  <br />
+                  Melbourne. VIC. 3000
+                </dd>
               </div>
               <div className="flex gap-2">
                 <dt className="font-medium text-gray-700 w-16">Country</dt>

@@ -87,3 +87,21 @@ def promise_arrangement_sweep_task(self, claim_id: str):
     db.mark_started(claim_id)
     db.mark_processing(claim_id)
     return call_internal_job("/api/internal/jobs/promise-arrangement-sweep", {})
+
+
+@app.task(
+    name="tasks.weekly_debtor_summary",
+    bind=True,
+    base=ClaimTrackingTask,
+    **RETRY_KWARGS,
+)
+def weekly_debtor_summary_task(self, claim_id: str, user_id: str):
+    db.mark_started(claim_id)
+    db.mark_processing(claim_id)
+    result = call_internal_job(
+        "/api/internal/jobs/send-weekly-debtor-summary",
+        {"userId": user_id},
+    )
+    if result.get("status") == "failed":
+        raise RuntimeError(result.get("reason", "weekly_summary_failed"))
+    return result

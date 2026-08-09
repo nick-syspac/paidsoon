@@ -82,6 +82,10 @@ test("core follow-up capabilities are available on every paid tier", () => {
     assert.equal(hasPlanFeature(tier, "overdue_invoice_dashboard"), true, `${tier} overdue_invoice_dashboard`)
     assert.equal(hasPlanFeature(tier, "payment_status_dashboard"), true, `${tier} payment_status_dashboard`)
   }
+  assert.equal(hasPlanFeature("starter", "weekly_summary_email"), false)
+  assert.equal(hasPlanFeature("solo", "weekly_summary_email"), false)
+  assert.equal(hasPlanFeature("small_business", "weekly_summary_email"), true)
+  assert.equal(hasPlanFeature("accountant_partner", "weekly_summary_email"), true)
 })
 
 test("getPublicPlans excludes the contact-only Accountant Partner tier", () => {

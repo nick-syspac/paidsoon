@@ -5,6 +5,9 @@ environment variables, SSH key setup, seeding the first platform owner, and comp
 first login. Refer to [admin-security.md](../admin-security.md) for the full threat model and
 guard layer explanation.
 
+If you are setting up a Touch ID Secure Enclave flow end-to-end, use
+[admin-touchid.md](./admin-touchid.md).
+
 ---
 
 ## Prerequisites
@@ -20,8 +23,12 @@ guard layer explanation.
 
 ## §1 — Generate an SSH key pair
 
-The admin challenge-response system uses **Ed25519** keys only. Skip this section if you
-already have a suitable key.
+The admin challenge-response system supports OpenSSH public key types:
+
+- `ssh-ed25519`
+- `ecdsa-sha2-nistp256` (including Touch ID Secure Enclave via `ecdsa-sk`)
+
+Skip this section if you already have a suitable key.
 
 **Software key (local / dev):**
 
@@ -35,9 +42,10 @@ ssh-keygen -t ed25519 -C "paidsoon-admin" -f ~/.ssh/paidsoon_admin_ed25519
 
 | Token | Command | Notes |
 |---|---|---|
-| YubiKey (resident) | `ssh-keygen -t ed25519-sk -O resident -C "paidsoon-admin"` | Key stored on device; cannot be exported |
 | macOS Secure Enclave | `ssh-keygen -t ecdsa-sk -C "paidsoon-admin"` | Requires Touch ID per signing operation |
-| Any FIDO2 key | `ssh-keygen -t ed25519-sk -C "paidsoon-admin"` | Prompts for physical tap on each use |
+
+> OpenSSH security-key key types such as `sk-ssh-ed25519@openssh.com` are not
+> supported yet by the current server verification code.
 
 The server only ever stores the public key. You **never** upload or share your private key.
 
@@ -94,6 +102,15 @@ PLATFORM_OWNER_EMAIL=you@example.com \
 PLATFORM_OWNER_EMAIL=you@example.com \
 ADMIN_SSH_PUBLIC_KEY="$(cat ~/.ssh/paidsoon_admin_ed25519.pub)" \
 ADMIN_DEVICE_LABEL="My MacBook 2025" \
+  node --import tsx scripts/seed-admin-owner.ts
+```
+
+Touch ID Secure Enclave example:
+
+```bash
+PLATFORM_OWNER_EMAIL=you@example.com \
+ADMIN_SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ecdsa_sk.pub)" \
+ADMIN_DEVICE_LABEL="MacBook Air Touch ID" \
   node --import tsx scripts/seed-admin-owner.ts
 ```
 
@@ -170,8 +187,8 @@ no SSH signing is needed.
    ```bash
    # Replace <nonce> with the exact value shown on screen
    echo -n "<nonce>" | ssh-keygen -Y sign \
-     -f ~/.ssh/paidsoon_admin_ed25519 \
-     -n paidsoon-admin \
+     -f <your-enrolled-private-key> \
+     -n paidsoon-admin-auth \
      -q
    ```
 
@@ -208,7 +225,8 @@ Once logged in as `platform_owner`:
 Once you have a valid `AdminSession`, navigate to `/admin/admin-devices`:
 
 1. Click **Enrol new device**.
-2. Paste the contents of the new `*.pub` file (OpenSSH `ssh-ed25519` format only).
+2. Paste the contents of the new `*.pub` file (OpenSSH `ssh-ed25519` or
+  `ecdsa-sha2-nistp256`).
 3. Enter a descriptive label (e.g. `Work MacBook Pro — Touch ID`).
 4. Submit.
 
@@ -242,4 +260,4 @@ After setup, confirm the following:
 | "Too many failed attempts" (429) | `ADMIN_MAX_FAILED_ATTEMPTS` exceeded in the last 10 min | Wait 10 minutes, then retry; or reduce the failure count in the DB by deleting recent `admin_challenge_failed` audit events (use Supabase SQL editor) |
 | Signature rejected despite correct key | Nonce expired | The challenge TTL (`ADMIN_CHALLENGE_TTL_SECONDS`) has passed; request a fresh challenge and sign within the window |
 | Device ID not known | Seed script output did not include UUID | Query `admin_devices` table directly — see §4 |
-| Hardware key signing fails | Wrong namespace | Ensure `-n paidsoon-admin` matches what the app expects; check `lib/admin/ssh.ts` for the namespace string |
+| Hardware key signing fails | Wrong namespace | Ensure `-n paidsoon-admin-auth` matches what the app expects; check `lib/admin/ssh.ts` for the namespace string |

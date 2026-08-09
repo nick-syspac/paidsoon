@@ -109,7 +109,7 @@ export default function AdminVerifyPage() {
             <div className="bg-gray-800 border border-gray-700 rounded-md p-4">
               <p className="text-sm text-gray-300 mb-2 font-medium">Sign this nonce with your admin SSH key:</p>
               <code className="block text-xs text-yellow-300 whitespace-pre-wrap break-all">
-                {`echo "${nonce}" | ssh-keygen -Y sign -f ~/.ssh/paidsoon_admin_ed25519 -n paidsoon-admin-auth`}
+                {`echo "${nonce}" | ssh-keygen -Y sign -f <your-enrolled-private-key> -n paidsoon-admin-auth`}
               </code>
             </div>
 

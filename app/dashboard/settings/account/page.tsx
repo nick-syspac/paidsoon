@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { AccountSettingsClient } from "@/components/settings/AccountSettingsClient"
 
 export default async function AccountSettingsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthenticatedUser()
   if (!user) redirect("/sign-in")
 
   const profile = await withUserContext(user.id, (tx) =>

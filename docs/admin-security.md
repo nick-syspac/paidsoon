@@ -27,16 +27,18 @@ is granted.
 ## Why challenge-response and not "upload my key"
 
 The server **never sees or stores a private key**. What is stored in the
-`admin_devices` table is the 32-byte Ed25519 *public key* extracted from your
-`id_ed25519.pub` file. The challenge flow is:
+`admin_devices` table is the enrolled public key verification material plus the
+SHA-256 fingerprint of your OpenSSH public key. Currently supported key types:
+`ssh-ed25519` and `ecdsa-sha2-nistp256` (Touch ID Secure Enclave via OpenSSH).
+The challenge flow is:
 
 1. Server generates a random 32-byte nonce and stores it with a short TTL.
 2. Your browser asks you to sign the nonce offline using your private key
    (via `ssh-keygen -Y sign`).
 3. You paste the armoured signature into the browser.
-4. Server verifies the signature against the stored public key bytes using
-   Node.js built-in `crypto.verify` (Ed25519). If valid, an `AdminSession`
-   is issued and an `admin_session` cookie is set.
+4. Server verifies the signature against the stored device key using Node.js
+   built-in `crypto.verify`. If valid, an `AdminSession` is issued and an
+   `admin_session` cookie is set.
 
 Because the private key never leaves your machine, a network interception or
 server breach cannot recover it.
@@ -51,14 +53,14 @@ strongly prefer a hardware-backed key:
 
 | Key type | How to generate | Threat mitigated |
 |---|---|---|
-| YubiKey resident key | `ssh-keygen -t ed25519-sk -O resident` | Private key is stored in secure element; cannot be exported |
 | macOS Secure Enclave | `ssh-keygen -t ecdsa-sk` (Touch ID) | Key lives in T2/M-series chip; requires biometric confirmation per use |
-| FIDO2 hardware key | `ssh-keygen -t ed25519-sk` | Same as YubiKey; works with any FIDO2 token |
+| Software Ed25519 key | `ssh-keygen -t ed25519 -f ~/.ssh/paidsoon_admin_ed25519` | Baseline key-based challenge-response |
 
-The PaidSoon admin challenge flow is compatible with all three because they all
-produce standard `ssh-keygen -Y sign` output. The server code does not need
-to change when you upgrade from a software key to a hardware key — you simply
-enrol the new public key as a new device.
+The PaidSoon admin challenge flow currently supports OpenSSH key types
+`ssh-ed25519` and `ecdsa-sha2-nistp256`.
+
+> Note: OpenSSH security-key key types such as `sk-ssh-ed25519@openssh.com`
+> are not supported yet. Enrolling those keys currently fails server-side.
 
 ---
 
@@ -111,11 +113,11 @@ Only a `platform_owner` can promote a member to `platform_owner`.
 After gaining a session (layers 1–3), navigate to `/admin/admin-devices`.
 
 1. Click **Enrol new device**.
-2. Paste the contents of your `*.pub` file (OpenSSH `ssh-ed25519` format only).
+2. Paste the contents of your `*.pub` file (OpenSSH `ssh-ed25519` or
+   `ecdsa-sha2-nistp256`).
 3. Give the device a descriptive name (e.g. `MacBook Pro 2025 – Touch ID`).
-4. Submit. The server extracts the 32-byte key and stores the SHA-256
-   fingerprint. The raw public key bytes are stored but never returned to
-   the browser.
+4. Submit. The server validates the key type, stores verification material and
+   the SHA-256 fingerprint, and never returns key bytes to the browser.
 
 To remove a device, click **Revoke**. Revoking a device immediately invalidates
 all `AdminSession`s that were created using that device.

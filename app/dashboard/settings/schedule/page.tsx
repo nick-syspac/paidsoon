@@ -1,12 +1,11 @@
-import { createClient } from "@/lib/supabase/server"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { ScheduleSettingsClient } from "@/components/settings/ScheduleSettingsClient"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
 
 export default async function ScheduleSettingsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthenticatedUser()
   if (!user) redirect("/sign-in")
 
   const { profile, schedule } = await withUserContext(user.id, async (tx) => {

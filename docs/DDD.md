@@ -234,7 +234,22 @@ subsection documents a functional module.
 - `settings/team/invite` — GET reports seats; POST validates email and seat
   limit but **does not persist** (no membership model).
 
-### 4.9 Not applicable
+### 4.9 Training content destination governance and fallback
+
+- Destination keys are platform-defined identifiers resolved by
+  `lib/help/destinations.ts`.
+- Guide authoring stores destination keys on `TrainingContent.destinationKeys`
+  and tracks validation status in `training_destination_usages`.
+- Reader-facing resolution uses a safe fallback contract: unresolved,
+  unauthorized, or unavailable destination keys resolve to top-level help
+  (`/help`) rather than returning broken links.
+- Audience compatibility is enforced at resolution time. A destination that
+  requires signed-in access is never surfaced as a navigable route to anonymous
+  readers.
+- This keeps historic guide links stable during destination refactors while
+  preserving least-privilege visibility.
+
+### 4.10 Not applicable
 
 Compliance/control-library, workflow engine, CMS, vertical_setup, RTO,
 integrations registry, and any `apps/api/apps/**` modules — **not present**.
@@ -380,6 +395,7 @@ erDiagram
 | `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `custom_sender_name`/`verified_from_domain` |
 | `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later |
 | `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject`, `htmlBody`, `textBody` | N—1 tracked invoice | Yes (via join policy) | Insert via service role; `htmlBody`/`textBody` (nullable) persist the exact rendered content sent, added for the dashboard's email-detail modal — `null` for rows sent before this column existed |
+| `WeeklyDebtorSummaryDelivery` | `prisma/schema.prisma` | Internal idempotency/audit log for weekly debtor summary sends | `userId`, `weekStart`, `status`, `resendMessageId`, `lastError`, `subject`, `sentAt` | — | No (service role only) | Unique `(userId, weekStart)`; used by the weekly debtor summary sender to ensure one send per tenant per week |
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
 | `PromiseToPay` | `prisma/schema.prisma` | Client payment commitment history per invoice | `trackedInvoiceId`, `userId`, `promisedPayBy`, `promisedAmount`, `clientNotes`, `status`, `breachNotifiedAt` | N—1 tracked invoice | Yes (SELECT only; INSERT/UPDATE via `prismaAdmin`) | `status`: `active` → `kept` / `broken` / `superseded`; indexes on `(trackedInvoiceId, createdAt)` and `(status, promisedPayBy)` |
@@ -391,11 +407,14 @@ erDiagram
 | `ProviderContactMapping` | `prisma/schema.prisma` | Maps provider customer/contact IDs for deduplication | `accountingConnectionId`, `providerContactId`, `contactName`, `contactEmail`, `providerMetadata` | N—1 connection | Yes (SELECT via JOIN on accounting_connections.userId) | Unique `(providerContactId, accountingConnectionId)`; `contactEmail` is PII |
 | `OauthState` | `prisma/schema.prisma` | CSRF nonce for accounting OAuth callbacks (10-min TTL) | `userId`, `provider`, `nonce`, `expiresAt` | — | Yes (by userId; SELECT/INSERT/DELETE) | Unique `(nonce)`; expired rows cleaned up by `/api/cron/sync-accounting` |
 | `PlatformRole` | `prisma/schema.prisma` | Platform staff membership | `userId`, `role` (`platform_owner`/`platform_admin`/`platform_support`), `status` (`active`/`disabled`), `grantedBy` | — | No (deny-all RLS; `prismaAdmin` only) | Max one active role per user; `grantedBy` = granting user id |
-| `AdminDevice` | `prisma/schema.prisma` | Enrolled SSH Ed25519 public keys | `userId`, `name`, `publicKeyBytes`, `fingerprint` (UK), `status` (`pending`/`active`/`revoked`/`expired`) | N—1 platform role user; 1—N challenges/sessions | No (deny-all RLS) | `publicKeyBytes` = 32-byte Ed25519 raw key; `fingerprint` = `SHA256:<base64>` |
+| `AdminDevice` | `prisma/schema.prisma` | Enrolled admin SSH public keys | `userId`, `name`, `publicKeyBytes`, `fingerprint` (UK), `keyType`, `status` (`pending`/`active`/`revoked`/`expired`) | N—1 platform role user; 1—N challenges/sessions | No (deny-all RLS) | Supported key types: `ssh-ed25519`, `ecdsa-sha2-nistp256`; `fingerprint` = `SHA256:<base64>` |
 | `AdminChallenge` | `prisma/schema.prisma` | Single-use SSH signing nonce | `userId`, `adminDeviceId`, `nonce` (UK), `expiresAt`, `usedAt` | N—1 device | No (deny-all RLS) | Nonce is 32 bytes / 64 hex chars; `usedAt` marks replay prevention |
 | `AdminSession` | `prisma/schema.prisma` | Elevated admin session after key verification | `userId`, `adminDeviceId`, `sessionToken` (UK), `expiresAt`, `revokedAt`, `ipAddress`, `userAgent` | N—1 device | No (deny-all RLS) | Token stored as `admin_session` cookie (HttpOnly/Secure/SameSite=Strict); `revokedAt` enables soft revocation |
 | `AdminAuditEvent` | `prisma/schema.prisma` | Append-only admin action log | `actorUserId`, `action` (enum, 23 values including `admin_tenant_action`), `targetUserId`, `tenantId`, `success`, `metadata` (JSON, action-specific context), `ipAddress`, `requestId` | — | No (deny-all RLS; `prismaAdmin` only) | Never deleted; no UPDATE policy; fire-and-forget write via `logAdminEvent()` |
 | `StaffInvitation` | `prisma/schema.prisma` | Pending platform staff invite | `invitedEmail`, `role`, `token` (UK), `invitedBy`, `status` (`pending`/`accepted`/`expired`/`revoked`), `expiresAt`, `acceptedBy` | — | No (deny-all RLS) | Token is 32 bytes / 64 hex chars; accepted by matching Supabase user email |
+| `TrainingContent` | `prisma/schema.prisma` | DB-backed help/training guide record | `slug` (UK), `title`, `summary`, `content` (JSON), `lifecycleState`, `audience`, `destinationKeys`, `publishedAt`, `createdBy`, `updatedBy` | 1—N revisions; 1—N destination usages | No (deny-all RLS; `prismaAdmin` only) | Lifecycle: `draft` → `review` → `published`; only `published` rows are reader-visible |
+| `TrainingRevision` | `prisma/schema.prisma` | Immutable snapshot history for TrainingContent | `trainingContentId`, `revisionNumber`, `snapshot`, `snapshotState`, `changeNote`, `actorUserId`, `restoredFromRevisionId` | N—1 TrainingContent; optional self-reference for restore lineage | No (deny-all RLS; `prismaAdmin` only) | Unique `(trainingContentId, revisionNumber)`; restore writes a new revision instead of mutating history |
+| `TrainingDestinationUsage` | `prisma/schema.prisma` | Tracks destination-key validation state per guide | `trainingContentId`, `destinationKey`, `validationStatus`, `lastValidatedAt`, `validationDetails` | N—1 TrainingContent | No (deny-all RLS; `prismaAdmin` only) | Unique `(trainingContentId, destinationKey)`; supports governance of destination key drift |
 
 > ERDs for compliance/controls/obligations/evidence, workflow, and vertical models are **not applicable** — no such tables exist.
 
@@ -409,8 +428,10 @@ and INSERT both use a join-based `EXISTS` check against `tracked_invoices`
 (ownership via `userId`); the cron worker bypasses RLS entirely via `prismaAdmin`
 (service role), so the tightened INSERT policy does not affect it. `ai_usage_logs`
 has a SELECT policy for own rows; INSERTs are `prismaAdmin`-only (no user INSERT
-policy). `arrangements` and `arrangement_invoice_coverages` have full tenant-scoped
-CRUD policies.
+policy). `spend_insights` keeps row-scoped UPDATE via RLS, and Postgres column
+grants restrict `authenticated` updates to lifecycle fields only (`state`,
+`resolved_at`). `arrangements` and `arrangement_invoice_coverages` have full
+tenant-scoped CRUD policies.
 
 The six **platform admin tables** (`platform_roles`, `admin_devices`,
 `admin_challenges`, `admin_sessions`, `admin_audit_events`, `staff_invitations`)
@@ -418,6 +439,12 @@ all have deny-all RLS — no `anon` or `authenticated` role may SELECT, INSERT,
 UPDATE, or DELETE from them. All reads and writes go through `prismaAdmin`
 (service role) in admin route handlers that have first passed the three-layer
 admin guard. See `prisma/rls-policies.sql`.
+
+The three **training content tables** (`training_content`, `training_revisions`,
+`training_destination_usages`) also have deny-all RLS. They are platform-authored
+content stores, so user/session roles cannot read or mutate them directly. Reader
+and admin APIs access them via `prismaAdmin`, with audience visibility checks
+enforced server-side before content is returned.
 
 ## 7. API Design
 
@@ -464,7 +491,7 @@ admin guard. See `prisma/rls-policies.sql`.
 | `POST /api/integrations/myob/sync` | `.../myob/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
 | `GET /api/cron/sync-accounting` | `.../cron/sync-accounting/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{totalConnections,succeeded,failed,invoicesCreated,invoicesUpdated}` | Implemented |
 | `POST /api/admin/challenges` | `app/api/admin/challenges/route.ts` | `zod` `{deviceId}` | Layer 1+2 (Supabase session + PlatformRole) | `prismaAdmin` | → `{challengeId, nonce}` | Implemented |
-| `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{signature, publicKeyFingerprint}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{ok}` | Implemented |
+| `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{deviceId, signature}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{sessionId, expiresAt}` | Implemented |
 | `POST /api/admin/sessions/revoke` | `app/api/admin/sessions/revoke/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `admin_session` cookie; `{ok}` | Implemented |
 | `GET /api/admin/audit-events` | `app/api/admin/audit-events/route.ts` | query filters + cursor | All 3 layers | `prismaAdmin` | → `{events, nextCursor}` | Implemented |
 | `GET /api/admin/devices` | `app/api/admin/devices/route.ts` | — | All 3 layers | `prismaAdmin` | → `{devices}` (no publicKeyBytes) | Implemented |
@@ -486,6 +513,16 @@ admin guard. See `prisma/rls-policies.sql`.
 | `GET /api/admin/email-jobs` | `app/api/admin/email-jobs/route.ts` | query `cursor,limit` | All 3 layers | `prismaAdmin` | → `{jobs}` (no clientEmail) | Implemented |
 | `POST /api/admin/impersonation/start` | `.../start/route.ts` | `zod` `{tenantId}` | All 3 layers; cannot impersonate other admin | `prismaAdmin` | → updates `AdminSession.impersonatedTenantId`; `{ok}` | Implemented |
 | `POST /api/admin/impersonation/end` | `.../end/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `impersonatedTenantId`; `{ok}` | Implemented |
+| `GET /api/admin/training` | `app/api/admin/training/route.ts` | query `state,audience,q,limit` (`zod`) | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{items}` | Implemented |
+| `POST /api/admin/training` | `app/api/admin/training/route.ts` | `zod` `{title,slug,summary?,content,audience,featureKey?,routeHint?,destinationKeys?}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented |
+| `GET /api/admin/training/[id]` | `app/api/admin/training/[id]/route.ts` | path `id` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` (with revisions + destination usages) | Implemented |
+| `PATCH /api/admin/training/[id]` | `app/api/admin/training/[id]/route.ts` | `zod` draft update payload | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (draft-only edits) |
+| `POST /api/admin/training/[id]/submit-review` | `app/api/admin/training/[id]/submit-review/route.ts` | path `id` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (`draft` → `review`) |
+| `POST /api/admin/training/[id]/publish` | `app/api/admin/training/[id]/publish/route.ts` | `zod` `{changeNote?}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (`review` → `published` + revision snapshot) |
+| `GET /api/admin/training/[id]/revisions` | `app/api/admin/training/[id]/revisions/route.ts` | path `id` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{items}` | Implemented |
+| `POST /api/admin/training/[id]/restore` | `app/api/admin/training/[id]/restore/route.ts` | `zod` `{revisionId,changeNote?}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (restore-as-new-revision; state reset to `draft`) |
+| `GET /api/help/content/[slug]` | `app/api/help/content/[slug]/route.ts` | path `slug` | public/signed-in based on audience | `prismaAdmin` + server-side audience filter | → `{item}` | Implemented (published-only) |
+| `GET /api/help/search-db` | `app/api/help/search-db/route.ts` | query `q,limit` (`zod`) | public/signed-in based on audience | `prismaAdmin` + server-side audience filter | → `{results}` | Implemented |
 Canonical vs deprecated: there are no deprecated API aliases. The only
 backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
 
@@ -519,15 +556,15 @@ The `/admin` route group adds a **three-layer elevated-privilege guard** on top 
 |---|---|---|
 | 1 | Supabase session — same as `/dashboard` | `proxy.ts` |
 | 2 | `PlatformRole` row in `platform_roles` with `status = active` | `lib/admin/guard.ts` |
-| 3 | `AdminSession` row linked to a verified `AdminDevice` (Ed25519 SSH public key challenge-response) | `lib/admin/guard.ts` + `app/api/admin/challenges/` |
+| 3 | `AdminSession` row linked to a verified `AdminDevice` (SSH public key challenge-response) | `lib/admin/guard.ts` + `app/api/admin/challenges/` |
 
 **Challenge-response flow** (browser → server; private key never leaves the device):
 
 1. Browser POSTs `deviceId` to `/api/admin/challenges` → server stores a 32-byte nonce and returns `{challengeId, nonce}`.
-2. Operator runs: `echo "<nonce>" | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n paidsoon-admin-auth` and pastes the armoured signature.
-3. Browser POSTs signature to `/api/admin/challenges/[id]/verify` → server verifies the Ed25519 signature with the stored public key bytes, marks the challenge used, creates an `AdminSession`, and sets the `admin_session` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
+2. Operator runs: `echo "<nonce>" | ssh-keygen -Y sign -f <enrolled-private-key> -n paidsoon-admin-auth` and pastes the armoured signature.
+3. Browser POSTs signature to `/api/admin/challenges/[id]/verify` → server verifies the SSH signature with the stored device key bytes, marks the challenge used, creates an `AdminSession`, and sets the `admin_session` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
 
-**Key observation:** the server stores only the 32-byte Ed25519 *public* key. The *private* key never leaves the operator's machine. For production, a hardware-backed key (YubiKey resident key, macOS Secure Enclave key via `ssh-keygen -t ecdsa-sk`) is strongly recommended because a software private key file can be exfiltrated if the machine is compromised.
+**Key observation:** the server stores only public-key verification material (plus fingerprint and key type). The *private* key never leaves the operator's machine. Supported key types are `ssh-ed25519` and `ecdsa-sha2-nistp256` (Touch ID Secure Enclave).
 
 **Role hierarchy:** `platform_support < platform_admin < platform_owner`
 
@@ -629,7 +666,7 @@ stateDiagram-v2
 | `accounting_integrations` | ✓ | ✓ | ✓ | ✓ |
 | `promise_to_pay_tracking` | ✓ | ✓ | ✓ | ✓ |
 | `dispute_pause` | ✓ | ✓ | ✓ | ✓ |
-| `weekly_summary_email` ◷ | — | — | ◷ | ◷ |
+| `weekly_summary_email` | — | — | ✓ | ✓ |
 | `csv_export` ◷ | — | — | ◷ | ◷ |
 | `approval_mode` ◷ | — | — | ◷ | ◷ |
 | `contact_suppression` ◷ | — | — | ◷ | ◷ |
@@ -833,9 +870,10 @@ automated tests; only pure helpers are unit-tested.
 - **Service-role escalation:** `prismaAdmin` bypasses RLS; restricted by
   convention to cron, webhooks, and post-signup bootstrap
   (`lib/actions/auth.ts`); imports are grep-able by design.
-- **Data access controls:** RLS policies on all eight tables; `email_templates`
-  has a DELETE policy (users reset a stage to defaults); other tables have no
-  DELETE policy (FKs `RESTRICT`).
+- **Data access controls:** RLS policies on all eight user-scoped tables plus
+  the internal `weekly_debtor_summary_deliveries` log; `email_templates` has a
+  DELETE policy (users reset a stage to defaults); other tables have no DELETE
+  policy (FKs `RESTRICT`).
 - **Storage access controls:** N/A (no object storage).
 - **Encryption:** delegated to managed platforms. **Gap:**
   `stripeConnectAccountId` is documented as app-encrypted but stored in plaintext

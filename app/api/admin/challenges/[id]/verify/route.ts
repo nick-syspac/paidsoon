@@ -98,6 +98,7 @@ export async function POST(
         namespace: "paidsoon-admin-auth",
         signature,
         publicKeyBytes: Buffer.from(device.publicKeyBytes),
+        keyType: device.keyType,
       })
     } catch (err) {
       const reason = err instanceof Error ? err.message : "signature_parse_error"
