@@ -135,8 +135,12 @@ export async function POST(request: Request) {
       }),
     )
 
+    const scheduledAt = new Date(currentPeriodEnd * 1000)
+    const message = `Your plan will change on ${scheduledAt.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}. You can cancel before then.`
+
     return NextResponse.json({
-      scheduledAt: new Date(currentPeriodEnd * 1000).toISOString(),
+      scheduledAt: scheduledAt.toISOString(),
+      message,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

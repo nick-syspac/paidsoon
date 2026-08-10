@@ -34,7 +34,8 @@
 - [x] 4.9 Call `stripe.subscriptionSchedules.update(scheduleId, { phases: [{ items: [{ price: currentPriceId }], end_date: currentPeriodEnd }, { items: [{ price: newPriceId }] }] })`
 - [x] 4.10 Write `pendingDowngradeTier` and `stripeScheduleId` to `UserProfile` via `withUserContext`
 - [x] 4.11 Return HTTP 200 with `{ scheduledAt: <ISO string of current_period_end> }`
-- [x] 4.12 Wrap the Stripe API calls in try/catch; return HTTP 500 with `{ error: "Failed to schedule downgrade" }` on error (do not leak Stripe error details)
+- [x] 4.12 Trigger an explicit user-facing notification when the downgrade is scheduled, stating that the plan change will take effect at the next renewal and that it can still be cancelled before then
+- [x] 4.13 Wrap the Stripe API calls in try/catch; return HTTP 500 with `{ error: "Failed to schedule downgrade" }` on error (do not leak Stripe error details)
 
 ## 5. New cancel route — DELETE /api/billing/downgrade
 

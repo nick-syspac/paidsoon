@@ -269,3 +269,79 @@ export function getPublicPlans(): PlanDefinition[] {
     (plan) => plan.visibility === "public",
   )
 }
+
+export function getPlanChangeImpact(currentTier: SubscriptionTier, targetTier: SubscriptionTier) {
+  const currentPlan = PLAN_CATALOG[currentTier]
+  const targetPlan = PLAN_CATALOG[targetTier]
+
+  const lostFeatures: string[] = []
+  for (const [feature, enabled] of Object.entries(currentPlan.features)) {
+    if (enabled && !targetPlan.features[feature as SubscriptionFeature]) {
+      lostFeatures.push(featureToLabel(feature as SubscriptionFeature))
+    }
+  }
+
+  const limitChanges: string[] = []
+  const limits: Array<keyof PlanLimits> = [
+    "chasedInvoicesPerMonth",
+    "userSeats",
+    "connectedInvoiceSources",
+  ]
+  for (const limit of limits) {
+    const currentLimit = currentPlan.limits[limit]
+    const targetLimit = targetPlan.limits[limit]
+    if (targetLimit < currentLimit) {
+      const currentValue = formatLimitValue(currentLimit)
+      const targetValue = formatLimitValue(targetLimit)
+      limitChanges.push(`${currentValue} → ${targetValue}`)
+    }
+  }
+
+  return {
+    lostFeatures,
+    limitChanges,
+  }
+}
+
+function featureToLabel(feature: SubscriptionFeature): string {
+  switch (feature) {
+    case "custom_reminder_templates":
+      return "Custom reminder templates"
+    case "custom_sender_name":
+      return "Custom sender name"
+    case "custom_reply_to":
+      return "Custom reply-to"
+    case "verified_from_domain":
+      return "Verified from domain"
+    case "ai_rewrite":
+      return "AI rewrite"
+    case "tone_settings":
+      return "Tone settings"
+    case "basic_templates":
+      return "Basic templates"
+    case "email_reminder_sequence":
+      return "Email reminder sequence"
+    case "weekly_summary_email":
+      return "Weekly summary email"
+    case "accounting_integrations":
+      return "Accounting integrations"
+    case "promise_to_pay_tracking":
+      return "Promise-to-pay tracking"
+    case "dispute_pause":
+      return "Dispute pause"
+    case "payment_status_dashboard":
+      return "Payment status dashboard"
+    case "overdue_invoice_dashboard":
+      return "Overdue invoice dashboard"
+    case "basic_email_reminders":
+      return "Basic email reminders"
+    case "team_seats":
+      return "Team seats"
+    default:
+      return feature.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+}
+
+function formatLimitValue(limit: number): string {
+  return limit === -1 ? "Unlimited" : String(limit)
+}

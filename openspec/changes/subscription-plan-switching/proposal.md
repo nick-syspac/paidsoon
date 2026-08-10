@@ -9,6 +9,7 @@ Plan switching for existing subscribers is silently broken: the "Switch to X" bu
 - **Fix upgrade path for existing subscribers:** `POST /api/billing/checkout` now detects an existing subscription and calls `stripe.subscriptions.update()` with `proration_behavior: 'create_prorations'` instead of creating a new Checkout session.
 - **New `POST /api/billing/downgrade`:** schedules a period-end downgrade using Stripe Subscription Schedules; persists `pendingDowngradeTier` and `stripeScheduleId` to DB.
 - **New `DELETE /api/billing/downgrade`:** releases the Subscription Schedule, cancelling the pending downgrade; clears pending fields in DB.
+- **Explicit notification on downgrade scheduling:** when a downgrade is scheduled, the user receives an explicit notice that their plan will change on the next renewal and that they can cancel before then.
 - Update `app/dashboard/settings/subscription/page.tsx` to pass `subscriptionCurrentPeriodEnd`, `pendingDowngradeTier`, and `pendingDowngradeAt` to the client component.
 - Redesign `SubscriptionClient.tsx`:
   - Show "Renews [date]" on the current plan card.
@@ -23,6 +24,7 @@ Plan switching for existing subscribers is silently broken: the "Switch to X" bu
 
 - `subscription-downgrade-scheduling`: Schedule a plan downgrade to take effect at the end of the current billing period, using Stripe Subscription Schedules. User sees the effective date and a diff of features they will lose before confirming.
 - `subscription-downgrade-cancellation`: Cancel a pending scheduled downgrade before it takes effect, restoring the subscription to its current plan with no interruption.
+- `subscription-downgrade-notification`: Notify the user explicitly when a downgrade is scheduled, including that the change will take effect on the next renewal and that it can still be cancelled before then.
 
 ### Modified Capabilities
 

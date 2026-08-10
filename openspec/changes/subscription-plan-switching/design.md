@@ -17,6 +17,7 @@ The explore phase established:
 - Show the user the effective date and a features-lost diff before confirming a downgrade.
 - Allow cancellation of a pending scheduled downgrade.
 - Surface the renewal date on the current plan card.
+- Notify the user explicitly when a downgrade is scheduled, including the next renewal date and the ability to cancel before it takes effect.
 
 **Non-Goals:**
 - Changing plan pricing, tier names, or feature flags.
@@ -83,6 +84,12 @@ isDowngrade = PLAN_ORDER.indexOf(target) < PLAN_ORDER.indexOf(current)
 - Limit reductions (invoices, seats, accounts): include if target limit < current limit, formatted as "N → M"
 
 **Rationale:** No hardcoding; automatically correct if plan features change. All data is already imported in `SubscriptionClient.tsx`.
+
+### D8: Explicit notification required for scheduled downgrades
+
+**Decision:** When a downgrade is scheduled, the system must emit a user-facing notice that makes the upcoming renewal change explicit and gives the user a clear path to cancel before the change takes effect.
+
+**Rationale:** A pending state in the settings page is not enough on its own; the user should be told about the change outside the immediate UI flow so they are not surprised at renewal.
 
 ## Risks / Trade-offs
 
