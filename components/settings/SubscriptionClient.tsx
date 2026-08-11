@@ -267,7 +267,7 @@ export function SubscriptionClient({
             <p className={`text-sm mt-1 ${isConfirmingDowngrade ? "text-amber-800" : "text-sky-800"}`}>
               {isConfirmingDowngrade
                 ? `Your plan will change on ${formatDate(currentPeriodEnd)} and you can cancel before then.`
-                : "Your subscription will update immediately with proration when you continue to Stripe."}
+                : "After you confirm, we will take you to Stripe to complete this upgrade. Your new plan starts immediately and Stripe applies proration."}
             </p>
           </div>
 
@@ -320,7 +320,13 @@ export function SubscriptionClient({
               disabled={loading}
               className={`rounded-md px-3 py-2 text-sm font-medium text-white disabled:opacity-60 ${isConfirmingDowngrade ? "bg-amber-700" : "bg-sky-700"}`}
             >
-              {loading ? (isConfirmingDowngrade ? "Scheduling…" : "Opening…") : isConfirmingDowngrade ? "Confirm downgrade" : "Confirm upgrade"}
+              {loading
+                ? isConfirmingDowngrade
+                  ? "Scheduling…"
+                  : "Opening Stripe…"
+                : isConfirmingDowngrade
+                  ? "Confirm downgrade"
+                  : "Continue to Stripe"}
             </button>
             <button
               onClick={() => {
