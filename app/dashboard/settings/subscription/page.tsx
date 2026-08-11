@@ -30,7 +30,7 @@ export default async function SubscriptionPage({
       tier={normalizeSubscriptionTier(profile?.subscriptionTier)}
       status={profile?.subscriptionStatus ?? "active"}
       currentPeriodEnd={profile?.subscriptionCurrentPeriodEnd ?? null}
-      pendingDowngradeTier={normalizeSubscriptionTier(profile?.pendingDowngradeTier ?? undefined) ?? null}
+      pendingDowngradeTier={profile?.pendingDowngradeTier ? normalizeSubscriptionTier(profile.pendingDowngradeTier) : null}
       preselectedTier={normalizeSubscriptionTier(params.plan ?? null) ?? undefined}
       successMessage={
         params.success === "upgraded"

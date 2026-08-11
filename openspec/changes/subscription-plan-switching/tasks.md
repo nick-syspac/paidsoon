@@ -57,11 +57,11 @@
 - [x] 7.1 Update the `SubscriptionClient` props interface to add `currentPeriodEnd: Date | null` and `pendingDowngradeTier: SubscriptionTier | null`
 - [x] 7.2 Show "Renews [formatted date]" on the current plan card when `currentPeriodEnd` is set
 - [x] 7.3 Add state: `confirmingDowngradeTo: SubscriptionTier | null` (null = no confirmation panel open)
-- [x] 7.4 In the plan button click handler, detect downgrade (`PLAN_ORDER.indexOf(selected) < PLAN_ORDER.indexOf(currentTier)`); if downgrade, set `confirmingDowngradeTo` instead of calling the API
-- [x] 7.5 Render the inline confirmation panel when `confirmingDowngradeTo` is set, showing: target plan name, effective date (from `currentPeriodEnd`), lost features diff, "Confirm downgrade" and "Keep current plan" buttons
-- [x] 7.6 Compute lost features diff: boolean features where current is `true` and target is `false`; limit reductions formatted as "N → M"
-- [x] 7.7 "Keep current plan" dismisses the panel (`setConfirmingDowngradeTo(null)`)
-- [x] 7.8 "Confirm downgrade" calls `POST /api/billing/downgrade` with the target tier; on success, update local state to reflect pending downgrade
+- [x] 7.4 In the plan button click handler, detect any non-current tier; if selected, set the confirmation state instead of calling the API immediately
+- [x] 7.5 Render the inline confirmation panel when a tier is selected, showing: target plan name, effective date for downgrades or immediate/prorated note for upgrades, plan diff, and "Confirm" / "Keep current plan" buttons
+- [x] 7.6 Compute plan diff: boolean features where current and target differ, with downgrades showing lost features and upgrades showing gained features; limit reductions/increases formatted as "N → M"
+- [x] 7.7 "Keep current plan" dismisses the panel (`setConfirmingChangeTo(null)`)
+- [x] 7.8 "Confirm" calls `POST /api/billing/downgrade` for downgrades or `POST /api/billing/checkout` for upgrades; on success, update local state or redirect to Stripe as appropriate
 - [x] 7.9 Show "Downgrading to [plan] on [date]" on the current plan card when `pendingDowngradeTier` is set (from props, updated by local state after confirmation)
 - [x] 7.10 Show "Cancel scheduled downgrade" button on the current plan card when pending; on click, call `DELETE /api/billing/downgrade` and clear local pending state on success
 

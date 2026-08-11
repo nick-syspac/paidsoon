@@ -303,6 +303,44 @@ export function getPlanChangeImpact(currentTier: SubscriptionTier, targetTier: S
   }
 }
 
+export function getPlanChangeBenefits(currentTier: SubscriptionTier, targetTier: SubscriptionTier) {
+  const currentPlan = PLAN_CATALOG[currentTier]
+  const targetPlan = PLAN_CATALOG[targetTier]
+
+  const gainedFeatures: string[] = []
+  for (const [feature, enabled] of Object.entries(targetPlan.features)) {
+    if (enabled && !currentPlan.features[feature as SubscriptionFeature]) {
+      const featureLabel = featureToLabel(feature as SubscriptionFeature)
+      gainedFeatures.push(
+        isFeatureImplemented(feature as SubscriptionFeature)
+          ? featureLabel
+          : `${featureLabel} (coming soon)`,
+      )
+    }
+  }
+
+  const limitChanges: string[] = []
+  const limits: Array<keyof PlanLimits> = [
+    "chasedInvoicesPerMonth",
+    "userSeats",
+    "connectedInvoiceSources",
+  ]
+  for (const limit of limits) {
+    const currentLimit = currentPlan.limits[limit]
+    const targetLimit = targetPlan.limits[limit]
+    if (targetLimit > currentLimit) {
+      const currentValue = formatLimitValue(currentLimit)
+      const targetValue = formatLimitValue(targetLimit)
+      limitChanges.push(`${currentValue} → ${targetValue}`)
+    }
+  }
+
+  return {
+    gainedFeatures,
+    limitChanges,
+  }
+}
+
 function featureToLabel(feature: SubscriptionFeature): string {
   switch (feature) {
     case "custom_reminder_templates":

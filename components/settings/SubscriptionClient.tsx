@@ -4,6 +4,7 @@ import { useState } from "react"
 import {
   PLAN_CATALOG,
   PLAN_ORDER,
+  getPlanChangeBenefits,
   getPlanChangeImpact,
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans"
@@ -22,6 +23,7 @@ export function SubscriptionClient({
   status,
   currentPeriodEnd,
   pendingDowngradeTier,
+  preselectedTier,
   successMessage,
 }: {
   tier: SubscriptionTier
@@ -33,15 +35,22 @@ export function SubscriptionClient({
 }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [confirmingDowngradeTo, setConfirmingDowngradeTo] = useState<SubscriptionTier | null>(null)
+  const [confirmingChangeTo, setConfirmingChangeTo] = useState<SubscriptionTier | null>(null)
   const [pendingDowngrade, setPendingDowngrade] = useState<SubscriptionTier | null>(pendingDowngradeTier)
   const [notice, setNotice] = useState<string | null>(null)
+  const [selectedTierOverride, setSelectedTierOverride] = useState<SubscriptionTier | null>(null)
 
   const plan = PLAN_CATALOG[tier]
+  const selectedTier = selectedTierOverride ?? preselectedTier ?? tier
   const pendingPlan = pendingDowngrade ? PLAN_CATALOG[pendingDowngrade] : null
-  const confirmingPlan = confirmingDowngradeTo ? PLAN_CATALOG[confirmingDowngradeTo] : null
-  const impact = confirmingDowngradeTo ? getPlanChangeImpact(tier, confirmingDowngradeTo) : null
-  const planOptions = Object.values(PLAN_CATALOG).filter((plan) => plan.visibility === "public")
+  const confirmingPlan = confirmingChangeTo ? PLAN_CATALOG[confirmingChangeTo] : null
+  const isConfirmingDowngrade =
+    confirmingChangeTo != null && PLAN_ORDER.indexOf(confirmingChangeTo) < PLAN_ORDER.indexOf(tier)
+  const impact = confirmingChangeTo && isConfirmingDowngrade ? getPlanChangeImpact(tier, confirmingChangeTo) : null
+  const benefits = confirmingChangeTo && !isConfirmingDowngrade ? getPlanChangeBenefits(tier, confirmingChangeTo) : null
+  const planOptions = PLAN_ORDER.filter((planId) => PLAN_CATALOG[planId].visibility === "public").map(
+    (planId) => PLAN_CATALOG[planId],
+  )
 
   async function handleManage() {
     setLoading(true)
@@ -61,22 +70,49 @@ export function SubscriptionClient({
   }
 
   async function handlePlanSelect(targetTier: SubscriptionTier) {
+    setSelectedTierOverride(targetTier)
+
     if (targetTier === tier) {
+      setConfirmingChangeTo(null)
       return
     }
 
-    if (PLAN_ORDER.indexOf(targetTier) < PLAN_ORDER.indexOf(tier)) {
-      setConfirmingDowngradeTo(targetTier)
+    setConfirmingChangeTo(targetTier)
+  }
+
+  async function confirmPlanChange() {
+    if (!confirmingChangeTo) {
       return
     }
 
     setLoading(true)
     setError(null)
     try {
+      if (isConfirmingDowngrade) {
+        const res = await fetch("/api/billing/downgrade", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier: confirmingChangeTo }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setError(data.error ?? "Something went wrong. Please try again.")
+          return
+        }
+
+        setPendingDowngrade(confirmingChangeTo)
+        setConfirmingChangeTo(null)
+        setNotice(
+          data.message ??
+            `Your plan will change on ${formatDate(currentPeriodEnd)}. You can cancel before then.`,
+        )
+        return
+      }
+
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: targetTier }),
+        body: JSON.stringify({ tier: confirmingChangeTo }),
       })
       const data = await res.json()
       if (data.url) {
@@ -86,39 +122,9 @@ export function SubscriptionClient({
       setError(data.error ?? "Something went wrong. Please try again.")
     } catch {
       setError("Something went wrong. Please try again.")
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
-
-  async function confirmDowngrade() {
-    if (!confirmingDowngradeTo) {
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/billing/downgrade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: confirmingDowngradeTo }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong. Please try again.")
-        return
-      }
-
-      setPendingDowngrade(confirmingDowngradeTo)
-      setConfirmingDowngradeTo(null)
-      setNotice(
-        data.message ??
-          `Your plan will change on ${formatDate(currentPeriodEnd)}. You can cancel before then.`,
-      )
-    } catch {
-      setError("Something went wrong. Please try again.")
-    }
-    setLoading(false)
   }
 
   async function cancelPendingDowngrade() {
@@ -133,6 +139,7 @@ export function SubscriptionClient({
       }
       setPendingDowngrade(null)
       setNotice(null)
+      setSelectedTierOverride(null)
     } catch {
       setError("Something went wrong. Please try again.")
     }
@@ -207,21 +214,26 @@ export function SubscriptionClient({
 
         <div className="space-y-2">
           {planOptions.map((option) => {
-            const isCurrent = option.id === tier
+            const isSelected = option.id === selectedTier
             const isPending = pendingDowngrade === option.id
             return (
               <button
                 key={option.id}
                 onClick={() => handlePlanSelect(option.id)}
-                disabled={loading || isCurrent}
+                disabled={loading}
                 className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                  isCurrent
-                    ? "border-gray-200 bg-gray-50 text-gray-500"
+                  isSelected
+                    ? "border-amber-400 ring-1 ring-amber-300 bg-white text-gray-900"
                     : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                } ${isPending ? "ring-2 ring-amber-300" : ""}`}
+                }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">{option.name}</span>
+                  <span className="font-medium">
+                    {option.name}
+                    {isPending && !isSelected ? (
+                      <span className="ml-2 text-xs font-medium text-amber-700">(scheduled)</span>
+                    ) : null}
+                  </span>
                   <span className="text-gray-500">
                     {option.monthlyPriceAud != null && option.monthlyPriceAud > 0
                       ? `$${option.monthlyPriceAud}/month`
@@ -244,47 +256,79 @@ export function SubscriptionClient({
         </button>
       </div>
 
-      {confirmingDowngradeTo && confirmingPlan && impact && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+      {confirmingChangeTo && confirmingPlan && (impact || benefits) && (
+        <div
+          className={`rounded-xl border p-4 space-y-3 ${isConfirmingDowngrade ? "border-amber-200 bg-amber-50" : "border-sky-200 bg-sky-50"}`}
+        >
           <div>
-            <p className="text-sm font-semibold text-amber-900">Downgrade to {confirmingPlan.name}</p>
-            <p className="text-sm text-amber-800 mt-1">
-              Your plan will change on {formatDate(currentPeriodEnd)} and you can cancel before then.
+            <p className={`text-sm font-semibold ${isConfirmingDowngrade ? "text-amber-900" : "text-sky-900"}`}>
+              {isConfirmingDowngrade ? "Downgrade" : "Upgrade"} to {confirmingPlan.name}
+            </p>
+            <p className={`text-sm mt-1 ${isConfirmingDowngrade ? "text-amber-800" : "text-sky-800"}`}>
+              {isConfirmingDowngrade
+                ? `Your plan will change on ${formatDate(currentPeriodEnd)} and you can cancel before then.`
+                : "Your subscription will update immediately with proration when you continue to Stripe."}
             </p>
           </div>
 
-          <div className="space-y-1 text-sm text-amber-900">
-            <p className="font-medium">You will lose:</p>
-            {impact.lostFeatures.length > 0 ? (
-              <ul className="list-disc pl-5 space-y-1">
-                {impact.lostFeatures.map((feature) => (
-                  <li key={feature}>{feature}</li>
-                ))}
-              </ul>
+          <div className={`space-y-1 text-sm ${isConfirmingDowngrade ? "text-amber-900" : "text-sky-900"}`}>
+            <p className="font-medium">You will {isConfirmingDowngrade ? "lose" : "get"}:</p>
+            {isConfirmingDowngrade ? (
+              <>
+                {impact?.lostFeatures.length ? (
+                  <ul className="list-disc pl-5 space-y-1">
+                    {impact.lostFeatures.map((feature) => (
+                      <li key={feature}>{feature}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No feature changes.</p>
+                )}
+                {impact?.limitChanges.length ? (
+                  <ul className="list-disc pl-5 space-y-1">
+                    {impact.limitChanges.map((change) => (
+                      <li key={change}>Limits: {change}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
             ) : (
-              <p>No feature changes.</p>
-            )}
-            {impact.limitChanges.length > 0 && (
-              <ul className="list-disc pl-5 space-y-1">
-                {impact.limitChanges.map((change) => (
-                  <li key={change}>Limits: {change}</li>
-                ))}
-              </ul>
+              <>
+                {benefits?.gainedFeatures.length ? (
+                  <ul className="list-disc pl-5 space-y-1">
+                    {benefits.gainedFeatures.map((feature) => (
+                      <li key={feature}>{feature}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No feature changes.</p>
+                )}
+                {benefits?.limitChanges.length ? (
+                  <ul className="list-disc pl-5 space-y-1">
+                    {benefits.limitChanges.map((change) => (
+                      <li key={change}>Limits: {change}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
             )}
           </div>
 
           <div className="flex gap-2">
             <button
-              onClick={confirmDowngrade}
+              onClick={confirmPlanChange}
               disabled={loading}
-              className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+              className={`rounded-md px-3 py-2 text-sm font-medium text-white disabled:opacity-60 ${isConfirmingDowngrade ? "bg-amber-700" : "bg-sky-700"}`}
             >
-              {loading ? "Scheduling…" : "Confirm downgrade"}
+              {loading ? (isConfirmingDowngrade ? "Scheduling…" : "Opening…") : isConfirmingDowngrade ? "Confirm downgrade" : "Confirm upgrade"}
             </button>
             <button
-              onClick={() => setConfirmingDowngradeTo(null)}
+              onClick={() => {
+                setConfirmingChangeTo(null)
+                setSelectedTierOverride(null)
+              }}
               disabled={loading}
-              className="rounded-md border border-amber-300 px-3 py-2 text-sm font-medium text-amber-800 disabled:opacity-60"
+              className={`rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60 ${isConfirmingDowngrade ? "border-amber-300 text-amber-800" : "border-sky-300 text-sky-800"}`}
             >
               Keep current plan
             </button>

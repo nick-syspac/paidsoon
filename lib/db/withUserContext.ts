@@ -3,6 +3,10 @@ import type { Prisma } from "@/lib/generated/prisma/client"
 
 export type PrismaTx = Prisma.TransactionClient
 
+export function buildRlsContextSetupSql(): string {
+  return `SELECT set_config('request.jwt.claims', $1, true), set_config('request.jwt.claim.sub', $2, true), set_config('request.jwt.claim.role', 'authenticated', true)`
+}
+
 /**
  * Runs `fn` inside a transaction where Postgres RLS is active and
  * `auth.uid()` resolves to `userId`.
@@ -29,17 +33,7 @@ export async function withUserContext<T>(
   const claims = JSON.stringify({ sub: userId, role: "authenticated" })
   return prismaAdmin.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`)
-    await tx.$executeRawUnsafe(
-      `SELECT set_config('request.jwt.claims', $1, true)`,
-      claims,
-    )
-    await tx.$executeRawUnsafe(
-      `SELECT set_config('request.jwt.claim.sub', $1, true)`,
-      userId,
-    )
-    await tx.$executeRawUnsafe(
-      `SELECT set_config('request.jwt.claim.role', 'authenticated', true)`,
-    )
+    await tx.$executeRawUnsafe(buildRlsContextSetupSql(), claims, userId)
     return fn(tx as unknown as PrismaTx)
   })
 }

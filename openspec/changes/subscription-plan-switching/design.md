@@ -91,6 +91,16 @@ isDowngrade = PLAN_ORDER.indexOf(target) < PLAN_ORDER.indexOf(current)
 
 **Rationale:** A pending state in the settings page is not enough on its own; the user should be told about the change outside the immediate UI flow so they are not surprised at renewal.
 
+### D9: Upgrade preview should mirror downgrade preview
+
+**Decision:** When the user selects a higher tier, the client should show the same comparison-style preflight used for downgrades, but inverted to emphasise the benefits they will gain before they continue to the new plan.
+
+**Rationale:** The upgrade path currently feels abrupt because it jumps straight from selection to checkout or billing update. Reusing the same comparison panel keeps the mental model consistent: every plan change first answers "what changes for me?" and only then proceeds to the action CTA.
+
+**Presentation rule:**
+- Downgrade = "you will lose" + scheduled effective date + confirm/cancel controls
+- Upgrade = "you will get" + immediate/prorated effect + continue-to-plan control
+
 ## Risks / Trade-offs
 
 **[Risk] `stripeSubscriptionId` not yet stored for existing users** → Users who subscribed before this change have no `stripeSubscriptionId` in DB. Mitigation: in `POST /api/billing/checkout` and `POST /api/billing/downgrade`, fall back to fetching the subscription from Stripe via `stripe.customers.listSubscriptions(customerId)` when `stripeSubscriptionId` is null but `stripeCustomerId` exists. Backfill via webhook on next event.

@@ -85,15 +85,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Fetch subscription and expand latest_invoice to get period_end.
-    // schedule.phases[0].end_date is null for open-ended subscriptions so we
-    // cannot rely on it — latest_invoice.period_end is the reliable source.
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+    const subscription = (await stripe.subscriptions.retrieve(subscriptionId, {
       expand: ["latest_invoice"],
-    })
+    })) as Stripe.Subscription & { latest_invoice: Stripe.Invoice | null }
     const currentPriceId = subscription.items.data[0]?.price?.id
-    const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null
-    const currentPeriodEnd = latestInvoice?.period_end
+    const currentPeriodEnd = subscription.latest_invoice?.period_end
 
     if (!currentPriceId) {
       return NextResponse.json({ error: "Could not determine current price" }, { status: 500 })
@@ -143,10 +139,8 @@ export async function POST(request: Request) {
       message,
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error("[POST /api/billing/downgrade] Stripe error:", message)
-    // TODO: remove `detail` before shipping to production
-    return NextResponse.json({ error: "Failed to schedule downgrade", detail: message }, { status: 500 })
+    console.error("[POST /api/billing/downgrade] Stripe error:", err)
+    return NextResponse.json({ error: "Failed to schedule downgrade" }, { status: 500 })
   }
 }
 
