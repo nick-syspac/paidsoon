@@ -1,4 +1,5 @@
 import { withUserContext } from "@/lib/db/withUserContext"
+import type { PrismaTx } from "@/lib/db/withUserContext"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
 import type { ArrangementCoverageWithArrangement } from "@/lib/dashboard/arrangements"
@@ -25,6 +26,74 @@ function groupByTrackedInvoiceId<T extends { trackedInvoiceId: string }>(rows: T
   return grouped
 }
 
+export async function loadDashboardInvoicesWithTx(
+  tx: PrismaTx,
+  userId: string,
+  statuses: string[],
+  orderBy: { updatedAt: "desc" } | { nextEmailAt: "asc" },
+): Promise<InvoiceWithRelations[]> {
+  const invoices = await tx.trackedInvoice.findMany({
+    where: {
+      userId,
+      status: { in: statuses },
+    },
+    orderBy,
+  })
+  if (invoices.length === 0) return []
+
+  const invoiceIds = invoices.map((invoice) => invoice.id)
+  const emailLogs = await tx.emailLog.findMany({
+    where: { trackedInvoiceId: { in: invoiceIds } },
+    orderBy: { sentAt: "asc" },
+  })
+  const promisesToPay = await tx.promiseToPay.findMany({
+    where: { userId, trackedInvoiceId: { in: invoiceIds } },
+    orderBy: { createdAt: "desc" },
+  })
+  const arrangementCoverages = await tx.arrangementInvoiceCoverage.findMany({
+    where: { userId, trackedInvoiceId: { in: invoiceIds } },
+    orderBy: { createdAt: "desc" },
+  })
+
+  const arrangementIds = [...new Set(arrangementCoverages.map((coverage) => coverage.arrangementId))]
+  const arrangements = arrangementIds.length
+    ? await tx.arrangement.findMany({ where: { userId, id: { in: arrangementIds } } })
+    : []
+  const arrangementScopes = arrangementIds.length
+    ? await tx.arrangementInvoiceCoverage.findMany({
+        where: { userId, arrangementId: { in: arrangementIds } },
+        select: { arrangementId: true, trackedInvoiceId: true },
+      })
+    : []
+
+  const emailLogsByInvoice = groupByTrackedInvoiceId(emailLogs)
+  const promisesByInvoice = groupByTrackedInvoiceId(promisesToPay)
+  const coveragesByInvoice = groupByTrackedInvoiceId(arrangementCoverages)
+  const scopeByArrangement = new Map<string, Pick<(typeof arrangementScopes)[number], "trackedInvoiceId">[]>()
+  for (const scope of arrangementScopes) {
+    const existing = scopeByArrangement.get(scope.arrangementId)
+    const coverage = { trackedInvoiceId: scope.trackedInvoiceId }
+    if (existing) existing.push(coverage)
+    else scopeByArrangement.set(scope.arrangementId, [coverage])
+  }
+  const arrangementsById = new Map(
+    arrangements.map((arrangement) => [
+      arrangement.id,
+      { ...arrangement, coverages: scopeByArrangement.get(arrangement.id) ?? [] },
+    ]),
+  )
+
+  return invoices.map((invoice) => ({
+    ...invoice,
+    emailLogs: emailLogsByInvoice.get(invoice.id) ?? [],
+    promisesToPay: promisesByInvoice.get(invoice.id) ?? [],
+    arrangementCoverages: (coveragesByInvoice.get(invoice.id) ?? []).flatMap((coverage) => {
+      const arrangement = arrangementsById.get(coverage.arrangementId)
+      return arrangement ? [{ ...coverage, arrangement }] : []
+    }),
+  }))
+}
+
 /**
  * Loads tracked invoices for one of the two dashboard status buckets (active
  * or resolved), with the same relation shape `InvoiceTable` needs. Shared by
@@ -49,71 +118,7 @@ export async function loadDashboardInvoices(
       tenant: { context: "user_rls" },
       inputs: { statuses },
     },
-    () =>
-      withUserContext(userId, async (tx) => {
-        const invoices = await tx.trackedInvoice.findMany({
-          where: {
-            userId,
-            status: { in: statuses },
-          },
-          orderBy,
-        })
-        if (invoices.length === 0) return []
-
-        // Prisma resolves sibling relation includes concurrently. Interactive
-        // transactions use one pg client, so load each relation sequentially.
-        const invoiceIds = invoices.map((invoice) => invoice.id)
-        const emailLogs = await tx.emailLog.findMany({
-          where: { trackedInvoiceId: { in: invoiceIds } },
-          orderBy: { sentAt: "asc" },
-        })
-        const promisesToPay = await tx.promiseToPay.findMany({
-          where: { userId, trackedInvoiceId: { in: invoiceIds } },
-          orderBy: { createdAt: "desc" },
-        })
-        const arrangementCoverages = await tx.arrangementInvoiceCoverage.findMany({
-          where: { userId, trackedInvoiceId: { in: invoiceIds } },
-          orderBy: { createdAt: "desc" },
-        })
-
-        const arrangementIds = [...new Set(arrangementCoverages.map((coverage) => coverage.arrangementId))]
-        const arrangements = arrangementIds.length
-          ? await tx.arrangement.findMany({ where: { userId, id: { in: arrangementIds } } })
-          : []
-        const arrangementScopes = arrangementIds.length
-          ? await tx.arrangementInvoiceCoverage.findMany({
-              where: { userId, arrangementId: { in: arrangementIds } },
-              select: { arrangementId: true, trackedInvoiceId: true },
-            })
-          : []
-
-        const emailLogsByInvoice = groupByTrackedInvoiceId(emailLogs)
-        const promisesByInvoice = groupByTrackedInvoiceId(promisesToPay)
-        const coveragesByInvoice = groupByTrackedInvoiceId(arrangementCoverages)
-        const scopeByArrangement = new Map<string, Pick<(typeof arrangementScopes)[number], "trackedInvoiceId">[]>()
-        for (const scope of arrangementScopes) {
-          const existing = scopeByArrangement.get(scope.arrangementId)
-          const coverage = { trackedInvoiceId: scope.trackedInvoiceId }
-          if (existing) existing.push(coverage)
-          else scopeByArrangement.set(scope.arrangementId, [coverage])
-        }
-        const arrangementsById = new Map(
-          arrangements.map((arrangement) => [
-            arrangement.id,
-            { ...arrangement, coverages: scopeByArrangement.get(arrangement.id) ?? [] },
-          ]),
-        )
-
-        return invoices.map((invoice) => ({
-          ...invoice,
-          emailLogs: emailLogsByInvoice.get(invoice.id) ?? [],
-          promisesToPay: promisesByInvoice.get(invoice.id) ?? [],
-          arrangementCoverages: (coveragesByInvoice.get(invoice.id) ?? []).flatMap((coverage) => {
-            const arrangement = arrangementsById.get(coverage.arrangementId)
-            return arrangement ? [{ ...coverage, arrangement }] : []
-          }),
-        }))
-      }),
+    () => withUserContext(userId, (tx) => loadDashboardInvoicesWithTx(tx, userId, statuses, orderBy)),
     { success: (result) => ({ outputs: { invoiceCount: result.length } }) },
   )
 }

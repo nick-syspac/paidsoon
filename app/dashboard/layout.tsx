@@ -2,7 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
-import { withUserContext } from "@/lib/db/withUserContext"
+import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
 import { UserMenu } from "@/components/dashboard/UserMenu"
@@ -68,19 +68,13 @@ export default async function DashboardLayout({
     {
       traceId: traceContext.traceId,
       stage: "dashboard.layout.profile_load",
-      operation: "withUserContext.userProfile.findUnique",
+      operation: "getDashboardProfile",
       subsystem: "dashboard",
       component: "app/dashboard/layout.tsx",
       auth: summariseAuthForTrace({ user }),
       tenant: { context: "user_rls" },
     },
-    () =>
-      withUserContext(user.id, (tx) =>
-        tx.userProfile.findUnique({
-          where: { userId: user.id },
-          select: { subscriptionStatus: true, trialEndsAt: true, subscriptionTier: true, displayName: true },
-        }),
-      ),
+    () => getDashboardProfile(user.id),
     {
       success: (result) => ({
         outputs: {

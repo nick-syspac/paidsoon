@@ -1,8 +1,36 @@
 import { withUserContext } from "@/lib/db/withUserContext"
+import type { PrismaTx } from "@/lib/db/withUserContext"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
 import { buildBrokenPromiseCountsByDebtor } from "@/lib/promiseEscalationPolicy"
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
+
+export async function loadBrokenPromiseCountsByDebtorWithTx(
+  tx: PrismaTx,
+  userId: string,
+): Promise<Record<string, number>> {
+  const rows = await tx.promiseToPay.findMany({
+    where: { userId, status: "broken" },
+    select: {
+      trackedInvoice: { select: { clientEmail: true } },
+    },
+  })
+
+  return buildBrokenPromiseCountsByDebtor(
+    rows.map((row) => ({ clientEmail: row.trackedInvoice.clientEmail })),
+  )
+}
+
+export async function loadEscalationThresholdWithTx(
+  tx: PrismaTx,
+  userId: string,
+): Promise<number> {
+  const policy = await tx.promiseEscalationPolicy.findUnique({
+    where: { userId },
+    select: { escalationThreshold: true },
+  })
+  return policy?.escalationThreshold ?? 2
+}
 
 /**
  * Loads the count of broken promises-to-pay per debtor (keyed by lowercased
@@ -24,19 +52,7 @@ export async function loadBrokenPromiseCountsByDebtor(
       component,
       tenant: { context: "user_rls" },
     },
-    () =>
-      withUserContext(userId, async (tx) => {
-        const rows = await tx.promiseToPay.findMany({
-          where: { userId, status: "broken" },
-          select: {
-            trackedInvoice: { select: { clientEmail: true } },
-          },
-        })
-
-        return buildBrokenPromiseCountsByDebtor(
-          rows.map((row) => ({ clientEmail: row.trackedInvoice.clientEmail })),
-        )
-      }),
+    () => withUserContext(userId, (tx) => loadBrokenPromiseCountsByDebtorWithTx(tx, userId)),
     { success: (result) => ({ outputs: { debtorCount: Object.keys(result).length } }) },
   )
 }
@@ -60,13 +76,10 @@ export async function loadEscalationThreshold(
       component,
       tenant: { context: "user_rls" },
     },
-    () =>
-      withUserContext(userId, (tx) =>
-        tx.promiseEscalationPolicy.findUnique({
-          where: { userId },
-          select: { escalationThreshold: true },
-        }),
-      ),
+    () => withUserContext(userId, (tx) => tx.promiseEscalationPolicy.findUnique({
+      where: { userId },
+      select: { escalationThreshold: true },
+    })),
     {
       success: (result) => ({
         outputs: { policyPresent: Boolean(result), escalationThreshold: result?.escalationThreshold ?? null },

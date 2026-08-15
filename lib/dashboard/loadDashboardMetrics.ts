@@ -1,4 +1,5 @@
 import { withUserContext } from "@/lib/db/withUserContext"
+import type { PrismaTx } from "@/lib/db/withUserContext"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
 
@@ -32,6 +33,40 @@ export interface DashboardMetricsContext {
   remindersSentToday: number
 }
 
+export async function loadDashboardMetricsWithTx(
+  tx: PrismaTx,
+  userId: string,
+  now: Date = new Date(),
+): Promise<DashboardMetricsContext> {
+  const since = new Date(now)
+  since.setUTCDate(since.getUTCDate() - PAID_INVOICE_LOOKBACK_DAYS)
+  const todayStart = new Date(now)
+  todayStart.setUTCHours(0, 0, 0, 0)
+
+  const paidInvoices = await tx.trackedInvoice.findMany({
+    where: { userId, status: "paid", updatedAt: { gte: since } },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      clientEmail: true,
+      clientName: true,
+      amountDue: true,
+      currency: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  })
+  const paidCountAllTime = await tx.trackedInvoice.count({ where: { userId, status: "paid" } })
+  const manuallyResolvedCountAllTime = await tx.trackedInvoice.count({
+    where: { userId, status: "manually_resolved" },
+  })
+  const remindersSentToday = await tx.emailLog.count({
+    where: { sentAt: { gte: todayStart }, trackedInvoice: { userId } },
+  })
+
+  return { paidInvoices, paidCountAllTime, manuallyResolvedCountAllTime, remindersSentToday }
+}
+
 /**
  * Loads the additional data the new business-KPI dashboard widgets need
  * beyond what `loadDashboardInvoices`/`loadDashboardContext` already fetch:
@@ -53,38 +88,7 @@ export async function loadDashboardMetrics(
       component,
       tenant: { context: "user_rls" },
     },
-    () =>
-      withUserContext(userId, async (tx) => {
-        const since = new Date()
-        since.setUTCDate(since.getUTCDate() - PAID_INVOICE_LOOKBACK_DAYS)
-        const todayStart = new Date()
-        todayStart.setUTCHours(0, 0, 0, 0)
-
-        // Sequential, not Promise.all — queries on a single interactive
-        // transaction's `tx` share one underlying pg connection.
-        const paidInvoices = await tx.trackedInvoice.findMany({
-          where: { userId, status: "paid", updatedAt: { gte: since } },
-          orderBy: { updatedAt: "desc" },
-          select: {
-            id: true,
-            clientEmail: true,
-            clientName: true,
-            amountDue: true,
-            currency: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        })
-        const paidCountAllTime = await tx.trackedInvoice.count({ where: { userId, status: "paid" } })
-        const manuallyResolvedCountAllTime = await tx.trackedInvoice.count({
-          where: { userId, status: "manually_resolved" },
-        })
-        const remindersSentToday = await tx.emailLog.count({
-          where: { sentAt: { gte: todayStart }, trackedInvoice: { userId } },
-        })
-
-        return { paidInvoices, paidCountAllTime, manuallyResolvedCountAllTime, remindersSentToday }
-      }),
+    () => withUserContext(userId, (tx) => loadDashboardMetricsWithTx(tx, userId)),
     {
       success: (result) => ({
         outputs: {
