@@ -77,9 +77,9 @@
 
 ## 9. Current-plan selector initialization
 
-- [ ] 9.1 In `app/dashboard/settings/subscription/page.tsx`, derive `preselectedTier` only when the `plan` query parameter identifies a public, customer-selectable tier; pass `undefined` for missing, invalid, or contact-only values instead of normalizing them to Starter
-- [ ] 9.2 Preserve selector precedence in `SubscriptionClient`: explicit user selection, then valid query preselection, then the current subscription tier
-- [ ] 9.3 Add regression tests covering normal navigation for a Solo subscriber, valid public-plan deep-link preselection, invalid plan values, and the contact-only Accountant Partner value
+- [x] 9.1 In `app/dashboard/settings/subscription/page.tsx`, derive `preselectedTier` only when the `plan` query parameter identifies a public, customer-selectable tier; pass `undefined` for missing, invalid, or contact-only values instead of normalizing them to Starter
+- [x] 9.2 Preserve selector precedence in `SubscriptionClient`: explicit user selection, then valid query preselection, then the current subscription tier
+- [x] 9.3 Add regression tests covering normal navigation for a Solo subscriber, valid public-plan deep-link preselection, invalid plan values, and the contact-only Accountant Partner value
 - [ ] 9.4 Manually smoke test direct navigation to Settings → Subscription for Starter, Solo, and Small Business accounts and confirm each current plan is highlighted
 - [ ] 1.2 Add `subscriptionCurrentPeriodEnd DateTime? @map("subscription_current_period_end")` to `UserProfile` in `prisma/schema.prisma`
 - [ ] 1.3 Add `pendingDowngradeTier String? @map("pending_downgrade_tier")` to `UserProfile` in `prisma/schema.prisma`

@@ -6,6 +6,7 @@ import {
   PLAN_ORDER,
   getPlanChangeBenefits,
   getPlanChangeImpact,
+  resolvePlanSelectorTier,
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans"
 
@@ -41,7 +42,7 @@ export function SubscriptionClient({
   const [selectedTierOverride, setSelectedTierOverride] = useState<SubscriptionTier | null>(null)
 
   const plan = PLAN_CATALOG[tier]
-  const selectedTier = selectedTierOverride ?? preselectedTier ?? tier
+  const selectedTier = resolvePlanSelectorTier(tier, preselectedTier, selectedTierOverride)
   const pendingPlan = pendingDowngrade ? PLAN_CATALOG[pendingDowngrade] : null
   const confirmingPlan = confirmingChangeTo ? PLAN_CATALOG[confirmingChangeTo] : null
   const isConfirmingDowngrade =

@@ -4,10 +4,12 @@ import {
   DEFAULT_SUBSCRIPTION_TIER,
   PLAN_CATALOG,
   getPlanByTier,
+  getPublicPlanSelectionIntent,
   getPublicPlans,
   hasPlanFeature,
   isFeatureImplemented,
   normalizeSubscriptionTier,
+  resolvePlanSelectorTier,
   UNIMPLEMENTED_FEATURES,
 } from "@/lib/subscriptionPlans"
 
@@ -95,6 +97,33 @@ test("getPublicPlans excludes the contact-only Accountant Partner tier", () => {
     ["starter", "solo", "small_business"],
   )
   assert.ok(publicPlans.every((plan) => plan.visibility === "public"))
+})
+
+test("plan selector defaults to the current tier without selection intent", () => {
+  const preselectedTier = getPublicPlanSelectionIntent(undefined)
+
+  assert.equal(resolvePlanSelectorTier("solo", preselectedTier), "solo")
+})
+
+test("plan selector accepts valid public-plan selection intent", () => {
+  const preselectedTier = getPublicPlanSelectionIntent("small_business")
+
+  assert.equal(resolvePlanSelectorTier("solo", preselectedTier), "small_business")
+})
+
+test("plan selector ignores invalid and contact-only selection intent", () => {
+  assert.equal(
+    resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("unknown_tier")),
+    "solo",
+  )
+  assert.equal(
+    resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("accountant_partner")),
+    "solo",
+  )
+})
+
+test("explicit plan selector choice overrides query intent and current tier", () => {
+  assert.equal(resolvePlanSelectorTier("solo", "small_business", "starter"), "starter")
 })
 
 test("Solo is marked as the popular plan", () => {

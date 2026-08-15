@@ -2,7 +2,11 @@ import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { SubscriptionClient } from "@/components/settings/SubscriptionClient"
-import { getPlanByTier, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import {
+  getPlanByTier,
+  getPublicPlanSelectionIntent,
+  normalizeSubscriptionTier,
+} from "@/lib/subscriptionPlans"
 
 export default async function SubscriptionPage({
   searchParams,
@@ -31,7 +35,7 @@ export default async function SubscriptionPage({
       status={profile?.subscriptionStatus ?? "active"}
       currentPeriodEnd={profile?.subscriptionCurrentPeriodEnd ?? null}
       pendingDowngradeTier={profile?.pendingDowngradeTier ? normalizeSubscriptionTier(profile.pendingDowngradeTier) : null}
-      preselectedTier={normalizeSubscriptionTier(params.plan ?? null) ?? undefined}
+      preselectedTier={getPublicPlanSelectionIntent(params.plan)}
       successMessage={
         params.success === "upgraded"
           ? `Subscription updated to ${getPlanByTier(params.tier).name}.`

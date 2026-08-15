@@ -270,6 +270,23 @@ export function getPublicPlans(): PlanDefinition[] {
   )
 }
 
+export function getPublicPlanSelectionIntent(
+  tier?: string | null,
+): SubscriptionTier | undefined {
+  if (!tier || !(tier in PLAN_CATALOG)) return undefined
+
+  const plan = PLAN_CATALOG[tier as SubscriptionTier]
+  return plan.visibility === "public" ? plan.id : undefined
+}
+
+export function resolvePlanSelectorTier(
+  currentTier: SubscriptionTier,
+  preselectedTier?: SubscriptionTier,
+  selectedTierOverride?: SubscriptionTier | null,
+): SubscriptionTier {
+  return selectedTierOverride ?? preselectedTier ?? currentTier
+}
+
 export function getPlanChangeImpact(currentTier: SubscriptionTier, targetTier: SubscriptionTier) {
   const currentPlan = PLAN_CATALOG[currentTier]
   const targetPlan = PLAN_CATALOG[targetTier]
