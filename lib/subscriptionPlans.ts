@@ -244,9 +244,13 @@ export const PLAN_ORDER: SubscriptionTier[] = [
   "accountant_partner",
 ]
 
+function isSubscriptionTier(tier: string): tier is SubscriptionTier {
+  return Object.prototype.hasOwnProperty.call(PLAN_CATALOG, tier)
+}
+
 export function normalizeSubscriptionTier(tier?: string | null): SubscriptionTier {
   if (!tier) return DEFAULT_SUBSCRIPTION_TIER
-  if (tier in PLAN_CATALOG) return tier as SubscriptionTier
+  if (isSubscriptionTier(tier)) return tier
   return DEFAULT_SUBSCRIPTION_TIER
 }
 
@@ -273,9 +277,9 @@ export function getPublicPlans(): PlanDefinition[] {
 export function getPublicPlanSelectionIntent(
   tier?: string | null,
 ): SubscriptionTier | undefined {
-  if (!tier || !(tier in PLAN_CATALOG)) return undefined
+  if (!tier || !isSubscriptionTier(tier)) return undefined
 
-  const plan = PLAN_CATALOG[tier as SubscriptionTier]
+  const plan = PLAN_CATALOG[tier]
   return plan.visibility === "public" ? plan.id : undefined
 }
 

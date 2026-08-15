@@ -46,6 +46,9 @@ test("there is no legacy tier aliasing — unrecognised values fall back to the 
   assert.equal(normalizeSubscriptionTier("pro"), DEFAULT_SUBSCRIPTION_TIER)
   assert.equal(normalizeSubscriptionTier("business"), DEFAULT_SUBSCRIPTION_TIER)
   assert.equal(normalizeSubscriptionTier("unknown_tier"), DEFAULT_SUBSCRIPTION_TIER)
+  assert.equal(normalizeSubscriptionTier("__proto__"), DEFAULT_SUBSCRIPTION_TIER)
+  assert.equal(normalizeSubscriptionTier("constructor"), DEFAULT_SUBSCRIPTION_TIER)
+  assert.equal(normalizeSubscriptionTier("toString"), DEFAULT_SUBSCRIPTION_TIER)
   assert.equal(normalizeSubscriptionTier(null), DEFAULT_SUBSCRIPTION_TIER)
 })
 
@@ -116,6 +119,9 @@ test("plan selector ignores invalid and contact-only selection intent", () => {
     resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("unknown_tier")),
     "solo",
   )
+  assert.equal(resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("__proto__")), "solo")
+  assert.equal(resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("constructor")), "solo")
+  assert.equal(resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("toString")), "solo")
   assert.equal(
     resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("accountant_partner")),
     "solo",
