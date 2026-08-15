@@ -18,6 +18,6 @@
 
 ## 4. Deployment and verification
 
-- [ ] 4.1 Deploy the Node 24-compatible configuration to preview or staging.
-- [ ] 4.2 Confirm the app boots, builds, and serves successfully under the updated runtime.
-- [ ] 4.3 Ensure logs and startup checks show no regressions tied to the Node major change.
+- [x] 4.1 Deploy the Node 24-compatible configuration to preview or staging.
+- [x] 4.2 Confirm the app boots, builds, and serves successfully under the updated runtime.
+- [x] 4.3 Ensure logs and startup checks show no regressions tied to the Node major change.
