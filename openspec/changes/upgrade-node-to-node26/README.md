@@ -1,3 +1,3 @@
-# upgrade-node-to-node26
+# Align the Node runtime to Node 24
 
-Upgrade the app runtime and build tooling to Node 26, including compatibility verification for Next.js, Prisma, and deployment settings.
+Standardize the app runtime and build tooling on Node 24, including compatibility verification for Next.js, Prisma, and Vercel deployment settings.
