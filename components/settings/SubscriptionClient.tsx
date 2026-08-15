@@ -103,10 +103,8 @@ export function SubscriptionClient({
 
         setPendingDowngrade(confirmingChangeTo)
         setConfirmingChangeTo(null)
-        setNotice(
-          data.message ??
-            `Your plan will change on ${formatDate(currentPeriodEnd)}. You can cancel before then.`,
-        )
+        const scheduledAt = typeof data.scheduledAt === "string" ? data.scheduledAt : currentPeriodEnd
+        setNotice(`Your plan will change on ${formatDate(scheduledAt)}. You can cancel before then.`)
         return
       }
 
