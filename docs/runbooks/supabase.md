@@ -211,3 +211,19 @@ If you need to reprovision a Supabase project (data corruption, RLS gone wrong, 
 6. Update the matrix-referenced env vars in `.env.local` / Vercel.
 
 You do **not** need to re-run §3 (API keys) as a separate step — the new project gets fresh keys automatically. You just need to copy them into your env config.
+
+---
+
+## 9. Production performance checks
+
+Use these checks with the Vercel procedure in [vercel.md §11](./vercel.md#11-frontend-performance-checks).
+
+1. Open `paidsoon-prod` → **Project Settings → Infrastructure** and record the immutable project/database region. Compare it with the Vercel Function region before proposing a move or replacement project.
+2. Open **Reports → Database** and review connection count, pool usage, CPU, memory, disk I/O, and query latency during the same window used for Vercel measurements.
+3. Open **Reports → Query Performance** and inspect normalized dashboard queries by total time, mean time, calls, and rows. Do not copy PII or literal query parameters into tickets or logs.
+4. Run Supabase database advisors and inspect missing-index recommendations against `prisma/schema.prisma` and actual query plans. Do not create an index solely from an advisor suggestion; verify selectivity and write cost first.
+5. Check Shared Pooler/Supavisor metrics and logs for wait time, connection saturation, and transaction acquisition failures. PaidSoon uses transaction mode and `connection_limit=1` per serverless process.
+6. Use `EXPLAIN (ANALYZE, BUFFERS)` only on an approved non-production dataset or during an approved production diagnostic window. Preserve RLS-equivalent predicates and never paste customer values into documentation.
+7. Confirm Auth request latency and error rate for `getUser()` separately from Postgres query latency.
+
+After any schema or RLS change, follow the migration rules and rerun `npm run verify-rls`. Region or pool changes never justify bypassing `withUserContext()`.

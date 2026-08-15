@@ -1,5 +1,9 @@
 import { withUserContext } from "@/lib/db/withUserContext"
-import { getChaseAllowanceStatus, type ChaseAllowanceStatus } from "@/lib/billing"
+import type { PrismaTx } from "@/lib/db/withUserContext"
+import {
+  getChaseAllowanceStatusForAccount,
+  type ChaseAllowanceStatus,
+} from "@/lib/billing"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
 import type { InvoiceConnection, UserProfile } from "@/lib/generated/prisma/client"
@@ -8,6 +12,28 @@ export interface DashboardContext {
   profile: UserProfile | null
   connection: InvoiceConnection | null
   chaseAllowance: ChaseAllowanceStatus | null
+}
+
+export async function loadDashboardContextWithTx(
+  tx: PrismaTx,
+  userId: string,
+): Promise<DashboardContext> {
+  const profile = await tx.userProfile.findUnique({ where: { userId } })
+  return loadDashboardContextWithProfileTx(tx, userId, profile)
+}
+
+export async function loadDashboardContextWithProfileTx(
+  tx: PrismaTx,
+  userId: string,
+  profile: UserProfile | null,
+): Promise<DashboardContext> {
+  const connection = await tx.invoiceConnection.findFirst({
+    where: { userId, isActive: true },
+  })
+  const chaseAllowance = profile
+    ? await getChaseAllowanceStatusForAccount(tx, userId, profile)
+    : null
+  return { profile, connection, chaseAllowance }
 }
 
 /**
@@ -31,18 +57,7 @@ export async function loadDashboardContext(
       component,
       tenant: { context: "user_rls" },
     },
-    () =>
-      withUserContext(userId, async (tx) => {
-        // Sequential, not Promise.all: queries on a single interactive
-        // transaction's `tx` share one underlying pg connection — firing them
-        // concurrently triggers a pg client deprecation warning and is unsafe.
-        const profile = await tx.userProfile.findUnique({ where: { userId } })
-        const connection = await tx.invoiceConnection.findFirst({
-          where: { userId, isActive: true },
-        })
-        const chaseAllowance = await getChaseAllowanceStatus(tx, userId)
-        return { profile, connection, chaseAllowance }
-      }),
+    () => withUserContext(userId, (tx) => loadDashboardContextWithTx(tx, userId)),
     {
       success: (result) => ({
         outputs: {

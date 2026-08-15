@@ -3,6 +3,18 @@ import type { Prisma } from "@/lib/generated/prisma/client"
 
 export type PrismaTx = Prisma.TransactionClient
 
+export function buildRlsContextSetupSql(): string {
+  return `SELECT set_config('request.jwt.claims', $1, true), set_config('request.jwt.claim.sub', $2, true), set_config('request.jwt.claim.role', 'authenticated', true)`
+}
+
+const TX_MAX_WAIT_MS = 10_000
+const TX_TIMEOUT_MS = 15_000
+
+function isTransactionStartTimeout(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  return error.message.includes("Unable to start a transaction in the given time")
+}
+
 /**
  * Runs `fn` inside a transaction where Postgres RLS is active and
  * `auth.uid()` resolves to `userId`.
@@ -27,19 +39,26 @@ export async function withUserContext<T>(
   fn: (tx: PrismaTx) => Promise<T>,
 ): Promise<T> {
   const claims = JSON.stringify({ sub: userId, role: "authenticated" })
-  return prismaAdmin.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`)
-    await tx.$executeRawUnsafe(
-      `SELECT set_config('request.jwt.claims', $1, true)`,
-      claims,
+  const executeInRlsTransaction = () =>
+    prismaAdmin.$transaction(
+      async (tx) => {
+        await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`)
+        await tx.$executeRawUnsafe(buildRlsContextSetupSql(), claims, userId)
+        return fn(tx as unknown as PrismaTx)
+      },
+      {
+        maxWait: TX_MAX_WAIT_MS,
+        timeout: TX_TIMEOUT_MS,
+      },
     )
-    await tx.$executeRawUnsafe(
-      `SELECT set_config('request.jwt.claim.sub', $1, true)`,
-      userId,
-    )
-    await tx.$executeRawUnsafe(
-      `SELECT set_config('request.jwt.claim.role', 'authenticated', true)`,
-    )
-    return fn(tx as unknown as PrismaTx)
-  })
+
+  try {
+    return await executeInRlsTransaction()
+  } catch (error) {
+    // One retry for pool-pressure spikes while acquiring the transaction.
+    if (isTransactionStartTimeout(error)) {
+      return executeInRlsTransaction()
+    }
+    throw error
+  }
 }

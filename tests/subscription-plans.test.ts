@@ -4,10 +4,12 @@ import {
   DEFAULT_SUBSCRIPTION_TIER,
   PLAN_CATALOG,
   getPlanByTier,
+  getPublicPlanSelectionIntent,
   getPublicPlans,
   hasPlanFeature,
   isFeatureImplemented,
   normalizeSubscriptionTier,
+  resolvePlanSelectorTier,
   UNIMPLEMENTED_FEATURES,
 } from "@/lib/subscriptionPlans"
 
@@ -44,6 +46,9 @@ test("there is no legacy tier aliasing — unrecognised values fall back to the 
   assert.equal(normalizeSubscriptionTier("pro"), DEFAULT_SUBSCRIPTION_TIER)
   assert.equal(normalizeSubscriptionTier("business"), DEFAULT_SUBSCRIPTION_TIER)
   assert.equal(normalizeSubscriptionTier("unknown_tier"), DEFAULT_SUBSCRIPTION_TIER)
+  assert.equal(normalizeSubscriptionTier("__proto__"), DEFAULT_SUBSCRIPTION_TIER)
+  assert.equal(normalizeSubscriptionTier("constructor"), DEFAULT_SUBSCRIPTION_TIER)
+  assert.equal(normalizeSubscriptionTier("toString"), DEFAULT_SUBSCRIPTION_TIER)
   assert.equal(normalizeSubscriptionTier(null), DEFAULT_SUBSCRIPTION_TIER)
 })
 
@@ -95,6 +100,36 @@ test("getPublicPlans excludes the contact-only Accountant Partner tier", () => {
     ["starter", "solo", "small_business"],
   )
   assert.ok(publicPlans.every((plan) => plan.visibility === "public"))
+})
+
+test("plan selector defaults to the current tier without selection intent", () => {
+  const preselectedTier = getPublicPlanSelectionIntent(undefined)
+
+  assert.equal(resolvePlanSelectorTier("solo", preselectedTier), "solo")
+})
+
+test("plan selector accepts valid public-plan selection intent", () => {
+  const preselectedTier = getPublicPlanSelectionIntent("small_business")
+
+  assert.equal(resolvePlanSelectorTier("solo", preselectedTier), "small_business")
+})
+
+test("plan selector ignores invalid and contact-only selection intent", () => {
+  assert.equal(
+    resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("unknown_tier")),
+    "solo",
+  )
+  assert.equal(resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("__proto__")), "solo")
+  assert.equal(resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("constructor")), "solo")
+  assert.equal(resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("toString")), "solo")
+  assert.equal(
+    resolvePlanSelectorTier("solo", getPublicPlanSelectionIntent("accountant_partner")),
+    "solo",
+  )
+})
+
+test("explicit plan selector choice overrides query intent and current tier", () => {
+  assert.equal(resolvePlanSelectorTier("solo", "small_business", "starter"), "starter")
 })
 
 test("Solo is marked as the popular plan", () => {

@@ -300,11 +300,21 @@ export async function getChaseAllowanceStatus(
   })
   if (!profile) return null
 
-  const period = resolveAllowancePeriod(profile, now)
+  return getChaseAllowanceStatusForAccount(tx, userId, profile, now)
+}
+
+export async function getChaseAllowanceStatusForAccount(
+  tx: PrismaTx | PrismaClient,
+  userId: string,
+  account: AllowanceAccountSnapshot,
+  now: Date = new Date(),
+): Promise<ChaseAllowanceStatus> {
+  const period = resolveAllowancePeriod(account, now)
   const usage = await tx.trackedInvoice.count({
     where: { userId, firstChasedAt: { gte: period.start, lt: period.end } },
   })
-  const allowance = getInvoiceLimitForTier(profile.subscriptionTier)
+  const allowance = getInvoiceLimitForTier(account.subscriptionTier)
+
   return {
     period,
     allowance,

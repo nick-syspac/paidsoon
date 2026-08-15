@@ -1,19 +1,12 @@
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
-import { loadDashboardContext } from "@/lib/dashboard/loadDashboardContext"
-import {
-  ACTIVE_INVOICE_STATUSES,
-  loadDashboardInvoices,
-} from "@/lib/dashboard/loadDashboardInvoices"
 import {
   computeHeldInvoiceIds,
-  loadBrokenPromiseCountsByDebtor,
-  loadEscalationThreshold,
 } from "@/lib/dashboard/loadDashboardRiskSignals"
 import { buildOverviewCards } from "@/lib/dashboard/overviewCards"
 import { OverviewCards } from "@/components/dashboard/OverviewCards"
-import { loadDashboardMetrics } from "@/lib/dashboard/loadDashboardMetrics"
+import { loadDashboardOverview } from "@/lib/dashboard/loadDashboardOverview"
 import { buildAttentionItems } from "@/lib/dashboard/attentionRequired"
 import { buildReminderFunnel } from "@/lib/dashboard/reminderActivity"
 import { buildRecentPayments } from "@/lib/dashboard/collectionMetrics"
@@ -83,28 +76,18 @@ export default async function DashboardOverviewPage({
     redirect("/dashboard/resolved")
   }
 
-  // Keep dashboard loaders sequential to avoid overlapping db-adapter query
-  // execution on shared request scope clients.
-  const { profile, chaseAllowance } = await loadDashboardContext(user.id, traceContext, COMPONENT)
-  const activeInvoices = await loadDashboardInvoices(
-    user.id,
-    ACTIVE_INVOICE_STATUSES,
-    { nextEmailAt: "asc" },
-    traceContext,
-    COMPONENT,
-  )
-  const brokenPromiseCountsByDebtor = await loadBrokenPromiseCountsByDebtor(
-    user.id,
-    traceContext,
-    COMPONENT,
-  )
-  const escalationThreshold = await loadEscalationThreshold(user.id, traceContext, COMPONENT)
   const {
-    paidInvoices,
-    paidCountAllTime,
-    manuallyResolvedCountAllTime,
-    remindersSentToday,
-  } = await loadDashboardMetrics(user.id, traceContext, COMPONENT)
+    context: { profile, chaseAllowance },
+    activeInvoices,
+    brokenPromiseCountsByDebtor,
+    escalationThreshold,
+    metrics: {
+      paidInvoices,
+      paidCountAllTime,
+      manuallyResolvedCountAllTime,
+      remindersSentToday,
+    },
+  } = await loadDashboardOverview(user.id, traceContext, COMPONENT)
 
   const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
 

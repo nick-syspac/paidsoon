@@ -53,6 +53,17 @@ Upon confirmation, the UI SHALL call `POST /api/billing/downgrade`, and on succe
 - **WHEN** `POST /api/billing/downgrade` returns a non-200 response
 - **THEN** an error message is shown in the confirmation panel and the user remains on the confirmation step
 
+### Requirement: Explicitly notify users when a downgrade is scheduled
+The system SHALL provide an explicit user-facing notice when a downgrade is scheduled, so the user is told that their plan will change at the next renewal and that the change can still be cancelled before then.
+
+#### Scenario: Scheduled downgrade triggers explicit notice
+- **WHEN** a downgrade is successfully scheduled through `POST /api/billing/downgrade`
+- **THEN** the user receives an explicit notice that states the plan change will take effect at the next renewal and includes a clear path to cancel before that date
+
+#### Scenario: Notification content includes renewal timing
+- **WHEN** the user sees the notice for a scheduled downgrade
+- **THEN** it clearly references the upcoming renewal date and the fact that the downgrade is pending rather than already applied
+
 ### Requirement: Schedule downgrade at period end via Stripe Subscription Schedules
 `POST /api/billing/downgrade` SHALL schedule the plan change using Stripe Subscription Schedules so the new price takes effect at `current_period_end`, not immediately.
 

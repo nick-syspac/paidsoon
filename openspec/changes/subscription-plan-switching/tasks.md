@@ -34,7 +34,8 @@
 - [x] 4.9 Call `stripe.subscriptionSchedules.update(scheduleId, { phases: [{ items: [{ price: currentPriceId }], end_date: currentPeriodEnd }, { items: [{ price: newPriceId }] }] })`
 - [x] 4.10 Write `pendingDowngradeTier` and `stripeScheduleId` to `UserProfile` via `withUserContext`
 - [x] 4.11 Return HTTP 200 with `{ scheduledAt: <ISO string of current_period_end> }`
-- [x] 4.12 Wrap the Stripe API calls in try/catch; return HTTP 500 with `{ error: "Failed to schedule downgrade" }` on error (do not leak Stripe error details)
+- [x] 4.12 Trigger an explicit user-facing notification when the downgrade is scheduled, stating that the plan change will take effect at the next renewal and that it can still be cancelled before then
+- [x] 4.13 Wrap the Stripe API calls in try/catch; return HTTP 500 with `{ error: "Failed to schedule downgrade" }` on error (do not leak Stripe error details)
 
 ## 5. New cancel route — DELETE /api/billing/downgrade
 
@@ -56,11 +57,11 @@
 - [x] 7.1 Update the `SubscriptionClient` props interface to add `currentPeriodEnd: Date | null` and `pendingDowngradeTier: SubscriptionTier | null`
 - [x] 7.2 Show "Renews [formatted date]" on the current plan card when `currentPeriodEnd` is set
 - [x] 7.3 Add state: `confirmingDowngradeTo: SubscriptionTier | null` (null = no confirmation panel open)
-- [x] 7.4 In the plan button click handler, detect downgrade (`PLAN_ORDER.indexOf(selected) < PLAN_ORDER.indexOf(currentTier)`); if downgrade, set `confirmingDowngradeTo` instead of calling the API
-- [x] 7.5 Render the inline confirmation panel when `confirmingDowngradeTo` is set, showing: target plan name, effective date (from `currentPeriodEnd`), lost features diff, "Confirm downgrade" and "Keep current plan" buttons
-- [x] 7.6 Compute lost features diff: boolean features where current is `true` and target is `false`; limit reductions formatted as "N → M"
-- [x] 7.7 "Keep current plan" dismisses the panel (`setConfirmingDowngradeTo(null)`)
-- [x] 7.8 "Confirm downgrade" calls `POST /api/billing/downgrade` with the target tier; on success, update local state to reflect pending downgrade
+- [x] 7.4 In the plan button click handler, detect any non-current tier; if selected, set the confirmation state instead of calling the API immediately
+- [x] 7.5 Render the inline confirmation panel when a tier is selected, showing: target plan name, effective date for downgrades or immediate/prorated note for upgrades, plan diff, and "Confirm" / "Keep current plan" buttons
+- [x] 7.6 Compute plan diff: boolean features where current and target differ, with downgrades showing lost features and upgrades showing gained features; limit reductions/increases formatted as "N → M"
+- [x] 7.7 "Keep current plan" dismisses the panel (`setConfirmingChangeTo(null)`)
+- [x] 7.8 "Confirm" calls `POST /api/billing/downgrade` for downgrades or `POST /api/billing/checkout` for upgrades; on success, update local state or redirect to Stripe as appropriate
 - [x] 7.9 Show "Downgrading to [plan] on [date]" on the current plan card when `pendingDowngradeTier` is set (from props, updated by local state after confirmation)
 - [x] 7.10 Show "Cancel scheduled downgrade" button on the current plan card when pending; on click, call `DELETE /api/billing/downgrade` and clear local pending state on success
 
@@ -73,6 +74,13 @@
 - [ ] 8.5 Manual smoke test: downgrade from Small Business to Starter; confirm confirmation panel shows correct date and lost features; confirm Subscription Schedule created in Stripe dashboard
 - [ ] 8.6 Manual smoke test: cancel the pending downgrade; confirm schedule released in Stripe and pending state cleared in DB
 - [ ] 8.7 Manual smoke test: upgrade from Starter to Solo on an existing subscription; confirm no second subscription created; confirm proration charge in Stripe
+
+## 9. Current-plan selector initialization
+
+- [x] 9.1 In `app/dashboard/settings/subscription/page.tsx`, derive `preselectedTier` only when the `plan` query parameter identifies a public, customer-selectable tier; pass `undefined` for missing, invalid, or contact-only values instead of normalizing them to Starter
+- [x] 9.2 Preserve selector precedence in `SubscriptionClient`: explicit user selection, then valid query preselection, then the current subscription tier
+- [x] 9.3 Add regression tests covering normal navigation for a Solo subscriber, valid public-plan deep-link preselection, invalid plan values, and the contact-only Accountant Partner value
+- [ ] 9.4 Manually smoke test direct navigation to Settings → Subscription for Starter, Solo, and Small Business accounts and confirm each current plan is highlighted
 - [ ] 1.2 Add `subscriptionCurrentPeriodEnd DateTime? @map("subscription_current_period_end")` to `UserProfile` in `prisma/schema.prisma`
 - [ ] 1.3 Add `pendingDowngradeTier String? @map("pending_downgrade_tier")` to `UserProfile` in `prisma/schema.prisma`
 - [ ] 1.4 Add `stripeScheduleId String? @map("stripe_schedule_id")` to `UserProfile` in `prisma/schema.prisma`

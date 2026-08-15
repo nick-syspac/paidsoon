@@ -236,3 +236,27 @@ For the full end-to-end flow (Connect → invoice → 3 emails → payment → s
 - **Re-importing the Vercel project** loses env vars. Save them somewhere first (`vercel env pull` per environment).
 - **Rotating `CRON_SECRET`**: change in Vercel, redeploy; the next cron invocation uses the new value. No coordination with external services needed.
 - **Removing the custom domain**: remove from Vercel → Settings → Domains; the deploy stays reachable at its `*.vercel.app` URL. Update `NEXT_PUBLIC_APP_URL` and post-deploy fixups (§8) accordingly.
+
+---
+
+## 11. Frontend performance checks
+
+Use [frontend-performance.md](./frontend-performance.md) for the repeatable browser flow and current baseline.
+
+### 11.1 Region and compute
+
+1. Open Vercel → PaidSoon project → **Settings → Functions**.
+2. Record the production Function region and compare it with the region shown in Supabase → `paidsoon-prod` → **Project Settings → Infrastructure**.
+3. Keep authenticated Next.js Functions and Supabase Postgres in the same or nearest available cloud region. Treat a cross-region result as a deployment proposal, not an automatic change.
+4. Check whether **Fluid Compute** is enabled for Production and Preview. Record the setting with the measurement because it changes concurrency, cold-start, and connection-reuse behavior.
+5. If changing region or Fluid Compute, deploy to Preview first and repeat auth, RLS, pool-pressure, and latency checks before Production.
+
+### 11.2 Function telemetry
+
+1. Open **Observability → Functions** and filter to `/dashboard`, `/dashboard/*`, and proxy/middleware invocations.
+2. Compare p50/p95 duration, cold starts, errors, timeouts, and invocation counts over equivalent traffic windows.
+3. Verify static marketing routes and their RSC prefetches no longer produce proxy auth invocations after the narrowed matcher deploys.
+4. Inspect logs for transaction acquisition timeouts and the existing `DEBUG=true` production warning. Enable debug tracing only for a bounded diagnostic window, then disable it.
+5. Review **Speed Insights** for production p50/p75/p95 TTFB, FCP, LCP, and INP. Segment authenticated dashboard routes from public pages.
+
+Do not infer database latency from total Function duration. Correlate the PaidSoon trace ID and loader stages with Supabase query and pool telemetry.

@@ -202,6 +202,15 @@ export default async function DashboardInvoicesPage({
           brokenPromiseCountsByDebtor={brokenPromiseCountsByDebtor}
           escalationThreshold={escalationThreshold}
           heldInvoiceIds={heldInvoiceIds}
+          heldAllowance={
+            chaseAllowance
+              ? {
+                  usage: chaseAllowance.usage,
+                  allowance: chaseAllowance.allowance,
+                  resetsAt: chaseAllowance.period.end,
+                }
+              : undefined
+          }
         />
       ) : null}
     </div>

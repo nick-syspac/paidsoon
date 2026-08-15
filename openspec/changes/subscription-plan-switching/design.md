@@ -17,6 +17,7 @@ The explore phase established:
 - Show the user the effective date and a features-lost diff before confirming a downgrade.
 - Allow cancellation of a pending scheduled downgrade.
 - Surface the renewal date on the current plan card.
+- Notify the user explicitly when a downgrade is scheduled, including the next renewal date and the ability to cancel before it takes effect.
 
 **Non-Goals:**
 - Changing plan pricing, tier names, or feature flags.
@@ -83,6 +84,30 @@ isDowngrade = PLAN_ORDER.indexOf(target) < PLAN_ORDER.indexOf(current)
 - Limit reductions (invoices, seats, accounts): include if target limit < current limit, formatted as "N → M"
 
 **Rationale:** No hardcoding; automatically correct if plan features change. All data is already imported in `SubscriptionClient.tsx`.
+
+### D8: Explicit notification required for scheduled downgrades
+
+**Decision:** When a downgrade is scheduled, the system must emit a user-facing notice that makes the upcoming renewal change explicit and gives the user a clear path to cancel before the change takes effect.
+
+**Rationale:** A pending state in the settings page is not enough on its own; the user should be told about the change outside the immediate UI flow so they are not surprised at renewal.
+
+### D9: Upgrade preview should mirror downgrade preview
+
+**Decision:** When the user selects a higher tier, the client should show the same comparison-style preflight used for downgrades, but inverted to emphasise the benefits they will gain before they continue to the new plan.
+
+**Rationale:** The upgrade path currently feels abrupt because it jumps straight from selection to checkout or billing update. Reusing the same comparison panel keeps the mental model consistent: every plan change first answers "what changes for me?" and only then proceeds to the action CTA.
+
+**Presentation rule:**
+- Downgrade = "you will lose" + scheduled effective date + confirm/cancel controls
+- Upgrade = "you will get" + immediate/prorated effect + continue-to-plan control
+
+### D10: Current tier is the plan selector's default
+
+**Decision:** The subscription selector's initial highlight uses this precedence order: explicit user selection, valid public `plan` query intent, then the user's current subscription tier.
+
+Missing, invalid, and contact-only `plan` values represent no selection intent. They must not be passed through `normalizeSubscriptionTier`, because that helper intentionally falls back to Starter for general tier normalization and would incorrectly override the user's current plan.
+
+**Rationale:** Normal navigation to subscription settings should reflect the persisted subscription. Query-based preselection remains useful for valid deep links, but it is optional intent rather than subscription state.
 
 ## Risks / Trade-offs
 
