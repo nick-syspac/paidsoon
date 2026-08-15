@@ -703,6 +703,7 @@ const BOOKKEEPER_INVOICES: InvoiceSpec[] = [
     dueInDays: 15,
     status: "pending",
     remindersSent: 0,
+    nextEmailInDays: 18,
     lines: [{ description: "BAS preparation and lodgement", quantity: 1, unitPriceExGstCents: aud(450) }],
   },
   {

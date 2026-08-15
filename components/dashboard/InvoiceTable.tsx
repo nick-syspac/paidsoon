@@ -120,6 +120,7 @@ export function InvoiceTable({
   brokenPromiseCountsByDebtor = {},
   escalationThreshold = 2,
   heldInvoiceIds,
+  heldAllowance,
 }: {
   invoices: InvoiceWithLogs[]
   showResolved?: boolean
@@ -128,6 +129,7 @@ export function InvoiceTable({
   /** Invoices due for their first reminder but waiting because the account
    * is at its chase-volume allowance for the current period. */
   heldInvoiceIds?: Set<string>
+  heldAllowance?: { usage: number; allowance: number; resetsAt: Date | string }
 }) {
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -141,6 +143,7 @@ export function InvoiceTable({
   const [arrangementSubmitting, setArrangementSubmitting] = useState(false)
   const [arrangementError, setArrangementError] = useState<string | null>(null)
   const [selectedEmailLog, setSelectedEmailLog] = useState<EmailLog | null>(null)
+  const [heldExplanationInvoiceId, setHeldExplanationInvoiceId] = useState<string | null>(null)
   const [selectedArrangementId, setSelectedArrangementId] = useState<string | null>(null)
   const [arrangementDetail, setArrangementDetail] = useState<ArrangementDetail | null>(null)
   const [arrangementDetailLoading, setArrangementDetailLoading] = useState(false)
@@ -495,9 +498,23 @@ export function InvoiceTable({
                       : formatDate(inv.nextEmailAt)}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${status.color}`}>
-                      {status.label}
-                    </span>
+                    {isHeld ? (
+                      <button
+                        type="button"
+                        aria-haspopup="dialog"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setHeldExplanationInvoiceId(inv.id)
+                        }}
+                        className={`inline-flex px-2 py-0.5 rounded text-xs font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 ${status.color}`}
+                      >
+                        {status.label}
+                      </button>
+                    ) : (
+                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${status.color}`}>
+                        {status.label}
+                      </span>
+                    )}
                   </td>
                   <td
                     className={`px-4 py-3 ${p2p || brokenPromiseCount > 0 ? "cursor-pointer" : ""}`}
@@ -618,6 +635,30 @@ export function InvoiceTable({
         </tbody>
         </table>
       </div>
+
+      {heldExplanationInvoiceId && (
+        <DetailModal
+          title="Why this invoice is held"
+          onClose={() => setHeldExplanationInvoiceId(null)}
+        >
+          <div className="space-y-3 text-sm text-gray-700">
+            <p>
+              This invoice is ready for its first reminder, but your account has used its
+              chase allowance for the current period.
+            </p>
+            {heldAllowance && (
+              <p className="rounded bg-amber-50 px-3 py-2 text-amber-900">
+                {heldAllowance.usage} of {heldAllowance.allowance} chases used. Your allowance
+                resets on {formatDate(heldAllowance.resetsAt)}.
+              </p>
+            )}
+            <p>
+              PaidSoon will automatically start this invoice&apos;s reminder sequence when
+              allowance becomes available. Sequences already in progress continue normally.
+            </p>
+          </div>
+        </DetailModal>
+      )}
 
       {selectedEmailLog && (
         <DetailModal

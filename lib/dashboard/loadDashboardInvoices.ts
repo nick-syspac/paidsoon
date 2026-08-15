@@ -15,6 +15,16 @@ export type InvoiceWithRelations = TrackedInvoice & {
   arrangementCoverages: ArrangementCoverageWithArrangement[]
 }
 
+function groupByTrackedInvoiceId<T extends { trackedInvoiceId: string }>(rows: T[]): Map<string, T[]> {
+  const grouped = new Map<string, T[]>()
+  for (const row of rows) {
+    const existing = grouped.get(row.trackedInvoiceId)
+    if (existing) existing.push(row)
+    else grouped.set(row.trackedInvoiceId, [row])
+  }
+  return grouped
+}
+
 /**
  * Loads tracked invoices for one of the two dashboard status buckets (active
  * or resolved), with the same relation shape `InvoiceTable` needs. Shared by
@@ -40,31 +50,70 @@ export async function loadDashboardInvoices(
       inputs: { statuses },
     },
     () =>
-      withUserContext(userId, (tx) =>
-        tx.trackedInvoice.findMany({
+      withUserContext(userId, async (tx) => {
+        const invoices = await tx.trackedInvoice.findMany({
           where: {
             userId,
             status: { in: statuses },
           },
           orderBy,
-          include: {
-            emailLogs: { orderBy: { sentAt: "asc" } },
-            promisesToPay: {
-              orderBy: { createdAt: "desc" },
-            },
-            arrangementCoverages: {
-              orderBy: { createdAt: "desc" },
-              include: {
-                arrangement: {
-                  include: {
-                    coverages: { select: { trackedInvoiceId: true } },
-                  },
-                },
-              },
-            },
-          },
-        }),
-      ),
+        })
+        if (invoices.length === 0) return []
+
+        // Prisma resolves sibling relation includes concurrently. Interactive
+        // transactions use one pg client, so load each relation sequentially.
+        const invoiceIds = invoices.map((invoice) => invoice.id)
+        const emailLogs = await tx.emailLog.findMany({
+          where: { trackedInvoiceId: { in: invoiceIds } },
+          orderBy: { sentAt: "asc" },
+        })
+        const promisesToPay = await tx.promiseToPay.findMany({
+          where: { userId, trackedInvoiceId: { in: invoiceIds } },
+          orderBy: { createdAt: "desc" },
+        })
+        const arrangementCoverages = await tx.arrangementInvoiceCoverage.findMany({
+          where: { userId, trackedInvoiceId: { in: invoiceIds } },
+          orderBy: { createdAt: "desc" },
+        })
+
+        const arrangementIds = [...new Set(arrangementCoverages.map((coverage) => coverage.arrangementId))]
+        const arrangements = arrangementIds.length
+          ? await tx.arrangement.findMany({ where: { userId, id: { in: arrangementIds } } })
+          : []
+        const arrangementScopes = arrangementIds.length
+          ? await tx.arrangementInvoiceCoverage.findMany({
+              where: { userId, arrangementId: { in: arrangementIds } },
+              select: { arrangementId: true, trackedInvoiceId: true },
+            })
+          : []
+
+        const emailLogsByInvoice = groupByTrackedInvoiceId(emailLogs)
+        const promisesByInvoice = groupByTrackedInvoiceId(promisesToPay)
+        const coveragesByInvoice = groupByTrackedInvoiceId(arrangementCoverages)
+        const scopeByArrangement = new Map<string, Pick<(typeof arrangementScopes)[number], "trackedInvoiceId">[]>()
+        for (const scope of arrangementScopes) {
+          const existing = scopeByArrangement.get(scope.arrangementId)
+          const coverage = { trackedInvoiceId: scope.trackedInvoiceId }
+          if (existing) existing.push(coverage)
+          else scopeByArrangement.set(scope.arrangementId, [coverage])
+        }
+        const arrangementsById = new Map(
+          arrangements.map((arrangement) => [
+            arrangement.id,
+            { ...arrangement, coverages: scopeByArrangement.get(arrangement.id) ?? [] },
+          ]),
+        )
+
+        return invoices.map((invoice) => ({
+          ...invoice,
+          emailLogs: emailLogsByInvoice.get(invoice.id) ?? [],
+          promisesToPay: promisesByInvoice.get(invoice.id) ?? [],
+          arrangementCoverages: (coveragesByInvoice.get(invoice.id) ?? []).flatMap((coverage) => {
+            const arrangement = arrangementsById.get(coverage.arrangementId)
+            return arrangement ? [{ ...coverage, arrangement }] : []
+          }),
+        }))
+      }),
     { success: (result) => ({ outputs: { invoiceCount: result.length } }) },
   )
 }

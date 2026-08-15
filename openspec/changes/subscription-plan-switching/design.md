@@ -101,6 +101,14 @@ isDowngrade = PLAN_ORDER.indexOf(target) < PLAN_ORDER.indexOf(current)
 - Downgrade = "you will lose" + scheduled effective date + confirm/cancel controls
 - Upgrade = "you will get" + immediate/prorated effect + continue-to-plan control
 
+### D10: Current tier is the plan selector's default
+
+**Decision:** The subscription selector's initial highlight uses this precedence order: explicit user selection, valid public `plan` query intent, then the user's current subscription tier.
+
+Missing, invalid, and contact-only `plan` values represent no selection intent. They must not be passed through `normalizeSubscriptionTier`, because that helper intentionally falls back to Starter for general tier normalization and would incorrectly override the user's current plan.
+
+**Rationale:** Normal navigation to subscription settings should reflect the persisted subscription. Query-based preselection remains useful for valid deep links, but it is optional intent rather than subscription state.
+
 ## Risks / Trade-offs
 
 **[Risk] `stripeSubscriptionId` not yet stored for existing users** → Users who subscribed before this change have no `stripeSubscriptionId` in DB. Mitigation: in `POST /api/billing/checkout` and `POST /api/billing/downgrade`, fall back to fetching the subscription from Stripe via `stripe.customers.listSubscriptions(customerId)` when `stripeSubscriptionId` is null but `stripeCustomerId` exists. Backfill via webhook on next event.

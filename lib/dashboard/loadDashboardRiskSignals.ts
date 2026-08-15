@@ -85,6 +85,7 @@ export async function loadEscalationThreshold(
 export function computeHeldInvoiceIds(
   invoices: InvoiceWithRelations[],
   atCapacity: boolean,
+  now: Date = new Date(),
 ): Set<string> {
   if (!atCapacity) return new Set()
   return new Set(
@@ -94,7 +95,7 @@ export function computeHeldInvoiceIds(
           invoice.status === "pending" &&
           invoice.currentStage === 0 &&
           invoice.nextEmailAt !== null &&
-          invoice.nextEmailAt <= new Date(),
+          invoice.nextEmailAt <= now,
       )
       .map((invoice) => invoice.id),
   )
