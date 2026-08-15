@@ -143,8 +143,9 @@ export function SubscriptionClient({
       setSelectedTierOverride(null)
     } catch {
       setError("Something went wrong. Please try again.")
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
