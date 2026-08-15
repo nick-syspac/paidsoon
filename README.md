@@ -12,6 +12,8 @@ All operator setup (Supabase, Stripe, Vercel, Resend) lives in **[docs/runbooks/
 
 ## Local development quick reference
 
+Use Node 26 for local development and CI. The project declares this in package metadata and GitHub Actions to keep the runtime aligned with Vercel and Prisma support windows.
+
 ```bash
 npm install
 # Pull env vars from a configured Vercel project
