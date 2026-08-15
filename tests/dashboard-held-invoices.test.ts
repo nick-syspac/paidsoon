@@ -2,10 +2,10 @@ import assert from "node:assert/strict"
 import { mock, test } from "node:test"
 
 mock.module("@/lib/db/withUserContext", {
-  exports: { withUserContext: async () => undefined },
+  namedExports: { withUserContext: async () => undefined },
 })
 mock.module("@/lib/diagnostics/server", {
-  exports: { traceOperation: async () => undefined },
+  namedExports: { traceOperation: async () => undefined },
 })
 
 const { computeHeldInvoiceIds } = await import("@/lib/dashboard/loadDashboardRiskSignals")
