@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
@@ -146,8 +147,19 @@ export default async function DashboardLayout({
       )}
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard" className="font-semibold text-gray-900 text-sm">
-            PaidSoon
+          <Link
+            href="/dashboard"
+            aria-label="PaidSoon dashboard"
+            className="shrink-0 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <Image
+              src="/paidsoon-logo.png"
+              alt="PaidSoon FinOps"
+              width={1086}
+              height={160}
+              priority
+              className="h-6 w-auto"
+            />
           </Link>
           <div className="flex items-center gap-6">
             <Link

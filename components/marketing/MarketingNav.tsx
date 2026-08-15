@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 
@@ -18,13 +19,23 @@ export function MarketingNav() {
   return (
     <header className="border-b border-gray-100 bg-white sticky top-0 z-40">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        {/* Wordmark */}
-        <Link href="/" className="font-semibold text-gray-900 text-lg">
-          PaidSoon
+        <Link
+          href="/"
+          aria-label="PaidSoon home"
+          className="shrink-0 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          <Image
+            src="/paidsoon-logo.png"
+            alt="PaidSoon FinOps"
+            width={1086}
+            height={160}
+            priority
+            className="h-6 w-auto sm:h-7"
+          />
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6" aria-label="Main navigation">
+        <nav className="hidden lg:flex items-center gap-6" aria-label="Main navigation">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -37,7 +48,7 @@ export function MarketingNav() {
         </nav>
 
         {/* Desktop auth/CTA */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-3">
           <Link
             href="/sign-in"
             className="text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
@@ -54,7 +65,7 @@ export function MarketingNav() {
 
         {/* Mobile hamburger */}
         <button
-          className="md:hidden p-2 rounded text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="lg:hidden p-2 rounded text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           aria-label="Toggle navigation menu"
           aria-expanded={mobileOpen}
           aria-controls="mobile-nav"
@@ -76,7 +87,7 @@ export function MarketingNav() {
       {mobileOpen && (
         <nav
           id="mobile-nav"
-          className="md:hidden border-t border-gray-100 bg-white px-4 py-3 flex flex-col gap-3"
+          className="lg:hidden border-t border-gray-100 bg-white px-4 py-3 flex flex-col gap-3"
           aria-label="Mobile navigation"
         >
           {navLinks.map((link) => (
