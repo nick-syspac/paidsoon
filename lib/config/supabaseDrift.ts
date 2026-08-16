@@ -56,6 +56,7 @@ const rules: DriftRule[] = [
     allowed: (path) =>
       path === "config/supabase-environment-vectors.json" ||
       path === "lib/config/supabaseEnvironment.ts" ||
+      path === "scripts/verify-supabase-client-boundary.ts" ||
       path === "worker/paidsoon_worker/supabase_environment.py" ||
       path === "prisma.config.ts" ||
       isTestOrHistory(path),

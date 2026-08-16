@@ -108,4 +108,24 @@ describe("POST /api/auth/sign-in diagnostic tracing", () => {
     assert.ok(!output.includes("secret-password"))
     assert.ok(!output.includes("turnstile-token"))
   })
+
+  test("returns 503 when Supabase rejects the configured publishable key", async () => {
+    process.env.DEBUG = "true"
+    signInResult = { error: new Error("Invalid API key") }
+    const info = mock.method(console, "info", () => undefined)
+    const warn = mock.method(console, "warn", () => undefined)
+
+    const response = await POST(
+      makeRequest({ email: "user@example.com", password: "secret-password", cfToken: "turnstile-token" }),
+    )
+
+    assert.equal(response.status, 503)
+    assert.deepEqual(await response.json(), { error: "Authentication service unavailable" })
+
+    const output = [...info.mock.calls, ...warn.mock.calls].map((call) => String(call.arguments[0])).join("\n")
+    assert.match(output, /"status":503/)
+    assert.match(output, /Invalid API key/)
+    assert.ok(!output.includes("secret-password"))
+    assert.ok(!output.includes("turnstile-token"))
+  })
 })

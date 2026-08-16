@@ -163,7 +163,9 @@ See [.env.preview.example](./../.env.preview.example) for the complete variable 
 with expected values.
 
 Critical rule: `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, and
-`SUPABASE_SECRET_KEY` for Preview must belong to `paidsoon-dev`, NOT `paidsoon-prod`.
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` for Preview must belong
+to `paidsoon-dev`, NOT `paidsoon-prod`. Promote the project ref and both API keys as one
+project-scoped set. A key from another project causes Supabase Auth to return `Invalid API key`.
 
 ### Seeding preview
 
@@ -212,6 +214,8 @@ Critical differences from Preview:
 |---|---|---|
 | `SUPABASE_PROJECT_REF` | `paidsoon-dev` | `paidsoon-prod` |
 | `SUPABASE_DB_PASSWORD` | `paidsoon-dev` secret | `paidsoon-prod` secret |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `paidsoon-dev` publishable key | `paidsoon-prod` publishable key |
+| `SUPABASE_SECRET_KEY` | `paidsoon-dev` secret API key | `paidsoon-prod` secret API key |
 | `STRIPE_SECRET_KEY` | `sk_test_…` | `sk_live_…` |
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` | `billing@paidsoon.com` |
 | `LIVE` | `false` | `true` |
@@ -221,6 +225,7 @@ Critical differences from Preview:
 
 - Seed data — there is no seed script for production, and no `SEED_ENV` variable set.
 - Test/preview Supabase inputs — canonical inputs must select `paidsoon-prod`.
+- Supabase API keys from `paidsoon-dev` or any project other than the production project ref.
 - Stripe test keys — `STRIPE_SECRET_KEY` must be `sk_live_…`.
 - The dev Resend API key or sandbox sender.
 

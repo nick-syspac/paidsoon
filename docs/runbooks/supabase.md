@@ -94,6 +94,13 @@ PaidSoon uses the newer Supabase API-key naming (`sb_publishable_…` / `sb_secr
 
 Set both keys per the matrix in [README.md](./README.md).
 
+Treat `SUPABASE_PROJECT_REF`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and
+`SUPABASE_SECRET_KEY` as one project-scoped set. Copy the publishable key from the same
+project's **Connect** dialog or **Settings → API Keys** page. A stale, deleted, malformed,
+or different-project key causes Supabase Auth to return `Invalid API key` before user
+credentials are evaluated. After replacing a publishable key in Vercel, redeploy because
+`NEXT_PUBLIC_` values are embedded at build time.
+
 ---
 
 ## 4. Apply the schema (Prisma)

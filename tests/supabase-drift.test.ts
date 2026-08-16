@@ -37,6 +37,7 @@ describe("Supabase environment drift scanner", () => {
       { path: "tests/fixture.test.ts", content },
       { path: "openspec/changes/archived/spec.md", content },
       { path: "prisma/migrations/20260101000000_old/migration.sql", content },
+      { path: "scripts/verify-supabase-client-boundary.ts", content: 'const marker = "postgresql://"' },
     ]
 
     assert.deepEqual(scanSupabaseDrift(files), [])

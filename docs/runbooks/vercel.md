@@ -61,7 +61,13 @@ Vercel → Project → **Settings → Environment Variables**. Add every row fro
 | `RESEND_FROM_EMAIL` | ✓ (`billing@paidsoon.com`) | ✓ (`onboarding@resend.dev`) | ✓ (`onboarding@resend.dev`) |
 | `RESEND_FROM_NAME` | ✓ (`PaidSoon`) | ✓ (`PaidSoon (preview)`) | ✓ (`PaidSoon (dev)`) |
 
-**Critical line**: `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_SECRET_KEY` on Preview must belong to `paidsoon-dev`, **not** `paidsoon-prod`. Otherwise every preview deployment can read and write production data. Do not add externally constructed `NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`, or `DIRECT_URL` values.
+**Critical line**: `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` on Preview must belong
+to `paidsoon-dev`, **not** `paidsoon-prod`. Treat the project ref and both API keys as one
+project-scoped set. A different-project or deleted publishable key produces `Invalid API key`
+during sign-in. After changing any `NEXT_PUBLIC_` value, redeploy so Vercel rebuilds the
+browser bundle. Do not add externally constructed `NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`,
+or `DIRECT_URL` values.
 
 ### 2.2 `NEXT_PUBLIC_APP_URL` on Preview
 
