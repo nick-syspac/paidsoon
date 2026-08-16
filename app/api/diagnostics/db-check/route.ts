@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prismaAdmin } from "@/lib/db/admin"
 import { isDebugEnabled } from "@/lib/diagnostics/server"
+import { getServerSupabaseEnvironment } from "@/lib/config/supabaseEnvironment.server"
 
 // This route intentionally uses `prismaAdmin` instead of `withUserContext`:
 // it is a debug-only connectivity probe (gated by `isDebugEnabled()` below),
@@ -45,7 +46,9 @@ export async function GET() {
 
   const startedAt = Date.now()
   // Credential-free (no password) — safe to return to the client.
-  const connectionTarget = describeConnectionTarget(process.env.DATABASE_URL)
+  const connectionTarget = describeConnectionTarget(
+    getServerSupabaseEnvironment("runtime").databaseUrl
+  )
 
   try {
     await prismaAdmin.$queryRaw`SELECT 1`

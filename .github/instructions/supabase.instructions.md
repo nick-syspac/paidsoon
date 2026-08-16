@@ -13,8 +13,8 @@ applyTo: "**/prisma/**,**/lib/db/**,**/lib/supabase/**,**/scripts/verify-rls*"
   3. Review the generated SQL in `prisma/migrations/<timestamp>_<name>/migration.sql`
   4. Update `prisma/rls-policies.sql` with matching RLS policies for any new tables/columns
   5. Run `npm run verify-rls` to confirm isolation holds
-- Run `npx prisma migrate deploy` in CI/CD. Never run `migrate dev` in production.
-- `DIRECT_URL` (non-pooled) is required for migrations. It must NOT be used as `DATABASE_URL` at runtime.
+- Run `npm run prisma:migrate:deploy` in CI/CD. Never run `migrate dev` in production.
+- Configure `SUPABASE_PROJECT_REF` and server-only `SUPABASE_DB_PASSWORD`; adapters derive transaction-mode runtime and session-mode migration URLs.
 
 ## Database Access Pattern
 
@@ -32,7 +32,7 @@ Two explicit, documented entry points — **no default `prisma` export**:
 
 ### `prismaAdmin` — System/service code only
 - File: `lib/db/admin.ts`
-- Uses `DATABASE_URL` with an owner-level role that bypasses RLS.
+- Uses the derived transaction-pooler URL with an owner-level role that bypasses RLS.
 - Allowed only in:
   - `app/api/cron/send-emails/route.ts`
   - `app/api/webhooks/stripe-billing/route.ts`
@@ -70,7 +70,7 @@ Two explicit, documented entry points — **no default `prisma` export**:
 ## Auth Rules
 
 - Auth provider: Supabase Auth (email/password + Google OAuth).
-- Browser client: `createClient()` from `lib/supabase/client.ts` — uses `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- Browser client: `createClient()` from `lib/supabase/client.ts` — uses the compile-time derived public URL + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - Server client: `createClient()` from `lib/supabase/server.ts` — reads cookies; **only for server components and route handlers**.
 - Always call `supabase.auth.getUser()` for server-side identity. Never use `getSession()` — it can be spoofed.
 - After sign-out, users go to `/` (not `/sign-in`).
@@ -89,10 +89,11 @@ Two explicit, documented entry points — **no default `prisma` export**:
 ## Local Development
 
 - Use `.env.local` for local environment variables. Never commit this file.
-- `NEXT_PUBLIC_SUPABASE_URL` must point to your Supabase project URL.
+- `SUPABASE_PROJECT_REF` must be the lowercase 20-character project identifier.
+- `SUPABASE_DB_PASSWORD` is server-only and must come from the approved secret store.
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is the anon/public key.
-- `DATABASE_URL` must use the **pooled** connection string (pgBouncer).
-- `DIRECT_URL` must use the **direct** (non-pooled) connection string — for migrations only.
+- Set optional `SUPABASE_DB_POOLER_HOST` only when the Connect panel differs from the checked-in default.
+- Never configure or construct `NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`, or `DIRECT_URL` outside the authoritative adapters.
 - Run `npx prisma db push` for schema prototyping; use `migrate dev` for tracked migrations.
 
 ## Cross-Tenant Data Exposure Prevention

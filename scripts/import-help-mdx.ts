@@ -1,4 +1,4 @@
-import "./_loadEnv"
+import "./_loadEnvFiles"
 
 import path from "node:path"
 import { promises as fs } from "node:fs"
@@ -104,6 +104,10 @@ async function runWrite(report: ImportReport, changeNote: string): Promise<void>
     throw new Error("Set TRAINING_IMPORT_ALLOW_WRITE=yes to enable --write mode")
   }
 
+  const { materializeSupabaseEnvironment } = await import(
+    "@/lib/config/supabaseEnvironmentRuntime"
+  )
+  materializeSupabaseEnvironment({ mode: "database-admin" })
   const { prismaAdmin } = await import("@/lib/db/admin")
   for (const record of report.records) {
     const upserted = await prismaAdmin.trainingContent.upsert({

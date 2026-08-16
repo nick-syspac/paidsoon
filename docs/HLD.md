@@ -400,7 +400,7 @@ terms appear nowhere in the code and must not be treated as part of this system.
 | Worker hosting | None in production yet — cron invokes a route on the same deployment. A Railway Celery worker/Beat/Redis stack is scaffolded (`worker/`) and intended to take over, running in parallel during burn-in before the Vercel crons it replaces are removed. | `vercel.json` crons, `worker/`, [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
 | Scheduler | Vercel Cron: `0 9 * * *` → `/api/cron/send-emails`, `0 2 * * *` → `/api/cron/sync-accounting`, `0 12 * * *` → `/api/cron/scheduling-watchdog` | `vercel.json` |
 | Database | Supabase Postgres (`paidsoon-dev`, `paidsoon-prod`) | `docs/runbooks/supabase.md` |
-| DB connections | `DATABASE_URL` (shared pooler, `postgres.[ref]`, RLS applied by `withUserContext`'s `SET LOCAL ROLE authenticated`) + `DIRECT_URL` (owner, migrations) | `prisma.config.ts`, `lib/db/admin.ts` |
+| DB connections | Derived from `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`: transaction pooler `6543` for runtime and session pooler `5432` for migrations/admin commands | `lib/config/supabaseEnvironment.ts`, `prisma.config.ts`, `lib/db/admin.ts` |
 | Auth | Supabase Auth | `docs/runbooks/supabase.md` |
 | Object storage | None | — |
 | Redis / queue | None | — |

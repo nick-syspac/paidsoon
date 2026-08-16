@@ -1,0 +1,26 @@
+{
+  "valid": {
+    "projectRef": "abcdefghijklmnopqrst",
+    "password": "fake:@/?#%&雪",
+    "encodedPassword": "fake%3A%40%2F%3F%23%25%26%E9%9B%AA",
+    "publicUrl": "https://abcdefghijklmnopqrst.supabase.co",
+    "databaseUrl": "postgresql://postgres.abcdefghijklmnopqrst:fake%3A%40%2F%3F%23%25%26%E9%9B%AA@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1",
+    "directUrl": "postgresql://postgres.abcdefghijklmnopqrst:fake%3A%40%2F%3F%23%25%26%E9%9B%AA@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres"
+  },
+  "invalidProjectRefs": [
+    "",
+    "short",
+    "ABCDEFGHIJKLMNOPQRST",
+    "abcdefghijklmnopqrs-",
+    "abcdefghijklmnopqrs/",
+    " abcdefghijklmnopqrst"
+  ],
+  "invalidPoolerHosts": [
+    "",
+    "https://aws-1-ap-southeast-2.pooler.supabase.com",
+    "aws-1-ap-southeast-2.pooler.supabase.com:6543",
+    "user@aws-1-ap-southeast-2.pooler.supabase.com",
+    "aws-1-ap-southeast-2.pooler.supabase.com/path",
+    "pooler.example.com"
+  ]
+}

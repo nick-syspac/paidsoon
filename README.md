@@ -38,9 +38,11 @@ Tenant isolation is enforced at the database layer via Supabase Row Level Securi
 - `withUserContext(userId, (tx) => ...)` from [lib/db/withUserContext.ts](lib/db/withUserContext.ts) — the default for any code path serving a user request (server components, server actions, route handlers). It opens a Prisma `$transaction`, sets `request.jwt.claims` and `SET LOCAL ROLE authenticated`, then runs the callback. Inside the callback, `auth.uid()` resolves to `userId` and RLS policies apply.
 - `prismaAdmin` from [lib/db/admin.ts](lib/db/admin.ts) — connects as the owner role and **bypasses RLS**. Use only from cron jobs, webhook handlers, and the post-signup profile bootstrap. Every import is a deliberate, reviewable escalation.
 
-Two database URLs are required:
+Supabase endpoints are derived from two canonical inputs:
 
-- `DATABASE_URL` — Supabase Shared Pooler (Supavisor) transaction-mode URL, user `postgres.[ref]`. Used by Prisma at runtime. RLS is enforced per-transaction by `withUserContext`, not by the connection role.
-- `DIRECT_URL` — direct connection as the owner / `postgres` role. Used by `prisma migrate` (see [prisma.config.ts](prisma.config.ts)).
+- `SUPABASE_PROJECT_REF` — the non-secret 20-character project identifier.
+- `SUPABASE_DB_PASSWORD` — the server-only database secret. It is percent-encoded in memory and never exposed to browser code.
+
+Runtime derives the Shared Pooler transaction-mode URL on port `6543`. Prisma migrations and database administration derive the Shared Pooler session-mode URL on port `5432`. See [lib/config/supabaseEnvironment.ts](lib/config/supabaseEnvironment.ts) and [prisma.config.ts](prisma.config.ts).
 
 A verification script lives at [scripts/verify-rls.ts](scripts/verify-rls.ts) and proves cross-tenant isolation holds at the DB layer.

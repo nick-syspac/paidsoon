@@ -33,8 +33,8 @@ Hosted on Vercel. Supabase Postgres for data. Stripe for billing and invoice sou
 - [ ] `LIVE=true` set in production Vercel environment
 - [ ] All env vars from `docs/runbooks/README.md` set in Vercel
 - [ ] Production uses Stripe **live** keys (not test keys)
-- [ ] `DATABASE_URL` uses pgBouncer pooled URL in production
-- [ ] `DIRECT_URL` used only for migrations, not runtime
+- [ ] Canonical Supabase inputs are scoped to production through secret-manager interfaces
+- [ ] Runtime/migration lifecycle adapters select transaction `6543` and session `5432` respectively
 - [ ] `CRON_SECRET` is set and strong (≥32 random chars)
 
 ### Database

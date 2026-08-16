@@ -29,15 +29,15 @@ Confirmed applicable to this codebase.
 - [ ] No TypeScript errors (`tsc --noEmit` or via build)
 
 ### Database
-- [ ] `npx prisma migrate status` shows no pending migrations
-- [ ] RLS policies applied: `psql $DIRECT_URL -f prisma/rls-policies.sql`
+- [ ] `npm run prisma:migrate:status` shows no pending migrations
+- [ ] RLS policies applied: `npm run db:apply-rls`
 - [ ] `npm run verify-rls` passes
 
 ### Environment
 - [ ] `LIVE=true` in production Vercel
 - [ ] All env vars from `docs/runbooks/README.md` set in production
 - [ ] Stripe **live** keys in production (not test keys)
-- [ ] `DATABASE_URL` uses pgBouncer pooler (not DIRECT_URL)
+- [ ] Canonical Supabase inputs are production-scoped and no derived URLs are externally configured
 - [ ] `CRON_SECRET` set (≥32 random chars)
 
 ### Stripe

@@ -12,6 +12,7 @@ import {
   promiseDebtorKey,
   resolvePromiseEscalationPolicy,
 } from "@/lib/promiseEscalationPolicy"
+import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
 // Secure with CRON_SECRET (Vercel sets this automatically for Vercel Cron)
 export async function GET(request: Request) {
@@ -65,8 +66,9 @@ export async function GET(request: Request) {
   })
 
   // Use Supabase admin client to get user emails (needed for freelancerName/email)
+  const { publicUrl } = getPublicSupabaseEnvironment()
   const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    publicUrl,
     process.env.SUPABASE_SECRET_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )

@@ -3,6 +3,7 @@ import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getWeeklyDebtorSummaryWeekStart, buildWeeklyDebtorSummaryEmail, buildWeeklyDebtorSummaryPayload } from "@/lib/email/weeklyDebtorSummary"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import { createClient } from "@supabase/supabase-js"
+import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
 let _resend: Resend | undefined
 function getResend(): Resend {
@@ -38,7 +39,7 @@ export async function sendWeeklyDebtorSummary(userId: string): Promise<SummarySe
   }
 
   const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    getPublicSupabaseEnvironment().publicUrl,
     process.env.SUPABASE_SECRET_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } },
   )

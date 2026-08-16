@@ -26,9 +26,8 @@ Options:
                      soft-disconnecting. Destructive — asks for confirmation.
   -h, --help        Show this help text.
 
-Requires DATABASE_URL to be set (loaded from .env.local by the underlying
-script). --email additionally requires NEXT_PUBLIC_SUPABASE_URL and
-SUPABASE_SECRET_KEY.
+Requires SUPABASE_PROJECT_REF and SUPABASE_DB_PASSWORD (loaded from .env.local
+by the underlying script). --email additionally requires SUPABASE_SECRET_KEY.
 
 See docs/runbooks/myob.md (section 6) for details on what each mode does.
 EOF

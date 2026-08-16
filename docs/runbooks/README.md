@@ -31,16 +31,20 @@ Two operating principles:
 
                             ↓ (all secrets in hand)
 
-       4. Vercel           ─── env vars, custom domain, deploy
+           4. Vercel           ─── env vars, custom domain, deploy
 
                             ↓ (deployment URL exists)
 
-       5. Stripe webhooks  ─── register endpoints pointing at the deploy
+           5. Railway          ─── Redis, worker, Beat, trigger API
+
+                                              ↓
+
+           6. Stripe webhooks  ─── register endpoints pointing at the deploy
           (back to stripe.md)
 
                             ↓
 
-       6. Verification     ─── run scripts/verify-rls.ts; manual smoke;
+           7. Verification     ─── run scripts/verify-rls.ts; manual smoke;
                                 end-to-end test (requires Connect approval)
 ```
 
@@ -50,14 +54,15 @@ For a brand-new production setup, work through the runbooks in this order:
 2. [supabase.md](./supabase.md) — Supabase project and schema.
 3. [stripe.md](./stripe.md) §1–§4 — Stripe Connect application (async), API keys, billing products.
 4. [vercel.md](./vercel.md) — import the project, set env vars, deploy.
-5. [stripe.md](./stripe.md) §5 onward — register webhooks against the deployed URL.
-6. Post-deploy fixups — see the last section of [vercel.md](./vercel.md).
-7. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
-8. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
+5. [railway.md](./railway.md) — provision Redis, worker, Beat, and the trigger API after the Vercel URL exists.
+6. [stripe.md](./stripe.md) §5 onward — register webhooks against the deployed URL.
+7. Post-deploy fixups — see the last section of [vercel.md](./vercel.md).
+8. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
+9. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
      Touch ID path: [admin-touchid.md](./admin-touchid.md).
-9. Verification — see the last section of [supabase.md](./supabase.md) and [vercel.md](./vercel.md).
-10. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
-11. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
+10. Verification — see the last section of [supabase.md](./supabase.md), [vercel.md](./vercel.md), and [railway.md](./railway.md).
+11. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
+12. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
 
 For launch readiness review and final go/no-go criteria, use:
 
@@ -84,11 +89,11 @@ This is the only place where env-var values are listed. Every runbook **referenc
 
 | Env var | Local (`.env.local`) | Vercel Preview | Vercel Production | Source runbook |
 |---|---|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | `paidsoon-dev` project URL | `paidsoon-dev` project URL | `paidsoon-prod` project URL | [supabase.md §3](./supabase.md) |
+| `SUPABASE_PROJECT_REF` | `paidsoon-dev` 20-character project ref | `paidsoon-dev` project ref | `paidsoon-prod` project ref | [supabase.md §2](./supabase.md) |
+| `SUPABASE_DB_PASSWORD` | `paidsoon-dev` database password | `paidsoon-dev` database password | `paidsoon-prod` database password | Server-only secret; [supabase.md §2](./supabase.md) |
+| `SUPABASE_DB_POOLER_HOST` | omit unless Connect panel differs from default | same | same | Optional non-secret topology override; [supabase.md §2](./supabase.md) |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `paidsoon-dev` `sb_publishable_…` | `paidsoon-dev` `sb_publishable_…` | `paidsoon-prod` `sb_publishable_…` | [supabase.md §3](./supabase.md) |
 | `SUPABASE_SECRET_KEY` | `paidsoon-dev` `sb_secret_…` | `paidsoon-dev` `sb_secret_…` | `paidsoon-prod` `sb_secret_…` | [supabase.md §3](./supabase.md) |
-| `DATABASE_URL` | `paidsoon-dev` `postgres.[ref]` pooler URL | `paidsoon-dev` `postgres.[ref]` pooler URL | `paidsoon-prod` `postgres.[ref]` pooler URL | [supabase.md §2](./supabase.md) |
-| `DIRECT_URL` | `paidsoon-dev` `postgres` direct URL | `paidsoon-dev` `postgres` direct URL | `paidsoon-prod` `postgres` direct URL | [supabase.md §2](./supabase.md) |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:4001` (per `package.json`'s `next dev --port 4001`) | the preview deployment URL (set per deploy if needed) | `https://paidsoon.com` | [vercel.md §2](./vercel.md) |
 | `LIVE` | `false` while pre-launch, `true` at go-live | `false` until launch readiness | `true` once publicly launched | [vercel.md §2](./vercel.md) |
 | `DEBUG` | `false` by default; set `true` only during local diagnostics | `false` by default; set `true` only for targeted preview diagnostics | `false` by default; set `true` only for approved, time-boxed production diagnostics | Server-side diagnostic tracing for login-to-dashboard flow; never expose as `NEXT_PUBLIC_DEBUG` |
@@ -136,11 +141,38 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `PLATFORM_OWNER_EMAIL` | Supabase user email of first platform owner | — | Supabase user email of first platform owner | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only; never read at runtime |
 | `ADMIN_SSH_PUBLIC_KEY` | contents of `~/.ssh/id_ed25519.pub` (optional device enrol) | — | contents of operator public key (optional first-device enrol) | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only; server never stores or uses the private key |
 
+## Railway environment-variable matrix
+
+This is the canonical value guide for the three Python services in
+[railway.md](./railway.md). Share these variables with `paidsoon-worker`,
+`paidsoon-beat`, and `paidsoon-trigger-web` unless a row says otherwise.
+
+| Env var | Railway Staging | Railway Production | Purpose |
+| --- | --- | --- | --- |
+| `REDIS_URL` | `${{ Redis.REDIS_URL }}` | `${{ Redis.REDIS_URL }}` | Private reference to the Railway-managed Redis service; configure on each Python service |
+| `SUPABASE_PROJECT_REF` | `paidsoon-dev` project ref | `paidsoon-prod` project ref | Canonical non-secret identifier on all three services |
+| `SUPABASE_DB_PASSWORD` | `paidsoon-dev` database password | `paidsoon-prod` database password | Canonical secret on all three services; worker derives its pooled URL |
+| `SUPABASE_DB_POOLER_HOST` | omit unless Connect panel differs from default | same | Optional non-secret topology override |
+| `INTERNAL_JOBS_SECRET` | separate `openssl rand -hex 32`; must match Vercel Preview/staging | separate `openssl rand -hex 32`; must match Vercel Production | Authenticates worker → Next.js internal job calls |
+| `PAIDSOON_APP_URL` | stable Vercel Preview/staging URL | `https://paidsoon.com` | Base URL for Next.js internal job calls |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | Vercel automation bypass secret when Deployment Protection is enabled | unset unless the production domain is protected | Allows worker calls through Vercel Deployment Protection |
+| `WORKER_TRIGGER_SECRET` | separate `openssl rand -hex 32`; must match Vercel Preview/staging | separate `openssl rand -hex 32`; must match Vercel Production | Authenticates Next.js → Railway trigger calls |
+| `DISPATCHER_NAME` | `celery-beat` | `celery-beat` | Stable identity used for the Postgres heartbeat row |
+| `DISPATCH_INTERVAL_SECONDS` | `120` | `120` | Beat heartbeat cadence and default for unset task-specific intervals; must match Vercel |
+| `DISPATCH_REMINDER_INTERVAL_SECONDS` | unset to inherit `120` | unset to inherit `120` | Reminder dispatcher cadence |
+| `DISPATCH_ACCOUNTING_SYNC_INTERVAL_SECONDS` | unset to inherit `120` | unset to inherit `120` | Accounting-sync dispatcher cadence |
+| `DISPATCH_CATCHUP_SNOOZE_INTERVAL_SECONDS` | unset to inherit `120` | unset to inherit `120` | Catch-up and snooze sweep cadence |
+| `DISPATCH_PROMISE_ARRANGEMENT_INTERVAL_SECONDS` | unset to inherit `120` | unset to inherit `120` | Promise and arrangement sweep cadence |
+| `DISPATCH_RECOVERY_SWEEP_INTERVAL_SECONDS` | unset; effective default `300` minimum | unset; effective default `300` minimum | Stale-task recovery cadence, floored at five minutes |
+| `STALE_PROCESSING_THRESHOLD_SECONDS` | `600` | `600` | Age after which a `processing` claim is considered abandoned |
+| `MAX_TASK_RETRIES` | `5` | `5` | Maximum automatic retries for provider-calling tasks |
+| `RETRY_BACKOFF_BASE_SECONDS` | `30` | `30` | Initial exponential retry delay |
+
 ## Training content import and cutover (DB-first)
 
 Use this sequence for the one-time import from `content/help` into `training_content`.
 
-Before starting, make sure the target database has the current Prisma schema applied. If `training_content` is missing, run `npx prisma migrate deploy` against the target `DIRECT_URL` first.
+Before starting, make sure the target database has the current Prisma schema applied. If `training_content` is missing, configure the target canonical inputs and run `npm run prisma:migrate:deploy` first.
 
 1. Preflight checks:
      - `npm run lint`
@@ -175,11 +207,14 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 
 | Env var | Read by |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | [proxy.ts](../../proxy.ts), [lib/supabase/server.ts](../../lib/supabase/server.ts), [lib/supabase/client.ts](../../lib/supabase/client.ts), [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) |
+| `SUPABASE_PROJECT_REF` | [lib/config/supabaseEnvironmentRuntime.ts](../../lib/config/supabaseEnvironmentRuntime.ts), [prisma.config.ts](../../prisma.config.ts), and the Python worker adapter |
+| `SUPABASE_DB_PASSWORD` | Server/database lifecycle paths through [lib/config/supabaseEnvironmentRuntime.ts](../../lib/config/supabaseEnvironmentRuntime.ts), plus the Python worker adapter; never browser code |
+| `SUPABASE_DB_POOLER_HOST` | Optional topology input read by the TypeScript and Python adapters |
+| `NEXT_PUBLIC_SUPABASE_URL` | Derived compatibility output; [lib/supabase/client.ts](../../lib/supabase/client.ts) consumes the compile-time public value |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | [proxy.ts](../../proxy.ts), [lib/supabase/server.ts](../../lib/supabase/server.ts), [lib/supabase/client.ts](../../lib/supabase/client.ts) |
 | `SUPABASE_SECRET_KEY` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) (admin client for `auth.admin.getUserById`) |
-| `DATABASE_URL` | [lib/db/admin.ts](../../lib/db/admin.ts) |
-| `DIRECT_URL` | [prisma.config.ts](../../prisma.config.ts) (migrations only) |
+| `DATABASE_URL` | Derived runtime/child-process compatibility output; not externally configured |
+| `DIRECT_URL` | Derived migration/administration child-process output; not externally configured |
 | `NEXT_PUBLIC_APP_URL` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/authorize/route.ts](../../app/api/stripe/connect/authorize/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/auth/sign-out/route.ts](../../app/auth/sign-out/route.ts) |
 | `LIVE` | [lib/liveMode.ts](../../lib/liveMode.ts), [proxy.ts](../../proxy.ts), [app/layout.tsx](../../app/layout.tsx) |
 | `DEBUG` | [lib/diagnostics/server.ts](../../lib/diagnostics/server.ts) — server-side diagnostic tracing gate; browser code receives only non-secret trace IDs/debug response headers |

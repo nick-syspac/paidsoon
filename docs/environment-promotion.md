@@ -97,18 +97,18 @@ Local → feature branch → PR → Vercel Preview → develop → PR → main �
 2. **Copy the local env example**:
    ```bash
    cp .env.local.example .env.local
-   # Fill in the values — see docs/runbooks/supabase.md for Supabase URLs/keys
+   # Fill in canonical values and keys — see docs/runbooks/supabase.md
    ```
 
 3. **Apply database migrations** against `paidsoon-dev`:
    ```bash
-   # DIRECT_URL must point at paidsoon-dev
-   npx prisma migrate deploy
+   # Canonical Supabase inputs must select paidsoon-dev
+   npm run prisma:migrate:deploy
    ```
 
 4. **Apply RLS policies**:
    ```bash
-   psql "$DIRECT_URL" -f prisma/rls-policies.sql
+   npm run db:apply-rls
    ```
 
 5. **Verify RLS**:
@@ -162,8 +162,8 @@ Set in **Vercel → Project → Settings → Environment Variables**, target: **
 See [.env.preview.example](./../.env.preview.example) for the complete variable list
 with expected values.
 
-Critical rule: `DATABASE_URL` and `SUPABASE_SECRET_KEY` for Preview must point at
-`paidsoon-dev`, NOT `paidsoon-prod`.
+Critical rule: `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, and
+`SUPABASE_SECRET_KEY` for Preview must belong to `paidsoon-dev`, NOT `paidsoon-prod`.
 
 ### Seeding preview
 
@@ -171,16 +171,16 @@ Preview deployments share `paidsoon-dev` with your local machine. To seed (or re
 test data from your local machine:
 
 ```bash
-npm run seed:preview   # SEED_ENV=preview, DATABASE_URL from .env.local
+npm run seed:preview   # SEED_ENV=preview, canonical inputs from .env.local
 npm run verify-seed
 ```
 
-The script targets whatever `DATABASE_URL` is in your `.env.local`. Since both `seed:local`
-and `seed:preview` point at `paidsoon-dev`, the only difference is the `SEED_ENV` value
+The script targets the project selected by canonical inputs in `.env.local`. Since both
+`seed:local` and `seed:preview` select `paidsoon-dev`, the only difference is the `SEED_ENV` value
 (useful for audit logs and CI output).
 
 > **Safety**: The seed script refuses to run if `SEED_ENV` is `production`, `prod`,
-> unset, or unknown. It also checks `DATABASE_URL` for production project identifiers.
+> unset, or unknown. It also checks the derived runtime target for production identifiers.
 > See [docs/preview-seed-data.md](./preview-seed-data.md) for the full safety spec.
 
 ### Preview email safety
@@ -210,9 +210,8 @@ Critical differences from Preview:
 
 | Variable | Preview | Production |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | `paidsoon-dev` | `paidsoon-prod` |
-| `DATABASE_URL` | `paidsoon-dev` pooler | `paidsoon-prod` pooler |
-| `DIRECT_URL` | `paidsoon-dev` direct | `paidsoon-prod` direct |
+| `SUPABASE_PROJECT_REF` | `paidsoon-dev` | `paidsoon-prod` |
+| `SUPABASE_DB_PASSWORD` | `paidsoon-dev` secret | `paidsoon-prod` secret |
 | `STRIPE_SECRET_KEY` | `sk_test_…` | `sk_live_…` |
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` | `billing@paidsoon.com` |
 | `LIVE` | `false` | `true` |
@@ -221,7 +220,7 @@ Critical differences from Preview:
 ### What production never receives
 
 - Seed data — there is no seed script for production, and no `SEED_ENV` variable set.
-- Test/preview database URLs — `DATABASE_URL` must point at `paidsoon-prod`.
+- Test/preview Supabase inputs — canonical inputs must select `paidsoon-prod`.
 - Stripe test keys — `STRIPE_SECRET_KEY` must be `sk_live_…`.
 - The dev Resend API key or sandbox sender.
 
@@ -249,7 +248,7 @@ npx prisma migrate dev --name describe_your_change
 # 3. If RLS policies need updating, edit prisma/rls-policies.sql.
 
 # 4. Re-apply RLS policies and verify:
-psql "$DIRECT_URL" -f prisma/rls-policies.sql
+npm run db:apply-rls
 npm run verify-rls
 
 # 5. Commit everything together:
@@ -263,10 +262,9 @@ The migration was already applied locally (step 2 above). If you want an explici
 apply against the hosted `paidsoon-dev` project:
 
 ```bash
-# Ensure DIRECT_URL points at paidsoon-dev
-export DIRECT_URL="postgresql://postgres:DB_PASSWORD@db.your-dev-ref.supabase.co:5432/postgres"
-npx prisma migrate deploy
-psql "$DIRECT_URL" -f prisma/rls-policies.sql
+# Ensure canonical inputs select paidsoon-dev
+npm run prisma:migrate:deploy
+npm run db:apply-rls
 npm run verify-rls
 ```
 
@@ -275,10 +273,9 @@ npm run verify-rls
 Only do this after the migration has been tested locally and on preview.
 
 ```bash
-# Switch DIRECT_URL to paidsoon-prod
-export DIRECT_URL="postgresql://postgres:DB_PASSWORD@db.your-prod-ref.supabase.co:5432/postgres"
-npx prisma migrate deploy
-psql "$DIRECT_URL" -f prisma/rls-policies.sql
+# Switch canonical inputs to paidsoon-prod through the approved secret store
+npm run prisma:migrate:deploy
+npm run db:apply-rls
 npm run verify-rls
 ```
 
@@ -297,12 +294,12 @@ fresh start):
 npm run db:reset:local
 ```
 
-This runs `prisma migrate reset --force` against the `DIRECT_URL` in `.env.local`.
+This derives the session-pooler target from canonical inputs, then runs `prisma migrate reset --force`.
 The script has two safety gates:
 
 1. `SEED_ENV` must be `local` or `development` — it refuses `preview`, `production`,
    `prod`, unset, or unknown values.
-2. `DIRECT_URL` must not contain production project identifiers (`paidsoon-prod`,
+2. The derived migration target must not contain production project identifiers (`paidsoon-prod`,
    `-prod.`, etc.).
 
 After the reset, re-seed:
@@ -319,8 +316,8 @@ npm run verify-seed
 | Guard | Where enforced | What it blocks |
 |---|---|---|
 | `SEED_ENV` whitelist | `scripts/seed-preview.ts`, `scripts/db-reset-local.ts` | Seeding/resetting if env is production, preview, unset, or unknown |
-| `DATABASE_URL` production marker scan | `scripts/seed-preview.ts` | Seeding if DATABASE_URL references `paidsoon-prod` |
-| `DIRECT_URL` production marker scan | `scripts/db-reset-local.ts` | DB reset if DIRECT_URL references `paidsoon-prod` |
+| Derived runtime target production marker scan | `scripts/seed-preview.ts` | Seeding if the target references `paidsoon-prod` |
+| Derived migration target production marker scan | `scripts/db-reset-local.ts` | DB reset if the target references `paidsoon-prod` |
 | Separate Supabase projects | Architecture | `paidsoon-dev` credentials cannot access `paidsoon-prod` data |
 | Separate Vercel env targets | Vercel configuration | Preview builds cannot use Production Supabase/Stripe credentials |
 | No `SEED_ENV` in Vercel env vars | Convention (documented) | No seed script can run from a Vercel deployment |
@@ -330,7 +327,7 @@ npm run verify-seed
 ## ⚠ Critical warnings
 
 ```
-NEVER point Vercel Preview DATABASE_URL at the production Supabase project.
+NEVER configure Vercel Preview with the production Supabase project ref/password.
 NEVER run seed:preview or seed:local against a production database.
 NEVER run db:reset:local against a production database.
 NEVER edit the production schema directly in Supabase Studio.
@@ -348,12 +345,12 @@ ONLY apply prisma migrate deploy to production after testing on preview.
 
 | Mistake | Consequence | Prevention |
 |---|---|---|
-| Copying `DATABASE_URL` from prod to `.env.local` | Seed data written to production | Check URL contains `paidsoon-dev`, not `paidsoon-prod` |
+| Copying production canonical inputs to `.env.local` | Seed data written to production | Confirm the project ref belongs to `paidsoon-dev` |
 | Setting `STRIPE_SECRET_KEY=sk_live_…` in preview | Live Stripe charges from test flows | Preview must always use `sk_test_…` |
 | Running `prisma migrate dev` in production | May generate spurious new migrations | Use `prisma migrate deploy` in all hosted environments |
 | Forgetting to re-apply `rls-policies.sql` after a migration | RLS may be incomplete or broken | Always run `npm run verify-rls` after `prisma migrate deploy` |
 | Setting `LIVE=true` on preview before launch readiness | Sign-in/sign-up unintentionally exposed | Keep `LIVE=false` on preview until explicitly ready |
-| Using `DIRECT_URL` as `DATABASE_URL` at runtime | Bypasses the pooler and is IPv6-only (unreachable from Vercel) | Runtime always uses the shared-pooler URL |
+| Externally configuring derived database URLs | Topology drift or secret-encoding errors | Configure only canonical inputs; adapters choose the lifecycle URL |
 
 ---
 

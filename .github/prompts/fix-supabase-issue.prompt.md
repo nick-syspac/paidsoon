@@ -42,13 +42,13 @@ Prisma 7.8.0 with `@prisma/adapter-pg`. Supabase Postgres. RLS via `withUserCont
 ### Prisma / Migration Issues
 - [ ] Does `prisma/schema.prisma` match the live DB schema?
 - [ ] Was `npx prisma migrate deploy` run after the last migration?
-- [ ] Is `DATABASE_URL` pointing to the correct DB (pooler for runtime)?
-- [ ] Is `DIRECT_URL` used for migrations only (not runtime)?
+- [ ] Do canonical inputs select the correct project and validated pooler host?
+- [ ] Does the lifecycle adapter select transaction mode for runtime and session mode for migrations?
 - [ ] Was `prisma generate` run after schema changes? (`npm run build` includes this)
 
 ### Connection Issues
-- [ ] Is `DATABASE_URL` the pgBouncer pooled URL (not direct)?
-- [ ] Is `DIRECT_URL` the direct non-pooled URL (for migrations only)?
+- [ ] Does runtime derive transaction mode on port `6543` with Prisma query parameters?
+- [ ] Do migrations derive session mode on port `5432` without runtime query parameters?
 - [ ] Are connection pool limits being hit?
 
 ## Common Fixes

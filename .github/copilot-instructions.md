@@ -81,8 +81,8 @@ yet implemented.
 - Browser client: `createClient()` from `lib/supabase/client.ts` — uses `NEXT_PUBLIC_*` keys.
 - Server client: `createClient()` from `lib/supabase/server.ts` — uses cookies; never call in `"use client"` components.
 - Auth state: use `supabase.auth.getUser()` (not `getSession()`) for server-side user identity.
-- Never pass Supabase credentials to Prisma. Prisma uses its own `DATABASE_URL` / `DIRECT_URL`.
-- `DIRECT_URL` is for Prisma migrations only. Never use it in application code.
+- Supabase endpoints derive from `SUPABASE_PROJECT_REF` and server-only `SUPABASE_DB_PASSWORD` through `lib/config/supabaseEnvironment.ts`; never construct them elsewhere.
+- `DATABASE_URL`, `DIRECT_URL`, and `NEXT_PUBLIC_SUPABASE_URL` are scoped compatibility outputs, not externally configured inputs.
 
 ---
 
@@ -117,10 +117,10 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 - Never edit `prisma/migrations/` files directly.
 - Schema changes go into `prisma/schema.prisma` first.
 - Run `npx prisma migrate dev --name <name>` locally to generate a new migration.
-- Run `npx prisma migrate deploy` in CI/CD (not `migrate dev` in production).
+- Run `npm run prisma:migrate:deploy` in CI/CD (not `migrate dev` in production).
 - After any schema change, update `prisma/rls-policies.sql` with matching RLS policies.
 - Always test RLS isolation after a migration: `npm run verify-rls`.
-- The `DIRECT_URL` (non-pooled) must be set for Prisma migrations. `DATABASE_URL` (pooler) is for runtime queries.
+- Prisma migrations derive the Shared Pooler session-mode URL on port `5432`; runtime derives transaction mode on port `6543`.
 
 ---
 
@@ -177,7 +177,7 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 - Cron requests are authenticated with `Authorization: Bearer CRON_SECRET`. Never skip this check.
 - All environment variables are documented in `docs/runbooks/README.md` with per-environment values.
 - `LIVE=true` must be set in Vercel production to enable sign-in/sign-up.
-- Never use `DIRECT_URL` as `DATABASE_URL` in production — it bypasses the connection pooler.
+- Never externally configure derived database URLs in production; canonical adapters select the lifecycle pooler mode.
 - Build command: `prisma generate && next build`. Do not remove `prisma generate`.
 
 ---
@@ -208,7 +208,7 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 
 - Never hardcode secrets, keys, tokens, or connection strings.
 - Never commit `.env`, `.env.local`, `.env.production`, or any file with real credentials.
-- Never expose `DIRECT_URL`, `SUPABASE_SECRET_KEY`, `STRIPE_SECRET_KEY`, or `RESEND_API_KEY` to the browser.
+- Never expose `SUPABASE_DB_PASSWORD`, derived database URLs, `SUPABASE_SECRET_KEY`, `STRIPE_SECRET_KEY`, or `RESEND_API_KEY` to the browser.
 - All webhook endpoints must verify their respective signatures before processing.
 - Validate all user input at route boundaries with Zod schemas.
 - Sanitize all values before inserting into email templates.
@@ -243,7 +243,7 @@ Do not present these as implemented. When building on them, clearly document the
 - Never expose customer invoice data (`clientEmail`, `amountDue`, `clientName`) across user accounts.
 - Never document planned integrations as implemented ones.
 - Never use `prismaAdmin` in user-facing code without a documented reason.
-- Never use `DIRECT_URL` as the runtime database connection.
+- Never use the derived session-mode migration URL as the runtime database connection.
 - Never skip webhook signature verification.
 - Never import server-side code (`withUserContext`, `prismaAdmin`, `createClient` from `lib/supabase/server.ts`) into `"use client"` components.
 - Never change the Stripe API version string without verifying type compatibility.

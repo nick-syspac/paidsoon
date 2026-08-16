@@ -20,7 +20,7 @@ Generated: 2026-06-21
 ## 2. How to run the seed locally
 
 ```bash
-# Ensure .env.local points DATABASE_URL at paidsoon-dev (not prod)
+# Ensure .env.local canonical inputs select paidsoon-dev (not prod)
 npm run seed:local
 ```
 
@@ -38,12 +38,12 @@ SEED_ENV=local node --import tsx scripts/seed-preview.ts
 npm run seed:preview
 ```
 
-Both `seed:local` and `seed:preview` target whatever `DATABASE_URL` is set in
-`.env.local`. The difference is the `SEED_ENV` value, which is logged and
+Both `seed:local` and `seed:preview` target the project selected by canonical
+inputs in `.env.local`. The difference is the `SEED_ENV` value, which is logged and
 checked at startup.
 
-For a CI pipeline, export `SEED_ENV=preview` and set `DATABASE_URL` to the
-`paidsoon-dev` authenticator pooler URL before running:
+For a CI pipeline, set `SEED_ENV=preview`, `SUPABASE_PROJECT_REF`, and secret
+`SUPABASE_DB_PASSWORD` through the CI secret manager before running:
 
 ```bash
 SEED_ENV=preview node --import tsx scripts/seed-preview.ts
@@ -56,8 +56,8 @@ SEED_ENV=preview node --import tsx scripts/seed-preview.ts
 | Variable | Value | Required |
 |---|---|---|
 | `SEED_ENV` | `local` \| `preview` \| `development` \| `test` | **Yes — script exits 1 if absent or unknown** |
-| `DATABASE_URL` | `paidsoon-dev` authenticator pooler URL | Yes — same as normal app operation |
-| `DIRECT_URL` | Not needed for seeding alone | No |
+| `SUPABASE_PROJECT_REF` | `paidsoon-dev` project ref | Yes |
+| `SUPABASE_DB_PASSWORD` | `paidsoon-dev` database password | Yes — secret |
 
 ---
 
@@ -70,7 +70,7 @@ Two independent guards prevent accidental production writes:
 - Allowed: `local`, `preview`, `development`, `test`
 - Rejected (exits 1): `production`, `prod`, unset, or unknown value
 
-**Guard 2 — `DATABASE_URL` production marker scan**
+**Guard 2 — derived target production marker scan**
 
 - The connection string is checked for substrings: `paidsoon-prod`, `-prod.`,
   `.prod.`, `paidsoon_prod`
@@ -149,12 +149,12 @@ not have the required columns or tables. Each gap is documented in
 
 1. **Apply Prisma migrations** against the target Supabase project:
    ```bash
-   npx prisma migrate deploy
+   npm run prisma:migrate:deploy
    ```
 
 2. **Apply RLS policies**:
    ```bash
-   psql "$DIRECT_URL" -f prisma/rls-policies.sql
+   npm run db:apply-rls
    ```
 
 3. **Verify RLS** (strongly recommended before seeding):
@@ -181,7 +181,7 @@ not have the required columns or tables. Each gap is documented in
 
 3. **Add a `db:reset:local` script** if a destructive wipe of the entire dev
    database ever becomes necessary. This would call `prisma migrate reset`
-   against `DIRECT_URL` — requires explicit operator intent and is not included
+   against the derived migration target — requires explicit operator intent and is not included
    here to avoid accidental data loss.
 
 4. **Extend seed for new schema features** — when new tables or columns are

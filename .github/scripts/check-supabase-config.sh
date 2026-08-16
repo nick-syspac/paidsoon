@@ -82,6 +82,22 @@ echo "--- Prisma Config ---"
 [[ -f prisma.config.ts ]] && pass "prisma.config.ts exists" || warn "prisma.config.ts not found"
 
 echo ""
+echo "--- Canonical Environment Examples ---"
+for example in .env.example .env.local.example .env.preview.example .env.production.example worker/.env.example; do
+  if grep -q '^SUPABASE_PROJECT_REF=' "$example" && grep -q '^SUPABASE_DB_PASSWORD=' "$example"; then
+    pass "$example declares canonical Supabase inputs"
+  else
+    fail "$example is missing canonical Supabase inputs"
+  fi
+
+  if grep -Eq '^(NEXT_PUBLIC_SUPABASE_URL|DATABASE_URL|DIRECT_URL)=' "$example"; then
+    fail "$example assigns a derived Supabase URL"
+  else
+    pass "$example does not assign derived Supabase URLs"
+  fi
+done
+
+echo ""
 echo "=== Results ==="
 echo "  Passed:   $PASS"
 echo "  Warnings: $WARN"

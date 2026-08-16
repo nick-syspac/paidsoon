@@ -4,6 +4,8 @@ import { requireAdminElevation, AdminGuardError } from "@/lib/admin/guard"
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner"
 import { AdminSessionTimer } from "@/components/admin/AdminSessionTimer"
 
+export const dynamic = "force-dynamic"
+
 /**
  * Protected admin layout — enforces all three guard layers:
  *   1. Supabase auth (also enforced in middleware)

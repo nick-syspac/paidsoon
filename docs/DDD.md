@@ -27,7 +27,7 @@ present in the repository (it is documented as absent, not designed).
 | Prisma schema | `prisma/schema.prisma` | Data model | User + admin models; includes arrangements |
 | Initial migration | `prisma/migrations/20260531101711_init/migration.sql` | Tables, indexes, FKs | Single migration |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation | Applied manually in Supabase |
-| Prisma config | `prisma.config.ts` | Two-URL migration/runtime split | `DIRECT_URL` vs `DATABASE_URL` |
+| Supabase config | `lib/config/supabaseEnvironment.ts`, `prisma.config.ts` | Canonical inputs and lifecycle-derived URLs | transaction `6543` vs session `5432` |
 | OpenSpec changes | `openspec/changes/**` | Spec intent + status | No `specs/` baseline dir |
 | Runbooks | `docs/runbooks/**` | Env vars, deployment | Canonical env matrix |
 | Tests | `tests/**` | Pure-logic unit tests | `node --test` + `tsx` |
@@ -66,7 +66,7 @@ subsection documents a functional module.
     `$transaction`, runs `SELECT set_config('request.jwt.claims', …, true)` and
     `SET LOCAL ROLE authenticated`, then runs `fn(tx)` so RLS applies.
   - `prismaAdmin` (`lib/db/admin.ts`) — singleton `PrismaClient` over
-    `@prisma/adapter-pg` using `DATABASE_URL`; **bypasses RLS**; service paths
+    `@prisma/adapter-pg` using the derived transaction-pooler URL; **bypasses RLS**; service paths
     only.
 - **Permissions:** route handlers reject with 401 when `auth.getUser()` returns
   no user. `proxy.ts` redirects unauthenticated `/dashboard/*` to
@@ -823,7 +823,7 @@ favour of "PaidSoon" / `paidsoon.com`.
 | Worker runtime | Cron routes on the same Vercel deployment today; a Railway Celery worker + Celery Beat + Redis is being introduced to take over scheduled business workflows (dispatcher claims due work from Postgres, enqueues one task per item onto Redis, tasks call back into `app/api/internal/jobs/*` for the actual business logic) — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). Not yet deployed; runs in parallel with the existing Vercel Cron jobs during burn-in before the old jobs are removed. | `worker/`, `openspec/changes/migrate-scheduled-jobs-to-railway-celery/` |
 | Scheduler | Vercel Cron `0 9 * * *` → `/api/cron/send-emails`; `0 2 * * *` → `/api/cron/sync-accounting`; `0 12 * * *` → `/api/cron/scheduling-watchdog` (Hobby plan caps cron frequency at once daily) | `vercel.json`, `docs/runbooks/vercel.md` |
 | Database | Supabase Postgres; runtime via the shared pooler as `postgres.[ref]`, RLS applied per-transaction by `withUserContext`. Two internal orchestration tables (`scheduled_task_claims`, `dispatcher_heartbeats`) have RLS enabled with no policies — written only by the Railway worker's trusted DB role. | `prisma.config.ts`, `lib/db/admin.ts`, `prisma/schema.prisma` |
-| Migrations | `prisma migrate` via `DIRECT_URL` (owner) | `prisma.config.ts` |
+| Migrations | `prisma migrate` via the derived session-pooler URL on port `5432` | `prisma.config.ts` |
 | RLS bootstrap | `prisma/rls-policies.sql` applied manually in Supabase | `prisma/rls-policies.sql`, `docs/runbooks/supabase.md` |
 | Object storage / Redis | Redis is being introduced as the Celery broker/queue for the Railway worker (transient state only, never a source of truth) | `worker/.env.example` |
 | Email | Resend | `docs/runbooks/resend.md` |
@@ -840,8 +840,8 @@ favour of "PaidSoon" / `paidsoon.com`.
 
 The exhaustive, code-checked list lives in `docs/runbooks/README.md`
 ("Where each var is consumed in code"). Key ones:
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
-`SUPABASE_SECRET_KEY`, `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`,
+`SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, optional `SUPABASE_DB_POOLER_HOST`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_APP_URL`,
 `LIVE`, `CRON_SECRET`, `STRIPE_SECRET_KEY`,
 `STRIPE_{STARTER,SOLO,SMALL_BUSINESS}_PRICE_ID`,
 `STRIPE_CONNECT_CLIENT_ID`, `STRIPE_BILLING_WEBHOOK_SECRET`,
@@ -898,7 +898,7 @@ automated tests; only pure helpers are unit-tested.
 | Runbooks | `docs/runbooks/{README,supabase,stripe,resend,vercel}.md` | README holds the canonical env matrix + execution order |
 | Health checks | None | No `/health` route |
 | Local startup | `README.md` quick reference | `vercel env pull` then `npm run dev` |
-| Migration process | `prisma migrate` via `DIRECT_URL`; RLS SQL applied manually | `prisma.config.ts`, `docs/runbooks/supabase.md` |
+| Migration process | `npm run prisma:migrate:deploy` via derived session-pooler config; RLS SQL through the isolated wrapper | `prisma.config.ts`, `docs/runbooks/supabase.md` |
 | Backup/restore | Supabase managed (not documented in repo) | Assumed |
 | Cron testing | Manual `curl` with `CRON_SECRET` (prod-only schedule) | `docs/runbooks/vercel.md` |
 | Go-live | Ordered operator checklist | `changes/go-live-runbook/proposal.md` |

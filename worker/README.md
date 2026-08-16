@@ -55,7 +55,8 @@ something that can be provisioned for you:
 
 1. `railway login` (opens a browser to authenticate).
 2. `railway init` from this `worker/` directory (or connect this repo/subdirectory
-   in the Railway dashboard).
+   in the Railway dashboard). Set each service's root directory to `/worker`
+   and its Railway config file path to `/worker/railway.toml`.
 3. Add a Redis plugin/service in the same Railway project.
 4. Create **three services** from this same source, one per `Procfile`
    process type, by overriding each service's start command:
@@ -64,7 +65,10 @@ something that can be provisioned for you:
    - `uvicorn paidsoon_worker.http_server:app --host 0.0.0.0 --port $PORT`
 5. Set the environment variables from `.env.example` on all three services
    (Railway → each service → Variables). `REDIS_URL` can reference the Redis
-   plugin's internal URL directly.
+   plugin's internal URL directly. Set `SUPABASE_PROJECT_REF` and secret
+   `SUPABASE_DB_PASSWORD`; do not construct or store `DATABASE_URL`. Confirm
+   the shared-pooler host in Supabase's Connect panel and set the optional
+   `SUPABASE_DB_POOLER_HOST` only when it differs from the documented default.
 6. Set matching `INTERNAL_JOBS_SECRET` and `WORKER_TRIGGER_SECRET` values on
    the Vercel project (`vercel env add`) — these must be identical on both
    sides.
@@ -75,9 +79,11 @@ something that can be provisioned for you:
    value as `VERCEL_AUTOMATION_BYPASS_SECRET` on all three Railway services.
    Without it, every internal-jobs call gets a 401 with a Vercel SSO
    redirect page instead of reaching the route handler.
-7. Watch logs (`railway logs`) for the first few dispatch cycles before
+8. Watch logs (`railway logs`) for the first few dispatch cycles before
    relying on it; keep the existing Vercel Cron jobs running in parallel
-   during burn-in (see design.md Migration Plan).
+   during burn-in (see design.md Migration Plan). The full environment,
+   verification, burn-in, and rollback procedure is in
+   [`docs/runbooks/railway.md`](../docs/runbooks/railway.md).
 
 ## Tests
 

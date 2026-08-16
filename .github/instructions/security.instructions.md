@@ -26,7 +26,7 @@ applyTo: "**/*.ts,**/*.tsx"
 - Never commit `.env`, `.env.local`, `.env.production`, `.env.staging` files.
 - Never log secrets to `console.log` or `console.error`.
 - Never expose server-only secrets via API responses or `NEXT_PUBLIC_` prefixed env vars.
-- Secrets that must remain server-only: `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `SUPABASE_SECRET_KEY`, `CRON_SECRET`, `STRIPE_*_WEBHOOK_SECRET`, `DIRECT_URL`, `DATABASE_URL`.
+- Secrets that must remain server-only: `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_DB_PASSWORD`, `CRON_SECRET`, `STRIPE_*_WEBHOOK_SECRET`, and all derived database URLs.
 
 ## Webhook Security
 

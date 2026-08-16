@@ -38,11 +38,11 @@ Review the Vercel configuration, build setup, environment variable documentation
 ### Environment Variables
 - [ ] All variables in `docs/runbooks/README.md` are categorised (public/server)
 - [ ] No server-only secrets use the `NEXT_PUBLIC_` prefix
-- [ ] `LIVE`, `DATABASE_URL`, `DIRECT_URL` documented with correct per-env values
+- [ ] `LIVE`, `SUPABASE_PROJECT_REF`, and `SUPABASE_DB_PASSWORD` documented with correct per-env scopes
 - [ ] Stripe test vs live keys in correct environments
 
 ### Security
-- [ ] `DIRECT_URL` not used as `DATABASE_URL` at runtime
+- [ ] Derived database URLs are not externally configured or used in the wrong lifecycle
 - [ ] `LIVE=true` only in production
 - [ ] Preview deployments use staging/test credentials
 

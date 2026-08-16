@@ -34,7 +34,7 @@ If a new table was added, add policies to `prisma/rls-policies.sql`. If columns 
 
 ### 4. Apply policies
 ```bash
-psql $DIRECT_URL -f prisma/rls-policies.sql
+npm run db:apply-rls
 ```
 
 ### 5. Verify RLS
@@ -44,7 +44,7 @@ npm run verify-rls
 
 ### 6. Regenerate Prisma client
 ```bash
-npx prisma generate
+npm run prisma:generate
 ```
 (Or run `npm run build` which includes `prisma generate`.)
 
@@ -74,7 +74,7 @@ model NewModel {
 
 ```bash
 # In CI/CD only — never locally against production DB
-npx prisma migrate deploy
+npm run prisma:migrate:deploy
 ```
 
 **Never** run `npx prisma migrate dev` in production.
@@ -87,8 +87,8 @@ Prisma does not support automatic rollbacks. To roll back:
 
 ## Rules to Follow
 - Never edit `prisma/migrations/` files directly
-- `DATABASE_URL` = pooled connection (runtime)
-- `DIRECT_URL` = direct connection (migrations only)
+- `SUPABASE_PROJECT_REF` + server-only `SUPABASE_DB_PASSWORD` are the canonical inputs
+- Runtime derives transaction mode; migrations derive session mode
 - Always update `prisma/rls-policies.sql` after adding tables
 - Always run `verify-rls` after schema changes
 
@@ -96,7 +96,7 @@ Prisma does not support automatic rollbacks. To roll back:
 - Running `migrate dev` against production DB
 - Forgetting to update RLS policies after adding a table
 - Forgetting to run `prisma generate` after schema changes
-- Using `DIRECT_URL` as `DATABASE_URL` at runtime
+- Externally configuring or swapping derived lifecycle URLs
 
 ## Output Format
 - Updated `prisma/schema.prisma`

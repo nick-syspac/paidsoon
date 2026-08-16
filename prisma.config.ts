@@ -2,9 +2,15 @@
 // npm install --save-dev prisma dotenv
 import { config } from "dotenv";
 import { defineConfig } from "prisma/config";
+import { resolveSupabaseEnvironment } from "./lib/config/supabaseEnvironmentRuntime";
 
 config({ path: ".env.local" });
 config({ path: ".env" });
+
+const generateOnly = process.env.PRISMA_GENERATE_ONLY === "true";
+const datasourceUrl = generateOnly
+  ? "postgresql://generate:generate@localhost:5432/generate"
+  : resolveSupabaseEnvironment({ mode: "migration", env: process.env }).directUrl!;
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -12,8 +18,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    // Migrations run as the owner role via a direct (non-pooled) connection.
-    // Runtime DATABASE_URL connects as a non-owner role so RLS applies.
-    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"]!,
+    url: datasourceUrl,
   },
 });

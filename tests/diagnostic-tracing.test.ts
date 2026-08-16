@@ -83,6 +83,7 @@ describe("diagnostic redaction", () => {
     assert.equal(isSensitiveKey("access_token"), true)
     assert.equal(isSensitiveKey("Authorization"), true)
     assert.equal(isSensitiveKey("cfToken"), true)
+    assert.equal(isSensitiveKey("SUPABASE_DB_PASSWORD"), true)
     assert.equal(isSensitiveKey("clientName"), false)
   })
 
@@ -91,6 +92,7 @@ describe("diagnostic redaction", () => {
       email: "user@example.com",
       password: "super-secret-password",
       nested: {
+        SUPABASE_DB_PASSWORD: "fake-database-password",
         headers: {
           authorization: "Bearer token-value",
         },
@@ -109,6 +111,7 @@ describe("diagnostic redaction", () => {
     assert.ok(!serialised.includes("token-value"))
     assert.ok(!serialised.includes("api-secret"))
     assert.ok(!serialised.includes("refresh-secret"))
+    assert.ok(!serialised.includes("fake-database-password"))
     assert.ok(serialised.includes("[Circular]"))
     assert.ok(serialised.includes("[truncated:"))
   })
