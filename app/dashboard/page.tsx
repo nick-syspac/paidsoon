@@ -140,6 +140,11 @@ export default async function DashboardOverviewPage({
         />
       ))}
 
+      <div>
+        <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
+        <OverviewCards cards={cards} />
+      </div>
+
       <AttentionRequired items={attentionItems} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -148,11 +153,6 @@ export default async function DashboardOverviewPage({
       </div>
 
       <PaymentTrendChart points={paymentTrend} />
-
-      <div>
-        <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
-        <OverviewCards cards={cards} />
-      </div>
     </div>
   )
 }
