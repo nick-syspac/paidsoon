@@ -4,7 +4,7 @@ import Link from "next/link"
 export const metadata: Metadata = {
   title: "Integrations — PaidSoon",
   description:
-    "PaidSoon integrates with Stripe Connect today. MYOB Business is available to early-access users, with Xero and QuickBooks Online planned. Connect your accounting software and automate invoice follow-ups.",
+    "PaidSoon integrates with Stripe Connect, MYOB Business, and Xero today, with QuickBooks Online planned. Connect your accounting software and automate invoice follow-ups.",
 }
 
 const integrations = [
@@ -17,14 +17,14 @@ const integrations = [
   {
     name: "MYOB Business",
     description:
-      "Connect a MYOB Business company file to import invoice data and manage follow-ups from PaidSoon. Available to early-access users while we finish validating full production support.",
-    status: "Early access",
+      "Connect a MYOB Business company file to import invoice data and manage follow-ups from PaidSoon.",
+    status: "Available",
   },
   {
     name: "Xero",
     description:
-      "Xero integration to sync overdue invoices automatically and trigger PaidSoon's reminder sequences.",
-    status: "Planned",
+      "Connect Xero to sync overdue invoices automatically and trigger PaidSoon's reminder sequences.",
+    status: "Available",
   },
   {
     name: "QuickBooks Online",
