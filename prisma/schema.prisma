@@ -39,14 +39,124 @@ model UserProfile {
   promiseEscalationPolicy  PromiseEscalationPolicy?
   emailTemplates           EmailTemplate[]
   aiUsageLogs              AiUsageLog[]
-  accountingConnections    AccountingConnection[]
-  importedBills            ImportedBill[]
-  importedBankTransactions ImportedBankTransaction[]
-  supplierProfiles         SupplierProfile[]
-  spendInsights            SpendInsight[]
-  cashForecastSnapshots    CashForecastSnapshot[]
+  accountingConnections        AccountingConnection[]
+  importedBills                ImportedBill[]
+  importedBankTransactions     ImportedBankTransaction[]
+  supplierProfiles             SupplierProfile[]
+  spendInsights                SpendInsight[]
+  cashForecastSnapshots        CashForecastSnapshot[]
+  invoiceImportBatches         InvoiceImportBatch[]
+  invoiceImportMappingProfiles InvoiceImportMappingProfile[]
 
   @@map("user_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Invoice Import Batch + Mapping Models
+// ---------------------------------------------------------------------------
+
+model InvoiceImportBatch {
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  fileName         String    @map("file_name")
+  fileType         String    @map("file_type")
+  fileSizeBytes    Int       @map("file_size_bytes")
+  contentHash      String    @map("content_hash")
+  schemaVersion    String    @map("schema_version")
+  worksheetName    String?   @map("worksheet_name")
+  dateFormat       String?   @map("date_format")
+  numberFormat     String?   @map("number_format")
+  defaultCurrency  String?   @map("default_currency")
+  duplicateMode    String    @default("skip_existing") @map("duplicate_mode")
+  mapping          Json?     @map("mapping")
+  status           String    @default("uploaded")
+  failureReason    String?   @map("failure_reason")
+  rowsTotal        Int       @default(0) @map("rows_total")
+  rowsValid        Int       @default(0) @map("rows_valid")
+  rowsWarning      Int       @default(0) @map("rows_warning")
+  rowsSkipped      Int       @default(0) @map("rows_skipped")
+  rowsFailed       Int       @default(0) @map("rows_failed")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  validatedAt      DateTime? @map("validated_at")
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  mappings    InvoiceImportColumnMapping[]
+  stagingRows InvoiceImportStagingRow[]
+  errors      InvoiceImportError[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("invoice_import_batches")
+}
+
+model InvoiceImportColumnMapping {
+  id          String   @id @default(cuid())
+  batchId     String   @map("batch_id")
+  sourceColumn String  @map("source_column")
+  targetField String   @map("target_field")
+  suggested   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  batch InvoiceImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, sourceColumn])
+  @@index([batchId, targetField])
+  @@map("invoice_import_column_mappings")
+}
+
+model InvoiceImportStagingRow {
+  id               String   @id @default(cuid())
+  batchId          String   @map("batch_id")
+  rowNumber        Int      @map("row_number")
+  raw              Json
+  normalized       Json?
+  status           String   @default("pending")
+  validationErrors Json?    @map("validation_errors")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  batch InvoiceImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, status])
+  @@index([batchId, rowNumber])
+  @@map("invoice_import_staging_rows")
+}
+
+model InvoiceImportError {
+  id            String   @id @default(cuid())
+  batchId       String   @map("batch_id")
+  rowNumber     Int?     @map("row_number")
+  invoiceNumber String?  @map("invoice_number")
+  fieldName     String?  @map("field_name")
+  errorCode     String   @map("error_code")
+  message       String
+  severity      String   @default("error")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  batch InvoiceImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, severity])
+  @@index([batchId, errorCode])
+  @@map("invoice_import_errors")
+}
+
+model InvoiceImportMappingProfile {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  name         String
+  schemaVersion String  @map("schema_version")
+  mapping      Json
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+  @@map("invoice_import_mapping_profiles")
 }
 
 // ---------------------------------------------------------------------------
