@@ -93,9 +93,11 @@ export function buildXlsxTemplateWorkbook(): XLSX.WorkBook {
     ["- Rows with outstanding amount zero are accepted only as skipped rows"],
   ]
 
-  const invoiceSheetRows = [
-    INVOICE_IMPORT_CANONICAL_FIELDS,
-    ...SAMPLE_ROWS.map((row) => INVOICE_IMPORT_CANONICAL_FIELDS.map((field) => row[field] ?? "")),
+  const invoiceSheetRows: string[][] = [
+    [...INVOICE_IMPORT_CANONICAL_FIELDS],
+    ...SAMPLE_ROWS.map((row) =>
+      INVOICE_IMPORT_CANONICAL_FIELDS.map((field) => row[field] ?? ""),
+    ),
   ]
 
   const instructionsSheet = XLSX.utils.aoa_to_sheet(instructions)
