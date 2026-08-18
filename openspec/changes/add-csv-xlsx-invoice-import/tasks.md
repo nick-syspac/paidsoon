@@ -16,8 +16,8 @@
 ## 3. Mapping, preview, and validation flows
 
 - [x] 3.1 Detect worksheet headers and map them to canonical invoice fields with alias suggestions and manual override support
-- [ ] 3.2 Support saved mapping profiles per tenant and only reapply them when headings remain compatible
-- [ ] 3.3 Implement format selection for date, number, currency, and delimiter handling with explicit ambiguity prompts
+- [x] 3.2 Support saved mapping profiles per tenant and only reapply them when headings remain compatible
+- [x] 3.3 Implement format selection for date, number, currency, and delimiter handling with explicit ambiguity prompts
 - [x] 3.4 Validate required fields, date ranges, currency codes, email/URL integrity, duplicate invoice identifiers, and over-limit values server-side
 - [x] 3.5 Produce preview counts, warning rows, skipped rows, and row-level error reports without exposing raw sensitive values in logs
 
@@ -40,11 +40,12 @@
 
 ## 6. UI and review experience
 
-- [ ] 6.1 Add Import invoices entry point and guided flow in the invoice/debtors area
-- [ ] 6.2 Add template download actions, file upload, sheet selection, and mapping review steps
-- [ ] 6.3 Add validation summary panel with blocking errors, warnings, skipped rows, and first-preview sample rows
-- [ ] 6.4 Add final confirmation page that clearly states no reminders were sent and that activation remains an explicit follow-up action
-- [ ] 6.5 Add import history listing with batch status, counts, and error-report access for the tenant user
+- [ ] 6.1 Add a dedicated Settings > Import tab as the central setup area for CSV/XLSX invoice import, separate from the live accounting connections flow
+- [ ] 6.2 Add Import invoices entry point and guided flow in the invoice/debtors area
+- [ ] 6.3 Add template download actions, file upload, sheet selection, and mapping review steps
+- [ ] 6.4 Add validation summary panel with blocking errors, warnings, skipped rows, and first-preview sample rows
+- [ ] 6.5 Add final confirmation page that clearly states no reminders were sent and that activation remains an explicit follow-up action
+- [ ] 6.6 Add import history listing with batch status, counts, and error-report access for the tenant user
 
 ## 7. Testing, safety, and rollout
 

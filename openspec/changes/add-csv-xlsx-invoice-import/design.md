@@ -22,6 +22,7 @@ See proposal.md - Why. This design adds a manual-import path alongside the exist
 - Batch-oriented processing: uploads create an `InvoiceImportBatch` record first, then mapping + validation stages operate on tenant-scoped staging rows. This allows a reviewable, cancellable workflow without partial invoice creation.
 - Safe storage lifecycle: raw uploads and staging data are stored in private tenant-scoped temporary storage and deleted immediately after processing or by 24 hours at the latest. Application records keep audit metadata and summary results only.
 - Explicit reminder pause: imported invoices are created in a paused state and no reminder jobs may be enqueued from the import path. Existing reminder review flows remain the only activation route.
+- Dedicated settings entry point: spreadsheet import setup lives in a dedicated Settings > Import section, separate from live accounting connections. This keeps the workflow discoverable, gives it a clear lifecycle for template download / upload / mapping / validation / batch history, and distinguishes it from real-time integration setup.
 - Duplicate safety by default: skip-existing is the default mode, and only eligible invoices can be updated. This preserves reminder history, promises-to-pay, disputes, and user notes.
 
 ## Risks / Trade-offs

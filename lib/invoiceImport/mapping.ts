@@ -17,6 +17,20 @@ export type InvoiceImportIssue = {
   message: string
 }
 
+export type InvoiceImportFormatHints = {
+  dateFormat: "yyyy-mm-dd" | "dd/mm/yyyy" | "mm/dd/yyyy" | "ambiguous"
+  numberFormat: "dot" | "comma" | "ambiguous"
+  currencyFormat: "dot" | "comma" | "ambiguous"
+  ambiguous: boolean
+  prompt: string
+}
+
+export type InvoiceImportSavedProfile = {
+  name: string
+  schemaVersion: string
+  mapping: Record<string, string>
+}
+
 const REQUIRED_FIELDS = [
   "customer_name",
   "customer_email",
@@ -75,6 +89,76 @@ export function inferInvoiceImportColumnMapping(
     usedSourceColumns.add(normalizedSource)
     return [{ sourceColumn, targetField: candidateField, suggested: true }]
   })
+}
+
+export function canReuseInvoiceImportMappingProfile(
+  profile: InvoiceImportSavedProfile,
+  currentHeaders: string[],
+): boolean {
+  if (profile.schemaVersion !== INVOICE_IMPORT_CANONICAL_FIELDS.join("|") && profile.schemaVersion !== "invoice-import-v1") {
+    return false
+  }
+
+  const normalizedCurrent = new Set(currentHeaders.map((header) => normalizeImportHeader(header)))
+  for (const [sourceColumn, targetField] of Object.entries(profile.mapping)) {
+    const matching = normalizeImportHeader(sourceColumn)
+    if (!normalizedCurrent.has(matching)) {
+      return false
+    }
+    if (!INVOICE_IMPORT_CANONICAL_FIELDS.includes(targetField as InvoiceImportCanonicalField)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+export function detectInvoiceImportFormatHints(
+  sampleRows: Array<Array<string>>,
+): InvoiceImportFormatHints {
+  const flatten = sampleRows.flat().filter((value) => value && value.trim())
+
+  const dateValues = flatten.filter((value) => /\d/.test(value) && /[/-]/.test(value))
+  const currencyValues = flatten.filter((value) => /\d/.test(value) && /[.,]/.test(value))
+
+  let dateFormat: InvoiceImportFormatHints["dateFormat"] = "yyyy-mm-dd"
+  let numberFormat: InvoiceImportFormatHints["numberFormat"] = "dot"
+  let currencyFormat: InvoiceImportFormatHints["currencyFormat"] = "dot"
+
+  if (dateValues.length > 0) {
+    const hasSlash = dateValues.some((value) => /\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(value.trim()))
+    const hasYearFirst = dateValues.some((value) => /^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(value.trim()))
+
+    if (hasSlash && !hasYearFirst) {
+      dateFormat = "dd/mm/yyyy"
+    } else if (hasYearFirst) {
+      dateFormat = "yyyy-mm-dd"
+    }
+  }
+
+  if (currencyValues.length > 0) {
+    const containsCommaDecimal = currencyValues.some((value) => /\d,\d{2}/.test(value))
+    const containsDotDecimal = currencyValues.some((value) => /\d\.\d{2}/.test(value))
+
+    if (containsCommaDecimal && !containsDotDecimal) {
+      numberFormat = "comma"
+      currencyFormat = "comma"
+    } else if (containsDotDecimal && !containsCommaDecimal) {
+      numberFormat = "dot"
+      currencyFormat = "dot"
+    }
+  }
+
+  const ambiguous =
+    (dateFormat === "dd/mm/yyyy" && dateValues.some((value) => /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(value.trim()))) ||
+    (numberFormat === "comma" && flatten.some((value) => /\d{1,3}(?:\.\d{3})+(?:,\d+)?/.test(value))) ||
+    (currencyFormat === "comma" && flatten.some((value) => /\d{1,3}(?:\.\d{3})+(?:,\d+)?/.test(value)))
+
+  const prompt = ambiguous
+    ? "Date and numeric formats are ambiguous. Please choose how to interpret values before validation continues."
+    : "The detected date and numeric import formats are consistent with the selected template."
+
+  return { dateFormat, numberFormat, currencyFormat, ambiguous, prompt }
 }
 
 function isValidEmail(value: string): boolean {

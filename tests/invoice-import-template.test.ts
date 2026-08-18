@@ -2,7 +2,12 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import * as XLSX from "xlsx"
 
-import { inferInvoiceImportColumnMapping, validateInvoiceImportRow } from "@/lib/invoiceImport/mapping"
+import {
+  canReuseInvoiceImportMappingProfile,
+  detectInvoiceImportFormatHints,
+  inferInvoiceImportColumnMapping,
+  validateInvoiceImportRow,
+} from "@/lib/invoiceImport/mapping"
 import { parseInvoiceImportFile } from "@/lib/invoiceImport/parser"
 import {
   INVOICE_IMPORT_CANONICAL_FIELDS,
@@ -102,4 +107,45 @@ test("invoice import validation catches missing and malformed row values", () =>
   assert.ok(issues.some((issue) => issue.code === "invalid_amount"))
   assert.ok(issues.some((issue) => issue.code === "invalid_currency"))
   assert.ok(issues.some((issue) => issue.code === "invalid_url"))
+})
+
+test("saved invoice-import profiles are only reused when headings remain compatible", () => {
+  const profile = {
+    name: "Standard AU imports",
+    schemaVersion: INVOICE_IMPORT_TEMPLATE_VERSION,
+    mapping: {
+      "Customer Name": "customer_name",
+      "Customer Email": "customer_email",
+      "Invoice #": "invoice_number",
+    },
+  }
+
+  assert.equal(
+    canReuseInvoiceImportMappingProfile(profile, ["Customer Name", "Customer Email", "Invoice #"]),
+    true,
+  )
+  assert.equal(
+    canReuseInvoiceImportMappingProfile(profile, ["Customer Name", "Customer Email", "Invoice ID"]),
+    false,
+  )
+})
+
+test("invoice-import format detection exposes explicit ambiguity prompts", () => {
+  const unambiguous = detectInvoiceImportFormatHints([
+    ["2026-01-15", "2026-01-30"],
+    ["1250.50", "890.00"],
+    ["A$ 1,250.50", "A$ 890.00"],
+  ])
+
+  assert.equal(unambiguous.dateFormat, "yyyy-mm-dd")
+  assert.equal(unambiguous.numberFormat, "dot")
+  assert.equal(unambiguous.ambiguous, false)
+
+  const ambiguous = detectInvoiceImportFormatHints([
+    ["01/02/2026", "02/03/2026"],
+    ["1.234,56", "2.345,67"],
+  ])
+
+  assert.equal(ambiguous.ambiguous, true)
+  assert.match(ambiguous.prompt, /ambiguous|choose/i)
 })
