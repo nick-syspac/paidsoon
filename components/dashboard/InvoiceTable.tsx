@@ -55,6 +55,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   sequence_complete: { label: "Sequence done", color: "bg-gray-100 text-gray-600" },
   paid: { label: "Paid", color: "bg-green-100 text-green-800" },
   manually_resolved: { label: "Resolved", color: "bg-gray-100 text-gray-500" },
+  disputed: { label: "Disputed", color: "bg-red-100 text-red-800" },
 }
 
 const STAGE_LABELS: Record<number, string> = {
@@ -77,6 +78,8 @@ const BULK_ACTION_PAST_TENSE: Record<string, string> = {
   snooze: "snoozed",
   "cancel-snooze": "un-snoozed",
   resolve: "resolved",
+  dispute: "disputed",
+  "resolve-dispute": "resolved",
 }
 
 function formatCurrency(cents: number, currency: string) {
@@ -149,6 +152,10 @@ export function InvoiceTable({
   const [arrangementDetailLoading, setArrangementDetailLoading] = useState(false)
   const [selectedPromiseInvoiceId, setSelectedPromiseInvoiceId] = useState<string | null>(null)
   const [arrangementDetailError, setArrangementDetailError] = useState<string | null>(null)
+  const [disputeDialogOpen, setDisputeDialogOpen] = useState(false)
+  const [disputeNoteInput, setDisputeNoteInput] = useState("")
+  const [resolveDisputeDialogOpen, setResolveDisputeDialogOpen] = useState(false)
+  const [resolutionNoteInput, setResolutionNoteInput] = useState("")
 
   useEffect(() => {
     if (!selectedArrangementId) return
@@ -209,16 +216,34 @@ export function InvoiceTable({
   const canResume = selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "paused")
   const canCancelSnooze =
     selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "snoozed")
+  const canDispute =
+    selectedInvoices.length > 0 &&
+    selectedInvoices.every((inv) => !["paid", "disputed", "manually_resolved"].includes(inv.status))
+  const canResolveDispute =
+    selectedInvoices.length > 0 && selectedInvoices.every((inv) => inv.status === "disputed")
 
-  async function doBulkAction(action: "pause" | "resume" | "snooze" | "cancel-snooze" | "resolve") {
+  async function doBulkAction(
+    action: "pause" | "resume" | "snooze" | "cancel-snooze" | "resolve" | "dispute" | "resolve-dispute",
+    note?: string,
+  ) {
     if (selectedIds.length === 0) return
     setBulkActionLoading(true)
     setBulkActionError(null)
     const responses = await Promise.all(
-      selectedIds.map((id) => fetch(`/api/invoices/${id}/${action}`, { method: "POST" }))
+      selectedIds.map((id) =>
+        fetch(`/api/invoices/${id}/${action}`, {
+          method: "POST",
+          headers: note ? { "Content-Type": "application/json" } : undefined,
+          body: note ? JSON.stringify({ note }) : undefined,
+        })
+      )
     )
     setBulkActionLoading(false)
     setConfirmBulkResolve(false)
+    setDisputeDialogOpen(false)
+    setDisputeNoteInput("")
+    setResolveDisputeDialogOpen(false)
+    setResolutionNoteInput("")
     setSelectedIds([])
     router.refresh()
     if (responses.some((response) => !response.ok)) {
@@ -379,6 +404,22 @@ export function InvoiceTable({
               className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Arrange
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisputeDialogOpen(true)}
+              disabled={!canDispute || bulkActionLoading}
+              className="text-xs text-red-700 hover:text-red-900 border border-red-200 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Dispute
+            </button>
+            <button
+              type="button"
+              onClick={() => setResolveDisputeDialogOpen(true)}
+              disabled={!canResolveDispute || bulkActionLoading}
+              className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
+            >
+              Resolve dispute
             </button>
             {confirmBulkResolve ? (
               <>
@@ -635,6 +676,96 @@ export function InvoiceTable({
         </tbody>
         </table>
       </div>
+
+      {disputeDialogOpen && (
+        <DetailModal
+          title="Mark as disputed"
+          onClose={() => {
+            setDisputeDialogOpen(false)
+            setDisputeNoteInput("")
+          }}
+        >
+          <div className="space-y-3 text-sm">
+            <p className="text-gray-700">
+              This halts reminder emails for {selectedIds.length === 1 ? "this invoice" : `${selectedIds.length} invoices`}
+              {" "}until the dispute is resolved.
+            </p>
+            <textarea
+              value={disputeNoteInput}
+              onChange={(event) => setDisputeNoteInput(event.target.value)}
+              placeholder="Optional note (e.g. client says goods not delivered)"
+              maxLength={2000}
+              rows={3}
+              className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDisputeDialogOpen(false)
+                  setDisputeNoteInput("")
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => doBulkAction("dispute", disputeNoteInput || undefined)}
+                disabled={bulkActionLoading}
+                className="text-xs bg-red-700 text-white rounded px-3 py-1.5 disabled:opacity-40"
+              >
+                {bulkActionLoading ? "Disputing..." : "Confirm dispute"}
+              </button>
+            </div>
+          </div>
+        </DetailModal>
+      )}
+
+      {resolveDisputeDialogOpen && (
+        <DetailModal
+          title="Resolve dispute"
+          onClose={() => {
+            setResolveDisputeDialogOpen(false)
+            setResolutionNoteInput("")
+          }}
+        >
+          <div className="space-y-3 text-sm">
+            <p className="text-gray-700">
+              This returns {selectedIds.length === 1 ? "this invoice" : `${selectedIds.length} invoices`} to active
+              and resumes the reminder schedule.
+            </p>
+            <textarea
+              value={resolutionNoteInput}
+              onChange={(event) => setResolutionNoteInput(event.target.value)}
+              placeholder="Optional resolution note"
+              maxLength={2000}
+              rows={3}
+              className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setResolveDisputeDialogOpen(false)
+                  setResolutionNoteInput("")
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => doBulkAction("resolve-dispute", resolutionNoteInput || undefined)}
+                disabled={bulkActionLoading}
+                className="text-xs bg-blue-700 text-white rounded px-3 py-1.5 disabled:opacity-40"
+              >
+                {bulkActionLoading ? "Resolving..." : "Confirm resolve"}
+              </button>
+            </div>
+          </div>
+        </DetailModal>
+      )}
 
       {heldExplanationInvoiceId && (
         <DetailModal

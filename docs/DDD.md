@@ -215,9 +215,17 @@ subsection documents a functional module.
 
 ### 4.7 Dashboard actions (`app/api/invoices/[id]/**`)
 
-- `pause`, `resume`, `snooze` (7-day), `resolve` (`manually_resolved`). All run
-  inside `withUserContext` and re-check ownership via `findFirst` with
+- `pause`, `resume`, `snooze` (7-day), `resolve` (`manually_resolved`), `dispute`
+  (`disputed`), `resolve-dispute` (back to `pending`). All run inside
+  `withUserContext` and re-check ownership via `findFirst` with
   `userId: user.id`, returning 404 when not found/ineligible.
+- `dispute` accepts an optional Zod-validated `note` stored in `disputeNote`
+  and sets `disputeRaisedAt`; excludes invoices already `paid`, `disputed`, or
+  `manually_resolved`. `resolve-dispute` requires current status `disputed`,
+  sets `disputeResolvedAt`, and replaces `disputeNote` with an optional
+  resolution note (or clears it if none given). No cron changes were needed —
+  the cron's `where: { status: "pending" }` allowlist already excludes
+  `disputed`.
 
 ### 4.8 Settings (templates / AI / team)
 
@@ -394,7 +402,7 @@ erDiagram
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
 | `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `custom_sender_name`/`verified_from_domain` |
-| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later |
+| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken`, `disputeNote`, `disputeRaisedAt`, `disputeResolvedAt` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later; `status` includes `disputed` (distinct from `paused`) — set/cleared by `dispute`/`resolve-dispute` (§4.7), excluded from the reminder cron by its existing `pending`-only allowlist |
 | `Customer` | `prisma/schema.prisma` | Per-tenant debtor directory entry, deduplicated by lowercased email | `userId`, `primaryEmail`, `primaryEmailLower`, `displayName`, `neverAutoChase`, `unsubscribed`, `cadenceOverride` (`Json?`) | N—1 profile; 1—N tracked invoices, 1—N arrangements | Yes (RLS) | Unique `(userId, primaryEmailLower)`; created/matched via `findOrCreateCustomer` (`lib/db/customers.ts`) from every invoice ingestion path (Stripe Connect webhook, catch-up scan, Xero/MYOB sync, CSV/XLSX import commit); `neverAutoChase`/`unsubscribed` exclude an invoice from the reminder cron regardless of `Schedule`/stage; `cadenceOverride` (day offsets, same shape as `Schedule`) takes precedence over the tenant's `Schedule` when present and well-formed, otherwise ignored; backfilled onto pre-existing `TrackedInvoice`/`Arrangement` rows by `scripts/backfill-customer-entities.ts` |
 | `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject`, `htmlBody`, `textBody`, `status` | N—1 tracked invoice | Yes (via join policy) | Insert via service role; `htmlBody`/`textBody` (nullable) persist the exact rendered content sent, added for the dashboard's email-detail modal — `null` for rows sent before this column existed; `status` (`sent`/`delivered`/`bounced`/`complained`, default `sent`) is updated by the Resend delivery-status webhook (`app/api/webhooks/resend/route.ts`) matching on `resendMessageId` |
 | `WeeklyDebtorSummaryDelivery` | `prisma/schema.prisma` | Internal idempotency/audit log for weekly debtor summary sends | `userId`, `weekStart`, `status`, `resendMessageId`, `lastError`, `subject`, `sentAt` | — | No (service role only) | Unique `(userId, weekStart)`; used by the weekly debtor summary sender to ensure one send per tenant per week |
@@ -477,6 +485,8 @@ enforced server-side before content is returned.
 | `POST /api/invoices/[id]/snooze` | `.../snooze/route.ts` | path `id` | session | `withUserContext` | → `{success,snoozedUntil}` | Implemented |
 | `POST /api/invoices/[id]/cancel-snooze` | `.../cancel-snooze/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented — manually ends an in-progress snooze early, clearing `snoozedUntil` and returning the invoice to `pending` |
 | `POST /api/invoices/[id]/resolve` | `.../resolve/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
+| `POST /api/invoices/[id]/dispute` | `.../dispute/route.ts` | path `id`, `zod` `{note?}` | session | `withUserContext` | → `{success,disputeRaisedAt}` | Implemented |
+| `POST /api/invoices/[id]/resolve-dispute` | `.../resolve-dispute/route.ts` | path `id`, `zod` `{note?}` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/arrangements` | `app/api/arrangements/route.ts` | body `{invoiceIds[], arrangementType, promisedPayBy?, agreedAmount?, currency?, termsNotes?, planSchedule?}` | session | `withUserContext` | → `{arrangement}` | Implemented — freelancer-managed arrangement creation for single/multi-invoice scope |
 | `POST /api/arrangements/[id]/status` | `app/api/arrangements/[id]/status/route.ts` | path `id`; body `{status}` | session | `withUserContext` | → `{arrangement}` | Implemented — lifecycle transitions (`active`, `broken`, `fulfilled`, `expired`, `cancelled`) |
 | `GET /api/arrangements/[id]` | `app/api/arrangements/[id]/route.ts` | path `id` | session | `withUserContext` + explicit `userId` check | → `{arrangement}` (with full `coverages`, each including the covered invoice's `clientName`/`clientEmail`/`amountDue`/`currency`/`status`) | Implemented — full arrangement detail for the dashboard's arrangement-detail modal; 404 if not found or not owned by the requesting user |
@@ -645,6 +655,11 @@ stateDiagram-v2
     pending --> paid: invoice.paid webhook
     pending --> manually_resolved: user resolve
     sequence_complete --> paid: invoice.paid webhook
+    pending --> disputed: user dispute
+    paused --> disputed: user dispute
+    snoozed --> disputed: user dispute
+    sequence_complete --> disputed: user dispute
+    disputed --> pending: user resolve-dispute
 ```
 
 - **Notification hook:** sending an email writes an `EmailLog` and advances
@@ -935,7 +950,7 @@ automated tests; only pure helpers are unit-tested.
 | Follow-up sequences | Yes | Specified | `app/api/cron/send-emails/route.ts`, `lib/email/**` | `.../follow-up-sequences` | 3 stages |
 | Schedule config | Yes | Specified | `app/api/settings/schedule/route.ts` | `.../schedule-config` | Ascending offsets |
 | Email settings | Yes | Specified | `app/api/settings/email/route.ts` | `.../email-settings` | Resend verify poll |
-| Manual actions | Yes | Specified | `app/api/invoices/[id]/**` | `.../dashboard` | pause/resume/snooze/resolve |
+| Manual actions | Yes | Specified | `app/api/invoices/[id]/**` | `.../dashboard` | pause/resume/snooze/resolve/dispute/resolve-dispute |
 | Dashboard + upsell | Yes | Specified | `app/dashboard/{page,invoices/page,resolved/page}.tsx`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` | Gated modules; Overview ungated |
 | Billing tiers | Yes | Specified | `lib/subscriptionPlans.ts`, `app/api/billing/**` | `changes/restore-three-tier-pricing` | 3 public tiers + 1 hidden contact-only tier |
 | Live-mode gating | Yes | Specified | `lib/liveMode.ts`, `proxy.ts` | `changes/live-mode-auth-gate-banner` | `LIVE` flag |
@@ -1003,7 +1018,7 @@ automated tests; only pure helpers are unit-tested.
 **Follow-up engine**
 - `app/api/cron/send-emails/route.ts`
 - `lib/email/{send,schedule,templates}.ts`
-- `app/api/invoices/[id]/{pause,resume,snooze,resolve}/route.ts`
+- `app/api/invoices/[id]/{pause,resume,snooze,resolve,dispute,resolve-dispute}/route.ts`
 
 **Billing & entitlements**
 - `lib/subscriptionPlans.ts`, `lib/billing.ts`

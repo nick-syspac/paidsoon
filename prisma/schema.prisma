@@ -234,13 +234,16 @@ model TrackedInvoice {
   currency            String    @default("usd")
   dueDate             DateTime
   status              String    @default("pending")
-  // 'pending' | 'paid' | 'paused' | 'snoozed' | 'sequence_complete' | 'manually_resolved'
+  // 'pending' | 'paid' | 'paused' | 'snoozed' | 'sequence_complete' | 'manually_resolved' | 'disputed'
   currentStage        Int       @default(0) // 0=not started, 1=email1 sent, 2=email2 sent, 3=email3 sent
   nextEmailAt         DateTime?
   snoozedUntil        DateTime?
   firstChasedAt       DateTime? @map("first_chased_at") // set once, when the first reminder is sent; consumes chase-volume allowance
   providerMetadata    Json?     @map("provider_metadata") // provider-specific fields, not part of core model
   p2pToken            String?   @unique @map("p2p_token") // generated for Business+ users; client uses to submit a promise to pay
+  disputeNote         String?   @map("dispute_note")
+  disputeRaisedAt     DateTime? @map("dispute_raised_at")
+  disputeResolvedAt   DateTime? @map("dispute_resolved_at")
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
