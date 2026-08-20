@@ -31,14 +31,15 @@ model UserProfile {
   createdAt                      DateTime  @default(now())
   updatedAt                      DateTime  @updatedAt
 
-  invoiceConnections       InvoiceConnection[]
-  schedule                 Schedule?
-  emailSettings            EmailSettings?
-  trackedInvoices          TrackedInvoice[]
-  arrangements             Arrangement[]
-  promiseEscalationPolicy  PromiseEscalationPolicy?
-  emailTemplates           EmailTemplate[]
-  aiUsageLogs              AiUsageLog[]
+  invoiceConnections           InvoiceConnection[]
+  schedule                     Schedule?
+  emailSettings                EmailSettings?
+  trackedInvoices              TrackedInvoice[]
+  arrangements                 Arrangement[]
+  customers                    Customer[]
+  promiseEscalationPolicy      PromiseEscalationPolicy?
+  emailTemplates               EmailTemplate[]
+  aiUsageLogs                  AiUsageLog[]
   accountingConnections        AccountingConnection[]
   importedBills                ImportedBill[]
   importedBankTransactions     ImportedBankTransaction[]
@@ -56,33 +57,33 @@ model UserProfile {
 // ---------------------------------------------------------------------------
 
 model InvoiceImportBatch {
-  id               String    @id @default(cuid())
-  userId           String    @map("user_id")
-  fileName         String    @map("file_name")
-  fileType         String    @map("file_type")
-  fileSizeBytes    Int       @map("file_size_bytes")
-  contentHash      String    @map("content_hash")
-  schemaVersion    String    @map("schema_version")
-  worksheetName    String?   @map("worksheet_name")
-  dateFormat       String?   @map("date_format")
-  numberFormat     String?   @map("number_format")
-  defaultCurrency  String?   @map("default_currency")
-  duplicateMode    String    @default("skip_existing") @map("duplicate_mode")
-  mapping          Json?     @map("mapping")
-  status           String    @default("uploaded")
-  failureReason    String?   @map("failure_reason")
-  rowsTotal        Int       @default(0) @map("rows_total")
-  rowsValid        Int       @default(0) @map("rows_valid")
-  rowsWarning      Int       @default(0) @map("rows_warning")
-  rowsSkipped      Int       @default(0) @map("rows_skipped")
-  rowsFailed       Int       @default(0) @map("rows_failed")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  validatedAt      DateTime? @map("validated_at")
-  startedAt        DateTime? @map("started_at")
-  completedAt      DateTime? @map("completed_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  fileName        String    @map("file_name")
+  fileType        String    @map("file_type")
+  fileSizeBytes   Int       @map("file_size_bytes")
+  contentHash     String    @map("content_hash")
+  schemaVersion   String    @map("schema_version")
+  worksheetName   String?   @map("worksheet_name")
+  dateFormat      String?   @map("date_format")
+  numberFormat    String?   @map("number_format")
+  defaultCurrency String?   @map("default_currency")
+  duplicateMode   String    @default("skip_existing") @map("duplicate_mode")
+  mapping         Json?     @map("mapping")
+  status          String    @default("uploaded")
+  failureReason   String?   @map("failure_reason")
+  rowsTotal       Int       @default(0) @map("rows_total")
+  rowsValid       Int       @default(0) @map("rows_valid")
+  rowsWarning     Int       @default(0) @map("rows_warning")
+  rowsSkipped     Int       @default(0) @map("rows_skipped")
+  rowsFailed      Int       @default(0) @map("rows_failed")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  validatedAt     DateTime? @map("validated_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  userProfile UserProfile                  @relation(fields: [userId], references: [userId])
   mappings    InvoiceImportColumnMapping[]
   stagingRows InvoiceImportStagingRow[]
   errors      InvoiceImportError[]
@@ -94,12 +95,12 @@ model InvoiceImportBatch {
 }
 
 model InvoiceImportColumnMapping {
-  id          String   @id @default(cuid())
-  batchId     String   @map("batch_id")
-  sourceColumn String  @map("source_column")
-  targetField String   @map("target_field")
-  suggested   Boolean  @default(false)
-  createdAt   DateTime @default(now()) @map("created_at")
+  id           String   @id @default(cuid())
+  batchId      String   @map("batch_id")
+  sourceColumn String   @map("source_column")
+  targetField  String   @map("target_field")
+  suggested    Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
 
   batch InvoiceImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
@@ -145,13 +146,13 @@ model InvoiceImportError {
 }
 
 model InvoiceImportMappingProfile {
-  id           String   @id @default(cuid())
-  userId       String   @map("user_id")
-  name         String
-  schemaVersion String  @map("schema_version")
-  mapping      Json
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  name          String
+  schemaVersion String   @map("schema_version")
+  mapping       Json
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   userProfile UserProfile @relation(fields: [userId], references: [userId])
 
@@ -224,6 +225,7 @@ model TrackedInvoice {
   id                  String    @id @default(cuid())
   userId              String
   invoiceConnectionId String
+  customerId          String?
   externalId          String // e.g. Stripe invoice ID
   provider            String    @default("stripe")
   clientEmail         String
@@ -244,6 +246,7 @@ model TrackedInvoice {
 
   userProfile            UserProfile                  @relation(fields: [userId], references: [userId])
   invoiceConnection      InvoiceConnection            @relation(fields: [invoiceConnectionId], references: [id])
+  customer               Customer?                    @relation(fields: [customerId], references: [id])
   emailLogs              EmailLog[]
   providerInvoiceMapping ProviderInvoiceMapping?
   promisesToPay          PromiseToPay[]
@@ -252,7 +255,32 @@ model TrackedInvoice {
   @@unique([id, userId, clientEmail])
   @@unique([externalId, provider, userId])
   @@index([userId, firstChasedAt])
+  @@index([customerId])
   @@map("tracked_invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Customers (tenant-scoped debtor directory)
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id                String   @id @default(cuid())
+  userId            String
+  primaryEmail      String   @map("primary_email")
+  primaryEmailLower String   @map("primary_email_lower") // lowercased primaryEmail; Postgres unique constraints don't case-fold
+  displayName       String?  @map("display_name")
+  neverAutoChase    Boolean  @default(false) @map("never_auto_chase")
+  unsubscribed      Boolean  @default(false)
+  cadenceOverride   Json?    @map("cadence_override") // { email1DaysAfterDue, email2DaysAfterDue, email3DaysAfterDue }; overrides the tenant's Schedule when present
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  userProfile     UserProfile      @relation(fields: [userId], references: [userId])
+  trackedInvoices TrackedInvoice[]
+  arrangements    Arrangement[]
+
+  @@unique([userId, primaryEmailLower])
+  @@map("customers")
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +290,7 @@ model TrackedInvoice {
 model Arrangement {
   id              String    @id @default(cuid())
   userId          String    @map("user_id")
+  customerId      String?   @map("customer_id")
   debtorEmail     String    @map("debtor_email")
   debtorName      String?   @map("debtor_name")
   arrangementType String    @map("arrangement_type") // 'full_payment' | 'partial_payment' | 'instalment_plan'
@@ -278,11 +307,13 @@ model Arrangement {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   userProfile UserProfile                  @relation(fields: [userId], references: [userId])
+  customer    Customer?                    @relation(fields: [customerId], references: [id])
   coverages   ArrangementInvoiceCoverage[]
 
   @@unique([id, userId, debtorEmail])
   @@index([userId, status])
   @@index([userId, debtorEmail])
+  @@index([customerId])
   @@map("arrangements")
 }
 

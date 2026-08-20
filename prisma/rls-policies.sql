@@ -419,6 +419,27 @@ CREATE OR REPLACE POLICY "users can delete own arrangement coverages"
   USING (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
+-- customers
+-- Tenant-scoped debtor directory. Users can read/write their own customer
+-- records; the reminder cron reads via prismaAdmin (service role), which
+-- bypasses RLS by design.
+-- ---------------------------------------------------------------------------
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE POLICY "users can view own customers"
+  ON customers FOR SELECT
+  USING (auth.uid()::text = "userId");
+
+CREATE OR REPLACE POLICY "users can insert own customers"
+  ON customers FOR INSERT
+  WITH CHECK (auth.uid()::text = "userId");
+
+CREATE OR REPLACE POLICY "users can update own customers"
+  ON customers FOR UPDATE
+  USING (auth.uid()::text = "userId")
+  WITH CHECK (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
 -- invoice_import_batches
 -- Users can create and manage their own spreadsheet import batches. No user
 -- DELETE policy — batches move through status transitions (uploaded ->

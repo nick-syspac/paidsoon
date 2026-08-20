@@ -30,6 +30,8 @@ const PROBE_ACCOUNTING_ORG_A = "rls-verify-accounting-org-a"
 const PROBE_ACCOUNTING_ORG_B = "rls-verify-accounting-org-b"
 const PROBE_SPEND_INSIGHT_A = "rls-verify-spend-insight-a"
 const PROBE_SPEND_INSIGHT_B = "rls-verify-spend-insight-b"
+const PROBE_CUSTOMER_EMAIL_A = "rls-verify-customer-a@example.com"
+const PROBE_CUSTOMER_EMAIL_B = "rls-verify-customer-b@example.com"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -107,9 +109,27 @@ async function seed() {
       evidence: { source: "verify-rls", sample: "B" },
     },
   })
+
+  await prismaAdmin.customer.create({
+    data: {
+      userId: USER_A,
+      primaryEmail: PROBE_CUSTOMER_EMAIL_A,
+      primaryEmailLower: PROBE_CUSTOMER_EMAIL_A,
+    },
+  })
+  await prismaAdmin.customer.create({
+    data: {
+      userId: USER_B,
+      primaryEmail: PROBE_CUSTOMER_EMAIL_B,
+      primaryEmailLower: PROBE_CUSTOMER_EMAIL_B,
+    },
+  })
 }
 
 async function cleanup() {
+  await prismaAdmin.customer.deleteMany({
+    where: { primaryEmailLower: { in: [PROBE_CUSTOMER_EMAIL_A, PROBE_CUSTOMER_EMAIL_B] } },
+  })
   await prismaAdmin.spendInsight.deleteMany({
     where: { id: { in: [PROBE_SPEND_INSIGHT_A, PROBE_SPEND_INSIGHT_B] } },
   })
@@ -265,6 +285,18 @@ async function main() {
     fail("expected non-lifecycle spend insight update to be blocked")
   }
   console.log("  ✓ non-lifecycle update blocked")
+
+  console.log("\nCheck 8: withUserContext(USER_A) sees only A's customer")
+  const customerRows = await withUserContext(USER_A, (tx) =>
+    tx.customer.findMany({
+      where: { primaryEmailLower: { in: [PROBE_CUSTOMER_EMAIL_A, PROBE_CUSTOMER_EMAIL_B] } },
+    }),
+  )
+  if (customerRows.length !== 1 || customerRows[0].primaryEmailLower !== PROBE_CUSTOMER_EMAIL_A) {
+    await cleanup()
+    fail(`expected exactly A's customer row, got ${JSON.stringify(customerRows.map((r) => r.primaryEmailLower))}`)
+  }
+  console.log("  ✓ saw only A's customer")
 
   await cleanup()
   console.log("\nPASS: RLS is enforced.")

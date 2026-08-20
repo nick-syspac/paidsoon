@@ -82,6 +82,9 @@ describe("Invoice import commit route", () => {
                 return { id: mockExistingInvoice?.id }
               },
             },
+            customer: {
+              upsert: async () => ({ id: "customer-1" }),
+            },
           }
           return fn(tx)
         },

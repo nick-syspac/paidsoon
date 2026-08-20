@@ -1,6 +1,6 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { sendFollowUpEmail, resolveFreelancerName } from "@/lib/email/send"
-import { computeNextEmailAt } from "@/lib/email/schedule"
+import { computeNextEmailAt, resolveScheduleConfig, shouldAutoChaseCustomer } from "@/lib/email/schedule"
 import { getChaseAllowanceStatusesForUsers } from "@/lib/billing"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
@@ -62,8 +62,14 @@ export async function GET(request: Request) {
     },
     include: {
       userProfile: { select: { subscriptionTier: true, userId: true, displayName: true } },
+      customer: { select: { neverAutoChase: true, unsubscribed: true, cadenceOverride: true } },
     },
   })
+
+  // Customers who opted out of auto-chasing or unsubscribed entirely are
+  // excluded here rather than in the query above, mirroring the
+  // pure-function-over-loaded-array convention used throughout lib/dashboard.
+  const invoicesToProcess = pendingInvoices.filter((invoice) => shouldAutoChaseCustomer(invoice.customer))
 
   // Use Supabase admin client to get user emails (needed for freelancerName/email)
   const { publicUrl } = getPublicSupabaseEnvironment()
@@ -77,7 +83,7 @@ export async function GET(request: Request) {
   let errors = 0
   let held = 0
 
-  const userIds = Array.from(new Set(pendingInvoices.map((invoice) => invoice.userId)))
+  const userIds = Array.from(new Set(invoicesToProcess.map((invoice) => invoice.userId)))
   const [brokenPromiseRows, policyRows, allowanceStatuses] = await Promise.all([
     prisma.promiseToPay.findMany({
       where: {
@@ -114,7 +120,7 @@ export async function GET(request: Request) {
     policyRows.map((row) => [row.userId, resolvePromiseEscalationPolicy(row)])
   )
 
-  for (const invoice of pendingInvoices) {
+  for (const invoice of invoicesToProcess) {
     const isFirstChase = invoice.currentStage === 0
 
     // Allowance gate: only the first reminder for an invoice consumes
@@ -184,11 +190,11 @@ export async function GET(request: Request) {
       })
     } else {
       const nextStage = (stage + 1) as 2 | 3
-      let nextEmailAt = computeNextEmailAt(
-        invoice.dueDate,
-        nextStage,
-        schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 }
+      const effectiveSchedule = resolveScheduleConfig(
+        schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 },
+        invoice.customer?.cadenceOverride,
       )
+      let nextEmailAt = computeNextEmailAt(invoice.dueDate, nextStage, effectiveSchedule)
       nextEmailAt = applyTimingEscalation(nextEmailAt, brokenCount, policy)
       await prisma.trackedInvoice.update({
         where: { id: invoice.id },
@@ -205,7 +211,7 @@ export async function GET(request: Request) {
     ok: true,
     emailsSent,
     errors,
-    processed: pendingInvoices.length,
+    processed: invoicesToProcess.length,
     held,
     usageByAccount: Array.from(allowanceStatuses.entries()).map(([userId, status]) => ({
       userId,

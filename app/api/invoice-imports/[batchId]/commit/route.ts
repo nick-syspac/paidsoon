@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { withUserContext } from "@/lib/db/withUserContext"
+import { findOrCreateCustomer } from "@/lib/db/customers"
 import { parseInvoiceImportDate, parseInvoiceImportMoney } from "@/lib/invoiceImport/mapping"
 import {
   INVOICE_IMPORT_PROVIDER,
@@ -136,16 +137,22 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
 
       const currency = (values.currency?.trim() || batch.defaultCurrency || "usd").toLowerCase()
       const providerMetadata = buildProviderMetadata(values, batchId)
+      const clientEmail = values.customer_email?.trim() ?? ""
+      const clientName = values.customer_name?.trim() ?? ""
+      const customer = clientEmail
+        ? await findOrCreateCustomer(tx, user.id, clientEmail, clientName)
+        : null
 
       if (!existing) {
         await tx.trackedInvoice.create({
           data: {
             userId: user.id,
             invoiceConnectionId: invoiceConnection.id,
+            customerId: customer?.id,
             externalId,
             provider: INVOICE_IMPORT_PROVIDER,
-            clientEmail: values.customer_email?.trim() ?? "",
-            clientName: values.customer_name?.trim() ?? "",
+            clientEmail,
+            clientName,
             amountDue: toCents(outstandingAmount),
             currency,
             dueDate,
@@ -177,8 +184,9 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       await tx.trackedInvoice.update({
         where: { id: existing.id },
         data: {
-          clientEmail: values.customer_email?.trim() ?? "",
-          clientName: values.customer_name?.trim() ?? "",
+          clientEmail,
+          clientName,
+          ...(customer ? { customerId: customer.id } : {}),
           amountDue: toCents(outstandingAmount),
           currency,
           dueDate,
