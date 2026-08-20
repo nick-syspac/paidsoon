@@ -11,6 +11,11 @@ import {
   loadBrokenPromiseCountsByDebtorWithTx,
   loadEscalationThresholdWithTx,
 } from "@/lib/dashboard/loadDashboardRiskSignals"
+import {
+  loadDisputedInvoiceCountWithTx,
+  loadNoContactEmailCustomerCountWithTx,
+  loadImportAnomalyCount,
+} from "@/lib/dashboard/needsAttentionSignals"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
@@ -23,6 +28,9 @@ export interface DashboardOverviewData {
   brokenPromiseCountsByDebtor: Record<string, number>
   escalationThreshold: number
   metrics: DashboardMetricsContext
+  disputedInvoiceCount: number
+  noContactEmailCustomerCount: number
+  importAnomalyCount: number
 }
 
 export interface DashboardOverviewLoaderDependencies<Transaction> {
@@ -31,6 +39,8 @@ export interface DashboardOverviewLoaderDependencies<Transaction> {
   loadBrokenPromiseCounts: (tx: Transaction, userId: string) => Promise<Record<string, number>>
   loadEscalationThreshold: (tx: Transaction, userId: string) => Promise<number>
   loadMetrics: (tx: Transaction, userId: string) => Promise<DashboardMetricsContext>
+  loadDisputedInvoiceCount: (tx: Transaction, userId: string) => Promise<number>
+  loadNoContactEmailCustomerCount: (tx: Transaction, userId: string) => Promise<number>
 }
 
 export async function runDashboardOverviewLoaders<Transaction>(
@@ -43,6 +53,8 @@ export async function runDashboardOverviewLoaders<Transaction>(
   const brokenPromiseCountsByDebtor = await loaders.loadBrokenPromiseCounts(tx, userId)
   const escalationThreshold = await loaders.loadEscalationThreshold(tx, userId)
   const metrics = await loaders.loadMetrics(tx, userId)
+  const disputedInvoiceCount = await loaders.loadDisputedInvoiceCount(tx, userId)
+  const noContactEmailCustomerCount = await loaders.loadNoContactEmailCustomerCount(tx, userId)
 
   return {
     context,
@@ -50,6 +62,9 @@ export async function runDashboardOverviewLoaders<Transaction>(
     brokenPromiseCountsByDebtor,
     escalationThreshold,
     metrics,
+    disputedInvoiceCount,
+    noContactEmailCustomerCount,
+    importAnomalyCount: loadImportAnomalyCount(),
   }
 }
 
@@ -63,6 +78,8 @@ function createOverviewLoaders(
   loadBrokenPromiseCounts: loadBrokenPromiseCountsByDebtorWithTx,
   loadEscalationThreshold: loadEscalationThresholdWithTx,
   loadMetrics: loadDashboardMetricsWithTx,
+  loadDisputedInvoiceCount: loadDisputedInvoiceCountWithTx,
+  loadNoContactEmailCustomerCount: loadNoContactEmailCustomerCountWithTx,
   }
 }
 

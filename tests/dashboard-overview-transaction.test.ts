@@ -56,6 +56,19 @@ before(async () => {
       },
     },
   })
+  await mock.module("@/lib/dashboard/needsAttentionSignals", {
+    namedExports: {
+      loadDisputedInvoiceCountWithTx: async (_tx: unknown, userId: string) => {
+        calls.push(`disputed-invoice-count:${userId}`)
+        return 0
+      },
+      loadNoContactEmailCustomerCountWithTx: async (_tx: unknown, userId: string) => {
+        calls.push(`no-contact-email-customer-count:${userId}`)
+        return 0
+      },
+      loadImportAnomalyCount: () => 0,
+    },
+  })
   await mock.module("@/lib/db/withUserContext", {
     namedExports: {
       withUserContext: async (userId: string, operation: (tx: unknown) => Promise<unknown>) => {
@@ -97,6 +110,8 @@ test("loads the complete overview inside one tenant RLS transaction", async () =
     "broken-promises:user-1",
     "escalation-threshold:user-1",
     "metrics:user-1",
+    "disputed-invoice-count:user-1",
+    "no-contact-email-customer-count:user-1",
   ])
 })
 

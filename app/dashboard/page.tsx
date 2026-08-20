@@ -7,7 +7,7 @@ import {
 import { buildOverviewCards } from "@/lib/dashboard/overviewCards"
 import { OverviewCards } from "@/components/dashboard/OverviewCards"
 import { loadDashboardOverview } from "@/lib/dashboard/loadDashboardOverview"
-import { buildAttentionItems } from "@/lib/dashboard/attentionRequired"
+import { buildNeedsAttentionSummary } from "@/lib/dashboard/attentionRequired"
 import { buildReminderFunnel } from "@/lib/dashboard/reminderActivity"
 import { buildRecentPayments } from "@/lib/dashboard/collectionMetrics"
 import { buildPaymentTrend } from "@/lib/dashboard/paymentTrend"
@@ -87,6 +87,9 @@ export default async function DashboardOverviewPage({
       manuallyResolvedCountAllTime,
       remindersSentToday,
     },
+    disputedInvoiceCount,
+    noContactEmailCustomerCount,
+    importAnomalyCount,
   } = await loadDashboardOverview(user.id, traceContext, COMPONENT)
 
   const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
@@ -97,6 +100,7 @@ export default async function DashboardOverviewPage({
     brokenPromiseCountsByDebtor,
     escalationThreshold,
     heldInvoiceCount: heldInvoiceIds.size,
+    disputedInvoiceCount,
   })
 
   const now = new Date()
@@ -109,7 +113,15 @@ export default async function DashboardOverviewPage({
     manuallyResolvedCountAllTime,
     now,
   })
-  const attentionItems = buildAttentionItems({ activeInvoices, paidInvoices, now })
+  const needsAttention = buildNeedsAttentionSummary({
+    activeInvoices,
+    brokenPromiseCountsByDebtor,
+    escalationThreshold,
+    disputedInvoiceCount,
+    noContactEmailCustomerCount,
+    importAnomalyCount,
+    now,
+  })
   const reminderFunnel = buildReminderFunnel({ activeInvoices, paidInvoices, remindersSentToday, now })
   const recentPayments = buildRecentPayments(paidInvoices)
   const paymentTrend = buildPaymentTrend({ activeInvoices, paidInvoices, now })
@@ -145,7 +157,7 @@ export default async function DashboardOverviewPage({
         <OverviewCards cards={cards} />
       </div>
 
-      <AttentionRequired items={attentionItems} />
+      <AttentionRequired summary={needsAttention} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <RecentPayments payments={recentPayments} />

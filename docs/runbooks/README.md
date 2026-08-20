@@ -114,6 +114,7 @@ This is the only place where env-var values are listed. Every runbook **referenc
 | `RESEND_API_KEY` | dev `re_…` | dev `re_…` | prod `re_…` | [resend.md §2](./resend.md) |
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` | `onboarding@resend.dev` | `billing@paidsoon.com` | [resend.md §3](./resend.md) |
 | `RESEND_FROM_NAME` | `PaidSoon (dev)` | `PaidSoon (preview)` | `PaidSoon` | [resend.md §3](./resend.md) |
+| `RESEND_WEBHOOK_SECRET` | Resend CLI/dashboard `whsec_…` | dashboard `whsec_…` (preview endpoint) | dashboard `whsec_…` (prod endpoint) | [resend.md §4](./resend.md) — signs `POST /api/webhooks/resend` delivery events |
 | `OPENAI_API_KEY` | dev `sk-proj-…` | dev `sk-proj-…` | prod `sk-proj-…` | [openai.md §1](./openai.md) |
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` (64 hex chars) | `openssl rand -hex 32` | `openssl rand -hex 32` | Server-side only — never expose to Xero/MYOB, the frontend, or logs. See [myob.md §2](./myob.md) |
 | `XERO_CLIENT_ID` | Xero developer app client ID | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) |
@@ -235,6 +236,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `RESEND_API_KEY` | [lib/email/send.ts](../../lib/email/send.ts), [app/api/settings/email/route.ts](../../app/api/settings/email/route.ts) |
 | `RESEND_FROM_EMAIL` | [lib/email/send.ts](../../lib/email/send.ts), [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) |
 | `RESEND_FROM_NAME` | [lib/email/send.ts](../../lib/email/send.ts) |
+| `RESEND_WEBHOOK_SECRET` | [app/api/webhooks/resend/route.ts](../../app/api/webhooks/resend/route.ts) |
 | `OPENAI_API_KEY` | `lib/email/ai-rewrite.ts` (to be created) — server-side only, never browser |
 | `TRAINING_IMPORT_ALLOW_WRITE` | [scripts/import-help-mdx.ts](../../scripts/import-help-mdx.ts) — guard required to enable one-time DB write mode |
 | `TRAINING_IMPORT_ACTOR_USER_ID` | [scripts/import-help-mdx.ts](../../scripts/import-help-mdx.ts) — required actor attribution for write-mode imports |

@@ -389,6 +389,7 @@ model EmailLog {
   subject          String
   htmlBody         String?  @map("html_body") // rendered HTML body at send time; null for rows predating this column
   textBody         String?  @map("text_body") // rendered text body at send time; null for rows predating this column
+  status           String   @default("sent") // 'sent' | 'delivered' | 'bounced' | 'complained'; updated by the Resend delivery webhook (app/api/webhooks/resend)
 
   trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
 

@@ -1,103 +1,95 @@
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
-import type { PaidInvoiceSummary } from "@/lib/dashboard/loadDashboardMetrics"
-import { daysBetween, formatCents } from "@/lib/dashboard/format"
+import { buildAgeingBuckets } from "@/lib/dashboard/ageing"
+import { countBrokenPromiseDebtorsAtThreshold } from "@/lib/dashboard/overviewCards"
 
-export type AttentionSeverity = "red" | "orange"
+export type NeedsAttentionCategoryId =
+  | "broken_promises"
+  | "disputed"
+  | "bounced"
+  | "overdue_60_plus"
+  | "no_contact_email"
+  | "import_anomalies"
 
-export interface AttentionItem {
-  id: string
-  severity: AttentionSeverity
-  message: string
+export interface NeedsAttentionCategory {
+  id: NeedsAttentionCategoryId
+  label: string
+  count: number
   href: string
 }
 
-const LONG_OVERDUE_DAYS_THRESHOLD = 45
-const PROMISE_EXPIRES_SOON_HOURS = 24
-const UNUSUAL_AMOUNT_MULTIPLIER = 1.5
-const MIN_PAID_HISTORY_FOR_UNUSUAL_AMOUNT = 2
+export interface NeedsAttentionSummary {
+  total: number
+  categories: NeedsAttentionCategory[]
+}
+
+const CATEGORY_LABELS: Record<NeedsAttentionCategoryId, string> = {
+  broken_promises: "Broken promises",
+  disputed: "Disputed",
+  bounced: "Bounced emails",
+  overdue_60_plus: "Overdue 60+ days",
+  no_contact_email: "No contact email",
+  import_anomalies: "Import anomalies",
+}
+
+const CATEGORY_HREFS: Record<NeedsAttentionCategoryId, string> = {
+  broken_promises: "/dashboard/invoices?filter=broken_promises",
+  disputed: "/dashboard/invoices?filter=disputed",
+  bounced: "/dashboard/invoices?filter=bounced",
+  overdue_60_plus: "/dashboard/invoices?filter=overdue_60_plus",
+  no_contact_email: "/dashboard/invoices?filter=no_contact_email",
+  import_anomalies: "/dashboard/invoices?filter=import_anomalies",
+}
+
+/** Invoices with at least one email logged as bounced — reuses each invoice's already-loaded `emailLogs`, no new query. */
+function countBouncedInvoices(invoices: Pick<InvoiceWithRelations, "emailLogs">[]): number {
+  return invoices.filter((invoice) => invoice.emailLogs.some((log) => log.status === "bounced")).length
+}
 
 /**
- * Builds the "Attention Required" list — the highest-signal, most
- * actionable items on the dashboard. Every rule is derived from data
- * already on hand (no fabricated/placeholder items):
- *  - long overdue invoices
- *  - invoices that exhausted all 3 reminders with no promise to pay
- *  - promises to pay expiring within 24h
- *  - an invoice unusually large vs. that debtor's own paid-invoice history
+ * Builds the "Needs Attention" triage queue: a total count plus a
+ * per-category breakdown covering every exception type a business owner
+ * needs to see, replacing the old flat ranked-message list
+ * (openspec/changes/add-needs-attention-queue). Every category is always
+ * present, even at zero — a triage queue must never silently hide a
+ * category behind a cap.
  */
-export function buildAttentionItems(input: {
-  activeInvoices: InvoiceWithRelations[]
-  paidInvoices: Pick<PaidInvoiceSummary, "clientEmail" | "amountDue">[]
+export function buildNeedsAttentionSummary(input: {
+  activeInvoices: Pick<InvoiceWithRelations, "amountDue" | "dueDate" | "emailLogs">[]
+  brokenPromiseCountsByDebtor: Record<string, number>
+  escalationThreshold: number
+  disputedInvoiceCount: number
+  noContactEmailCustomerCount: number
+  importAnomalyCount: number
   now?: Date
-  limit?: number
-}): AttentionItem[] {
+}): NeedsAttentionSummary {
   const now = input.now ?? new Date()
-  const limit = input.limit ?? 6
 
-  const paidHistoryByDebtor = new Map<string, { sum: number; count: number }>()
-  for (const paid of input.paidInvoices) {
-    const key = paid.clientEmail.toLowerCase()
-    const existing = paidHistoryByDebtor.get(key)
-    if (existing) {
-      existing.sum += paid.amountDue
-      existing.count += 1
-    } else {
-      paidHistoryByDebtor.set(key, { sum: paid.amountDue, count: 1 })
-    }
+  const ageingBuckets = buildAgeingBuckets(input.activeInvoices, now)
+  const overdue60PlusCount =
+    (ageingBuckets.find((bucket) => bucket.key === "d61to90")?.count ?? 0) +
+    (ageingBuckets.find((bucket) => bucket.key === "d90plus")?.count ?? 0)
+
+  const counts: Record<NeedsAttentionCategoryId, number> = {
+    broken_promises: countBrokenPromiseDebtorsAtThreshold(
+      input.brokenPromiseCountsByDebtor,
+      input.escalationThreshold,
+    ),
+    disputed: input.disputedInvoiceCount,
+    bounced: countBouncedInvoices(input.activeInvoices),
+    overdue_60_plus: overdue60PlusCount,
+    no_contact_email: input.noContactEmailCustomerCount,
+    import_anomalies: input.importAnomalyCount,
   }
 
-  const items: AttentionItem[] = []
+  const categories = (Object.keys(CATEGORY_LABELS) as NeedsAttentionCategoryId[]).map((id) => ({
+    id,
+    label: CATEGORY_LABELS[id],
+    count: counts[id],
+    href: CATEGORY_HREFS[id],
+  }))
 
-  for (const invoice of input.activeInvoices) {
-    const overdue = daysBetween(new Date(invoice.dueDate), now)
-    const amount = formatCents(invoice.amountDue, invoice.currency)
-
-    if (overdue >= LONG_OVERDUE_DAYS_THRESHOLD) {
-      items.push({
-        id: `${invoice.id}-overdue`,
-        severity: "red",
-        message: `${invoice.clientName}'s invoice for ${amount} is now ${overdue} days overdue`,
-        href: "/dashboard/invoices?filter=overdue",
-      })
-    }
-
-    const hasActivePromise = invoice.promisesToPay.some((promise) => promise.status === "active")
-    if (invoice.currentStage >= 3 && !hasActivePromise) {
-      items.push({
-        id: `${invoice.id}-ignored`,
-        severity: "orange",
-        message: `${invoice.clientName} has ignored all 3 reminders for ${amount}`,
-        href: "/dashboard/invoices?filter=overdue",
-      })
-    }
-
-    for (const promise of invoice.promisesToPay) {
-      if (promise.status !== "active") continue
-      const hoursUntilDue = (new Date(promise.promisedPayBy).getTime() - now.getTime()) / (1000 * 60 * 60)
-      if (hoursUntilDue > 0 && hoursUntilDue <= PROMISE_EXPIRES_SOON_HOURS) {
-        items.push({
-          id: `${invoice.id}-promise-expiring`,
-          severity: "orange",
-          message: `${invoice.clientName}'s promise to pay ${amount} expires within 24 hours`,
-          href: "/dashboard/invoices",
-        })
-      }
-    }
-
-    const history = paidHistoryByDebtor.get(invoice.clientEmail.toLowerCase())
-    if (history && history.count >= MIN_PAID_HISTORY_FOR_UNUSUAL_AMOUNT) {
-      const averagePaid = history.sum / history.count
-      if (invoice.amountDue > averagePaid * UNUSUAL_AMOUNT_MULTIPLIER) {
-        items.push({
-          id: `${invoice.id}-unusual-amount`,
-          severity: "red",
-          message: `${invoice.clientName}'s invoice of ${amount} is unusually large vs. their usual ${formatCents(averagePaid, invoice.currency)}`,
-          href: "/dashboard/invoices",
-        })
-      }
-    }
+  return {
+    total: categories.reduce((sum, category) => sum + category.count, 0),
+    categories,
   }
-
-  const severityRank: Record<AttentionSeverity, number> = { red: 0, orange: 1 }
-  return items.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]).slice(0, limit)
 }

@@ -94,7 +94,20 @@ Pro-tier users can configure their own `fromEmail` / `fromName` / `replyTo` in *
 
 ---
 
-## 4. Verification
+## 4. Webhook signing secret
+
+Resend delivers delivery-status events (delivered/bounced/complained) via a Svix-signed webhook to `POST /api/webhooks/resend` ([route.ts](../../app/api/webhooks/resend/route.ts)). The route verifies the signature before updating any `EmailLog` row.
+
+1. Resend dashboard → **Webhooks → Add Endpoint**.
+2. Endpoint URL: `https://<your-deployment-domain>/api/webhooks/resend`.
+3. Events: select at least `email.delivered`, `email.bounced`, `email.complained`.
+4. Copy the **Signing Secret** (starts with `whsec_…`) and capture it as `RESEND_WEBHOOK_SECRET` per the matrix in [README.md](./README.md).
+
+Local development has no public endpoint for Resend to call; use the Resend dashboard's "Send test event" button against a tunnelled URL (e.g. `ngrok`) if you need to exercise the webhook locally, or rely on the route's unit tests instead.
+
+---
+
+## 5. Verification
 
 After both Resend and Vercel are configured:
 
@@ -104,7 +117,7 @@ After both Resend and Vercel are configured:
 
 ---
 
-## 5. Wipe and re-run
+## 6. Wipe and re-run
 
 - **Rotating the API key**: create a new key in Resend, update Vercel + `.env.local`, delete the old key. No downtime if you keep the old key alive for a few seconds during the swap.
 - **Re-verifying the domain**: only needed if DNS records are accidentally deleted at the registrar. Re-add them and wait for Verified status.
