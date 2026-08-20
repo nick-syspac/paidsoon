@@ -349,6 +349,7 @@ erDiagram
 ```mermaid
 erDiagram
     TRACKED_INVOICE ||--o{ EMAIL_LOG : logs
+    TRACKED_INVOICE ||--o{ INVOICE_PAYMENT : ledger
     TRACKED_INVOICE {
         string id PK
         string userId FK
@@ -371,6 +372,16 @@ erDiagram
         string resendMessageId
         string fromAddress
         string subject
+    }
+    INVOICE_PAYMENT {
+        string id PK
+        string trackedInvoiceId FK
+        string userId FK
+        int amount
+        string currency
+        string source
+        string note
+        datetime recordedAt
     }
     EMAIL_TEMPLATE {
         string id PK
@@ -402,7 +413,8 @@ erDiagram
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
 | `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `custom_sender_name`/`verified_from_domain` |
-| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken`, `disputeNote`, `disputeRaisedAt`, `disputeResolvedAt` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later; `status` includes `disputed` (distinct from `paused`) — set/cleared by `dispute`/`resolve-dispute` (§4.7), excluded from the reminder cron by its existing `pending`-only allowlist |
+| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken`, `disputeNote`, `disputeRaisedAt`, `disputeResolvedAt` | N—1 profile/connection; 1—N logs, 1—N promises, 1—N payments | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later; `status` includes `disputed` (distinct from `paused`) — set/cleared by `dispute`/`resolve-dispute` (§4.7), excluded from the reminder cron by its existing `pending`-only allowlist; `amountDue` is the invoice's fixed original total and is never overwritten after creation — the current outstanding balance is `amountDue` minus the sum of its `InvoicePayment` rows, computed on read via `computeOutstanding` (`lib/invoices/payments.ts`), never cached |
+| `InvoicePayment` | `prisma/schema.prisma` | Append-only ledger of payments applied against an invoice | `trackedInvoiceId`, `userId`, `amount`, `currency`, `source` (`manual` \| `import_reconciliation`), `note`, `recordedAt` | N—1 tracked invoice | Yes (RLS SELECT + INSERT only — no UPDATE/DELETE, append-only) | Written by `recordInvoicePayment` (`lib/invoices/payments.ts`), the single code path shared by manual payment recording (`POST /api/invoices/[id]/payments`), "mark as paid" (`POST /api/invoices/[id]/mark-paid`), and CSV/XLSX import reconciliation; flips `TrackedInvoice.status` to `paid` once the ledger fully covers `amountDue` |
 | `Customer` | `prisma/schema.prisma` | Per-tenant debtor directory entry, deduplicated by lowercased email | `userId`, `primaryEmail`, `primaryEmailLower`, `displayName`, `neverAutoChase`, `unsubscribed`, `cadenceOverride` (`Json?`) | N—1 profile; 1—N tracked invoices, 1—N arrangements | Yes (RLS) | Unique `(userId, primaryEmailLower)`; created/matched via `findOrCreateCustomer` (`lib/db/customers.ts`) from every invoice ingestion path (Stripe Connect webhook, catch-up scan, Xero/MYOB sync, CSV/XLSX import commit); `neverAutoChase`/`unsubscribed` exclude an invoice from the reminder cron regardless of `Schedule`/stage; `cadenceOverride` (day offsets, same shape as `Schedule`) takes precedence over the tenant's `Schedule` when present and well-formed, otherwise ignored; backfilled onto pre-existing `TrackedInvoice`/`Arrangement` rows by `scripts/backfill-customer-entities.ts` |
 | `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject`, `htmlBody`, `textBody`, `status` | N—1 tracked invoice | Yes (via join policy) | Insert via service role; `htmlBody`/`textBody` (nullable) persist the exact rendered content sent, added for the dashboard's email-detail modal — `null` for rows sent before this column existed; `status` (`sent`/`delivered`/`bounced`/`complained`, default `sent`) is updated by the Resend delivery-status webhook (`app/api/webhooks/resend/route.ts`) matching on `resendMessageId` |
 | `WeeklyDebtorSummaryDelivery` | `prisma/schema.prisma` | Internal idempotency/audit log for weekly debtor summary sends | `userId`, `weekStart`, `status`, `resendMessageId`, `lastError`, `subject`, `sentAt` | — | No (service role only) | Unique `(userId, weekStart)`; used by the weekly debtor summary sender to ensure one send per tenant per week |
@@ -487,6 +499,8 @@ enforced server-side before content is returned.
 | `POST /api/invoices/[id]/resolve` | `.../resolve/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/invoices/[id]/dispute` | `.../dispute/route.ts` | path `id`, `zod` `{note?}` | session | `withUserContext` | → `{success,disputeRaisedAt}` | Implemented |
 | `POST /api/invoices/[id]/resolve-dispute` | `.../resolve-dispute/route.ts` | path `id`, `zod` `{note?}` | session | `withUserContext` | → `{success}` | Implemented |
+| `POST /api/invoices/[id]/payments` | `.../payments/route.ts` | path `id`; `zod` `{amount (positive int cents), currency, note?}` | session | `withUserContext` | → `{success,outstanding,markedPaid}` | Implemented — records an `InvoicePayment` (`source: "manual"`); 404 for a terminal (`paid`/`manually_resolved`) or not-owned invoice; 400 if `currency` doesn't match the invoice's currency; flips status to `paid` once the ledger fully covers `amountDue` |
+| `POST /api/invoices/[id]/mark-paid` | `.../mark-paid/route.ts` | path `id`; `zod` `{note?}` | session | `withUserContext` | → `{success,outstanding,markedPaid}` | Implemented — thin wrapper recording a payment for the invoice's full remaining outstanding balance via the same path as `POST /api/invoices/[id]/payments`; 400 if the invoice has no outstanding balance |
 | `POST /api/arrangements` | `app/api/arrangements/route.ts` | body `{invoiceIds[], arrangementType, promisedPayBy?, agreedAmount?, currency?, termsNotes?, planSchedule?}` | session | `withUserContext` | → `{arrangement}` | Implemented — freelancer-managed arrangement creation for single/multi-invoice scope |
 | `POST /api/arrangements/[id]/status` | `app/api/arrangements/[id]/status/route.ts` | path `id`; body `{status}` | session | `withUserContext` | → `{arrangement}` | Implemented — lifecycle transitions (`active`, `broken`, `fulfilled`, `expired`, `cancelled`) |
 | `GET /api/arrangements/[id]` | `app/api/arrangements/[id]/route.ts` | path `id` | session | `withUserContext` + explicit `userId` check | → `{arrangement}` (with full `coverages`, each including the covered invoice's `clientName`/`clientEmail`/`amountDue`/`currency`/`status`) | Implemented — full arrangement detail for the dashboard's arrangement-detail modal; 404 if not found or not owned by the requesting user |
@@ -515,7 +529,7 @@ enforced server-side before content is returned.
 | `GET /api/invoice-imports/[batchId]` | `.../invoice-imports/[batchId]/route.ts` | path `batchId` | session | `withUserContext` + ownership check | → batch status/detail | Implemented |
 | `POST /api/invoice-imports/[batchId]/mapping` | `.../[batchId]/mapping/route.ts` | `zod` `{mapping, duplicateMode?}` | session | `withUserContext` + ownership check | → `{success,batchId,status,duplicateMode}` | Implemented |
 | `POST /api/invoice-imports/[batchId]/validate` | `.../[batchId]/validate/route.ts` | — | session | `withUserContext` + ownership check | → `{success,rowsTotal,rowsValid,rowsWarning,rowsFailed,previewRows}` | Implemented |
-| `POST /api/invoice-imports/[batchId]/commit` | `.../[batchId]/commit/route.ts` | — | session | `withUserContext` + ownership check | → `{success,invoicesCreated,invoicesUpdated,invoicesSkipped,replay}` | Implemented — idempotent; imported invoices are created paused and never trigger reminders |
+| `POST /api/invoice-imports/[batchId]/commit` | `.../[batchId]/commit/route.ts` | — | session | `withUserContext` + ownership check | → `{success,invoicesCreated,invoicesUpdated,invoicesSkipped,invoicesAnomalies,replay}` | Implemented — idempotent; imported invoices are created paused and never trigger reminders; on re-upload, `amountDue` is never overwritten — the file's reported outstanding balance is reconciled against the ledger-derived current outstanding (`computeOutstanding`), recording an `InvoicePayment` (`source: "import_reconciliation"`) when it dropped, leaving fields-only updates when unchanged, and skipping the row with an `InvoiceImportError` (`severity: "warning"`) when it rose (an anomaly, never auto-applied) |
 | `GET /api/invoice-imports/[batchId]/errors` | `.../[batchId]/errors/route.ts` | query `format=csv` optional | session | `withUserContext` + ownership check | → JSON or CSV download | Implemented — sanitised error report only |
 | `GET/POST /api/invoice-imports/mapping-profiles` | `.../mapping-profiles/route.ts` | `zod` `{name, mapping}` (POST) | session | `withUserContext` | → `{profiles}` / `{success,profile}` | Implemented |
 | `DELETE /api/invoice-imports/mapping-profiles/[profileId]` | `.../mapping-profiles/[profileId]/route.ts` | path `profileId` | session | `withUserContext` + ownership check | → `{success}` | Implemented |

@@ -3,7 +3,7 @@ import type { PrismaTx } from "@/lib/db/withUserContext"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
 import type { ArrangementCoverageWithArrangement } from "@/lib/dashboard/arrangements"
-import type { EmailLog, PromiseToPay, TrackedInvoice } from "@/lib/generated/prisma/client"
+import type { EmailLog, InvoicePayment, PromiseToPay, TrackedInvoice } from "@/lib/generated/prisma/client"
 
 /** 'pending' | 'paused' | 'snoozed' | 'sequence_complete' — invoices still in an active chase. */
 export const ACTIVE_INVOICE_STATUSES = ["pending", "paused", "snoozed", "sequence_complete"]
@@ -14,6 +14,7 @@ export type InvoiceWithRelations = TrackedInvoice & {
   emailLogs: EmailLog[]
   promisesToPay: PromiseToPay[]
   arrangementCoverages: ArrangementCoverageWithArrangement[]
+  payments: InvoicePayment[]
 }
 
 function groupByTrackedInvoiceId<T extends { trackedInvoiceId: string }>(rows: T[]): Map<string, T[]> {
@@ -54,6 +55,10 @@ export async function loadDashboardInvoicesWithTx(
     where: { userId, trackedInvoiceId: { in: invoiceIds } },
     orderBy: { createdAt: "desc" },
   })
+  const payments = await tx.invoicePayment.findMany({
+    where: { userId, trackedInvoiceId: { in: invoiceIds } },
+    orderBy: { recordedAt: "asc" },
+  })
 
   const arrangementIds = [...new Set(arrangementCoverages.map((coverage) => coverage.arrangementId))]
   const arrangements = arrangementIds.length
@@ -65,6 +70,7 @@ export async function loadDashboardInvoicesWithTx(
         select: { arrangementId: true, trackedInvoiceId: true },
       })
     : []
+  const paymentsByInvoice = groupByTrackedInvoiceId(payments)
 
   const emailLogsByInvoice = groupByTrackedInvoiceId(emailLogs)
   const promisesByInvoice = groupByTrackedInvoiceId(promisesToPay)
@@ -91,6 +97,7 @@ export async function loadDashboardInvoicesWithTx(
       const arrangement = arrangementsById.get(coverage.arrangementId)
       return arrangement ? [{ ...coverage, arrangement }] : []
     }),
+    payments: paymentsByInvoice.get(invoice.id) ?? [],
   }))
 }
 

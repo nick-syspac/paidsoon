@@ -1,6 +1,7 @@
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
 import { buildAgeingBuckets } from "@/lib/dashboard/ageing"
 import { countBrokenPromiseDebtorsAtThreshold } from "@/lib/dashboard/overviewCards"
+import type { LedgerPayment } from "@/lib/invoices/payments"
 
 export type NeedsAttentionCategoryId =
   | "broken_promises"
@@ -54,7 +55,9 @@ function countBouncedInvoices(invoices: Pick<InvoiceWithRelations, "emailLogs">[
  * category behind a cap.
  */
 export function buildNeedsAttentionSummary(input: {
-  activeInvoices: Pick<InvoiceWithRelations, "amountDue" | "dueDate" | "emailLogs">[]
+  activeInvoices: (Pick<InvoiceWithRelations, "amountDue" | "dueDate" | "emailLogs"> & {
+    payments: LedgerPayment[]
+  })[]
   brokenPromiseCountsByDebtor: Record<string, number>
   escalationThreshold: number
   disputedInvoiceCount: number

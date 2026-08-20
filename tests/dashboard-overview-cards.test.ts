@@ -37,6 +37,7 @@ function makeInvoice(overrides: Partial<InvoiceWithRelations> & { id: string }):
     emailLogs: [],
     promisesToPay: [],
     arrangementCoverages: [],
+    payments: [],
     ...overrides,
   } as InvoiceWithRelations
 }

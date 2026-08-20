@@ -1,5 +1,6 @@
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
 import { daysBetween } from "@/lib/dashboard/format"
+import { computeOutstanding, type LedgerPayment } from "@/lib/invoices/payments"
 
 export type AgeingBucketKey = "current" | "d1to30" | "d31to60" | "d61to90" | "d90plus"
 
@@ -33,7 +34,7 @@ function bucketFor(daysOverdue: number): AgeingBucketKey {
  * Ageing bar chart, so the two always agree with each other.
  */
 export function buildAgeingBuckets(
-  invoices: Pick<InvoiceWithRelations, "amountDue" | "dueDate">[],
+  invoices: (Pick<InvoiceWithRelations, "amountDue" | "dueDate"> & { payments: LedgerPayment[] })[],
   now: Date = new Date(),
 ): AgeingBucket[] {
   const totals: Record<AgeingBucketKey, { count: number; amount: number }> = {
@@ -48,7 +49,7 @@ export function buildAgeingBuckets(
     const overdue = daysBetween(new Date(invoice.dueDate), now)
     const bucket = totals[bucketFor(overdue)]
     bucket.count += 1
-    bucket.amount += invoice.amountDue
+    bucket.amount += computeOutstanding(invoice, invoice.payments)
   }
 
   return (Object.keys(totals) as AgeingBucketKey[]).map((key) => ({

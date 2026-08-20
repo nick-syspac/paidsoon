@@ -3,11 +3,12 @@ import { buildBiggestDebtors, type DebtorSummary } from "@/lib/dashboard/biggest
 import { formatCents, formatShortDate, startOfUtcDay } from "@/lib/dashboard/format"
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
 import { groupByCurrency } from "@/lib/dashboard/currencyGrouping"
+import type { LedgerPayment } from "@/lib/invoices/payments"
 
 export type WeeklyDebtorSummaryInvoice = Pick<
   InvoiceWithRelations,
   "clientEmail" | "clientName" | "amountDue" | "currency" | "dueDate" | "status"
->
+> & { payments: LedgerPayment[] }
 
 export interface WeeklyDebtorSummaryPayload {
   asOf: Date

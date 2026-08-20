@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import type {
   EmailLog,
+  InvoicePayment,
   PromiseToPay,
   TrackedInvoice,
 } from "@/lib/generated/prisma/client"
@@ -21,11 +22,13 @@ import {
 import { DetailModal } from "./DetailModal"
 import { Spinner } from "@/components/ui/Spinner"
 import { sanitizeHtml } from "@/lib/email/htmlSanitizer"
+import { computeOutstanding } from "@/lib/invoices/payments"
 
 type InvoiceWithLogs = TrackedInvoice & {
   emailLogs: EmailLog[]
   promisesToPay: PromiseToPay[]
   arrangementCoverages: ArrangementCoverageWithArrangement[]
+  payments: InvoicePayment[]
 }
 
 type ArrangementDetailCoverage = {
@@ -521,7 +524,10 @@ export function InvoiceTable({
                     <div className="text-xs text-gray-400">{inv.clientEmail}</div>
                   </td>
                   <td className="px-4 py-3 font-medium">
-                    {formatCurrency(inv.amountDue, inv.currency)}
+                    {formatCurrency(
+                      showResolved ? inv.amountDue : computeOutstanding(inv, inv.payments),
+                      inv.currency,
+                    )}
                   </td>
                   <td className="px-4 py-3 text-red-600 font-medium">
                     {daysOverdue(inv.dueDate)}d

@@ -19,17 +19,20 @@ type MockStagingRow = {
   status: string
 }
 
-type MockTrackedInvoice = { id: string; status: string }
+type MockTrackedInvoice = { id: string; status: string; amountDue: number; currency: string }
 
 let mockUser: { id: string } | null = { id: "user-1" }
 let mockBatch: MockBatch
 let mockStagingRows: MockStagingRow[]
 let mockExistingInvoice: MockTrackedInvoice | null
 let mockConnectionExists: boolean
+let mockExistingPayments: { amount: number }[]
 
 let lastBatchUpdateArgs: unknown = null
 let lastCreateArgs: unknown = null
 let lastUpdateArgs: unknown = null
+let lastPaymentCreateArgs: unknown = null
+let lastImportErrorCreateArgs: unknown = null
 let stagingRowFindManyCalled = false
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -82,6 +85,19 @@ describe("Invoice import commit route", () => {
                 return { id: mockExistingInvoice?.id }
               },
             },
+            invoicePayment: {
+              findMany: async () => mockExistingPayments,
+              create: async (args: unknown) => {
+                lastPaymentCreateArgs = args
+                return { id: "payment-1", ...(args as { data: Record<string, unknown> }).data }
+              },
+            },
+            invoiceImportError: {
+              create: async (args: unknown) => {
+                lastImportErrorCreateArgs = args
+                return { id: "error-1" }
+              },
+            },
             customer: {
               upsert: async () => ({ id: "customer-1" }),
             },
@@ -122,9 +138,12 @@ describe("Invoice import commit route", () => {
     ]
     mockExistingInvoice = null
     mockConnectionExists = false
+    mockExistingPayments = []
     lastBatchUpdateArgs = null
     lastCreateArgs = null
     lastUpdateArgs = null
+    lastPaymentCreateArgs = null
+    lastImportErrorCreateArgs = null
     stagingRowFindManyCalled = false
   })
 
@@ -157,7 +176,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("skip_existing mode leaves a matching invoice untouched", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "pending" }
+    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
     mockBatch.duplicateMode = "skip_existing"
 
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
@@ -168,7 +187,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("update_eligible mode protects terminal invoices from reopening", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "paid" }
+    mockExistingInvoice = { id: "ti-existing", status: "paid", amountDue: 50_000, currency: "aud" }
     mockBatch.duplicateMode = "update_eligible"
 
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
@@ -179,7 +198,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("update_eligible mode updates a non-terminal existing invoice without touching reminder state", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "pending" }
+    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
     mockBatch.duplicateMode = "update_eligible"
 
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
@@ -190,12 +209,84 @@ describe("Invoice import commit route", () => {
     assert.equal("status" in updateData, false)
     assert.equal("currentStage" in updateData, false)
     assert.equal("nextEmailAt" in updateData, false)
+    assert.equal("amountDue" in updateData, false)
+  })
+
+  // ─── Payment reconciliation (openspec/changes/add-invoice-payment-ledger) ──
+
+  test("reconciliation: lower reported outstanding records a partial InvoicePayment", async () => {
+    // amountDue 50000, no prior payments -> current outstanding = 50000.
+    // File reports 500.00 (50000 - 50000 -> wait, staging row amount_outstanding is 500.00 = 50000 cents)
+    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 80_000, currency: "aud" }
+    mockBatch.duplicateMode = "update_eligible"
+
+    const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
+    const body = await res.json()
+
+    assert.equal(res.status, 200)
+    assert.equal(body.invoicesUpdated, 1)
+    assert.equal(body.invoicesAnomalies, 0)
+    const paymentData = (lastPaymentCreateArgs as { data: Record<string, unknown> }).data
+    assert.equal(paymentData.source, "import_reconciliation")
+    assert.equal(paymentData.amount, 30_000) // 80000 - 50000
+    assert.equal(lastImportErrorCreateArgs, null)
+  })
+
+  test("reconciliation: reported outstanding reaching zero also marks the invoice paid", async () => {
+    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
+    mockBatch.duplicateMode = "update_eligible"
+    mockStagingRows[0].normalized.amount_outstanding = "0.00"
+
+    const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
+    const body = await res.json()
+
+    assert.equal(res.status, 200)
+    assert.equal(body.invoicesUpdated, 1)
+    const paymentData = (lastPaymentCreateArgs as { data: Record<string, unknown> }).data
+    assert.equal(paymentData.amount, 50_000)
+    const updateData = (lastUpdateArgs as { data: Record<string, unknown> }).data
+    assert.equal(updateData.status, "paid")
+  })
+
+  test("reconciliation: unchanged reported outstanding updates fields but records no payment", async () => {
+    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
+    mockBatch.duplicateMode = "update_eligible"
+    // amount_outstanding "500.00" -> 50000 cents, matches amountDue with no prior payments.
+
+    const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
+    const body = await res.json()
+
+    assert.equal(res.status, 200)
+    assert.equal(body.invoicesUpdated, 1)
+    assert.equal(lastPaymentCreateArgs, null)
+    assert.equal(lastImportErrorCreateArgs, null)
+    assert.ok(lastUpdateArgs, "other fields should still be updated")
+  })
+
+  test("reconciliation: higher reported outstanding is skipped as an anomaly, not applied", async () => {
+    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
+    mockExistingPayments = [{ amount: 20_000 }] // current outstanding = 30000
+    mockBatch.duplicateMode = "update_eligible"
+    // amount_outstanding "500.00" -> 50000 cents, which is higher than current outstanding (30000).
+
+    const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
+    const body = await res.json()
+
+    assert.equal(res.status, 200)
+    assert.equal(body.invoicesUpdated, 0)
+    assert.equal(body.invoicesAnomalies, 1)
+    assert.equal(body.invoicesSkipped, 0)
+    assert.equal(lastUpdateArgs, null)
+    assert.equal(lastPaymentCreateArgs, null)
+    const errorData = (lastImportErrorCreateArgs as { data: Record<string, unknown> }).data
+    assert.equal(errorData.errorCode, "outstanding_increased")
+    assert.equal(errorData.severity, "warning")
   })
 
   test("a completed batch replays its stored result instead of recommitting", async () => {
     mockBatch.status = "completed"
     mockBatch.mapping = {
-      commitResult: { invoicesCreated: 3, invoicesUpdated: 1, invoicesSkipped: 2 },
+      commitResult: { invoicesCreated: 3, invoicesUpdated: 1, invoicesSkipped: 2, invoicesAnomalies: 0 },
     }
 
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })

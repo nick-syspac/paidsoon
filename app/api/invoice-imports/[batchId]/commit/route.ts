@@ -12,6 +12,7 @@ import {
 import type { InvoiceImportCanonicalField } from "@/lib/invoiceImport/template"
 import { createClient } from "@/lib/supabase/server"
 import { Prisma } from "@/lib/generated/prisma/client"
+import { computeOutstanding, recordInvoicePayment } from "@/lib/invoices/payments"
 
 type Params = { params: Promise<{ batchId: string }> }
 
@@ -19,6 +20,7 @@ type CommitResult = {
   invoicesCreated: number
   invoicesUpdated: number
   invoicesSkipped: number
+  invoicesAnomalies: number
 }
 
 /** Fields carried onto TrackedInvoice.providerMetadata for audit/reference; not part of the core model. */
@@ -72,6 +74,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
         invoicesCreated: 0,
         invoicesUpdated: 0,
         invoicesSkipped: batch.rowsSkipped,
+        invoicesAnomalies: 0,
       }
       return { ok: true as const, batch, commitResult, replay: true }
     }
@@ -109,7 +112,12 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       })
     }
 
-    const commitResult: CommitResult = { invoicesCreated: 0, invoicesUpdated: 0, invoicesSkipped: 0 }
+    const commitResult: CommitResult = {
+      invoicesCreated: 0,
+      invoicesUpdated: 0,
+      invoicesSkipped: 0,
+      invoicesAnomalies: 0,
+    }
 
     for (const stagingRow of stagingRows) {
       const values = (stagingRow.normalized ?? {}) as Partial<Record<InvoiceImportCanonicalField, string>>
@@ -132,7 +140,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
             userId: user.id,
           },
         },
-        select: { id: true, status: true },
+        select: { id: true, status: true, amountDue: true, currency: true },
       })
 
       const currency = (values.currency?.trim() || batch.defaultCurrency || "usd").toLowerCase()
@@ -181,18 +189,63 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
         continue
       }
 
+      // `amountDue` is the invoice's fixed original total and is never
+      // overwritten here. Instead, the file's reported outstanding balance is
+      // compared against the ledger-derived current outstanding balance
+      // (lib/invoices/payments.ts#computeOutstanding), and the gap — if
+      // any — is reconciled as an InvoicePayment so payment history is never
+      // silently destroyed on re-upload (design.md).
+      const existingPayments = await tx.invoicePayment.findMany({
+        where: { trackedInvoiceId: existing.id },
+        select: { amount: true },
+      })
+      const currentOutstanding = computeOutstanding({ amountDue: existing.amountDue }, existingPayments)
+      const reportedOutstanding = toCents(outstandingAmount)
+
+      if (reportedOutstanding > currentOutstanding) {
+        // Anomaly: the file reports a *higher* outstanding balance than the
+        // ledger currently shows. Neither auto-applying (could act on a
+        // mistake) nor blocking the whole batch (too disruptive) is safe, so
+        // this invoice is skipped and flagged for review instead.
+        await tx.invoiceImportError.create({
+          data: {
+            batchId,
+            rowNumber: stagingRow.rowNumber,
+            invoiceNumber: values.invoice_number ?? externalId,
+            fieldName: "amount_outstanding",
+            errorCode: "outstanding_increased",
+            message: `Reported outstanding balance (${reportedOutstanding} cents) is higher than the current outstanding balance (${currentOutstanding} cents). Row skipped — verify before re-importing.`,
+            severity: "warning",
+          },
+        })
+        commitResult.invoicesAnomalies += 1
+        continue
+      }
+
       await tx.trackedInvoice.update({
         where: { id: existing.id },
         data: {
           clientEmail,
           clientName,
           ...(customer ? { customerId: customer.id } : {}),
-          amountDue: toCents(outstandingAmount),
           currency,
           dueDate,
           providerMetadata,
         },
       })
+
+      if (reportedOutstanding < currentOutstanding) {
+        await recordInvoicePayment(
+          tx,
+          { id: existing.id, userId: user.id, amountDue: existing.amountDue, status: existing.status },
+          {
+            amount: currentOutstanding - reportedOutstanding,
+            currency,
+            source: "import_reconciliation",
+          },
+        )
+      }
+
       commitResult.invoicesUpdated += 1
     }
 
@@ -228,5 +281,6 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
     invoicesCreated: result.commitResult.invoicesCreated,
     invoicesUpdated: result.commitResult.invoicesUpdated,
     invoicesSkipped: result.commitResult.invoicesSkipped,
+    invoicesAnomalies: result.commitResult.invoicesAnomalies,
   })
 }

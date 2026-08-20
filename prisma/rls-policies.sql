@@ -607,6 +607,21 @@ CREATE OR REPLACE POLICY "users can delete own invoice import mapping profiles"
   USING (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
+-- invoice_payments
+-- Append-only payment ledger per invoice. No user UPDATE or DELETE policy —
+-- payments are never edited or removed, only ever inserted (add-invoice-payment-ledger).
+-- ---------------------------------------------------------------------------
+ALTER TABLE invoice_payments ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE POLICY "users can view own invoice payments"
+  ON invoice_payments FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+CREATE OR REPLACE POLICY "users can insert own invoice payments"
+  ON invoice_payments FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
 -- Platform Admin Tables (deny-all for anon and authenticated roles)
 -- These tables are ONLY accessible via prismaAdmin (service role / BYPASSRLS).
 -- No tenant-level Supabase client may read, insert, update, or delete rows.

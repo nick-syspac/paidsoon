@@ -25,11 +25,12 @@ function makeEmailLog(overrides: Partial<EmailLog> & { id: string; trackedInvoic
 
 function makeInvoice(
   overrides: Partial<InvoiceWithRelations> & { id: string },
-): Pick<InvoiceWithRelations, "amountDue" | "dueDate" | "emailLogs"> {
+): Pick<InvoiceWithRelations, "amountDue" | "dueDate" | "emailLogs" | "payments"> {
   return {
     amountDue: 1000,
     dueDate: new Date("2026-08-19"),
     emailLogs: [],
+    payments: [],
     ...overrides,
   }
 }

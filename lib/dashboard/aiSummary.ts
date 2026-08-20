@@ -1,6 +1,7 @@
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
 import type { PaidInvoiceSummary } from "@/lib/dashboard/loadDashboardMetrics"
 import { daysBetween, formatCents, startOfUtcDay } from "@/lib/dashboard/format"
+import { computeOutstanding, type LedgerPayment } from "@/lib/invoices/payments"
 
 export interface AiSummaryLine {
   id: string
@@ -33,7 +34,10 @@ export function buildAiSummary(input: {
 
   const currency = input.activeInvoices[0]?.currency ?? input.paidInvoices[0]?.currency ?? "usd"
   const outstandingCount = input.activeInvoices.length
-  const outstandingTotal = input.activeInvoices.reduce((sum, invoice) => sum + invoice.amountDue, 0)
+  const outstandingTotal = input.activeInvoices.reduce(
+    (sum, invoice) => sum + computeOutstanding(invoice, invoice.payments),
+    0,
+  )
 
   const newlyOverdueCount = input.activeInvoices.filter((invoice) => {
     const due = new Date(invoice.dueDate)
@@ -47,10 +51,14 @@ export function buildAiSummary(input: {
   const paidYesterdayTotal = paidYesterday.reduce((sum, invoice) => sum + invoice.amountDue, 0)
 
   const overdueInvoices = input.activeInvoices
-    .map((invoice) => ({ invoice, days: daysBetween(new Date(invoice.dueDate), now) }))
+    .map((invoice) => ({
+      invoice,
+      days: daysBetween(new Date(invoice.dueDate), now),
+      outstanding: computeOutstanding(invoice, invoice.payments),
+    }))
     .filter((entry) => entry.days > 0)
   const largestOverdue = overdueInvoices.length
-    ? overdueInvoices.reduce((max, entry) => (entry.invoice.amountDue > max.invoice.amountDue ? entry : max))
+    ? overdueInvoices.reduce((max, entry) => (entry.outstanding > max.outstanding ? entry : max))
     : null
 
   const likelyToPayDebtors = new Set<string>()
@@ -92,7 +100,7 @@ export function buildAiSummary(input: {
   if (largestOverdue) {
     lines.push({
       id: "largest_overdue",
-      text: `Your largest overdue invoice is ${formatCents(largestOverdue.invoice.amountDue, largestOverdue.invoice.currency)} and is now ${largestOverdue.days} days overdue.`,
+      text: `Your largest overdue invoice is ${formatCents(largestOverdue.outstanding, largestOverdue.invoice.currency)} and is now ${largestOverdue.days} days overdue.`,
     })
   }
 

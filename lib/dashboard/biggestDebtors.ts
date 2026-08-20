@@ -1,5 +1,6 @@
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
 import { daysBetween } from "@/lib/dashboard/format"
+import { computeOutstanding, type LedgerPayment } from "@/lib/invoices/payments"
 
 export interface DebtorSummary {
   clientEmail: string
@@ -16,7 +17,10 @@ export interface DebtorSummary {
  * "Biggest Debtors" widget.
  */
 export function buildBiggestDebtors(
-  invoices: Pick<InvoiceWithRelations, "clientEmail" | "clientName" | "amountDue" | "currency" | "dueDate">[],
+  invoices: (Pick<
+    InvoiceWithRelations,
+    "clientEmail" | "clientName" | "amountDue" | "currency" | "dueDate"
+  > & { payments: LedgerPayment[] })[],
   now: Date = new Date(),
   limit = 5,
 ): DebtorSummary[] {
@@ -25,16 +29,17 @@ export function buildBiggestDebtors(
   for (const invoice of invoices) {
     const key = invoice.clientEmail.toLowerCase()
     const overdue = daysBetween(new Date(invoice.dueDate), now)
+    const outstanding = computeOutstanding(invoice, invoice.payments)
     const existing = byEmail.get(key)
     if (existing) {
-      existing.amountOwed += invoice.amountDue
+      existing.amountOwed += outstanding
       existing.invoiceCount += 1
       existing.maxDaysOverdue = Math.max(existing.maxDaysOverdue, overdue)
     } else {
       byEmail.set(key, {
         clientEmail: invoice.clientEmail,
         clientName: invoice.clientName,
-        amountOwed: invoice.amountDue,
+        amountOwed: outstanding,
         currency: invoice.currency,
         invoiceCount: 1,
         maxDaysOverdue: overdue,

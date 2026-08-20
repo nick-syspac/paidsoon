@@ -230,7 +230,7 @@ model TrackedInvoice {
   provider            String    @default("stripe")
   clientEmail         String
   clientName          String
-  amountDue           Int // in smallest currency unit (cents)
+  amountDue           Int // in smallest currency unit (cents); the invoice's fixed original total — NOT the current outstanding balance, which is amountDue minus the sum of its InvoicePayment rows (lib/invoices/payments.ts#computeOutstanding)
   currency            String    @default("usd")
   dueDate             DateTime
   status              String    @default("pending")
@@ -254,12 +254,35 @@ model TrackedInvoice {
   providerInvoiceMapping ProviderInvoiceMapping?
   promisesToPay          PromiseToPay[]
   arrangementCoverages   ArrangementInvoiceCoverage[]
+  payments               InvoicePayment[]
 
   @@unique([id, userId, clientEmail])
   @@unique([externalId, provider, userId])
   @@index([userId, firstChasedAt])
   @@index([customerId])
   @@map("tracked_invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Invoice Payments (append-only ledger)
+// ---------------------------------------------------------------------------
+
+model InvoicePayment {
+  id               String   @id @default(cuid())
+  trackedInvoiceId String   @map("tracked_invoice_id")
+  userId           String   @map("user_id")
+  amount           Int // in smallest currency unit (cents); always positive
+  currency         String
+  source           String // 'manual' | 'import_reconciliation'
+  note             String?
+  recordedAt       DateTime @default(now()) @map("recorded_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
+
+  @@index([trackedInvoiceId])
+  @@index([userId])
+  @@map("invoice_payments")
 }
 
 // ---------------------------------------------------------------------------

@@ -61,6 +61,7 @@ export async function sendWeeklyDebtorSummary(userId: string): Promise<SummarySe
       currency: true,
       dueDate: true,
       status: true,
+      payments: { select: { amount: true } },
     },
   })
 
