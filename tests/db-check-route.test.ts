@@ -15,6 +15,7 @@ type CheckResult = {
 
 type DbCheckBody = {
   ok: boolean
+  connectionTarget: string | null
   checks: {
     database: CheckResult
     publishableKey: CheckResult
@@ -82,6 +83,11 @@ describe("GET /api/diagnostics/db-check", () => {
     assert.equal(body.checks.database.ok, true)
     assert.equal(body.checks.publishableKey.ok, true)
     assert.equal(body.checks.secretKey.ok, true)
+    assert.equal(
+      body.connectionTarget,
+      "user=user host=db.example.test port=6543 db=postgres"
+    )
+    assert.equal(serializedBody.includes("password"), false)
     assert.deepEqual(requests, [
       {
         url: "https://example-project.supabase.co/auth/v1/settings",

@@ -3,6 +3,7 @@ import Link from "next/link"
 const TABS = [
   { href: "/dashboard/settings/account", label: "Account" },
   { href: "/dashboard/settings/connections", label: "Connections" },
+  { href: "/dashboard/settings/import", label: "Import" },
   { href: "/dashboard/settings/team", label: "Team" },
   { href: "/dashboard/settings/schedule", label: "Schedule" },
   { href: "/dashboard/settings/email", label: "Email" },

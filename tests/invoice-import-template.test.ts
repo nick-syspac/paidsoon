@@ -3,8 +3,10 @@ import { test } from "node:test"
 import * as XLSX from "xlsx"
 
 import {
+  applyInvoiceImportMapping,
   canReuseInvoiceImportMappingProfile,
   detectInvoiceImportFormatHints,
+  getMissingRequiredMappingFields,
   inferInvoiceImportColumnMapping,
   validateInvoiceImportRow,
 } from "@/lib/invoiceImport/mapping"
@@ -42,8 +44,10 @@ test("invoice import parser accepts a valid CSV template export", () => {
   assert.equal(parsed.fileType, "csv")
   assert.ok(parsed.columns.includes("customer_name"))
   assert.ok(parsed.columns.includes("customer_email"))
+  assert.ok(parsed.sourceColumns.includes("customer_name"))
   assert.equal(parsed.rows.length, 2)
   assert.equal(parsed.rows[0]?.values.customer_name, "Example Plumbing Pty Ltd")
+  assert.equal(parsed.rows[0]?.raw.customer_name, "Example Plumbing Pty Ltd")
 })
 
 test("invoice import parser rejects unsupported or unsafe spreadsheet content", () => {
@@ -148,4 +152,31 @@ test("invoice-import format detection exposes explicit ambiguity prompts", () =>
 
   assert.equal(ambiguous.ambiguous, true)
   assert.match(ambiguous.prompt, /ambiguous|choose/i)
+})
+
+test("applyInvoiceImportMapping maps raw staging values onto canonical fields", () => {
+  const raw = {
+    customer_name: "Acme Pty Ltd",
+    invoice_number: "INV-9001",
+  }
+
+  const values = applyInvoiceImportMapping(raw, {
+    "Customer Name": "customer_name",
+    "Invoice Number": "invoice_number",
+  })
+
+  assert.equal(values.customer_name, "Acme Pty Ltd")
+  assert.equal(values.invoice_number, "INV-9001")
+})
+
+test("getMissingRequiredMappingFields identifies unmapped required fields", () => {
+  const missing = getMissingRequiredMappingFields({
+    customer_name: "customer_name",
+    customer_email: "customer_email",
+  })
+
+  assert.ok(missing.includes("invoice_number"))
+  assert.ok(missing.includes("due_date"))
+  assert.ok(missing.includes("amount_outstanding"))
+  assert.ok(!missing.includes("customer_name"))
 })

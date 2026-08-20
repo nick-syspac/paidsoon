@@ -142,14 +142,24 @@ export default async function DashboardInvoicesPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Invoices</h1>
-        {!connection && canViewOverdue && (
-          <a
-            href="/dashboard/settings/connections"
-            className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700"
-          >
-            Connect Stripe →
-          </a>
-        )}
+        <div className="flex items-center gap-2">
+          {canViewOverdue && (
+            <a
+              href="/dashboard/settings/import"
+              className="text-sm bg-white text-gray-700 border border-gray-300 px-3 py-1.5 rounded-md hover:bg-gray-50"
+            >
+              Import invoices
+            </a>
+          )}
+          {!connection && canViewOverdue && (
+            <a
+              href="/dashboard/settings/connections"
+              className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700"
+            >
+              Connect Stripe →
+            </a>
+          )}
+        </div>
       </div>
 
       {canViewOverdue && chaseAllowance && (

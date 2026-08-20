@@ -89,6 +89,7 @@ model InvoiceImportBatch {
 
   @@index([userId, status])
   @@index([userId, createdAt])
+  @@index([status, updatedAt])
   @@map("invoice_import_batches")
 }
 

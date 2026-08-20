@@ -419,6 +419,173 @@ CREATE OR REPLACE POLICY "users can delete own arrangement coverages"
   USING (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
+-- invoice_import_batches
+-- Users can create and manage their own spreadsheet import batches. No user
+-- DELETE policy — batches move through status transitions (uploaded ->
+-- mapping -> validated -> processing -> completed/failed/cancelled) instead
+-- of being removed; retention cleanup of raw uploads/staging rows runs via
+-- prismaAdmin (service role), which bypasses RLS by design.
+-- ---------------------------------------------------------------------------
+ALTER TABLE invoice_import_batches ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE POLICY "users can view own invoice import batches"
+  ON invoice_import_batches FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+CREATE OR REPLACE POLICY "users can insert own invoice import batches"
+  ON invoice_import_batches FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+CREATE OR REPLACE POLICY "users can update own invoice import batches"
+  ON invoice_import_batches FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- invoice_import_column_mappings
+-- Scoped via batch_id which belongs to the owning user's batch.
+-- ---------------------------------------------------------------------------
+ALTER TABLE invoice_import_column_mappings ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE POLICY "users can view own invoice import column mappings"
+  ON invoice_import_column_mappings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_column_mappings.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+CREATE OR REPLACE POLICY "users can insert own invoice import column mappings"
+  ON invoice_import_column_mappings FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_column_mappings.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+CREATE OR REPLACE POLICY "users can update own invoice import column mappings"
+  ON invoice_import_column_mappings FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_column_mappings.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+CREATE OR REPLACE POLICY "users can delete own invoice import column mappings"
+  ON invoice_import_column_mappings FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_column_mappings.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- invoice_import_staging_rows
+-- Scoped via batch_id which belongs to the owning user's batch. No user
+-- DELETE policy — cascade delete happens only when the parent batch is
+-- removed by the retention cleanup job (prismaAdmin).
+-- ---------------------------------------------------------------------------
+ALTER TABLE invoice_import_staging_rows ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE POLICY "users can view own invoice import staging rows"
+  ON invoice_import_staging_rows FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_staging_rows.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+CREATE OR REPLACE POLICY "users can insert own invoice import staging rows"
+  ON invoice_import_staging_rows FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_staging_rows.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+CREATE OR REPLACE POLICY "users can update own invoice import staging rows"
+  ON invoice_import_staging_rows FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_staging_rows.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- invoice_import_errors
+-- Scoped via batch_id which belongs to the owning user's batch. Validation
+-- reruns replace prior error rows (delete then insert), no update needed.
+-- ---------------------------------------------------------------------------
+ALTER TABLE invoice_import_errors ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE POLICY "users can view own invoice import errors"
+  ON invoice_import_errors FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_errors.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+CREATE OR REPLACE POLICY "users can insert own invoice import errors"
+  ON invoice_import_errors FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_errors.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+CREATE OR REPLACE POLICY "users can delete own invoice import errors"
+  ON invoice_import_errors FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoice_import_batches
+      WHERE invoice_import_batches.id = invoice_import_errors.batch_id
+        AND invoice_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- invoice_import_mapping_profiles
+-- Users can save and reuse their own per-tenant column mapping profiles.
+-- ---------------------------------------------------------------------------
+ALTER TABLE invoice_import_mapping_profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE POLICY "users can view own invoice import mapping profiles"
+  ON invoice_import_mapping_profiles FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+CREATE OR REPLACE POLICY "users can insert own invoice import mapping profiles"
+  ON invoice_import_mapping_profiles FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+CREATE OR REPLACE POLICY "users can update own invoice import mapping profiles"
+  ON invoice_import_mapping_profiles FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+CREATE OR REPLACE POLICY "users can delete own invoice import mapping profiles"
+  ON invoice_import_mapping_profiles FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
 -- Platform Admin Tables (deny-all for anon and authenticated roles)
 -- These tables are ONLY accessible via prismaAdmin (service role / BYPASSRLS).
 -- No tenant-level Supabase client may read, insert, update, or delete rows.

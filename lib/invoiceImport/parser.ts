@@ -7,11 +7,15 @@ export type InvoiceImportFileType = "csv" | "xlsx"
 export type ParsedInvoiceImportRow = {
   rowNumber: number
   values: Partial<Record<(typeof INVOICE_IMPORT_CANONICAL_FIELDS)[number], string>>
+  // Every detected column for this row, keyed by normalized source column name.
+  raw: Record<string, string>
 }
 
 export type ParsedInvoiceImportFile = {
   fileType: InvoiceImportFileType
   columns: string[]
+  // Every detected column, canonical or not, for downstream mapping.
+  sourceColumns: string[]
   rows: ParsedInvoiceImportRow[]
 }
 
@@ -78,6 +82,22 @@ function detectFormulaCells(sheet: XLSX.WorkSheet): boolean {
   return false
 }
 
+function stringifyCellValue(rawValue: unknown): string {
+  return typeof rawValue === "string" ? rawValue.trim() : String(rawValue ?? "").trim()
+}
+
+function parseRawRowValues(rawRow: Record<string, unknown>): Record<string, string> {
+  const raw: Record<string, string> = {}
+
+  for (const [rawKey, rawValue] of Object.entries(rawRow)) {
+    const header = normalizeHeader(rawKey)
+    if (!header) continue
+    raw[header] = stringifyCellValue(rawValue)
+  }
+
+  return raw
+}
+
 function parseCanonicalRowValues(rawRow: Record<string, unknown>): ParsedInvoiceImportRow["values"] {
   const values: ParsedInvoiceImportRow["values"] = {}
 
@@ -87,8 +107,7 @@ function parseCanonicalRowValues(rawRow: Record<string, unknown>): ParsedInvoice
       continue
     }
 
-    const value = typeof rawValue === "string" ? rawValue.trim() : String(rawValue ?? "").trim()
-    values[header as (typeof INVOICE_IMPORT_CANONICAL_FIELDS)[number]] = value
+    values[header as (typeof INVOICE_IMPORT_CANONICAL_FIELDS)[number]] = stringifyCellValue(rawValue)
   }
 
   return values
@@ -149,13 +168,13 @@ export function parseInvoiceImportFile(fileBuffer: Buffer, fileName: string): Pa
   }
 
   const rawHeaders = Object.keys(rows[0] ?? {})
-  const columns = rawHeaders.map(normalizeHeader).filter((column): column is string => column.length > 0)
+  const sourceColumns = rawHeaders.map(normalizeHeader).filter((column): column is string => column.length > 0)
 
-  if (columns.length === 0) {
+  if (sourceColumns.length === 0) {
     throw new Error("No import columns were detected in the uploaded file.")
   }
 
-  const canonicalColumns = columns.filter((column) =>
+  const canonicalColumns = sourceColumns.filter((column) =>
     INVOICE_IMPORT_CANONICAL_FIELDS.includes(column as (typeof INVOICE_IMPORT_CANONICAL_FIELDS)[number]),
   )
 
@@ -166,6 +185,7 @@ export function parseInvoiceImportFile(fileBuffer: Buffer, fileName: string): Pa
   const parsedRows: ParsedInvoiceImportRow[] = rows.map((rawRow, index) => ({
     rowNumber: index + 2,
     values: parseCanonicalRowValues(rawRow),
+    raw: parseRawRowValues(rawRow),
   }))
 
   if (fileType === "xlsx" && fileName.toLowerCase().endsWith(".xlsm")) {
@@ -179,6 +199,7 @@ export function parseInvoiceImportFile(fileBuffer: Buffer, fileName: string): Pa
   return {
     fileType,
     columns: canonicalColumns,
+    sourceColumns,
     rows: parsedRows,
   }
 }

@@ -55,9 +55,10 @@ applyTo: "**/vercel.json,**/next.config*,**/app/api/cron/**"
   ```json
   { "path": "/api/cron/send-emails", "schedule": "0 9 * * *" },
   { "path": "/api/cron/sync-accounting", "schedule": "0 2 * * *" },
-  { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" }
+  { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" },
+  { "path": "/api/cron/invoice-import-cleanup", "schedule": "0 3 * * *" }
   ```
-- `send-emails` runs daily at 09:00 UTC, `sync-accounting` daily at 02:00 UTC.
+- `send-emails` runs daily at 09:00 UTC, `sync-accounting` daily at 02:00 UTC, `invoice-import-cleanup` daily at 03:00 UTC.
 - `scheduling-watchdog` runs daily at 12:00 UTC and alerts if the Railway Celery Beat dispatcher's heartbeat (see
   [migrate-scheduled-jobs-to-railway-celery](../../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md))
   is stale — Vercel Hobby plan caps cron frequency at once daily, so this is the most frequent schedule available

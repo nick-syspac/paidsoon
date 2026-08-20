@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { withUserContext } from "@/lib/db/withUserContext"
+import { inferInvoiceImportColumnMapping } from "@/lib/invoiceImport/mapping"
 import { parseInvoiceImportFile } from "@/lib/invoiceImport/parser"
 import { INVOICE_IMPORT_TEMPLATE_VERSION } from "@/lib/invoiceImport/template"
 import { createClient } from "@/lib/supabase/server"
@@ -41,9 +42,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     const buffer = Buffer.from(await uploadedFile.arrayBuffer())
     const parsedFile = parseInvoiceImportFile(buffer, uploadedFile.name)
     const contentHash = createHash("sha256").update(buffer).digest("hex")
+    const suggestions = inferInvoiceImportColumnMapping(parsedFile.sourceColumns)
 
-    const batch = await withUserContext(user.id, async (tx) =>
-      tx.invoiceImportBatch.create({
+    const batch = await withUserContext(user.id, async (tx) => {
+      const created = await tx.invoiceImportBatch.create({
         data: {
           userId: user.id,
           fileName: uploadedFile.name,
@@ -55,12 +57,25 @@ export async function POST(request: Request): Promise<NextResponse> {
           rowsTotal: parsedFile.rows.length,
           rowsValid: parsedFile.rows.length,
           mapping: {
-            columns: parsedFile.columns,
-            detectedColumns: parsedFile.columns,
+            sourceColumns: parsedFile.sourceColumns,
+            suggestions,
           },
         },
-      }),
-    )
+      })
+
+      if (parsedFile.rows.length > 0) {
+        await tx.invoiceImportStagingRow.createMany({
+          data: parsedFile.rows.map((row) => ({
+            batchId: created.id,
+            rowNumber: row.rowNumber,
+            raw: row.raw,
+            status: "pending",
+          })),
+        })
+      }
+
+      return created
+    })
 
     return NextResponse.json({
       success: true,
@@ -70,6 +85,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       rowsTotal: batch.rowsTotal,
       status: batch.status,
       schemaVersion: batch.schemaVersion,
+      sourceColumns: parsedFile.sourceColumns,
+      suggestions,
     })
   } catch (error) {
     if (error instanceof Error) {

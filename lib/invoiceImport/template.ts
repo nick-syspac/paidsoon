@@ -59,7 +59,7 @@ const SAMPLE_ROWS: Record<InvoiceImportCanonicalField, string>[] = [
   },
 ]
 
-function csvEscape(value: string): string {
+export function csvEscape(value: string): string {
   const escaped = value.replace(/\r?\n/g, " ")
   if (/[",]/.test(escaped)) {
     return `"${escaped.replace(/"/g, '""')}"`

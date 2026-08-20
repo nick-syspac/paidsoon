@@ -66,6 +66,10 @@ export function normalizeImportHeader(value: string): string {
     .replace(/^_+|_+$/g, "")
 }
 
+export function isInvoiceImportCanonicalField(value: string): value is InvoiceImportCanonicalField {
+  return (INVOICE_IMPORT_CANONICAL_FIELDS as readonly string[]).includes(value)
+}
+
 export function inferInvoiceImportColumnMapping(
   headers: string[],
 ): InvoiceImportMappingSuggestion[] {
@@ -161,6 +165,30 @@ export function detectInvoiceImportFormatHints(
   return { dateFormat, numberFormat, currencyFormat, ambiguous, prompt }
 }
 
+/** Maps raw staging-row values (keyed by normalized source column) onto canonical fields. */
+export function applyInvoiceImportMapping(
+  raw: Record<string, string>,
+  mapping: Record<string, InvoiceImportCanonicalField>,
+): Partial<Record<InvoiceImportCanonicalField, string>> {
+  const values: Partial<Record<InvoiceImportCanonicalField, string>> = {}
+
+  for (const [sourceColumn, targetField] of Object.entries(mapping)) {
+    const value = raw[normalizeImportHeader(sourceColumn)]
+    if (value !== undefined) {
+      values[targetField] = value
+    }
+  }
+
+  return values
+}
+
+export function getMissingRequiredMappingFields(
+  mapping: Record<string, InvoiceImportCanonicalField>,
+): InvoiceImportCanonicalField[] {
+  const mappedFields = new Set(Object.values(mapping))
+  return REQUIRED_FIELDS.filter((field) => !mappedFields.has(field))
+}
+
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
@@ -210,6 +238,10 @@ function parseImportDate(value: string): Date | null {
   const date = new Date(year, Number(first) - 1, Number(second))
   return Number.isNaN(date.getTime()) ? null : date
 }
+
+// Exported for reuse by the commit route so amount/date parsing stays in sync
+// with the same logic already exercised by row validation.
+export { parseMoney as parseInvoiceImportMoney, parseImportDate as parseInvoiceImportDate }
 
 export function validateInvoiceImportRow(
   row: Partial<Record<InvoiceImportCanonicalField, string>>,
