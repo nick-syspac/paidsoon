@@ -1,0 +1,37 @@
+---
+title: Export your invoices to CSV or XLSX
+description: How to download a filtered CSV or XLSX export of your invoices — available on the Small Business plan and above.
+lastVerified: 2026-08-02
+---
+
+Invoice export lets you download your invoice data as a CSV or XLSX file for use in a spreadsheet
+or accounting tool. It's available on the **Small Business** plan and above.
+
+## Quick export from the dashboard
+
+1. Go to your **Invoices** dashboard.
+2. Click **Export CSV** or **Export XLSX** in the toolbar next to **Import invoices**.
+3. The file downloads with the invoices currently shown (matching the active status/overview-card
+   filter).
+
+## Advanced export from Settings
+
+1. Go to **Settings → Invoice exports**.
+2. Choose a format (CSV or XLSX).
+3. Optionally filter by status, customer, or accounting source, or turn on **Filter by date
+   range** to filter by due date or created date.
+4. Click **Generate export** to download the file.
+
+If no invoices match your filters, you'll see a message instead of an empty file.
+
+## What's in the file
+
+Each row includes the invoice reference, customer name and email, due date, original amount,
+outstanding balance, currency, status, paid date, promise-to-pay status/date, dispute status,
+reminder stage, accounting source, and created/updated timestamps. Invoice date is only populated
+for invoices imported from a spreadsheet.
+
+## A note on the XLSX file
+
+The XLSX file includes column filters (autofilter) and sensible column widths. The header row is
+not frozen — this is a known limitation of the spreadsheet library PaidSoon uses, not a bug.

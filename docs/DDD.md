@@ -49,6 +49,7 @@ below maps logical areas to code modules (there are no Django apps).
 | Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` |
 | Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV/XLSX invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/add-csv-xlsx-invoice-import` |
+| Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export` |
 | Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
 
 ## 4. Backend Application Design
@@ -533,6 +534,7 @@ enforced server-side before content is returned.
 | `GET /api/invoice-imports/[batchId]/errors` | `.../[batchId]/errors/route.ts` | query `format=csv` optional | session | `withUserContext` + ownership check | → JSON or CSV download | Implemented — sanitised error report only |
 | `GET/POST /api/invoice-imports/mapping-profiles` | `.../mapping-profiles/route.ts` | `zod` `{name, mapping}` (POST) | session | `withUserContext` | → `{profiles}` / `{success,profile}` | Implemented |
 | `DELETE /api/invoice-imports/mapping-profiles/[profileId]` | `.../mapping-profiles/[profileId]/route.ts` | path `profileId` | session | `withUserContext` + ownership check | → `{success}` | Implemented |
+| `GET /api/invoices/export` | `app/api/invoices/export/route.ts` | query `format=csv\|xlsx`, `statusBucket?`, `overviewFilter?`, `statuses?`, `customerId?`, `provider?`, `dateField?`, `dateFrom?`, `dateTo?` (`zod`) | session + `csv_export` feature | `withUserContext` (`loadInvoicesForExport`) | → CSV/XLSX file download (`Content-Disposition: attachment; filename="paidsoon-invoices-<YYYY-MM-DD>.<ext>"`, `X-PaidSoon-Export-Row-Count` header) | Implemented — 403 without querying invoice data if the tier lacks the feature; 413 if the row-count ceiling is exceeded |
 | `POST /api/admin/challenges` | `app/api/admin/challenges/route.ts` | `zod` `{deviceId}` | Layer 1+2 (Supabase session + PlatformRole) | `prismaAdmin` | → `{challengeId, nonce}` | Implemented |
 | `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{deviceId, signature}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{sessionId, expiresAt}` | Implemented |
 | `POST /api/admin/sessions/revoke` | `app/api/admin/sessions/revoke/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `admin_session` cookie; `{ok}` | Implemented |
@@ -715,7 +717,7 @@ stateDiagram-v2
 | `promise_to_pay_tracking` | ✓ | ✓ | ✓ | ✓ |
 | `dispute_pause` | ✓ | ✓ | ✓ | ✓ |
 | `weekly_summary_email` | — | — | ✓ | ✓ |
-| `csv_export` ◷ | — | — | ◷ | ◷ |
+| `csv_export` | — | — | ✓ | ✓ |
 | `approval_mode` ◷ | — | — | ◷ | ◷ |
 | `contact_suppression` ◷ | — | — | ◷ | ◷ |
 | `team_seats` ◷ | — | — | ◷ | ◷ |
@@ -849,8 +851,36 @@ The factory function `getAccountingProvider(providerName)` from `lib/providers/a
 - **Audit model:** none. `email_logs` is the only persistent event record.
 - **Reporting views:** the dashboard's "resolved" view (`?resolved=1`) is the
   only reporting surface, gated by `payment_status_dashboard`.
-- **Export pipeline / evidence export / retention:** none implemented or
-  specified.
+- **Export pipeline:** `GET /api/invoices/export` (gated by the `csv_export`
+  feature) exports a tenant's invoices to CSV or XLSX, filtered by status
+  bucket/overview card, explicit statuses, customer, accounting source, and an
+  inclusive `due_date`/`created_date` range. Entry points: the `/dashboard/invoices`
+  toolbar (`components/dashboard/InvoiceExportButton.tsx`, quick export using the
+  page's current filter) and the Settings "Invoice exports" tab
+  (`app/dashboard/settings/export/page.tsx`, `components/settings/InvoiceExportClient.tsx`,
+  advanced filters). Shared services: `lib/invoices/exportQuery.ts`
+  (`loadInvoicesForExport` — tenant-scoped via `withUserContext`) and
+  `lib/invoices/export.ts` (`generateExportCsv`/`generateExportXlsx`). A
+  formula-injection sanitiser prefixes a leading `'` on any text field starting
+  with `=`, `+`, `-`, or `@`. A 50,000-row ceiling
+  (`EXPORT_ROW_CEILING`/`ExportRowLimitExceededError`) throws a 413 rather than
+  generating an unbounded file. Observability: a `traceOperation` call around
+  query execution, operation `export_invoices`, recording format/row-count/filter
+  shape only — never raw customer PII (`clientEmail`/`clientName`/`amountDue`).
+  **Known gap:** the installed SheetJS Community Edition XLSX writer does not
+  support frozen panes — the exported header row is not frozen, though autofilter
+  and column widths are honoured (see `openspec/changes/add-invoice-export/design.md`).
+
+  **Export data dictionary** (`lib/invoices/exportFields.ts`, `EXPORT_FIELDS`,
+  dictionary order): `invoice_reference`, `customer_name` (sanitised),
+  `customer_email` (sanitised), `invoice_date` (only populated for
+  `spreadsheet_import`-sourced invoices), `due_date`, `original_amount`,
+  `outstanding_balance` (ledger-derived via `computeOutstanding`), `currency`,
+  `status`, `paid_date`, `promise_to_pay_status`, `promise_to_pay_date`,
+  `dispute_status`, `reminder_status`, `accounting_source`, `created_at`,
+  `updated_at`.
+- **Retention:** export files are generated on demand and streamed directly to
+  the requester; none are persisted server-side.
 
 ## 16. Vertical Product Design
 

@@ -23,6 +23,7 @@ import { DetailModal } from "./DetailModal"
 import { Spinner } from "@/components/ui/Spinner"
 import { sanitizeHtml } from "@/lib/email/htmlSanitizer"
 import { computeOutstanding } from "@/lib/invoices/payments"
+import { STAGE_LABELS, STATUS_LABELS } from "@/lib/dashboard/invoiceStatusLabels"
 
 type InvoiceWithLogs = TrackedInvoice & {
   emailLogs: EmailLog[]
@@ -49,23 +50,6 @@ type ArrangementDetail = {
   currency: string
   termsNotes: string | null
   coverages: ArrangementDetailCoverage[]
-}
-
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: "Active", color: "bg-green-100 text-green-800" },
-  paused: { label: "Paused", color: "bg-yellow-100 text-yellow-800" },
-  snoozed: { label: "Snoozed", color: "bg-blue-100 text-blue-800" },
-  sequence_complete: { label: "Sequence done", color: "bg-gray-100 text-gray-600" },
-  paid: { label: "Paid", color: "bg-green-100 text-green-800" },
-  manually_resolved: { label: "Resolved", color: "bg-gray-100 text-gray-500" },
-  disputed: { label: "Disputed", color: "bg-red-100 text-red-800" },
-}
-
-const STAGE_LABELS: Record<number, string> = {
-  0: "Queued",
-  1: "1 of 3 sent",
-  2: "2 of 3 sent",
-  3: "3 of 3 sent",
 }
 
 const PROMISE_STATUS_LABELS: Record<string, string> = {
