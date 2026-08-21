@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { prismaAdmin } from "@/lib/db/admin"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 // Computed from the Railway worker's own heartbeat cadence (this Vercel
 // project must be given the SAME DISPATCH_INTERVAL_SECONDS value set on the
@@ -59,9 +59,23 @@ async function sendWatchdogAlert(lastRunAt: Date | null): Promise<void> {
     return
   }
 
+  if (!resend) {
+    console.warn(
+      "[scheduling-watchdog] RESEND_API_KEY is not set — skipped stale-heartbeat alert email",
+    )
+    return
+  }
+
+  if (!process.env.RESEND_FROM_EMAIL) {
+    console.warn(
+      "[scheduling-watchdog] RESEND_FROM_EMAIL is not set — skipped stale-heartbeat alert email",
+    )
+    return
+  }
+
   try {
     await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL!,
+      from: process.env.RESEND_FROM_EMAIL,
       to: alertRecipient,
       subject: "PaidSoon: Railway scheduling appears to have stopped",
       text: lastRunAt

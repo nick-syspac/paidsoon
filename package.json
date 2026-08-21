@@ -7,10 +7,16 @@
   },
   "scripts": {
     "dev": "next dev --port 4001",
-    "build": "prisma generate && next build",
+    "build": "npm run prisma:generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
+    "test": "SUPABASE_PROJECT_REF=abcdefghijklmnopqrst SUPABASE_DB_PASSWORD=test-only-password node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
+    "prisma:generate": "PRISMA_GENERATE_ONLY=true prisma generate",
+    "prisma:migrate:status": "prisma migrate status",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "db:apply-rls": "node --import tsx scripts/run-psql.ts prisma/rls-policies.sql",
+    "verify:supabase-client": "node --import tsx scripts/verify-supabase-client-boundary.ts",
+    "check:supabase-environment": "node --import tsx scripts/check-supabase-environment.ts",
     "verify-rls": "node --import tsx scripts/verify-rls.ts",
     "db:seed": "SEED_ENV=local node --import tsx scripts/seed-preview.ts",
     "db:seed:reset": "SEED_ENV=local SEED_RESET_ONLY=true node --import tsx scripts/seed-preview.ts",
@@ -24,7 +30,8 @@
     "seed:admin-owner": "node --import tsx scripts/seed-admin-owner.ts",
     "get:admin-devices": "node --import tsx scripts/get-admin-devices.ts",
     "reset:myob-connection": "node --import tsx scripts/reset-myob-connection.ts",
-    "backfill:chase-volume-limits": "node --import tsx scripts/backfill-chase-volume-limits.ts"
+    "backfill:chase-volume-limits": "node --import tsx scripts/backfill-chase-volume-limits.ts",
+    "backfill:customer-entities": "node --import tsx scripts/backfill-customer-entities.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.74",
@@ -58,6 +65,7 @@
     "stripe": "^22.1.1",
     "tailwind-merge": "^3.6.0",
     "vercel": "^56.3.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {

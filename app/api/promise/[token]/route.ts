@@ -7,6 +7,7 @@ import {
   resolvePromiseEscalationPolicy,
   shouldBlockClientPromise,
 } from "@/lib/promiseEscalationPolicy"
+import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
 // Task 4.3 — Zod schema for the promise submission body
 const PromiseBodySchema = z.object({
@@ -123,7 +124,7 @@ export async function POST(
   // Notify freelancer — best-effort, do not fail the request if this errors
   try {
     const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      getPublicSupabaseEnvironment().publicUrl,
       process.env.SUPABASE_SECRET_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )

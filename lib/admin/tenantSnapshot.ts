@@ -10,6 +10,7 @@
 
 import { createClient } from "@supabase/supabase-js"
 import { prismaAdmin } from "@/lib/db/admin"
+import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 import type {
   UserProfile,
   Schedule,
@@ -137,10 +138,10 @@ export async function fetchTenantSnapshot(userId: string): Promise<TenantSnapsho
   // Fetch Supabase user email + last sign-in (requires service role key)
   let supabaseEmail = ""
   let supabaseLastSignIn: string | null = null
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+  if (process.env.SUPABASE_SECRET_KEY) {
     try {
       const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        getPublicSupabaseEnvironment().publicUrl,
         process.env.SUPABASE_SECRET_KEY
       )
       const { data } = await supabase.auth.admin.getUserById(userId)

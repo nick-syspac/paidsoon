@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Turnstile } from "@marsidev/react-turnstile"
-import { createClient } from "@/lib/supabase/client"
 import { Spinner } from "@/components/ui/Spinner"
 
 export default function SignUpPage() {
@@ -52,16 +51,6 @@ export default function SignUpPage() {
     setCheckEmail(true)
   }
 
-  async function handleGoogleSignUp() {
-    const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-  }
-
   if (checkEmail) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -83,19 +72,6 @@ export default function SignUpPage() {
         <p className="text-gray-500 mb-6 text-sm">
           Start chasing invoices on autopilot.
         </p>
-
-        <button
-          onClick={handleGoogleSignUp}
-          className="w-full border border-gray-300 rounded-md py-2 px-4 text-sm font-medium hover:bg-gray-50 transition mb-4 flex items-center justify-center gap-2"
-        >
-          Continue with Google
-        </button>
-
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">or</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
 
         <form onSubmit={handleEmailSignUp} className="space-y-4">
           <div>

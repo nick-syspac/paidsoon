@@ -1,0 +1,10 @@
+{
+  "defaultPoolerHost": "aws-1-ap-southeast-2.pooler.supabase.com",
+  "runtimePort": 6543,
+  "migrationPort": 5432,
+  "database": "postgres",
+  "runtimeQuery": {
+    "pgbouncer": "true",
+    "connection_limit": "1"
+  }
+}

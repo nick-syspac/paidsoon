@@ -8,7 +8,8 @@
  *
  * Required env vars:
  *   PLATFORM_OWNER_EMAIL   — email of the existing Supabase auth user to promote
- *   DATABASE_URL           — Prisma connection string
+ *   SUPABASE_PROJECT_REF   — canonical Supabase project identifier
+ *   SUPABASE_DB_PASSWORD   — canonical database secret
  *
  * Optional env vars:
  *   ADMIN_SSH_PUBLIC_KEY   — OpenSSH ssh-ed25519 public key to enrol as first device

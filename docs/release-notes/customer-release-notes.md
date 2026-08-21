@@ -2,6 +2,35 @@
 
 This file is customer-facing and chronological, with newest releases first.
 
+## Release v0.3.0 - 2026-08-11
+
+- Internal reference ID: REL-2026-08-11-v0.3.0
+- Audience: customers
+- Support impact: low
+
+### Summary
+Small Business and Accountant Partner customers can now export their invoices to CSV or XLSX, with filters for status, customer, accounting source, and date range.
+
+### New
+- Added invoice export to CSV or XLSX, available from the Invoices dashboard toolbar and a new Settings → Invoice exports screen with advanced filters.
+
+### Improved
+- Improved the pricing page to reflect invoice export as an available feature rather than "coming soon" on the Small Business and Accountant Partner plans.
+
+### Fixed
+- N/A
+
+### Security and Reliability
+- Export requests are scoped per tenant and gated by plan entitlement; a row-count ceiling protects against unbounded file generation.
+
+### Known Limitations
+- The XLSX file's header row is not frozen (a limitation of the underlying spreadsheet library); column filters and widths are still applied.
+
+### Rollout Notes
+This release is available immediately to all current private beta users.
+
+---
+
 ## Release v0.2.0 - 2026-08-04
 
 - Internal reference ID: REL-2026-08-04-v0.2.0

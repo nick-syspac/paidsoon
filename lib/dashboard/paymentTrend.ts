@@ -1,5 +1,6 @@
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
 import type { PaidInvoiceSummary } from "@/lib/dashboard/loadDashboardMetrics"
+import { computeOutstanding, type LedgerPayment } from "@/lib/invoices/payments"
 
 export interface PaymentTrendPoint {
   label: string
@@ -20,7 +21,7 @@ export interface PaymentTrendPoint {
  * excluded from this approximation.
  */
 export function buildPaymentTrend(input: {
-  activeInvoices: Pick<InvoiceWithRelations, "amountDue" | "createdAt">[]
+  activeInvoices: (Pick<InvoiceWithRelations, "amountDue" | "createdAt"> & { payments: LedgerPayment[] })[]
   paidInvoices: Pick<PaidInvoiceSummary, "amountDue" | "createdAt" | "updatedAt">[]
   now?: Date
   weeks?: number
@@ -37,7 +38,7 @@ export function buildPaymentTrend(input: {
 
     const outstandingFromActive = input.activeInvoices
       .filter((invoice) => new Date(invoice.createdAt) <= weekEnd)
-      .reduce((sum, invoice) => sum + invoice.amountDue, 0)
+      .reduce((sum, invoice) => sum + computeOutstanding(invoice, invoice.payments), 0)
 
     const outstandingFromPaid = input.paidInvoices
       .filter((invoice) => new Date(invoice.createdAt) <= weekEnd && new Date(invoice.updatedAt) > weekEnd)

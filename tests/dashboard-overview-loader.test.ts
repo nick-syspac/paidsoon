@@ -35,6 +35,14 @@ test("runs each overview loader once in safe transaction order", async () => {
         remindersSentToday: 5,
       }
     },
+    loadDisputedInvoiceCount: async (tx, userId) => {
+      calls.push(`disputed-invoice-count:${tx.transactionId}:${userId}`)
+      return 1
+    },
+    loadNoContactEmailCustomerCount: async (tx, userId) => {
+      calls.push(`no-contact-email-customer-count:${tx.transactionId}:${userId}`)
+      return 2
+    },
   }
 
   const result = await runDashboardOverviewLoaders(transaction, "user-1", loaders)
@@ -45,6 +53,8 @@ test("runs each overview loader once in safe transaction order", async () => {
     "broken-promises:tx-1:user-1",
     "escalation-threshold:tx-1:user-1",
     "metrics:tx-1:user-1",
+    "disputed-invoice-count:tx-1:user-1",
+    "no-contact-email-customer-count:tx-1:user-1",
   ])
   assert.deepStrictEqual(result, {
     context: { profile: null, connection: null, chaseAllowance: null },
@@ -57,5 +67,8 @@ test("runs each overview loader once in safe transaction order", async () => {
       manuallyResolvedCountAllTime: 1,
       remindersSentToday: 5,
     },
+    disputedInvoiceCount: 1,
+    noContactEmailCustomerCount: 2,
+    importAnomalyCount: 0,
   })
 })

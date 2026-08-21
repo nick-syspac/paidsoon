@@ -180,6 +180,22 @@ export async function POST(request: Request) {
       }
       break
     }
+
+    case "invoice.payment_failed": {
+      const invoice = event.data.object as Stripe.Invoice
+      const profile = await prisma.userProfile.findFirst({
+        where: { stripeCustomerId: invoice.customer as string },
+      })
+      if (profile) {
+        // Tier is left unchanged: access is only revoked by an explicit
+        // customer.subscription.deleted event, not a past-due status alone.
+        await prisma.userProfile.update({
+          where: { userId: profile.userId },
+          data: { subscriptionStatus: "past_due" },
+        })
+      }
+      break
+    }
   }
 
   return NextResponse.json({ received: true })

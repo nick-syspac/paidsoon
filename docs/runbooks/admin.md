@@ -86,7 +86,7 @@ ADMIN_MAX_FAILED_ATTEMPTS=5
 
 The seed script is idempotent — safe to run multiple times for the same email.
 
-It requires `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `SUPABASE_SECRET_KEY` which
+It requires `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_SECRET_KEY`, which
 are already in `.env.local` (or set in the shell for a production run).
 
 **Role only (enrol device via UI later):**

@@ -22,6 +22,16 @@ class SanitizeConninfoTests(unittest.TestCase):
         url = "postgresql://postgres.ref:pw@host:6543/postgres"
         self.assertEqual(_sanitize_conninfo(url), url)
 
+    def test_preserves_encoded_password(self):
+        url = (
+            "postgresql://postgres.ref:fake%3A%40%2F%3F%23%25%26%E9%9B%AA@"
+            "host:6543/postgres?pgbouncer=true&connection_limit=1"
+        )
+        self.assertEqual(
+            _sanitize_conninfo(url),
+            "postgresql://postgres.ref:fake%3A%40%2F%3F%23%25%26%E9%9B%AA@host:6543/postgres",
+        )
+
 
 class ClaimKeyTests(unittest.TestCase):
     def test_reminder_email_claim_key_shape(self):

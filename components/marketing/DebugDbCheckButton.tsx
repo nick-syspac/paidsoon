@@ -6,6 +6,10 @@ type DbCheckResult = {
   ok: boolean
   message: string
   connectionTarget?: string | null
+  checks?: Record<
+    "database" | "publishableKey" | "secretKey",
+    { ok: boolean; message: string; latencyMs: number; error?: string }
+  >
   latencyMs?: number
   error?: string
   checkedAt?: string
@@ -40,7 +44,9 @@ export default function DebugDbCheckButton() {
         disabled={loading}
         className="border border-amber-400 bg-amber-50 text-amber-800 px-4 py-2 rounded-md text-xs font-medium hover:bg-amber-100 disabled:opacity-60"
       >
-        {loading ? "Testing database connection…" : "[DEBUG] Test database connection"}
+        {loading
+          ? "Testing database and API keys…"
+          : "[DEBUG] Test database connection"}
       </button>
 
       {(result || fetchError) && (

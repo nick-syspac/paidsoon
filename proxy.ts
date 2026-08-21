@@ -9,6 +9,7 @@ import {
   warnIfProductionDebugEnabled,
 } from "@/lib/diagnostics/server"
 import { summariseAuthForTrace } from "@/lib/diagnostics/shared"
+import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
 export async function proxy(request: NextRequest) {
   const liveMode = isLiveMode()
@@ -42,7 +43,8 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+  const { publicUrl } = getPublicSupabaseEnvironment()
+  if (!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     const response = NextResponse.next({ request })
     applyTraceResponseHeaders(response, traceContext, secureTraceCookie)
     traceEvent(
@@ -55,7 +57,7 @@ export async function proxy(request: NextRequest) {
         component: "proxy.ts",
         event: "decision",
         http: { method: request.method, route: pathname },
-        outputs: { supabaseUrlPresent: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL), publishableKeyPresent: Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) },
+        outputs: { supabaseUrlPresent: true, publishableKeyPresent: false },
       }),
       traceContext,
     )
@@ -65,7 +67,7 @@ export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    publicUrl,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {

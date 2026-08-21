@@ -73,9 +73,9 @@ CREATE POLICY "users can update own new_table_snake_case"
 Add a DELETE policy only if users can delete rows.
 
 ### 4. Apply Policies
-Apply policies via `DIRECT_URL`:
+Apply policies through the canonical child-process wrapper:
 ```bash
-psql $DIRECT_URL -f prisma/rls-policies.sql
+npm run db:apply-rls
 ```
 
 ### 5. Verify Isolation
@@ -90,7 +90,7 @@ npm run verify-rls
 ## Implementation Rules
 - Never edit `prisma/migrations/` files directly
 - Never add a table without RLS policies
-- `DIRECT_URL` for migrations only — not for runtime queries
+- Canonical adapters select session mode for migrations and transaction mode for runtime queries
 - Never use `prismaAdmin` in user-facing code to query the new table
 - Always run `verify-rls` after schema changes
 

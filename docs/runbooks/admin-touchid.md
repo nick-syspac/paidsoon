@@ -178,7 +178,7 @@ Expected result: redirect to `/admin/overview` with an active `admin_session` co
 | `provider ... is not an OpenSSH FIDO library` | `-w` points to `libfido2` or helper binary instead of an OpenSSH SK provider | Do not point `-w` at `libfido2.dylib` or `ssh-sk-helper`; use Homebrew `ssh-keygen` with `-w internal` |
 | `Key enrollment failed: device not found` | No external FIDO authenticator detected | Connect/unlock a FIDO token, or use the keychain Touch ID flow instead |
 | `ssh-add: illegal option -- -` | Homebrew `ssh-add` does not support Apple long flags | Run `/usr/bin/ssh-add -K ~/.ssh/paidsoon_admin_touchid` (or `/usr/bin/ssh-add --apple-use-keychain ...`) |
-| Seed command exits with missing env vars | `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_SECRET_KEY` not loaded | Confirm `.env.local` and rerun from repo root |
+| Seed command exits with missing env vars | Canonical Supabase inputs or `SUPABASE_SECRET_KEY` not loaded | Confirm `.env.local` and rerun from repo root |
 | Challenge verify fails with valid key | Wrong namespace | Ensure `-n paidsoon-admin-auth` is used exactly |
 | Challenge verify fails after delay | Challenge expired | Request a fresh challenge and sign immediately |
 | No Touch ID prompt appears while signing | Using the wrong private key file | Confirm `-f ~/.ssh/paidsoon_admin_touchid` points to the Touch ID key |

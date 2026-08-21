@@ -35,7 +35,7 @@ Vercel has three environments (set per-var which apply):
 | **Preview** | every PR branch deploy | shares `paidsoon-dev` Supabase + Stripe test mode with Local |
 | **Development** | only used by `vercel dev` (most teams ignore) | optional; if you don't use `vercel dev`, leave unchecked |
 
-For every env var, **explicitly choose which environments it applies to**. Do not blanket-tick all three for `DATABASE_URL` — Production must point at `paidsoon-prod`, Preview must point at `paidsoon-dev`. Mixing them up is the easiest way to write production data from a preview deploy.
+For every env var, **explicitly choose which environments it applies to**. Do not blanket-tick all three for canonical Supabase inputs: Production must use `paidsoon-prod`, while Preview and Development use `paidsoon-dev`. Mixing them up is the easiest way to write production data from a preview deploy.
 
 ### 2.1 Set every variable from the matrix
 
@@ -43,11 +43,11 @@ Vercel → Project → **Settings → Environment Variables**. Add every row fro
 
 | Env var | Production | Preview | Development |
 |---|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
+| `SUPABASE_PROJECT_REF` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
+| `SUPABASE_DB_PASSWORD` | ✓ (prod secret) | ✓ (dev secret) | ✓ (dev secret) |
+| `SUPABASE_DB_POOLER_HOST` | only if Connect panel differs | same | same |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
 | `SUPABASE_SECRET_KEY` | ✓ (prod) | ✓ (dev) | ✓ (dev) |
-| `DATABASE_URL` | ✓ (prod `postgres.[ref]` pooler) | ✓ (dev `postgres.[ref]` pooler) | ✓ (dev `postgres.[ref]` pooler) |
-| `DIRECT_URL` | ✓ (prod direct) | ✓ (dev direct) | ✓ (dev direct) |
 | `NEXT_PUBLIC_APP_URL` | ✓ (`https://paidsoon.com`) | ✓ (preview URL — see §2.2) | ✓ (your preference) |
 | `CRON_SECRET` | ✓ (required) | — | — |
 | `STRIPE_SECRET_KEY` | ✓ (`sk_live_…`) | ✓ (`sk_test_…`) | ✓ (`sk_test_…`) |
@@ -61,7 +61,13 @@ Vercel → Project → **Settings → Environment Variables**. Add every row fro
 | `RESEND_FROM_EMAIL` | ✓ (`billing@paidsoon.com`) | ✓ (`onboarding@resend.dev`) | ✓ (`onboarding@resend.dev`) |
 | `RESEND_FROM_NAME` | ✓ (`PaidSoon`) | ✓ (`PaidSoon (preview)`) | ✓ (`PaidSoon (dev)`) |
 
-**Critical line**: `DATABASE_URL` and `SUPABASE_SECRET_KEY` on Preview must point at `paidsoon-dev`, **not** `paidsoon-prod`. Otherwise every preview build can read and write production data.
+**Critical line**: `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` on Preview must belong
+to `paidsoon-dev`, **not** `paidsoon-prod`. Treat the project ref and both API keys as one
+project-scoped set. A different-project or deleted publishable key produces `Invalid API key`
+during sign-in. After changing any `NEXT_PUBLIC_` value, redeploy so Vercel rebuilds the
+browser bundle. Do not add externally constructed `NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`,
+or `DIRECT_URL` values.
 
 ### 2.2 `NEXT_PUBLIC_APP_URL` on Preview
 

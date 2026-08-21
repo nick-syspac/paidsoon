@@ -24,8 +24,8 @@
  *
  * Required env vars:
  *   One of USER_EMAIL or USER_ID
- *   DATABASE_URL — Prisma connection string
- *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY — only required when using USER_EMAIL
+ *   SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD — canonical database inputs
+ *   SUPABASE_SECRET_KEY — only required when using USER_EMAIL
  *
  * Optional env vars:
  *   HARD_DELETE — "true" to fully delete the connection instead of soft-disconnecting

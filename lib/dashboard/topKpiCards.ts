@@ -3,6 +3,7 @@ import type { PaidInvoiceSummary } from "@/lib/dashboard/loadDashboardMetrics"
 import { buildAgeingBuckets } from "@/lib/dashboard/ageing"
 import { computeAverageDaysToPayment, computeCollectionRatePercent, sumPaidSince } from "@/lib/dashboard/collectionMetrics"
 import { formatCents } from "@/lib/dashboard/format"
+import { computeOutstanding, type LedgerPayment } from "@/lib/invoices/payments"
 
 export interface TopKpiCard {
   id: "outstanding" | "overdue" | "collected_this_month" | "avg_days_to_payment" | "collection_rate"
@@ -19,7 +20,7 @@ export interface TopKpiCard {
  * additional queries.
  */
 export function buildTopKpiCards(input: {
-  activeInvoices: Pick<InvoiceWithRelations, "amountDue" | "dueDate" | "currency">[]
+  activeInvoices: (Pick<InvoiceWithRelations, "amountDue" | "dueDate" | "currency"> & { payments: LedgerPayment[] })[]
   paidInvoices: PaidInvoiceSummary[]
   paidCountAllTime: number
   manuallyResolvedCountAllTime: number
@@ -28,7 +29,10 @@ export function buildTopKpiCards(input: {
   const now = input.now ?? new Date()
   const currency = input.activeInvoices[0]?.currency ?? input.paidInvoices[0]?.currency ?? "usd"
 
-  const outstandingTotal = input.activeInvoices.reduce((sum, invoice) => sum + invoice.amountDue, 0)
+  const outstandingTotal = input.activeInvoices.reduce(
+    (sum, invoice) => sum + computeOutstanding(invoice, invoice.payments),
+    0,
+  )
   const buckets = buildAgeingBuckets(input.activeInvoices, now)
   const overdueTotal = buckets.filter((b) => b.key !== "current").reduce((sum, b) => sum + b.amount, 0)
   const overdueCount = buckets.filter((b) => b.key !== "current").reduce((sum, b) => sum + b.count, 0)

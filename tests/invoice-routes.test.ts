@@ -26,6 +26,8 @@ let mockFindFirstResult: unknown = null
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pauseRoute: any, resumeRoute: any, snoozeRoute: any, resolveRoute: any, cancelSnoozeRoute: any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let disputeRoute: any, resolveDisputeRoute: any
 
 describe("Invoice route handlers", () => {
   // ─── Module mocks + route imports ─────────────────────────────────────────
@@ -67,6 +69,8 @@ describe("Invoice route handlers", () => {
     ;({ POST: snoozeRoute } = await import("@/app/api/invoices/[id]/snooze/route"))
     ;({ POST: resolveRoute } = await import("@/app/api/invoices/[id]/resolve/route"))
     ;({ POST: cancelSnoozeRoute } = await import("@/app/api/invoices/[id]/cancel-snooze/route"))
+    ;({ POST: disputeRoute } = await import("@/app/api/invoices/[id]/dispute/route"))
+    ;({ POST: resolveDisputeRoute } = await import("@/app/api/invoices/[id]/resolve-dispute/route"))
   })
 
   // ─── Helper ───────────────────────────────────────────────────────────────
@@ -285,6 +289,131 @@ describe("Invoice route handlers", () => {
       const args = lastUpdateArgs as { data: { status: string; snoozedUntil: unknown } }
       assert.strictEqual(args.data.status, "pending")
       assert.strictEqual(args.data.snoozedUntil, null)
+    })
+  })
+
+  // ─── Dispute ──────────────────────────────────────────────────────────────
+
+  describe("POST /api/invoices/[id]/dispute", () => {
+    beforeEach(() => {
+      mockUser = { id: "user-123" }
+      lastFindFirstArgs = null
+      lastUpdateArgs = null
+      mockFindFirstResult = null
+    })
+
+    function makeDisputeRequest(body?: Record<string, unknown>) {
+      return new Request("http://localhost/api/invoices/test-id/dispute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      })
+    }
+
+    test("returns 401 when unauthenticated", async () => {
+      mockUser = null
+      const res = await disputeRoute(makeDisputeRequest(), makeParams("inv-1"))
+      assert.strictEqual(res.status, 401)
+    })
+
+    test("returns 404 when invoice not found or not disputable", async () => {
+      mockFindFirstResult = null
+      const res = await disputeRoute(makeDisputeRequest(), makeParams("inv-1"))
+      assert.strictEqual(res.status, 404)
+    })
+
+    test("returns 400 when note exceeds max length", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "pending", userId: "user-123" }
+      const res = await disputeRoute(makeDisputeRequest({ note: "a".repeat(2001) }), makeParams("inv-1"))
+      assert.strictEqual(res.status, 400)
+    })
+
+    test("returns 200 and marks invoice disputed with note", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "pending", userId: "user-123" }
+      const res = await disputeRoute(makeDisputeRequest({ note: "client says goods not delivered" }), makeParams("inv-1"))
+      assert.strictEqual(res.status, 200)
+      const body = await res.json()
+      assert.strictEqual(body.success, true)
+      const args = lastUpdateArgs as { data: { status: string; disputeNote: string | null } }
+      assert.strictEqual(args.data.status, "disputed")
+      assert.strictEqual(args.data.disputeNote, "client says goods not delivered")
+    })
+
+    test("cannot dispute another tenant's invoice (tenant isolation via findFirst scoping)", async () => {
+      mockFindFirstResult = null // simulates RLS/findFirst excluding another tenant's row
+      const res = await disputeRoute(makeDisputeRequest(), makeParams("other-tenant-inv"))
+      assert.strictEqual(res.status, 404)
+      const args = lastFindFirstArgs as { where: { userId: string } }
+      assert.strictEqual(args.where.userId, "user-123")
+    })
+
+    test("excludes paid, disputed, and manually_resolved invoices from findFirst", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "pending", userId: "user-123" }
+      await disputeRoute(makeDisputeRequest(), makeParams("inv-1"))
+      const args = lastFindFirstArgs as { where: { status: { notIn: string[] } } }
+      assert.deepStrictEqual(args.where.status.notIn, ["paid", "disputed", "manually_resolved"])
+    })
+  })
+
+  // ─── Resolve dispute ────────────────────────────────────────────────────────
+
+  describe("POST /api/invoices/[id]/resolve-dispute", () => {
+    beforeEach(() => {
+      mockUser = { id: "user-123" }
+      lastFindFirstArgs = null
+      lastUpdateArgs = null
+      mockFindFirstResult = null
+    })
+
+    test("returns 401 when unauthenticated", async () => {
+      mockUser = null
+      const res = await resolveDisputeRoute(makeRequest(), makeParams("inv-1"))
+      assert.strictEqual(res.status, 401)
+    })
+
+    test("returns 404 when invoice not found or not disputed", async () => {
+      mockFindFirstResult = null
+      const res = await resolveDisputeRoute(makeRequest(), makeParams("inv-1"))
+      assert.strictEqual(res.status, 404)
+    })
+
+    test("returns 200 and returns invoice to pending, clearing dispute note", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "disputed", userId: "user-123" }
+      const res = await resolveDisputeRoute(makeRequest(), makeParams("inv-1"))
+      assert.strictEqual(res.status, 200)
+      const body = await res.json()
+      assert.strictEqual(body.success, true)
+      const args = lastUpdateArgs as { data: { status: string; disputeNote: unknown } }
+      assert.strictEqual(args.data.status, "pending")
+      assert.strictEqual(args.data.disputeNote, null)
+    })
+
+    test("stores an optional resolution note in disputeNote when provided", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "disputed", userId: "user-123" }
+      const req = new Request("http://localhost/api/invoices/test-id/resolve-dispute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: "client paid via bank transfer, dispute withdrawn" }),
+      })
+      const res = await resolveDisputeRoute(req, makeParams("inv-1"))
+      assert.strictEqual(res.status, 200)
+      const args = lastUpdateArgs as { data: { disputeNote: unknown } }
+      assert.strictEqual(args.data.disputeNote, "client paid via bank transfer, dispute withdrawn")
+    })
+
+    test("cannot resolve another tenant's invoice (tenant isolation via findFirst scoping)", async () => {
+      mockFindFirstResult = null
+      const res = await resolveDisputeRoute(makeRequest(), makeParams("other-tenant-inv"))
+      assert.strictEqual(res.status, 404)
+      const args = lastFindFirstArgs as { where: { userId: string } }
+      assert.strictEqual(args.where.userId, "user-123")
+    })
+
+    test("queries only disputed invoices", async () => {
+      mockFindFirstResult = { id: "inv-1", status: "disputed", userId: "user-123" }
+      await resolveDisputeRoute(makeRequest(), makeParams("inv-1"))
+      const args = lastFindFirstArgs as { where: { status: string } }
+      assert.strictEqual(args.where.status, "disputed")
     })
   })
 })

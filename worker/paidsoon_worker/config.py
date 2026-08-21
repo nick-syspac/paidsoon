@@ -1,5 +1,7 @@
 import os
 
+from .supabase_environment import get_database_url
+
 
 class Config:
     # Read via os.environ.get (not os.environ[...]) so importing this module
@@ -8,7 +10,6 @@ class Config:
     # values. Anything actually using these must handle a None/empty value
     # (Celery/psycopg will raise their own clear connection errors).
     REDIS_URL = os.environ.get("REDIS_URL", "")
-    DATABASE_URL = os.environ.get("DATABASE_URL", "")
     INTERNAL_JOBS_SECRET = os.environ.get("INTERNAL_JOBS_SECRET", "")
     PAIDSOON_APP_URL = os.environ.get("PAIDSOON_APP_URL", "").rstrip("/")
     WORKER_TRIGGER_SECRET = os.environ.get("WORKER_TRIGGER_SECRET", "")
@@ -66,3 +67,7 @@ class Config:
 
     MAX_TASK_RETRIES = int(os.environ.get("MAX_TASK_RETRIES", "5"))
     RETRY_BACKOFF_BASE_SECONDS = int(os.environ.get("RETRY_BACKOFF_BASE_SECONDS", "30"))
+
+    @staticmethod
+    def database_url() -> str:
+        return get_database_url()

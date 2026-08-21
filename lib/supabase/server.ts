@@ -1,12 +1,14 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { cache } from "react"
+import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
 export async function createClient() {
   const cookieStore = await cookies()
+  const { publicUrl } = getPublicSupabaseEnvironment()
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    publicUrl,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {

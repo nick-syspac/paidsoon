@@ -48,7 +48,7 @@ Multi-tenant SaaS. Customer invoice data (email, name, amounts) is PII. Stripe w
 
 ### A05 — Security Misconfiguration
 - [ ] `LIVE=false` on preview (disables auth pages)
-- [ ] `DIRECT_URL` not used as `DATABASE_URL` at runtime
+- [ ] Canonical database secrets and all derived URLs remain server-only and lifecycle-scoped
 - [ ] No dev/test secrets in production
 
 ### A07 — Identification and Authentication Failures

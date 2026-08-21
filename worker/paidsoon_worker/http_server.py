@@ -13,6 +13,8 @@ from . import db
 from .config import Config
 from .tasks import send_reminder_task, sync_connection_task
 
+Config.database_url()
+
 app = FastAPI(title="paidsoon-worker-trigger")
 
 

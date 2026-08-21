@@ -32,8 +32,6 @@ const SENSITIVE_KEY_PATTERNS = [
   "database_url",
   "directurl",
   "direct_url",
-  "supabasesecretkey",
-  "supabase_secret_key",
   "stripescretkey",
   "stripe_secret_key",
   "resendapikey",

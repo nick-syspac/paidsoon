@@ -212,7 +212,7 @@ what is actually present, and explicitly marks absent capabilities.
 | AI rewrite | GPT-4o-mini rewrite of reminder text | Implemented | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | Three tone variants; usage logged; embedded in templates page |
 | Subscription plan switching | Upgrade mid-cycle; deferred downgrade | Implemented | `app/api/billing/{checkout,downgrade}/route.ts` | `changes/subscription-plan-switching` | Upgrade via Stripe sub update; downgrade via Stripe Schedule |
 | Team seats / invites | Invite teammates | **Scaffold only** | `app/api/settings/team/invite/route.ts` | — | Limit-checked; no membership model/persistence |
-| Payment-failed handling | Mark `past_due` on failed charge | **Proposed, not implemented** | (would be `app/api/webhooks/stripe-billing/route.ts`) | `changes/handle-billing-payment-failed-webhook/proposal.md` | No `invoice.payment_failed` case in code |
+| Payment-failed handling | Mark `past_due` on failed charge | Implemented | `app/api/webhooks/stripe-billing/route.ts` | `changes/handle-stripe-payment-failed` | Looks up `UserProfile` by Stripe customer id; leaves `subscriptionTier` unchanged |
 | Env-var drift CI check | Assert runbook matrix matches code | **Proposed, not implemented** | (would be `scripts/check-runbook-envvars.ts`) | `changes/ci-runbook-envvar-drift-check/proposal.md` | No script, no CI workflow |
 | Organisations / workspaces | Multi-tenant org model | **Not applicable** | — | — | No such model |
 | RBAC / roles | Role-based access control | **Not applicable** | — | — | No roles; only plan tiers |
@@ -400,7 +400,7 @@ terms appear nowhere in the code and must not be treated as part of this system.
 | Worker hosting | None in production yet — cron invokes a route on the same deployment. A Railway Celery worker/Beat/Redis stack is scaffolded (`worker/`) and intended to take over, running in parallel during burn-in before the Vercel crons it replaces are removed. | `vercel.json` crons, `worker/`, [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
 | Scheduler | Vercel Cron: `0 9 * * *` → `/api/cron/send-emails`, `0 2 * * *` → `/api/cron/sync-accounting`, `0 12 * * *` → `/api/cron/scheduling-watchdog` | `vercel.json` |
 | Database | Supabase Postgres (`paidsoon-dev`, `paidsoon-prod`) | `docs/runbooks/supabase.md` |
-| DB connections | `DATABASE_URL` (shared pooler, `postgres.[ref]`, RLS applied by `withUserContext`'s `SET LOCAL ROLE authenticated`) + `DIRECT_URL` (owner, migrations) | `prisma.config.ts`, `lib/db/admin.ts` |
+| DB connections | Derived from `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`: transaction pooler `6543` for runtime and session pooler `5432` for migrations/admin commands | `lib/config/supabaseEnvironment.ts`, `prisma.config.ts`, `lib/db/admin.ts` |
 | Auth | Supabase Auth | `docs/runbooks/supabase.md` |
 | Object storage | None | — |
 | Redis / queue | None | — |
@@ -482,7 +482,7 @@ batching) before invoice volume grows.
 | New pricing features not in code | Pricing page | **Partially resolved** — `weekly_summary_email` is now implemented and shown where enabled; the remaining unimplemented capabilities (`csv_export`, `approval_mode`, `contact_suppression`, `team_seats`, `customer_specific_sequences`, `multi_template_customer_wording`, `multi_client_management`) stay tracked via `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()` and continue to render as "Coming soon" where applicable; `promise_to_pay_tracking` remains implemented and enabled on every paid tier | In progress | n/a |
 | `STRIPE_BUSINESS_PRICE_ID` env var | Code | **Resolved by `changes/restore-three-tier-pricing`** — `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired; the canonical set is `STRIPE_STARTER_PRICE_ID` / `STRIPE_SOLO_PRICE_ID` / `STRIPE_SMALL_BUSINESS_PRICE_ID` | Resolved | n/a |
 | `stripeConnectAccountId` encryption | Code | Schema comment claims app-layer encryption; no code encrypts it | Medium — overstated security control | Implement encryption or correct the comment |
-| `invoice.payment_failed` | OpenSpec | Listed as required webhook event; no handler in code | Medium — `past_due` not reflected promptly | Implement `changes/handle-billing-payment-failed-webhook` |
+| `invoice.payment_failed` | OpenSpec | **Resolved by `changes/handle-stripe-payment-failed`** — handler sets `subscriptionStatus = "past_due"` | Resolved | n/a |
 | Env-var drift CI | OpenSpec | Proposed CI check + script not present; no CI workflow at all | Medium — runbook/code drift recurs | Implement `changes/ci-runbook-envvar-drift-check` + add CI |
 | Custom templates | Code | PUT endpoint returns payload but does not persist (no model) | Low — feature appears available but is inert | Add template model or hide UI until built |
 | AI rewrite | Code | Endpoint returns `` `[tone] text` `` placeholder; no AI provider | Medium — feature implies AI that does not exist | Wire a provider or relabel as roadmap |

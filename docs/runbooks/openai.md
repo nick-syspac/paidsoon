@@ -309,7 +309,7 @@ See the matrix in [README.md](./README.md) for per-environment values.
 After deployment:
 
 - [ ] `OPENAI_API_KEY` is set in the target environment on Vercel.
-- [ ] `npx prisma migrate deploy` has run and `ai_usage_logs` table exists.
+- [ ] `npm run prisma:migrate:deploy` has run and `ai_usage_logs` table exists.
 - [ ] `npm run verify-rls` passes (RLS policy applied).
 - [ ] Sign in as a Solo user; navigate to **Settings → AI**.
 - [ ] Enter a short invoice message and click **Rewrite**.

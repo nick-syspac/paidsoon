@@ -1,10 +1,17 @@
 import type { ChaseAllowanceStatus } from "@/lib/billing"
 import { isPromiseDebtorHighPriority } from "@/lib/dashboard/promisePriority"
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
+import { daysBetween } from "@/lib/dashboard/format"
 
 export type CardSeverity = "green" | "yellow" | "red"
 
-export type OverviewCardId = "overdue" | "chase_allowance" | "broken_promises" | "held_invoices"
+export type OverviewCardId =
+  | "overdue"
+  | "chase_allowance"
+  | "broken_promises"
+  | "held_invoices"
+  | "disputed"
+  | "bounced"
 
 export interface OverviewCard {
   id: OverviewCardId
@@ -19,7 +26,17 @@ export interface OverviewCard {
 }
 
 /** Query param values `filterInvoicesByOverviewCard` understands. */
-export type InvoiceOverviewFilter = "overdue" | "broken_promises" | "held"
+export type InvoiceOverviewFilter =
+  | "overdue"
+  | "broken_promises"
+  | "held"
+  | "disputed"
+  | "bounced"
+  | "overdue_60_plus"
+  | "no_contact_email"
+  | "import_anomalies"
+
+const OVERDUE_60_PLUS_DAYS_THRESHOLD = 60
 
 /**
  * Overdue card severity: green when no active invoice has reached the
@@ -66,11 +83,23 @@ export function deriveHeldInvoicesSeverity(heldInvoiceCount: number): CardSeveri
   return heldInvoiceCount > 0 ? "yellow" : "green"
 }
 
+/** No yellow state — a disputed invoice is unambiguous, matching the broken-promises pattern. */
+export function deriveDisputedSeverity(disputedInvoiceCount: number): CardSeverity {
+  return disputedInvoiceCount > 0 ? "red" : "green"
+}
+
+/** No yellow state — a bounced reminder email is unambiguous, matching the broken-promises pattern. */
+export function deriveBouncedSeverity(bouncedInvoiceCount: number): CardSeverity {
+  return bouncedInvoiceCount > 0 ? "red" : "green"
+}
+
 const CARD_LABELS: Record<OverviewCardId, string> = {
   overdue: "Overdue",
   chase_allowance: "Chase allowance",
   broken_promises: "Broken promises",
   held_invoices: "Held invoices",
+  disputed: "Disputed",
+  bounced: "Bounced",
 }
 
 function pluralize(count: number, singular: string, plural = `${singular}s`): string {
@@ -82,21 +111,27 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
  * dashboard today — no new domain queries (openspec/changes/add-dashboard-overview).
  */
 export function buildOverviewCards(input: {
-  activeInvoices: Pick<InvoiceWithRelations, "currentStage">[]
+  activeInvoices: Pick<InvoiceWithRelations, "currentStage" | "emailLogs">[]
   chaseAllowance: ChaseAllowanceStatus | null
   brokenPromiseCountsByDebtor: Record<string, number>
   escalationThreshold: number
   heldInvoiceCount: number
+  disputedInvoiceCount: number
 }): OverviewCard[] {
   const brokenDebtorCount = countBrokenPromiseDebtorsAtThreshold(
     input.brokenPromiseCountsByDebtor,
     input.escalationThreshold,
   )
+  const bouncedInvoiceCount = input.activeInvoices.filter((invoice) =>
+    invoice.emailLogs.some((log) => log.status === "bounced"),
+  ).length
 
   const overdueSeverity = deriveOverdueSeverity(input.activeInvoices)
   const chaseSeverity = deriveChaseAllowanceSeverity(input.chaseAllowance)
   const brokenSeverity = deriveBrokenPromisesSeverity(brokenDebtorCount)
   const heldSeverity = deriveHeldInvoicesSeverity(input.heldInvoiceCount)
+  const disputedSeverity = deriveDisputedSeverity(input.disputedInvoiceCount)
+  const bouncedSeverity = deriveBouncedSeverity(bouncedInvoiceCount)
 
   return [
     {
@@ -140,6 +175,20 @@ export function buildOverviewCards(input: {
       detail: input.heldInvoiceCount > 0 ? "Waiting for chase-volume allowance to reset" : undefined,
       href: "/dashboard/invoices?filter=held",
     },
+    {
+      id: "disputed",
+      label: CARD_LABELS.disputed,
+      severity: disputedSeverity,
+      stat: pluralize(input.disputedInvoiceCount, "invoice"),
+      href: "/dashboard/invoices?filter=disputed",
+    },
+    {
+      id: "bounced",
+      label: CARD_LABELS.bounced,
+      severity: bouncedSeverity,
+      stat: pluralize(bouncedInvoiceCount, "invoice"),
+      href: "/dashboard/invoices?filter=bounced",
+    },
   ]
 }
 
@@ -155,6 +204,7 @@ export function filterInvoicesByOverviewCard(
     brokenPromiseCountsByDebtor: Record<string, number>
     escalationThreshold: number
     heldInvoiceIds: Set<string>
+    now?: Date
   },
 ): InvoiceWithRelations[] {
   switch (filter) {
@@ -169,12 +219,37 @@ export function filterInvoicesByOverviewCard(
       )
     case "held":
       return invoices.filter((invoice) => context.heldInvoiceIds.has(invoice.id))
+    case "disputed":
+      return invoices.filter((invoice) => invoice.status === "disputed")
+    case "bounced":
+      return invoices.filter((invoice) => invoice.emailLogs.some((log) => log.status === "bounced"))
+    case "overdue_60_plus":
+      return invoices.filter(
+        (invoice) => daysBetween(new Date(invoice.dueDate), context.now ?? new Date()) >= OVERDUE_60_PLUS_DAYS_THRESHOLD,
+      )
+    case "no_contact_email":
+    case "import_anomalies":
+      // No invoice-level field to filter on yet — these categories are
+      // always 0 today (see lib/dashboard/needsAttentionSignals.ts).
+      return []
     default:
       return invoices
   }
 }
 
+const INVOICE_OVERVIEW_FILTERS: readonly InvoiceOverviewFilter[] = [
+  "overdue",
+  "broken_promises",
+  "held",
+  "disputed",
+  "bounced",
+  "overdue_60_plus",
+  "no_contact_email",
+  "import_anomalies",
+]
+
 export function parseInvoiceOverviewFilter(value: string | undefined): InvoiceOverviewFilter | null {
-  if (value === "overdue" || value === "broken_promises" || value === "held") return value
-  return null
+  return (INVOICE_OVERVIEW_FILTERS as readonly string[]).includes(value ?? "")
+    ? (value as InvoiceOverviewFilter)
+    : null
 }

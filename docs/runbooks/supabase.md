@@ -21,7 +21,7 @@ Steps (per project):
 
 1. [supabase.com/dashboard](https://supabase.com/dashboard) → **New project**.
 2. Name (`paidsoon-dev` or `paidsoon-prod`).
-3. **Database password** — generate a strong one and save it in a password manager. You will use this exact string for both `DATABASE_URL` and `DIRECT_URL` — both connect as `postgres` (see §2).
+3. **Database password** — generate a strong one and save it in a password manager. Store it only as `SUPABASE_DB_PASSWORD`; PaidSoon percent-encodes it when deriving database URLs.
 4. **Region** — pick one close to your users. Region trade-offs:
    - Same region as Vercel Functions → lowest p99 latency for every DB query. Vercel Functions default to `iad1` (us-east-1), so `us-east-1` Supabase is the typical pairing.
    - Cross-region adds 50–200 ms per round-trip to every Prisma query, which compounds badly given each user request can issue several queries.
@@ -30,19 +30,24 @@ Steps (per project):
 
 ---
 
-## 2. Database — two connection strings
+## 2. Canonical database configuration
 
-PaidSoon uses **two** Postgres connections, on purpose:
+PaidSoon accepts two canonical database inputs and derives both connection URLs in memory:
 
-- **`DATABASE_URL`** — runtime connection. Goes through the **Shared Pooler (Supavisor), transaction mode** on `aws-[region].pooler.supabase.com:6543`. Supavisor is IPv4-only, which is what Vercel Functions need. RLS is enforced by [lib/db/withUserContext.ts](../../lib/db/withUserContext.ts), which issues `SET LOCAL ROLE authenticated` as the first statement of every user-scoped transaction — see §2.2.
-- **`DIRECT_URL`** — migrations only. Connects as the `postgres` owner role on the direct host/port (`db.[ref].supabase.co:5432`). This bypasses RLS so `prisma migrate deploy` can DDL. Configured in [prisma.config.ts](../../prisma.config.ts). The direct host is IPv6-only without the IPv4 add-on, so it is usable from a developer machine but **not** from Vercel.
+- **`SUPABASE_PROJECT_REF`** — the 20-character lowercase project reference. It is non-secret and also derives the public project URL.
+- **`SUPABASE_DB_PASSWORD`** — the database password. It is server-only and must be stored as a secret.
+- **`SUPABASE_DB_POOLER_HOST`** — optional non-secret override. Omit it when the Connect panel shows the default `aws-1-ap-southeast-2.pooler.supabase.com` host.
+
+Runtime uses Shared Pooler transaction mode on port `6543`. Prisma migrations and RLS administration use Shared Pooler session mode on port `5432`. Both use `postgres.[ref]`; platform configuration never stores preconstructed database URLs.
 
 ### 2.1 Find the strings
 
-Supabase dashboard → **Connect** (top of the project page):
+Supabase dashboard → **Connect** (top of the project page). Record without printing or committing values:
 
-- **Direct connection** (port `5432`, host `db.[ref].supabase.co`) → this is your `DIRECT_URL` as-is.
-- **Transaction pooler** (port `6543`, host `aws-[region].pooler.supabase.com`) → this is your `DATABASE_URL`; just append `&connection_limit=1`.
+- The project ref.
+- The database password in the approved secret manager.
+- The exact Shared Pooler hostname.
+- Confirmation that transaction mode uses port `6543` and session mode uses port `5432`.
 
 ### 2.2 Use the `postgres.[ref]` user — do not swap it
 
@@ -58,21 +63,18 @@ The connection role therefore only affects `prismaAdmin` code paths that deliber
 
 > If you need the runtime connection itself to be a non-owner role, the shared pooler cannot do it. That requires the Dedicated Pooler (PgBouncer, paid plan) or a direct connection, both of which need the [IPv4 add-on](https://supabase.com/docs/guides/platform/ipv4-address) to be reachable from Vercel.
 
-The `connection_limit=1` query parameter is recommended for serverless deployments to avoid exhausting the pool.
+The runtime URL includes `pgbouncer=true&connection_limit=1`. The migration URL has no Prisma transaction-pooler query parameters.
 
-### 2.3 Final shape
+### 2.3 Configure canonical inputs
 
 ```bash
-# Runtime — shared pooler (Supavisor) transaction mode, IPv4, user=postgres.[ref]
-DATABASE_URL="postgresql://postgres.[ref]:[DB_PASSWORD]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
-
-# Migrations — direct host, user=postgres (owner), bypasses RLS
-DIRECT_URL="postgresql://postgres:[DB_PASSWORD]@db.[ref].supabase.co:5432/postgres"
+SUPABASE_PROJECT_REF=abcdefghijklmnopqrst
+SUPABASE_DB_PASSWORD=replace-with-secret-manager-value
+# Set only when the Connect panel differs from the documented default:
+# SUPABASE_DB_POOLER_HOST=aws-1-ap-southeast-2.pooler.supabase.com
 ```
 
-> **Do not** point `DATABASE_URL` at `db.[ref].supabase.co:6543`. That host/port pair is the Dedicated Pooler and does not exist on the free tier; the direct host only listens on `5432`. The symptom is Prisma `P1001 Can't reach database server`.
-
-Set these per the matrix in [README.md](./README.md) — `paidsoon-dev` values go into Local + Preview, `paidsoon-prod` into Production.
+Set these per the matrix in [README.md](./README.md): `paidsoon-dev` values go into Local and Preview; `paidsoon-prod` values go into Production. Do not configure `NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`, or `DIRECT_URL`; compatibility values may coexist temporarily only when exactly equal to the derived values.
 
 ---
 
@@ -84,13 +86,20 @@ PaidSoon uses the newer Supabase API-key naming (`sb_publishable_…` / `sb_secr
 
 | Supabase field | App env var | Used where |
 |---|---|---|
-| Project URL | `NEXT_PUBLIC_SUPABASE_URL` | browser + server + cron |
+| Project ref | `SUPABASE_PROJECT_REF` | derives the browser + server project URL |
 | API Keys → `publishable` (`sb_publishable_…`) | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | browser + server (safe to expose) |
 | API Keys → `secret` (`sb_secret_…`) | `SUPABASE_SECRET_KEY` | cron only — for `auth.admin.getUserById` |
 
 > **Rule**: `SUPABASE_SECRET_KEY` bypasses RLS. It must **never** appear in any variable starting with `NEXT_PUBLIC_` (that prefix bundles the value into the browser bundle). It must never be logged. It is only read by [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts).
 
 Set both keys per the matrix in [README.md](./README.md).
+
+Treat `SUPABASE_PROJECT_REF`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and
+`SUPABASE_SECRET_KEY` as one project-scoped set. Copy the publishable key from the same
+project's **Connect** dialog or **Settings → API Keys** page. A stale, deleted, malformed,
+or different-project key causes Supabase Auth to return `Invalid API key` before user
+credentials are evaluated. After replacing a publishable key in Vercel, redeploy because
+`NEXT_PUBLIC_` values are embedded at build time.
 
 ---
 
@@ -99,11 +108,9 @@ Set both keys per the matrix in [README.md](./README.md).
 Run from your local machine (you only need this once per Supabase project — typically once for `paidsoon-dev` and once for `paidsoon-prod`).
 
 ```bash
-# Set DIRECT_URL to the project you're migrating
-export DIRECT_URL="postgresql://postgres:[DB_PASSWORD]@db.[ref].supabase.co:5432/postgres"
-
-npx prisma migrate deploy    # creates tables using DIRECT_URL (owner role)
-npx prisma generate          # generates the Prisma client into lib/generated/prisma/
+npm run prisma:migrate:status
+npm run prisma:migrate:deploy
+npm run prisma:generate
 ```
 
 Verify in Supabase → **Table Editor** that all six tables exist:
@@ -119,17 +126,17 @@ Verify in Supabase → **Table Editor** that all six tables exist:
 
 ## 5. Apply the RLS policies
 
-The schema is only half the story. The policies in [prisma/rls-policies.sql](../../prisma/rls-policies.sql) are what enforce tenant isolation. Apply them with `psql`:
+The schema is only half the story. The policies in [prisma/rls-policies.sql](../../prisma/rls-policies.sql) are what enforce tenant isolation. Apply them through the isolated repository wrapper:
 
 ```bash
-psql "$DIRECT_URL" -f prisma/rls-policies.sql
+npm run db:apply-rls
 ```
 
 Or paste the file's contents into Supabase → **SQL Editor → New query → Run**.
 
 ### 5.1 Verify RLS works
 
-There is a script that proves cross-tenant isolation. Run it against the target Supabase project (you'll need both `DATABASE_URL` and `DIRECT_URL` exported, or in `.env.local` if you're testing the dev project):
+There is a script that proves cross-tenant isolation. Run it with canonical inputs configured for the target project:
 
 ```bash
 node --import tsx scripts/verify-rls.ts
@@ -204,7 +211,7 @@ The auth callback route lives at [app/auth/callback/route.ts](../../app/auth/cal
 If you need to reprovision a Supabase project (data corruption, RLS gone wrong, fresh start), do the following in order:
 
 1. Delete the project in Supabase dashboard, then start over from §1.
-2. Re-export the new `DIRECT_URL` and re-run §4 (`prisma migrate deploy` + `prisma generate`).
+2. Update `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD` in the approved environment secret store, then re-run §4.
 3. Re-run §5 (RLS policies + verify script). **Do not skip the verify script** — this is the gate that proves the new project is actually isolated.
 4. Re-do §6 (Auth providers — Google OAuth needs the new Supabase callback URL added to Google Cloud Console).
 5. Re-do §7 (URL configuration).
@@ -214,7 +221,32 @@ You do **not** need to re-run §3 (API keys) as a separate step — the new proj
 
 ---
 
-## 9. Production performance checks
+## 9. Password rotation and rollback
+
+### 9.1 Rotate the database password
+
+Practice in `paidsoon-dev` before scheduling production rotation.
+
+1. Stop migration, seed, RLS, Celery Beat, and other database jobs.
+2. Rotate the database password in Supabase and save it directly to the approved secret manager.
+3. Update only `SUPABASE_DB_PASSWORD` in local/Vercel/Railway scopes for that project. Do not change the project ref, public URL, or construct database URLs.
+4. Restart or redeploy Next.js and all three Railway services so every process derives the new credential.
+5. Run `npm run prisma:migrate:status`, `npm run verify-rls`, targeted application smoke checks, and the worker/Beat/web readiness checks in [railway.md](./railway.md).
+6. Confirm the public Supabase URL is unchanged and logs/client artifacts contain no password or derived URL.
+
+Stop and roll back the deployment if topology validation, migration status, RLS, or any critical database path fails. Do not rotate the database password back merely to match stale URLs.
+
+### 9.2 Roll back the application release
+
+1. Stop database jobs and deploy the previous application/worker release.
+2. Through platform secret-manager interfaces, restore approved legacy URL values constructed offline from the **current** password and verified Connect-panel topology. Never paste them into tickets, logs, or shell history.
+3. If the previous release requires the former direct-host migration topology, restore it only for migration tooling; do not use it as the runtime URL.
+4. Restart all services, then verify Prisma status, RLS isolation, targeted app flows, and worker/Beat/web startup.
+5. After the incident, return non-production to the canonical release and repeat the acceptance checks before resuming production rollout.
+
+---
+
+## 10. Production performance checks
 
 Use these checks with the Vercel procedure in [vercel.md §11](./vercel.md#11-frontend-performance-checks).
 

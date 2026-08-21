@@ -26,11 +26,11 @@ applyTo: "**/vercel.json,**/next.config*,**/app/api/cron/**"
 
 | Variable | Scope | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL |
+| `SUPABASE_PROJECT_REF` | Server/build | Canonical Supabase project ref; derives the public URL |
+| `SUPABASE_DB_PASSWORD` | Server | Canonical database secret; never browser-visible |
+| `SUPABASE_DB_POOLER_HOST` | Server/build | Optional non-secret topology override |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public | Supabase anon key |
 | `NEXT_PUBLIC_APP_URL` | Public | App base URL |
-| `DATABASE_URL` | Server | Supabase Postgres pooler (pgBouncer) |
-| `DIRECT_URL` | Server | Supabase Postgres direct (migrations only) |
 | `SUPABASE_SECRET_KEY` | Server | Supabase admin key (cron/webhooks) |
 | `RESEND_API_KEY` | Server | Resend transactional email |
 | `RESEND_FROM_EMAIL` | Server | System "From" email domain |
@@ -55,9 +55,10 @@ applyTo: "**/vercel.json,**/next.config*,**/app/api/cron/**"
   ```json
   { "path": "/api/cron/send-emails", "schedule": "0 9 * * *" },
   { "path": "/api/cron/sync-accounting", "schedule": "0 2 * * *" },
-  { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" }
+  { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" },
+  { "path": "/api/cron/invoice-import-cleanup", "schedule": "0 3 * * *" }
   ```
-- `send-emails` runs daily at 09:00 UTC, `sync-accounting` daily at 02:00 UTC.
+- `send-emails` runs daily at 09:00 UTC, `sync-accounting` daily at 02:00 UTC, `invoice-import-cleanup` daily at 03:00 UTC.
 - `scheduling-watchdog` runs daily at 12:00 UTC and alerts if the Railway Celery Beat dispatcher's heartbeat (see
   [migrate-scheduled-jobs-to-railway-celery](../../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md))
   is stale — Vercel Hobby plan caps cron frequency at once daily, so this is the most frequent schedule available
@@ -70,14 +71,14 @@ applyTo: "**/vercel.json,**/next.config*,**/app/api/cron/**"
 
 - Preview deployments use non-production Stripe test keys and Supabase staging credentials.
 - Set `LIVE=false` on preview deployments — this disables sign-in/sign-up pages (pre-launch gate).
-- `DATABASE_URL` on preview must point to a preview/staging Supabase project, not production.
-- Never run `npx prisma migrate deploy` against the production DB from a preview context.
+- Canonical Supabase inputs on preview must belong to the preview/staging project, not production.
+- Never run `npm run prisma:migrate:deploy` against the production DB from a preview context.
 
 ## Production Deployment Rules
 
 - `LIVE=true` in production enables sign-in/sign-up pages.
-- Only Vercel CI/CD should run `prisma migrate deploy` against production.
-- `DATABASE_URL` must use the pgBouncer pooled connection in production. Never use `DIRECT_URL` at runtime.
+- Only approved CI/CD should run `npm run prisma:migrate:deploy` against production.
+- Never externally configure derived database URLs in production.
 - Stripe live keys must only be set in the production Vercel environment.
 - Review all env var changes in `docs/runbooks/README.md` before deploying.
 
@@ -90,6 +91,6 @@ applyTo: "**/vercel.json,**/next.config*,**/app/api/cron/**"
 ## Build Command Validation
 
 - Before deploying, run `npm run build` locally to catch type errors and build failures.
-- Verify `prisma generate` succeeds (requires `DATABASE_URL` or `DIRECT_URL` to be set).
+- Verify `npm run prisma:generate` succeeds in explicit no-connect mode.
 - Run `npm run lint` to catch ESLint errors before deployment.
 - Run `npm run test` to execute unit tests.

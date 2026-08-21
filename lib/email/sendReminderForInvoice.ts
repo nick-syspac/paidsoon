@@ -8,6 +8,7 @@ import {
   applyToneEscalationStage,
   resolvePromiseEscalationPolicy,
 } from "@/lib/promiseEscalationPolicy"
+import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
 export type ReminderOutcome =
   | { outcome: "sent"; stage: 1 | 2 | 3 }
@@ -138,7 +139,7 @@ async function resolveFreelancerEmail(
   displayName: string | null,
 ): Promise<{ email: string; name: string }> {
   const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    getPublicSupabaseEnvironment().publicUrl,
     process.env.SUPABASE_SECRET_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } },
   )

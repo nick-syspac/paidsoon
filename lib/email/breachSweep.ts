@@ -1,6 +1,7 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { sendP2PNotification, resolveFreelancerName } from "@/lib/email/send"
 import { createClient } from "@supabase/supabase-js"
+import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
 /**
  * Detects broken promises (active promises whose date has passed) and
@@ -32,7 +33,7 @@ export async function runPromiseAndArrangementBreachSweep() {
 
   if (brokenPromises.length > 0) {
     const supabaseAdminBreach = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      getPublicSupabaseEnvironment().publicUrl,
       process.env.SUPABASE_SECRET_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     )

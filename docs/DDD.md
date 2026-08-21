@@ -27,7 +27,7 @@ present in the repository (it is documented as absent, not designed).
 | Prisma schema | `prisma/schema.prisma` | Data model | User + admin models; includes arrangements |
 | Initial migration | `prisma/migrations/20260531101711_init/migration.sql` | Tables, indexes, FKs | Single migration |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation | Applied manually in Supabase |
-| Prisma config | `prisma.config.ts` | Two-URL migration/runtime split | `DIRECT_URL` vs `DATABASE_URL` |
+| Supabase config | `lib/config/supabaseEnvironment.ts`, `prisma.config.ts` | Canonical inputs and lifecycle-derived URLs | transaction `6543` vs session `5432` |
 | OpenSpec changes | `openspec/changes/**` | Spec intent + status | No `specs/` baseline dir |
 | Runbooks | `docs/runbooks/**` | Env vars, deployment | Canonical env matrix |
 | Tests | `tests/**` | Pure-logic unit tests | `node --test` + `tsx` |
@@ -48,6 +48,8 @@ below maps logical areas to code modules (there are no Django apps).
 | Email identity | `app/api/settings/email/route.ts`, `lib/email/send.ts` | Custom verified sender | `EmailSettings` | `.../specs/email-settings`, `changes/rename-to-paidsoon` |
 | Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` |
+| Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV/XLSX invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/add-csv-xlsx-invoice-import` |
+| Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export` |
 | Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
 
 ## 4. Backend Application Design
@@ -66,7 +68,7 @@ subsection documents a functional module.
     `$transaction`, runs `SELECT set_config('request.jwt.claims', …, true)` and
     `SET LOCAL ROLE authenticated`, then runs `fn(tx)` so RLS applies.
   - `prismaAdmin` (`lib/db/admin.ts`) — singleton `PrismaClient` over
-    `@prisma/adapter-pg` using `DATABASE_URL`; **bypasses RLS**; service paths
+    `@prisma/adapter-pg` using the derived transaction-pooler URL; **bypasses RLS**; service paths
     only.
 - **Permissions:** route handlers reject with 401 when `auth.getUser()` returns
   no user. `proxy.ts` redirects unauthenticated `/dashboard/*` to
@@ -209,14 +211,23 @@ subsection documents a functional module.
   from price id, persist the refreshed period start/end), `customer.subscription.deleted`
   (revert to `starter`, pause invoices over the starter limit — this is a
   separate, pre-existing concurrent-count safeguard on downgrade, distinct
-  from the chase-volume allowance). **`invoice.payment_failed`
-  is not handled** (proposed in `changes/handle-billing-payment-failed-webhook`).
+  from the chase-volume allowance), and `invoice.payment_failed` (looks up the
+  `UserProfile` by Stripe customer id and sets `subscriptionStatus = "past_due"`
+  without changing `subscriptionTier` — see `changes/handle-stripe-payment-failed`).
 
 ### 4.7 Dashboard actions (`app/api/invoices/[id]/**`)
 
-- `pause`, `resume`, `snooze` (7-day), `resolve` (`manually_resolved`). All run
-  inside `withUserContext` and re-check ownership via `findFirst` with
+- `pause`, `resume`, `snooze` (7-day), `resolve` (`manually_resolved`), `dispute`
+  (`disputed`), `resolve-dispute` (back to `pending`). All run inside
+  `withUserContext` and re-check ownership via `findFirst` with
   `userId: user.id`, returning 404 when not found/ineligible.
+- `dispute` accepts an optional Zod-validated `note` stored in `disputeNote`
+  and sets `disputeRaisedAt`; excludes invoices already `paid`, `disputed`, or
+  `manually_resolved`. `resolve-dispute` requires current status `disputed`,
+  sets `disputeResolvedAt`, and replaces `disputeNote` with an optional
+  resolution note (or clears it if none given). No cron changes were needed —
+  the cron's `where: { status: "pending" }` allowlist already excludes
+  `disputed`.
 
 ### 4.8 Settings (templates / AI / team)
 
@@ -340,6 +351,7 @@ erDiagram
 ```mermaid
 erDiagram
     TRACKED_INVOICE ||--o{ EMAIL_LOG : logs
+    TRACKED_INVOICE ||--o{ INVOICE_PAYMENT : ledger
     TRACKED_INVOICE {
         string id PK
         string userId FK
@@ -362,6 +374,16 @@ erDiagram
         string resendMessageId
         string fromAddress
         string subject
+    }
+    INVOICE_PAYMENT {
+        string id PK
+        string trackedInvoiceId FK
+        string userId FK
+        int amount
+        string currency
+        string source
+        string note
+        datetime recordedAt
     }
     EMAIL_TEMPLATE {
         string id PK
@@ -393,8 +415,10 @@ erDiagram
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
 | `EmailSettings` | `prisma/schema.prisma` | Custom verified sender | `fromEmail`, `fromName`, `replyTo`, `resendVerified` | 1—1 profile | Yes | Used when tier has `custom_sender_name`/`verified_from_domain` |
-| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken` | N—1 profile/connection; 1—N logs, 1—N promises | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later |
-| `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject`, `htmlBody`, `textBody` | N—1 tracked invoice | Yes (via join policy) | Insert via service role; `htmlBody`/`textBody` (nullable) persist the exact rendered content sent, added for the dashboard's email-detail modal — `null` for rows sent before this column existed |
+| `TrackedInvoice` | `prisma/schema.prisma` | Overdue invoice being chased | `externalId`, `status`, `currentStage`, `nextEmailAt`, `snoozedUntil`, `firstChasedAt`, `p2pToken`, `disputeNote`, `disputeRaisedAt`, `disputeResolvedAt` | N—1 profile/connection; 1—N logs, 1—N promises, 1—N payments | Yes | Unique `(externalId, provider, userId)`; `p2pToken` unique, nullable — generated on first send for every paid tier; `firstChasedAt` is null until the first reminder is sent, then set once (indexed with `userId`) — it is the sole source of chase-volume allowance usage (§4.6), independent of `status`/`currentStage` changing later; `status` includes `disputed` (distinct from `paused`) — set/cleared by `dispute`/`resolve-dispute` (§4.7), excluded from the reminder cron by its existing `pending`-only allowlist; `amountDue` is the invoice's fixed original total and is never overwritten after creation — the current outstanding balance is `amountDue` minus the sum of its `InvoicePayment` rows, computed on read via `computeOutstanding` (`lib/invoices/payments.ts`), never cached |
+| `InvoicePayment` | `prisma/schema.prisma` | Append-only ledger of payments applied against an invoice | `trackedInvoiceId`, `userId`, `amount`, `currency`, `source` (`manual` \| `import_reconciliation`), `note`, `recordedAt` | N—1 tracked invoice | Yes (RLS SELECT + INSERT only — no UPDATE/DELETE, append-only) | Written by `recordInvoicePayment` (`lib/invoices/payments.ts`), the single code path shared by manual payment recording (`POST /api/invoices/[id]/payments`), "mark as paid" (`POST /api/invoices/[id]/mark-paid`), and CSV/XLSX import reconciliation; flips `TrackedInvoice.status` to `paid` once the ledger fully covers `amountDue` |
+| `Customer` | `prisma/schema.prisma` | Per-tenant debtor directory entry, deduplicated by lowercased email | `userId`, `primaryEmail`, `primaryEmailLower`, `displayName`, `neverAutoChase`, `unsubscribed`, `cadenceOverride` (`Json?`) | N—1 profile; 1—N tracked invoices, 1—N arrangements | Yes (RLS) | Unique `(userId, primaryEmailLower)`; created/matched via `findOrCreateCustomer` (`lib/db/customers.ts`) from every invoice ingestion path (Stripe Connect webhook, catch-up scan, Xero/MYOB sync, CSV/XLSX import commit); `neverAutoChase`/`unsubscribed` exclude an invoice from the reminder cron regardless of `Schedule`/stage; `cadenceOverride` (day offsets, same shape as `Schedule`) takes precedence over the tenant's `Schedule` when present and well-formed, otherwise ignored; backfilled onto pre-existing `TrackedInvoice`/`Arrangement` rows by `scripts/backfill-customer-entities.ts` |
+| `EmailLog` | `prisma/schema.prisma` | Per-send record | `stage`, `resendMessageId`, `fromAddress`, `subject`, `htmlBody`, `textBody`, `status` | N—1 tracked invoice | Yes (via join policy) | Insert via service role; `htmlBody`/`textBody` (nullable) persist the exact rendered content sent, added for the dashboard's email-detail modal — `null` for rows sent before this column existed; `status` (`sent`/`delivered`/`bounced`/`complained`, default `sent`) is updated by the Resend delivery-status webhook (`app/api/webhooks/resend/route.ts`) matching on `resendMessageId` |
 | `WeeklyDebtorSummaryDelivery` | `prisma/schema.prisma` | Internal idempotency/audit log for weekly debtor summary sends | `userId`, `weekStart`, `status`, `resendMessageId`, `lastError`, `subject`, `sentAt` | — | No (service role only) | Unique `(userId, weekStart)`; used by the weekly debtor summary sender to ensure one send per tenant per week |
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
@@ -406,6 +430,11 @@ erDiagram
 | `ProviderInvoiceMapping` | `prisma/schema.prisma` | Maps provider invoice IDs to `TrackedInvoice` | `trackedInvoiceId`, `accountingConnectionId`, `providerInvoiceId`, `providerUpdatedAt`, `providerMetadata` | 1—1 tracked invoice; N—1 connection | Yes (SELECT via JOIN on tracked_invoices.userId) | Unique `(providerInvoiceId, accountingConnectionId)`; `providerUpdatedAt` drives incremental sync |
 | `ProviderContactMapping` | `prisma/schema.prisma` | Maps provider customer/contact IDs for deduplication | `accountingConnectionId`, `providerContactId`, `contactName`, `contactEmail`, `providerMetadata` | N—1 connection | Yes (SELECT via JOIN on accounting_connections.userId) | Unique `(providerContactId, accountingConnectionId)`; `contactEmail` is PII |
 | `OauthState` | `prisma/schema.prisma` | CSRF nonce for accounting OAuth callbacks (10-min TTL) | `userId`, `provider`, `nonce`, `expiresAt` | — | Yes (by userId; SELECT/INSERT/DELETE) | Unique `(nonce)`; expired rows cleaned up by `/api/cron/sync-accounting` |
+| `InvoiceImportBatch` | `prisma/schema.prisma` | One uploaded spreadsheet import, tracked through its lifecycle | `userId`, `fileName`, `fileType`, `contentHash`, `duplicateMode`, `status` (`uploaded`→`mapping`→`validated`→`processing`→`completed`/`failed`/`cancelled`), `rowsTotal/Valid/Warning/Skipped/Failed` | 1—N mappings, staging rows, errors | Yes (RLS; no user DELETE — cleanup via `prismaAdmin` cron) | No raw file bytes are persisted; `mapping` JSON also holds `sourceColumns`/`suggestions`/`commitResult` |
+| `InvoiceImportColumnMapping` | `prisma/schema.prisma` | Saved source-column → canonical-field mapping for one batch | `batchId`, `sourceColumn`, `targetField`, `suggested` | N—1 batch (cascade delete) | Yes (join via `batchId`→`invoice_import_batches.user_id`) | Unique `(batchId, sourceColumn)` |
+| `InvoiceImportStagingRow` | `prisma/schema.prisma` | One parsed spreadsheet row awaiting validation/commit | `batchId`, `rowNumber`, `raw`, `normalized`, `status` (`pending`/`valid`/`warning`/`error`), `validationErrors` | N—1 batch (cascade delete) | Yes (join via `batchId`; no user DELETE) | Purged by the retention cleanup cron 24h after the batch reaches a terminal state |
+| `InvoiceImportError` | `prisma/schema.prisma` | Sanitised row/field validation error for review and CSV export | `batchId`, `rowNumber`, `invoiceNumber`, `fieldName`, `errorCode`, `message`, `severity` | N—1 batch (cascade delete) | Yes (join via `batchId`) | Never stores raw spreadsheet cell values, only derived error metadata |
+| `InvoiceImportMappingProfile` | `prisma/schema.prisma` | Saved per-tenant column-mapping profile for reuse across uploads | `userId`, `name`, `schemaVersion`, `mapping` | — | Yes (RLS CRUD) | Unique `(userId, name)`; reused only when current headers remain compatible |
 | `PlatformRole` | `prisma/schema.prisma` | Platform staff membership | `userId`, `role` (`platform_owner`/`platform_admin`/`platform_support`), `status` (`active`/`disabled`), `grantedBy` | — | No (deny-all RLS; `prismaAdmin` only) | Max one active role per user; `grantedBy` = granting user id |
 | `AdminDevice` | `prisma/schema.prisma` | Enrolled admin SSH public keys | `userId`, `name`, `publicKeyBytes`, `fingerprint` (UK), `keyType`, `status` (`pending`/`active`/`revoked`/`expired`) | N—1 platform role user; 1—N challenges/sessions | No (deny-all RLS) | Supported key types: `ssh-ed25519`, `ecdsa-sha2-nistp256`; `fingerprint` = `SHA256:<base64>` |
 | `AdminChallenge` | `prisma/schema.prisma` | Single-use SSH signing nonce | `userId`, `adminDeviceId`, `nonce` (UK), `expiresAt`, `usedAt` | N—1 device | No (deny-all RLS) | Nonce is 32 bytes / 64 hex chars; `usedAt` marks replay prevention |
@@ -458,6 +487,7 @@ enforced server-side before content is returned.
 | `POST /api/stripe/connect/disconnect` | `.../disconnect/route.ts` | optional `{connectionId}` | session | `withUserContext` | → `{success}` | Implemented |
 | `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` by `stripeCustomerId` | Stripe event → `{received}` | Implemented (no `payment_failed`) |
 | `POST /api/webhooks/stripe-connect` | `.../stripe-connect/route.ts` | provider signature | signature | `prismaAdmin` by account id | Stripe event → `{received}` | Implemented |
+| `POST /api/webhooks/resend` | `.../resend/route.ts` | Svix-style signature (`svix-id`/`svix-timestamp`/`svix-signature`, HMAC-SHA256, 5-min tolerance) | signature | `prismaAdmin` by `resendMessageId` | Resend delivery event → `{received}` | Implemented — updates `EmailLog.status`; always returns 200 for unmatched/unknown events |
 | `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed,held,usageByAccount}` | Implemented |
 | `GET /api/cron/scheduling-watchdog` | `.../cron/scheduling-watchdog/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{ok,stale,lastRunAt}` | Implemented — alerts via email if the Railway Celery Beat heartbeat is stale/missing; see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
 | `POST /api/internal/jobs/send-reminder` | `.../internal/jobs/send-reminder/route.ts` | `zod` `{userId,trackedInvoiceId}` | `Bearer INTERNAL_JOBS_SECRET` | `withUserContext` | → `{outcome,...}` | Implemented — called by the Railway Celery `reminder_email` task, not public |
@@ -469,6 +499,10 @@ enforced server-side before content is returned.
 | `POST /api/invoices/[id]/snooze` | `.../snooze/route.ts` | path `id` | session | `withUserContext` | → `{success,snoozedUntil}` | Implemented |
 | `POST /api/invoices/[id]/cancel-snooze` | `.../cancel-snooze/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented — manually ends an in-progress snooze early, clearing `snoozedUntil` and returning the invoice to `pending` |
 | `POST /api/invoices/[id]/resolve` | `.../resolve/route.ts` | path `id` | session | `withUserContext` | → `{success}` | Implemented |
+| `POST /api/invoices/[id]/dispute` | `.../dispute/route.ts` | path `id`, `zod` `{note?}` | session | `withUserContext` | → `{success,disputeRaisedAt}` | Implemented |
+| `POST /api/invoices/[id]/resolve-dispute` | `.../resolve-dispute/route.ts` | path `id`, `zod` `{note?}` | session | `withUserContext` | → `{success}` | Implemented |
+| `POST /api/invoices/[id]/payments` | `.../payments/route.ts` | path `id`; `zod` `{amount (positive int cents), currency, note?}` | session | `withUserContext` | → `{success,outstanding,markedPaid}` | Implemented — records an `InvoicePayment` (`source: "manual"`); 404 for a terminal (`paid`/`manually_resolved`) or not-owned invoice; 400 if `currency` doesn't match the invoice's currency; flips status to `paid` once the ledger fully covers `amountDue` |
+| `POST /api/invoices/[id]/mark-paid` | `.../mark-paid/route.ts` | path `id`; `zod` `{note?}` | session | `withUserContext` | → `{success,outstanding,markedPaid}` | Implemented — thin wrapper recording a payment for the invoice's full remaining outstanding balance via the same path as `POST /api/invoices/[id]/payments`; 400 if the invoice has no outstanding balance |
 | `POST /api/arrangements` | `app/api/arrangements/route.ts` | body `{invoiceIds[], arrangementType, promisedPayBy?, agreedAmount?, currency?, termsNotes?, planSchedule?}` | session | `withUserContext` | → `{arrangement}` | Implemented — freelancer-managed arrangement creation for single/multi-invoice scope |
 | `POST /api/arrangements/[id]/status` | `app/api/arrangements/[id]/status/route.ts` | path `id`; body `{status}` | session | `withUserContext` | → `{arrangement}` | Implemented — lifecycle transitions (`active`, `broken`, `fulfilled`, `expired`, `cancelled`) |
 | `GET /api/arrangements/[id]` | `app/api/arrangements/[id]/route.ts` | path `id` | session | `withUserContext` + explicit `userId` check | → `{arrangement}` (with full `coverages`, each including the covered invoice's `clientName`/`clientEmail`/`amountDue`/`currency`/`status`) | Implemented — full arrangement detail for the dashboard's arrangement-detail modal; 404 if not found or not owned by the requesting user |
@@ -490,6 +524,18 @@ enforced server-side before content is returned.
 | `POST /api/integrations/myob/disconnect` | `.../myob/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
 | `POST /api/integrations/myob/sync` | `.../myob/sync/route.ts` | `zod` `{connectionId}` | session + ownership check | `withUserContext` verify; `prismaAdmin` sync | → `SyncResult` | Implemented |
 | `GET /api/cron/sync-accounting` | `.../cron/sync-accounting/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{totalConnections,succeeded,failed,invoicesCreated,invoicesUpdated}` | Implemented |
+| `GET /api/cron/invoice-import-cleanup` | `.../cron/invoice-import-cleanup/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{ok,ranAt,candidates,purged,markedAbandoned}` | Implemented — enforces the spreadsheet-import retention policy (`lib/invoiceImport/retention.ts`) |
+| `GET /api/invoice-imports/template` | `.../invoice-imports/template/route.ts` | query `format=csv\|xlsx` | session | none (static template) | → file download | Implemented |
+| `POST /api/invoice-imports/upload` | `.../invoice-imports/upload/route.ts` | multipart `file` | session | `withUserContext` create batch + staging rows | → `{batchId,sourceColumns,suggestions,...}` | Implemented |
+| `GET /api/invoice-imports` | `app/api/invoice-imports/route.ts` | — | session | `withUserContext` | → `{batches}` | Implemented — import history listing |
+| `GET /api/invoice-imports/[batchId]` | `.../invoice-imports/[batchId]/route.ts` | path `batchId` | session | `withUserContext` + ownership check | → batch status/detail | Implemented |
+| `POST /api/invoice-imports/[batchId]/mapping` | `.../[batchId]/mapping/route.ts` | `zod` `{mapping, duplicateMode?}` | session | `withUserContext` + ownership check | → `{success,batchId,status,duplicateMode}` | Implemented |
+| `POST /api/invoice-imports/[batchId]/validate` | `.../[batchId]/validate/route.ts` | — | session | `withUserContext` + ownership check | → `{success,rowsTotal,rowsValid,rowsWarning,rowsFailed,previewRows}` | Implemented |
+| `POST /api/invoice-imports/[batchId]/commit` | `.../[batchId]/commit/route.ts` | — | session | `withUserContext` + ownership check | → `{success,invoicesCreated,invoicesUpdated,invoicesSkipped,invoicesAnomalies,replay}` | Implemented — idempotent; imported invoices are created paused and never trigger reminders; on re-upload, `amountDue` is never overwritten — the file's reported outstanding balance is reconciled against the ledger-derived current outstanding (`computeOutstanding`), recording an `InvoicePayment` (`source: "import_reconciliation"`) when it dropped, leaving fields-only updates when unchanged, and skipping the row with an `InvoiceImportError` (`severity: "warning"`) when it rose (an anomaly, never auto-applied) |
+| `GET /api/invoice-imports/[batchId]/errors` | `.../[batchId]/errors/route.ts` | query `format=csv` optional | session | `withUserContext` + ownership check | → JSON or CSV download | Implemented — sanitised error report only |
+| `GET/POST /api/invoice-imports/mapping-profiles` | `.../mapping-profiles/route.ts` | `zod` `{name, mapping}` (POST) | session | `withUserContext` | → `{profiles}` / `{success,profile}` | Implemented |
+| `DELETE /api/invoice-imports/mapping-profiles/[profileId]` | `.../mapping-profiles/[profileId]/route.ts` | path `profileId` | session | `withUserContext` + ownership check | → `{success}` | Implemented |
+| `GET /api/invoices/export` | `app/api/invoices/export/route.ts` | query `format=csv\|xlsx`, `statusBucket?`, `overviewFilter?`, `statuses?`, `customerId?`, `provider?`, `dateField?`, `dateFrom?`, `dateTo?` (`zod`) | session + `csv_export` feature | `withUserContext` (`loadInvoicesForExport`) | → CSV/XLSX file download (`Content-Disposition: attachment; filename="paidsoon-invoices-<YYYY-MM-DD>.<ext>"`, `X-PaidSoon-Export-Row-Count` header) | Implemented — 403 without querying invoice data if the tier lacks the feature; 413 if the row-count ceiling is exceeded |
 | `POST /api/admin/challenges` | `app/api/admin/challenges/route.ts` | `zod` `{deviceId}` | Layer 1+2 (Supabase session + PlatformRole) | `prismaAdmin` | → `{challengeId, nonce}` | Implemented |
 | `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{deviceId, signature}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{sessionId, expiresAt}` | Implemented |
 | `POST /api/admin/sessions/revoke` | `app/api/admin/sessions/revoke/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `admin_session` cookie; `{ok}` | Implemented |
@@ -626,6 +672,11 @@ stateDiagram-v2
     pending --> paid: invoice.paid webhook
     pending --> manually_resolved: user resolve
     sequence_complete --> paid: invoice.paid webhook
+    pending --> disputed: user dispute
+    paused --> disputed: user dispute
+    snoozed --> disputed: user dispute
+    sequence_complete --> disputed: user dispute
+    disputed --> pending: user resolve-dispute
 ```
 
 - **Notification hook:** sending an email writes an `EmailLog` and advances
@@ -667,7 +718,7 @@ stateDiagram-v2
 | `promise_to_pay_tracking` | ✓ | ✓ | ✓ | ✓ |
 | `dispute_pause` | ✓ | ✓ | ✓ | ✓ |
 | `weekly_summary_email` | — | — | ✓ | ✓ |
-| `csv_export` ◷ | — | — | ◷ | ◷ |
+| `csv_export` | — | — | ✓ | ✓ |
 | `approval_mode` ◷ | — | — | ◷ | ◷ |
 | `contact_suppression` ◷ | — | — | ◷ | ◷ |
 | `team_seats` ◷ | — | — | ◷ | ◷ |
@@ -710,10 +761,11 @@ stateDiagram-v2
 - **GST:** all three prices are inclusive of GST. The corresponding Stripe Price
   objects must carry `tax_behavior: "inclusive"` — this attribute is immutable
   once set, so it must be confirmed before pricing/checkout changes, not after.
-- **Not implemented:** `invoice.payment_failed` → `past_due`
-  (`changes/handle-billing-payment-failed-webhook`); add-ons; usage events;
+- **Not implemented:** add-ons; usage events;
   monthly chased-invoice allowance enforcement semantics (counting, warning,
   pausing) — see `changes/monthly-chase-volume-limits`.
+- `invoice.payment_failed` → `past_due` is implemented — see
+  `changes/handle-stripe-payment-failed`.
 
 ## 12. AI Rewrite Design
 
@@ -801,8 +853,36 @@ The factory function `getAccountingProvider(providerName)` from `lib/providers/a
 - **Audit model:** none. `email_logs` is the only persistent event record.
 - **Reporting views:** the dashboard's "resolved" view (`?resolved=1`) is the
   only reporting surface, gated by `payment_status_dashboard`.
-- **Export pipeline / evidence export / retention:** none implemented or
-  specified.
+- **Export pipeline:** `GET /api/invoices/export` (gated by the `csv_export`
+  feature) exports a tenant's invoices to CSV or XLSX, filtered by status
+  bucket/overview card, explicit statuses, customer, accounting source, and an
+  inclusive `due_date`/`created_date` range. Entry points: the `/dashboard/invoices`
+  toolbar (`components/dashboard/InvoiceExportButton.tsx`, quick export using the
+  page's current filter) and the Settings "Invoice exports" tab
+  (`app/dashboard/settings/export/page.tsx`, `components/settings/InvoiceExportClient.tsx`,
+  advanced filters). Shared services: `lib/invoices/exportQuery.ts`
+  (`loadInvoicesForExport` — tenant-scoped via `withUserContext`) and
+  `lib/invoices/export.ts` (`generateExportCsv`/`generateExportXlsx`). A
+  formula-injection sanitiser prefixes a leading `'` on any text field starting
+  with `=`, `+`, `-`, or `@`. A 50,000-row ceiling
+  (`EXPORT_ROW_CEILING`/`ExportRowLimitExceededError`) throws a 413 rather than
+  generating an unbounded file. Observability: a `traceOperation` call around
+  query execution, operation `export_invoices`, recording format/row-count/filter
+  shape only — never raw customer PII (`clientEmail`/`clientName`/`amountDue`).
+  **Known gap:** the installed SheetJS Community Edition XLSX writer does not
+  support frozen panes — the exported header row is not frozen, though autofilter
+  and column widths are honoured (see `openspec/changes/add-invoice-export/design.md`).
+
+  **Export data dictionary** (`lib/invoices/exportFields.ts`, `EXPORT_FIELDS`,
+  dictionary order): `invoice_reference`, `customer_name` (sanitised),
+  `customer_email` (sanitised), `invoice_date` (only populated for
+  `spreadsheet_import`-sourced invoices), `due_date`, `original_amount`,
+  `outstanding_balance` (ledger-derived via `computeOutstanding`), `currency`,
+  `status`, `paid_date`, `promise_to_pay_status`, `promise_to_pay_date`,
+  `dispute_status`, `reminder_status`, `accounting_source`, `created_at`,
+  `updated_at`.
+- **Retention:** export files are generated on demand and streamed directly to
+  the requester; none are persisted server-side.
 
 ## 16. Vertical Product Design
 
@@ -821,9 +901,9 @@ favour of "PaidSoon" / `paidsoon.com`.
 | Build | `prisma generate && next build` | `package.json` |
 | API/web runtime | Single Next.js 16 app on Vercel | `docs/runbooks/vercel.md` |
 | Worker runtime | Cron routes on the same Vercel deployment today; a Railway Celery worker + Celery Beat + Redis is being introduced to take over scheduled business workflows (dispatcher claims due work from Postgres, enqueues one task per item onto Redis, tasks call back into `app/api/internal/jobs/*` for the actual business logic) — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). Not yet deployed; runs in parallel with the existing Vercel Cron jobs during burn-in before the old jobs are removed. | `worker/`, `openspec/changes/migrate-scheduled-jobs-to-railway-celery/` |
-| Scheduler | Vercel Cron `0 9 * * *` → `/api/cron/send-emails`; `0 2 * * *` → `/api/cron/sync-accounting`; `0 12 * * *` → `/api/cron/scheduling-watchdog` (Hobby plan caps cron frequency at once daily) | `vercel.json`, `docs/runbooks/vercel.md` |
+| Scheduler | Vercel Cron `0 9 * * *` → `/api/cron/send-emails`; `0 2 * * *` → `/api/cron/sync-accounting`; `0 12 * * *` → `/api/cron/scheduling-watchdog`; `0 3 * * *` → `/api/cron/invoice-import-cleanup` (Hobby plan caps cron frequency at once daily) | `vercel.json`, `docs/runbooks/vercel.md` |
 | Database | Supabase Postgres; runtime via the shared pooler as `postgres.[ref]`, RLS applied per-transaction by `withUserContext`. Two internal orchestration tables (`scheduled_task_claims`, `dispatcher_heartbeats`) have RLS enabled with no policies — written only by the Railway worker's trusted DB role. | `prisma.config.ts`, `lib/db/admin.ts`, `prisma/schema.prisma` |
-| Migrations | `prisma migrate` via `DIRECT_URL` (owner) | `prisma.config.ts` |
+| Migrations | `prisma migrate` via the derived session-pooler URL on port `5432` | `prisma.config.ts` |
 | RLS bootstrap | `prisma/rls-policies.sql` applied manually in Supabase | `prisma/rls-policies.sql`, `docs/runbooks/supabase.md` |
 | Object storage / Redis | Redis is being introduced as the Celery broker/queue for the Railway worker (transient state only, never a source of truth) | `worker/.env.example` |
 | Email | Resend | `docs/runbooks/resend.md` |
@@ -840,8 +920,8 @@ favour of "PaidSoon" / `paidsoon.com`.
 
 The exhaustive, code-checked list lives in `docs/runbooks/README.md`
 ("Where each var is consumed in code"). Key ones:
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
-`SUPABASE_SECRET_KEY`, `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`,
+`SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, optional `SUPABASE_DB_POOLER_HOST`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_APP_URL`,
 `LIVE`, `CRON_SECRET`, `STRIPE_SECRET_KEY`,
 `STRIPE_{STARTER,SOLO,SMALL_BUSINESS}_PRICE_ID`,
 `STRIPE_CONNECT_CLIENT_ID`, `STRIPE_BILLING_WEBHOOK_SECRET`,
@@ -898,7 +978,7 @@ automated tests; only pure helpers are unit-tested.
 | Runbooks | `docs/runbooks/{README,supabase,stripe,resend,vercel}.md` | README holds the canonical env matrix + execution order |
 | Health checks | None | No `/health` route |
 | Local startup | `README.md` quick reference | `vercel env pull` then `npm run dev` |
-| Migration process | `prisma migrate` via `DIRECT_URL`; RLS SQL applied manually | `prisma.config.ts`, `docs/runbooks/supabase.md` |
+| Migration process | `npm run prisma:migrate:deploy` via derived session-pooler config; RLS SQL through the isolated wrapper | `prisma.config.ts`, `docs/runbooks/supabase.md` |
 | Backup/restore | Supabase managed (not documented in repo) | Assumed |
 | Cron testing | Manual `curl` with `CRON_SECRET` (prod-only schedule) | `docs/runbooks/vercel.md` |
 | Go-live | Ordered operator checklist | `changes/go-live-runbook/proposal.md` |
@@ -916,7 +996,7 @@ automated tests; only pure helpers are unit-tested.
 | Follow-up sequences | Yes | Specified | `app/api/cron/send-emails/route.ts`, `lib/email/**` | `.../follow-up-sequences` | 3 stages |
 | Schedule config | Yes | Specified | `app/api/settings/schedule/route.ts` | `.../schedule-config` | Ascending offsets |
 | Email settings | Yes | Specified | `app/api/settings/email/route.ts` | `.../email-settings` | Resend verify poll |
-| Manual actions | Yes | Specified | `app/api/invoices/[id]/**` | `.../dashboard` | pause/resume/snooze/resolve |
+| Manual actions | Yes | Specified | `app/api/invoices/[id]/**` | `.../dashboard` | pause/resume/snooze/resolve/dispute/resolve-dispute |
 | Dashboard + upsell | Yes | Specified | `app/dashboard/{page,invoices/page,resolved/page}.tsx`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` | Gated modules; Overview ungated |
 | Billing tiers | Yes | Specified | `lib/subscriptionPlans.ts`, `app/api/billing/**` | `changes/restore-three-tier-pricing` | 3 public tiers + 1 hidden contact-only tier |
 | Live-mode gating | Yes | Specified | `lib/liveMode.ts`, `proxy.ts` | `changes/live-mode-auth-gate-banner` | `LIVE` flag |
@@ -930,7 +1010,7 @@ automated tests; only pure helpers are unit-tested.
 | AI rewrite | Yes | Specified | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | GPT-4o-mini; usage logged; UI embedded in templates page |
 | Subscription plan switching | Yes | Specified | `app/api/billing/{checkout,downgrade}/route.ts` | `changes/subscription-plan-switching` | Upgrade mid-cycle; deferred downgrade via Stripe Schedule |
 | Team seats / invites | Partially implemented | Not specified | `app/api/settings/team/invite/route.ts` | — | No persistence |
-| `invoice.payment_failed` | No | Proposed | (`app/api/webhooks/stripe-billing/route.ts`) | `changes/handle-billing-payment-failed-webhook` | Not in code |
+| `invoice.payment_failed` | Yes | Specified | `app/api/webhooks/stripe-billing/route.ts` | `changes/handle-stripe-payment-failed` | Sets `subscriptionStatus = "past_due"` |
 | Env-var drift CI check | No | Proposed | (`scripts/check-runbook-envvars.ts`) | `changes/ci-runbook-envvar-drift-check` | No CI at all |
 | Go-live execution | N/A (ops) | Proposed (ops runbook) | — | `changes/go-live-runbook` | Operator actions |
 | Organisations/RBAC/workflow/compliance/AI gateway/verticals | No | Not specified | — | — | Not this product |
@@ -949,7 +1029,6 @@ automated tests; only pure helpers are unit-tested.
   any OpenSpec coverage.
 
 **Code gaps**
-- `invoice.payment_failed` handler missing (proposed).
 - Team invites are a non-functional scaffold (no membership model or persistence).
 - Cron `send-emails` loops sequentially over all due invoices with no
   pagination/batching — a scaling risk.
@@ -984,7 +1063,7 @@ automated tests; only pure helpers are unit-tested.
 **Follow-up engine**
 - `app/api/cron/send-emails/route.ts`
 - `lib/email/{send,schedule,templates}.ts`
-- `app/api/invoices/[id]/{pause,resume,snooze,resolve}/route.ts`
+- `app/api/invoices/[id]/{pause,resume,snooze,resolve,dispute,resolve-dispute}/route.ts`
 
 **Billing & entitlements**
 - `lib/subscriptionPlans.ts`, `lib/billing.ts`
@@ -1010,16 +1089,10 @@ automated tests; only pure helpers are unit-tested.
 `sample-overdue-preview-upsell`, `build-environment-runbooks`,
 `expand-how-it-works-with-plan-gated-features`, `signup-trial-onboarding`,
 `email-settings-field-hints`, `templates-sidebar-help`, `ai-message-rewrite`,
-`subscription-plan-switching`.
+`subscription-plan-switching`, `handle-stripe-payment-failed`.
 
-**Proposed / not implemented:** `handle-billing-payment-failed-webhook`
-(no `invoice.payment_failed` case in code), `ci-runbook-envvar-drift-check`
+**Proposed / not implemented:** `ci-runbook-envvar-drift-check`
 (no script, no CI).
-
-**Operator runbook (no code):** `go-live-runbook`.
-
-Delta specs live under `openspec/changes/<change>/specs/<capability>/spec.md`.
-There is no `openspec/specs/**` baseline directory.
 
 ## 25. Appendix C — Glossary
 

@@ -40,6 +40,7 @@
 
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
+import { findOrCreateCustomer } from "@/lib/db/customers"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { isDemoOrganisationId } from "@/lib/providers/accounting/demoGuard"
 import {
@@ -428,10 +429,15 @@ async function upsertInvoice(params: {
 
   if (!existing) {
     // Create new TrackedInvoice
+    const customer = clientEmail
+      ? await findOrCreateCustomer(prismaAdmin, connection.userId, clientEmail, clientName)
+      : null
+
     const created = await prismaAdmin.trackedInvoice.create({
       data: {
         userId: connection.userId,
         invoiceConnectionId,
+        customerId: customer?.id,
         externalId: inv.providerInvoiceId,
         provider: connection.provider,
         clientEmail,
@@ -488,11 +494,16 @@ async function upsertInvoice(params: {
     const wasOpen = existing.status === "pending"
     const nowClosed = invoiceStatus === "paid" || invoiceStatus === "manually_resolved"
 
+    const customer = clientEmail
+      ? await findOrCreateCustomer(prismaAdmin, connection.userId, clientEmail, clientName)
+      : null
+
     await prismaAdmin.trackedInvoice.update({
       where: { id: existing.id },
       data: {
         clientEmail,
         clientName,
+        ...(customer ? { customerId: customer.id } : {}),
         amountDue: toCents(inv.amountDue),
         dueDate: inv.dueDate,
         status: invoiceStatus,

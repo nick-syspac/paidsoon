@@ -1,6 +1,4 @@
-import { setDefaultResultOrder } from "dns"
-import { config } from "dotenv"
+import "./_loadEnvFiles"
+import { materializeSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
-// Force IPv4 DNS resolution before any network connections are made.
-setDefaultResultOrder("ipv4first")
-config({ path: ".env.local", quiet: true })
+materializeSupabaseEnvironment({ mode: "database-admin" })

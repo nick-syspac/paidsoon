@@ -1,6 +1,7 @@
 import { setDefaultResultOrder } from "dns"
 import { PrismaClient } from "@/lib/generated/prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
+import { resolveSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
 // Supabase hostnames can resolve to IPv6 addresses unreachable in some
 // local/CI environments. Force IPv4 for the entire process.
@@ -20,8 +21,9 @@ setDefaultResultOrder("ipv4first")
  */
 
 function createPrismaClient() {
+  const { databaseUrl } = resolveSupabaseEnvironment({ mode: "runtime", env: process.env })
   const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL!,
+    connectionString: databaseUrl!,
   })
   return new PrismaClient({
     adapter,

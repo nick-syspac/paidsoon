@@ -1,6 +1,7 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getProvider } from "@/lib/providers"
 import { computeNextEmailAt } from "@/lib/email/schedule"
+import { findOrCreateCustomer } from "@/lib/db/customers"
 import type { NormalizedInvoice } from "@/lib/providers/types"
 
 /**
@@ -50,10 +51,18 @@ export async function runCatchUpScan() {
         schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 }
       )
 
+      const customer = await findOrCreateCustomer(
+        prisma,
+        connection.userId,
+        invoice.clientEmail,
+        invoice.clientName,
+      )
+
       await prisma.trackedInvoice.create({
         data: {
           userId: connection.userId,
           invoiceConnectionId: connection.id,
+          customerId: customer.id,
           externalId: invoice.externalId,
           provider: "stripe",
           clientEmail: invoice.clientEmail,

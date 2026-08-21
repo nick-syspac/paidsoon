@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Turnstile } from "@marsidev/react-turnstile"
-import { createClient } from "@/lib/supabase/client"
 import { Spinner } from "@/components/ui/Spinner"
 import {
   createClientTraceState,
@@ -81,25 +80,6 @@ export default function SignInPage() {
     router.refresh()
   }
 
-  async function handleGoogleSignIn() {
-    persistClientTraceCookie(traceState.traceId)
-    traceClientEvent(traceState, {
-      stage: "auth.sign_in.oauth",
-      operation: "initiate_google_oauth",
-      subsystem: "auth",
-      component: "app/(auth)/sign-in/page.tsx",
-      event: "start",
-      inputs: { provider: "google", redirectOrigin: window.location.origin },
-    })
-    const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full bg-white rounded-lg shadow p-8">
@@ -107,19 +87,6 @@ export default function SignInPage() {
         <p className="text-gray-500 mb-6 text-sm">
           Welcome back to PaidSoon.
         </p>
-
-        <button
-          onClick={handleGoogleSignIn}
-          className="w-full border border-gray-300 rounded-md py-2 px-4 text-sm font-medium hover:bg-gray-50 transition mb-4 flex items-center justify-center gap-2"
-        >
-          Continue with Google
-        </button>
-
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">or</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
 
         <form onSubmit={handleEmailSignIn} className="space-y-4">
           <div>
@@ -145,6 +112,14 @@ export default function SignInPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <div className="text-right mt-1">
+              <Link
+                href="/forgot-password"
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
           {error && (

@@ -22,7 +22,7 @@ without touching real customer data.
 ## Prerequisites
 
 1. A development or preview Supabase project (never production).
-2. Migrations applied: `npx prisma migrate deploy` (or `npm run db:reset:local`).
+2. Migrations applied: `npm run prisma:migrate:deploy` (or `npm run db:reset:local`).
 3. `.env.local` populated with the variables below.
 
 ### Required environment variables
@@ -30,8 +30,8 @@ without touching real customer data.
 | Variable | Required | Purpose |
 |---|---|---|
 | `SEED_ENV` | Yes | Must be `local`, `preview`, `development` or `test`. The seed aborts on any other value. Set automatically by the npm scripts. |
-| `DATABASE_URL` | Yes | Pooled Postgres connection used to write the seed. Rejected if it looks like a production database. |
-| `NEXT_PUBLIC_SUPABASE_URL` | Recommended | Used to create real Supabase Auth users so you can actually sign in. |
+| `SUPABASE_PROJECT_REF` | Yes | Canonical project identifier used to derive public and database endpoints. |
+| `SUPABASE_DB_PASSWORD` | Yes | Canonical database secret used to derive the pooled target in memory. |
 | `SUPABASE_SECRET_KEY` | Recommended | Supabase service role key, used only to create/update the three seed auth users. |
 
 ### Optional environment variables
@@ -202,7 +202,7 @@ attempt a live Xero or MYOB call or flip a seeded connection to `revoked`.
 ### Other safety properties
 
 - The seed aborts unless `SEED_ENV` is a development-like value, and refuses
-  any `DATABASE_URL` that looks like production.
+  any derived runtime target that looks like production.
 - Stored OAuth tokens are literal placeholders such as
   `demo-seed-access-coastline-not-a-real-token` — not valid ciphertext, so they
   cannot be decrypted into anything usable.

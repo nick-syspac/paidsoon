@@ -6,7 +6,8 @@ let mockUser: { id: string } | null = null
 let proxy: typeof import("@/proxy").proxy
 
 before(async () => {
-  process.env.NEXT_PUBLIC_SUPABASE_URL = "http://localhost"
+  process.env.SUPABASE_PROJECT_REF = "abcdefghijklmnopqrst"
+  delete process.env.NEXT_PUBLIC_SUPABASE_URL
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "test"
 
   await mock.module("@supabase/ssr", {

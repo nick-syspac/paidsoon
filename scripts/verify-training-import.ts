@@ -85,7 +85,7 @@ main().catch((error: unknown) => {
 
   if (message.includes('The table `public.training_content` does not exist') || message.includes('table `public.training_content` does not exist')) {
     console.error("Verification failed: the training_content tables are missing from the target database.")
-    console.error("Run `npx prisma migrate deploy` against the target DIRECT_URL before re-running this verification.")
+    console.error("Run `npm run prisma:migrate:deploy` for the target canonical Supabase configuration before re-running this verification.")
     process.exit(1)
   }
 

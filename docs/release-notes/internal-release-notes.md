@@ -3,6 +3,48 @@
 This file is internal-only and chronological, with newest releases first.
 Use it as the engineering source of truth for each release.
 
+## Release v0.3.0 - 2026-08-11
+
+- Internal reference ID: REL-2026-08-11-v0.3.0
+- Release owner: Engineering
+- Deployment window: 2026-08-11 09:00-10:00 UTC
+- Risk level: low
+
+### Executive Summary
+This release adds invoice export (CSV/XLSX) for Small Business and Accountant Partner tenants, gated by the existing `csv_export` feature flag. No breaking API contract changes. Rollout is immediate for the private beta environment.
+
+### Scope Included
+- New `GET /api/invoices/export` route (Zod-validated, `requireFeature("csv_export")`-gated, tenant-scoped via `withUserContext`).
+- Shared filter/query service (`lib/invoices/exportQuery.ts`) and export-generation service (`lib/invoices/export.ts`) with a formula-injection sanitiser and a 50,000-row safety ceiling.
+- Dashboard "Export" toolbar control and a new Settings → Invoice exports advanced-filter screen.
+- `csv_export` moved out of `UNIMPLEMENTED_FEATURES` in `lib/subscriptionPlans.ts`; pricing page now shows it as available on Small Business+ rather than "coming soon".
+
+### Deferred
+- Frontend/component-level tests for the new Export UI (this repo has no React component test infrastructure — Node's built-in test runner covers the API route and library logic only; adding Jest/RTL would require a separate discussion per repo policy).
+- Manual cross-application verification (Excel/Numbers/Sheets/LibreOffice, screen reader) — see openspec/changes/add-invoice-export/tasks.md Group 10.
+
+### Technical Changes
+- New modules: `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/api/invoices/export/route.ts`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx`, `app/dashboard/settings/export/page.tsx`.
+- Extracted `lib/dashboard/invoiceStatusLabels.ts` so `InvoiceTable.tsx` and the export service share one set of status/stage labels.
+- Confirmed via direct inspection of the installed `xlsx@0.18.5` (SheetJS Community Edition) writer source that frozen panes are not serialised by this library version — documented as a known cosmetic gap rather than silently dropped.
+
+### Database and Migration Notes
+- Prisma schema change: no.
+- Migration required: no.
+- Backfill required: no.
+- Rollback impact: low.
+
+### Security Notes
+- Export permission is enforced server-side via `requireFeature(userId, "csv_export")`, deriving `userId` only from `supabase.auth.getUser()`.
+- All export queries run inside `withUserContext` so RLS scopes results to the requesting tenant; a customer/provider filter for another tenant's data matches nothing rather than erroring.
+- User-controlled text fields (customer name/email) are sanitised against formula injection (leading `'` prefix) before being written to CSV/XLSX.
+
+### Operational Notes
+- Feature flags changed: `csv_export` moved from unimplemented to implemented in `lib/subscriptionPlans.ts`.
+- Cron schedule changed: no.
+- Runbook updates required: no.
+- Support briefing required: low-touch note on the new Export control and Settings tab.
+
 ## Release v0.2.0 - 2026-08-04
 
 - Internal reference ID: REL-2026-08-04-v0.2.0

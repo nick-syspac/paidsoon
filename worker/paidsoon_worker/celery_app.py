@@ -8,6 +8,8 @@ from celery.signals import setup_logging
 
 from .config import Config
 
+Config.database_url()
+
 app = Celery(
     "paidsoon_worker",
     broker=Config.REDIS_URL,

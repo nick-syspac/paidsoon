@@ -50,3 +50,4 @@ next-env.d.ts
 /roborev./
 # roborev snapshots
 /.roborev/
+worker/.webui_secret_key

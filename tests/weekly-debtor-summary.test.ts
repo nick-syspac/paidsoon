@@ -21,6 +21,7 @@ function makeInvoice(overrides: {
     dueDate: new Date(overrides.dueDate),
     status: overrides.status ?? "pending",
     currency: overrides.currency ?? "usd",
+    payments: [],
   }
 }
 

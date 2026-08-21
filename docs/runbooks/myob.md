@@ -162,8 +162,8 @@ scripts/reset-myob-connection.sh --email user@example.com
 scripts/reset-myob-connection.sh --user-id clxxxxxxxx --hard-delete
 ```
 
-Requires `DATABASE_URL` (Prisma). `USER_EMAIL` additionally requires
-`NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SECRET_KEY` to resolve the email to a Supabase user
+Requires `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD`. `USER_EMAIL`
+additionally requires `SUPABASE_SECRET_KEY` to resolve the email to a Supabase user
 ID — see [README.md](./README.md) for where those values come from per environment.
 
 ### 6.2 What it does

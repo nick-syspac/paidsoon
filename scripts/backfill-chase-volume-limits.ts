@@ -27,7 +27,7 @@
  * Usage:
  *   node --import tsx scripts/backfill-chase-volume-limits.ts
  *
- * Required env vars: DATABASE_URL, STRIPE_SECRET_KEY
+ * Required env vars: SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD, STRIPE_SECRET_KEY
  */
 import "./_loadEnv"
 import { prismaAdmin } from "@/lib/db/admin"

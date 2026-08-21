@@ -61,11 +61,10 @@ The three new example files surface per-environment defaults:
 |---|---|---|---|
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | preview alias URL | `https://paidsoon.com` |
 | `LIVE` | `false` | `false` | `true` |
-| `NEXT_PUBLIC_SUPABASE_URL` | `paidsoon-dev` | `paidsoon-dev` | `paidsoon-prod` |
+| `SUPABASE_PROJECT_REF` | `paidsoon-dev` | `paidsoon-dev` | `paidsoon-prod` |
+| `SUPABASE_DB_PASSWORD` | `paidsoon-dev` secret | `paidsoon-dev` secret | `paidsoon-prod` secret |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `paidsoon-dev` key | `paidsoon-dev` key | `paidsoon-prod` key |
 | `SUPABASE_SECRET_KEY` | `paidsoon-dev` secret | `paidsoon-dev` secret | `paidsoon-prod` secret |
-| `DATABASE_URL` | `paidsoon-dev` pooler | `paidsoon-dev` pooler | `paidsoon-prod` pooler |
-| `DIRECT_URL` | `paidsoon-dev` direct | `paidsoon-dev` direct | `paidsoon-prod` direct |
 | `CRON_SECRET` | optional | not required | required |
 | `STRIPE_SECRET_KEY` | `sk_test_…` | `sk_test_…` | `sk_live_…` |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | Stripe CLI | not set | live dashboard `whsec_…` |
@@ -82,8 +81,8 @@ The three new example files surface per-environment defaults:
 git checkout -b feature/my-change
 cp .env.local.example .env.local   # fill in paidsoon-dev credentials
 npm install
-npx prisma migrate deploy          # apply schema to paidsoon-dev
-psql "$DIRECT_URL" -f prisma/rls-policies.sql
+npm run prisma:migrate:deploy      # apply schema to paidsoon-dev
+npm run db:apply-rls
 npm run verify-rls
 npm run seed:local
 npm run dev -- --port 4001                        # → http://localhost:4001
@@ -110,10 +109,9 @@ npm run verify-seed
 
 ```
 # 1. Open a PR from develop → main. Review.
-# 2. Apply any pending migrations to paidsoon-prod:
-export DIRECT_URL="postgresql://postgres:PW@db.prod-ref.supabase.co:5432/postgres"
-npx prisma migrate deploy
-psql "$DIRECT_URL" -f prisma/rls-policies.sql
+# 2. Select paidsoon-prod through canonical inputs in the approved secret store:
+npm run prisma:migrate:deploy
+npm run db:apply-rls
 npm run verify-rls   # must pass before merging
 
 # 3. Merge develop → main → Vercel auto-deploys to production.
@@ -130,20 +128,18 @@ npx prisma migrate dev --name describe_your_change
 
 # Update RLS if needed
 $EDITOR prisma/rls-policies.sql
-psql "$DIRECT_URL" -f prisma/rls-policies.sql
+npm run db:apply-rls
 npm run verify-rls
 
 # Commit
 git add prisma/schema.prisma prisma/migrations/ prisma/rls-policies.sql
 git commit -m "feat: <change description>"
 
-# Apply to preview
-export DIRECT_URL="<paidsoon-dev direct URL>"
-npx prisma migrate deploy
+# Apply to preview after selecting paidsoon-dev canonical inputs
+npm run prisma:migrate:deploy
 
-# Apply to production (after preview testing)
-export DIRECT_URL="<paidsoon-prod direct URL>"
-npx prisma migrate deploy
+# Apply to production after selecting paidsoon-prod canonical inputs
+npm run prisma:migrate:deploy
 ```
 
 ---
@@ -152,14 +148,14 @@ npx prisma migrate deploy
 
 ```
 # Seed local
-npm run seed:local      # SEED_ENV=local, targets DATABASE_URL in .env.local
+npm run seed:local      # SEED_ENV=local, derives target from canonical inputs
 npm run verify-seed     # must exit 0
 
 # Re-seed (idempotent — safe to run any time)
 npm run seed:local
 
 # Reset and re-seed from scratch (destructive)
-npm run db:reset:local  # SEED_ENV=local, uses DIRECT_URL
+npm run db:reset:local  # SEED_ENV=local, derives session-pooler target
 npm run seed:local
 
 # Seed preview (from local machine, targets paidsoon-dev)
@@ -177,7 +173,7 @@ Two guards prevent seeding production:
 
 1. **`SEED_ENV` whitelist** — allows `local`, `preview`, `development`, `test`;
    blocks `production`, `prod`, unset, unknown.
-2. **`DATABASE_URL` scan** — rejects strings containing `paidsoon-prod`, `-prod.`,
+2. **Derived runtime target scan** — rejects strings containing `paidsoon-prod`, `-prod.`,
    `.prod.`, `paidsoon_prod`.
 
 ### `scripts/db-reset-local.ts`
@@ -186,7 +182,7 @@ Two guards prevent resetting non-local environments:
 
 1. **`SEED_ENV` allowlist** — only `local` or `development`; blocks `production`,
    `prod`, `preview`, unset, unknown.
-2. **`DIRECT_URL` scan** — same production marker checks as the seed script.
+2. **Derived migration target scan** — same production marker checks as the seed script.
 
 ### Architectural separation
 
@@ -210,8 +206,8 @@ npm run verify-seed    # must exit 0
 ### After a schema change
 
 ```bash
-npx prisma migrate deploy
-psql "$DIRECT_URL" -f prisma/rls-policies.sql
+npm run prisma:migrate:deploy
+npm run db:apply-rls
 npm run verify-rls
 ```
 
@@ -252,7 +248,7 @@ See [docs/runbooks/vercel.md §9](./runbooks/vercel.md) for the manual smoke-tes
 | Set Vercel environment variables | Manual | Follow [docs/runbooks/vercel.md §2](./runbooks/vercel.md) |
 | Register Stripe webhook endpoints (production) | Manual | Follow [docs/runbooks/stripe.md](./runbooks/stripe.md) §5–§6 |
 | Verify `billing@paidsoon.com` in Resend | Manual | Follow [docs/runbooks/resend.md](./runbooks/resend.md) |
-| Create Supabase Auth users for sign-in testing | Automated | `npm run db:seed` creates the three seeded auth users (see [docs/preview-seed-data.md](./preview-seed-data.md)) — requires `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SECRET_KEY` |
+| Create Supabase Auth users for sign-in testing | Automated | `npm run db:seed` creates the three seeded auth users (see [docs/preview-seed-data.md](./preview-seed-data.md)) — requires canonical Supabase inputs and `SUPABASE_SECRET_KEY` |
 | Extend seed for new schema fields | Future | When dispute reason, partial payment, MYOB sync metadata columns are added |
 
 ---

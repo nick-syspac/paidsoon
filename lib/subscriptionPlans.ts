@@ -28,7 +28,7 @@ export type SubscriptionFeature =
   | "promise_to_pay_tracking"
   | "dispute_pause"
   | "weekly_summary_email"
-  | "csv_export" // NOT IMPLEMENTED
+  | "csv_export"
   | "approval_mode" // NOT IMPLEMENTED
   | "contact_suppression" // NOT IMPLEMENTED — do-not-contact / suppression list
   | "team_seats" // NOT IMPLEMENTED — usable multi-user seats beyond 1
@@ -44,7 +44,6 @@ export type SubscriptionFeature =
 export const UNIMPLEMENTED_FEATURES: SubscriptionFeature[] = [
   "customer_specific_sequences",
   "multi_template_customer_wording",
-  "csv_export",
   "approval_mode",
   "contact_suppression",
   "team_seats",

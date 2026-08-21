@@ -28,6 +28,7 @@ function makeActiveInvoice(overrides: Partial<InvoiceWithRelations> & { id: stri
     emailLogs: [],
     promisesToPay: [],
     arrangementCoverages: [],
+    payments: [],
     ...overrides,
   }
 }

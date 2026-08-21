@@ -42,6 +42,7 @@ describe("sendFollowUpEmail — EmailLog body persistence", () => {
             update: async () => ({}),
           },
           emailLog: {
+            findFirst: async () => null,
             create: async (args: unknown) => {
               lastEmailLogCreateArgs = args as typeof lastEmailLogCreateArgs
               return {}

@@ -1,10 +1,17 @@
-# Railway deployment config for the PaidSoon scheduled-job worker.
-# Deploy as three Railway services from this same repo/directory, each
-# overriding the start command with one of the Procfile's process types:
-#   - worker : celery -A paidsoon_worker.celery_app worker
-#   - beat   : celery -A paidsoon_worker.celery_app beat   (run exactly ONE instance)
-#   - web    : uvicorn paidsoon_worker.http_server:app     ("trigger now" HTTP surface)
-# See worker/README.md for setup steps.
+# Railway deployment config for the PaidSoon worker monorepo slice.
+# Railway does not support defining three independent services in one
+# railway.toml file; instead, create three services from this same repo/root,
+# then set each service's own start command in the Railway dashboard or CLI.
+#
+# Use these exact start commands:
+#   worker: celery -A paidsoon_worker.celery_app worker --loglevel=info --concurrency=4
+#   beat:   celery -A paidsoon_worker.celery_app beat --loglevel=info
+#   web:    uvicorn paidsoon_worker.http_server:app --host 0.0.0.0 --port ${PORT:-8000}
+#
+# Keep beat to exactly one replica. See worker/README.md for the full setup.
+# Set SUPABASE_PROJECT_REF and secret SUPABASE_DB_PASSWORD on all three
+# services. Set SUPABASE_DB_POOLER_HOST only when the Connect panel differs
+# from the validated default. Do not set or interpolate DATABASE_URL.
 
 [build]
 builder = "NIXPACKS"

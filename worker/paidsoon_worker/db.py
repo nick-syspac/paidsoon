@@ -39,7 +39,7 @@ def get_conn() -> Iterator[psycopg.Connection]:
     # transaction-pooling mode can hand this connection a different backend server
     # between transactions, so a statement prepared earlier may not exist anymore.
     with psycopg.connect(
-        _sanitize_conninfo(Config.DATABASE_URL),
+        _sanitize_conninfo(Config.database_url()),
         row_factory=dict_row,
         prepare_threshold=None,
     ) as conn:

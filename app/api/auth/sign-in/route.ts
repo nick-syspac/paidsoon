@@ -16,6 +16,10 @@ const signInSchema = z.object({
   cfToken: z.string().min(1),
 })
 
+function isInvalidSupabaseApiKey(error: unknown): boolean {
+  return error instanceof Error && error.message === "Invalid API key"
+}
+
 export async function POST(request: Request) {
   const traceContext = createServerTraceContext({
     headers: request.headers,
@@ -123,18 +127,29 @@ export async function POST(request: Request) {
         options: { captchaToken: cfToken },
       }),
     {
-      success: (result) => ({
-        level: result.error ? "warn" : "info",
-        event: result.error ? "failure" : "success",
-        http: { method: "POST", route: "/api/auth/sign-in", status: result.error ? 401 : 200 },
-        outputs: { signInAccepted: !result.error, sessionCookieHandledBySupabaseSsr: !result.error },
-        error: result.error ? summariseErrorForTrace(result.error) : undefined,
-      }),
+      success: (result) => {
+        const status = result.error
+          ? isInvalidSupabaseApiKey(result.error)
+            ? 503
+            : 401
+          : 200
+        return {
+          level: result.error ? "warn" : "info",
+          event: result.error ? "failure" : "success",
+          http: { method: "POST", route: "/api/auth/sign-in", status },
+          outputs: { signInAccepted: !result.error, sessionCookieHandledBySupabaseSsr: !result.error },
+          error: result.error ? summariseErrorForTrace(result.error) : undefined,
+        }
+      },
     },
   )
 
   if (error) {
-    const response = NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
+    const invalidApiKey = isInvalidSupabaseApiKey(error)
+    const response = NextResponse.json(
+      { error: invalidApiKey ? "Authentication service unavailable" : "Invalid email or password" },
+      { status: invalidApiKey ? 503 : 401 },
+    )
     applyTraceResponseHeaders(response, traceContext, secureTraceCookie)
     return response
   }
