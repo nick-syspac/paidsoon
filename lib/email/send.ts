@@ -17,6 +17,7 @@ import {
 } from "./contactEnquiryRouting"
 import { isUndeliverableAddress } from "./deliveryGuard"
 import type { TrackedInvoice, PromiseToPay } from "@/lib/generated/prisma/client"
+import { Prisma } from "@/lib/generated/prisma/client"
 
 /**
  * Resolve the display name to use as {{yourName}} in reminder emails.
@@ -42,6 +43,19 @@ const STAGE_DEFAULTS = {
  * success so the reminder state machine still advances.
  */
 export const SUPPRESSED_MESSAGE_ID = "suppressed-undeliverable-domain"
+
+/**
+ * Sentinel returned instead of a Resend message id when a reminder for this
+ * `(trackedInvoiceId, stage)` pair was already logged — either by an earlier
+ * pass (fast-path check) or by a concurrent winner (unique-constraint
+ * backstop). Callers treat this as success so the reminder state machine
+ * still advances, without sending a second email.
+ */
+export const ALREADY_SENT_MESSAGE_ID = "already-sent-for-stage"
+
+function isUniqueConstraintViolation(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002"
+}
 
 let _resend: Resend | undefined
 function getResend(): Resend {
@@ -163,6 +177,17 @@ export async function sendFollowUpEmail(
   freelancerEmail: string,
   freelancerName: string
 ): Promise<string | null> {
+  // Fast-path dedup check: skip the send entirely if this stage was already
+  // logged. The @@unique([trackedInvoiceId, stage]) constraint is the durable
+  // backstop for the race this check can't fully close on its own.
+  const existingLog = await prisma.emailLog.findFirst({
+    where: { trackedInvoiceId: invoice.id, stage },
+    select: { id: true },
+  })
+  if (existingLog) {
+    return ALREADY_SENT_MESSAGE_ID
+  }
+
   const { from, replyTo } = await resolveFromAddress(invoice.userId)
 
   // Resolve p2pLink for Business+ users. Generate and persist the token if
@@ -224,17 +249,22 @@ export async function sendFollowUpEmail(
     // recorded in email_logs with a null message id so reminder history and the
     // cron state machine advance, but no outbound message is attempted.
     if (isUndeliverableAddress(invoice.clientEmail)) {
-      await prisma.emailLog.create({
-        data: {
-          trackedInvoiceId: invoice.id,
-          stage,
-          resendMessageId: null,
-          fromAddress: from,
-          subject,
-          htmlBody: html,
-          textBody: text,
-        },
-      })
+      try {
+        await prisma.emailLog.create({
+          data: {
+            trackedInvoiceId: invoice.id,
+            stage,
+            resendMessageId: null,
+            fromAddress: from,
+            subject,
+            htmlBody: html,
+            textBody: text,
+          },
+        })
+      } catch (err) {
+        if (!isUniqueConstraintViolation(err)) throw err
+        return ALREADY_SENT_MESSAGE_ID
+      }
       return SUPPRESSED_MESSAGE_ID
     }
 
@@ -249,17 +279,26 @@ export async function sendFollowUpEmail(
 
     const messageId = result.data?.id ?? null
 
-    await prisma.emailLog.create({
-      data: {
-        trackedInvoiceId: invoice.id,
-        stage,
-        resendMessageId: messageId,
-        fromAddress: from,
-        subject,
-        htmlBody: html,
-        textBody: text,
-      },
-    })
+    try {
+      await prisma.emailLog.create({
+        data: {
+          trackedInvoiceId: invoice.id,
+          stage,
+          resendMessageId: messageId,
+          fromAddress: from,
+          subject,
+          htmlBody: html,
+          textBody: text,
+        },
+      })
+    } catch (err) {
+      // A concurrent invocation won the race and logged this stage first. The
+      // email above was already dispatched to Resend by this call, so treat
+      // it as an already-sent case rather than a hard error — the state
+      // machine still advances as if this send succeeded.
+      if (!isUniqueConstraintViolation(err)) throw err
+      return ALREADY_SENT_MESSAGE_ID
+    }
 
     return messageId
   } catch (err) {

@@ -419,6 +419,7 @@ model EmailLog {
 
   trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
 
+  @@unique([trackedInvoiceId, stage])
   @@map("email_logs")
 }
 
