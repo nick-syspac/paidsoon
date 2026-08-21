@@ -12,6 +12,7 @@ test("LIVE=true keeps auth enabled and hides not-live banner", () => {
   assert.equal(liveMode, true)
   assert.equal(shouldBlockAuthEntry("/sign-in", liveMode), false)
   assert.equal(shouldBlockAuthEntry("/sign-up", liveMode), false)
+  assert.equal(shouldBlockAuthEntry("/forgot-password", liveMode), false)
   assert.equal(shouldShowNotLiveBanner(liveMode), false)
 })
 
@@ -21,7 +22,13 @@ test("LIVE=false disables auth entry points and shows not-live banner", () => {
   assert.equal(liveMode, false)
   assert.equal(shouldBlockAuthEntry("/sign-in", liveMode), true)
   assert.equal(shouldBlockAuthEntry("/sign-up", liveMode), true)
+  assert.equal(shouldBlockAuthEntry("/forgot-password", liveMode), true)
   assert.equal(shouldShowNotLiveBanner(liveMode), true)
+})
+
+test("reset-password is never gated by LIVE, only the reset-request entry point is", () => {
+  assert.equal(shouldBlockAuthEntry("/reset-password", true), false)
+  assert.equal(shouldBlockAuthEntry("/reset-password", false), false)
 })
 
 test("missing or malformed LIVE falls back to not-live mode", () => {

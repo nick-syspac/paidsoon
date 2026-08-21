@@ -24,7 +24,11 @@ export function isLiveMode(): boolean {
 }
 
 export function isAuthEntryPath(pathname: string): boolean {
-  return pathname === "/sign-in" || pathname === "/sign-up"
+  return (
+    pathname === "/sign-in" ||
+    pathname === "/sign-up" ||
+    pathname === "/forgot-password"
+  )
 }
 
 export function shouldBlockAuthEntry(pathname: string, liveMode: boolean): boolean {
