@@ -11,11 +11,29 @@ The system SHALL define exactly three paid subscription tiers with fixed monthly
 - **THEN** it returns Starter ($9/month), Solo ($19/month), and Small Business ($39/month) with stable internal plan identifiers
 
 ### Requirement: Tier invoice-chasing limits
-The system SHALL enforce monthly chased-invoice limits by tier: Starter allows up to 10 chased invoices per month, Solo allows up to 30 chased invoices per month, and Small Business allows up to 100 chased invoices per month.
+
+The system SHALL define a monthly chased-invoice allowance per tier: Starter 10, Solo 50, and
+Small Business 200. Accountant Partner SHALL have no fixed allowance. The allowance SHALL be
+consumed once per invoice at its first reminder, measured over the account's current billing
+period, and reaching it SHALL pause new chases without interrupting sequences already in
+progress, as defined by the `chase-volume-entitlement` capability.
+
+#### Scenario: Plan allowance is requested
+
+- **WHEN** the application reads the chased-invoice allowance for a tier
+- **THEN** it returns 10 for Starter, 50 for Solo, and 200 for Small Business
+
+#### Scenario: Allowance is displayed on the pricing page
+
+- **WHEN** the pricing page renders tier volume limits
+- **THEN** the displayed figures match the allowances defined in the plan catalog
 
 #### Scenario: User reaches monthly chased-invoice limit
-- **WHEN** an account at a given tier attempts to chase an invoice after reaching that tier limit in the current billing month
-- **THEN** the system blocks the action and indicates that an upgrade is required to increase limit capacity
+
+- **WHEN** an account at a given tier has consumed its tier allowance within the current
+  billing period
+- **THEN** new invoices are not chased until the next period, and the account is shown an
+  upgrade path
 
 ### Requirement: Tier user seat limits
 The system SHALL enforce user-seat limits by tier: Starter allows 1 user, Solo allows 1 user, and Small Business allows up to 3 users.
@@ -58,4 +76,26 @@ The system SHALL expose dashboard capabilities by tier such that Solo includes a
 #### Scenario: Dashboard modules render for active tier
 - **WHEN** a user visits dashboard views tied to payment status or overdue invoices
 - **THEN** only the dashboard modules included in the active tier are shown
+
+### Requirement: Accounting integrations are gated to Solo and above
+The system SHALL restrict access to accounting provider connections (Xero, MYOB) to users
+on the Solo or Small Business subscription tier. Users on the Starter tier SHALL see an
+upgrade prompt when they attempt to initiate an accounting connection and SHALL NOT be able
+to start an OAuth flow.
+
+#### Scenario: Starter user attempts to connect an accounting provider
+- **WHEN** a user on the Starter tier navigates to the integrations settings page and clicks any "Connect" button for an accounting provider
+- **THEN** the system displays a plan upgrade prompt explaining that accounting integrations require Solo or higher, and does NOT initiate an OAuth redirect
+
+#### Scenario: Solo user connects Xero
+- **WHEN** a user on the Solo tier clicks "Connect Xero"
+- **THEN** the system initiates the OAuth flow without presenting an upgrade prompt
+
+#### Scenario: Small Business user connects MYOB
+- **WHEN** a user on the Small Business tier clicks "Connect MYOB"
+- **THEN** the system initiates the OAuth flow without presenting an upgrade prompt
+
+#### Scenario: Feature check via hasPlanFeature
+- **WHEN** `hasPlanFeature(tier, 'accountingIntegrations')` is called
+- **THEN** it returns `true` for `'solo'` and `'small_business'` tiers and `false` for `'starter'` and legacy `'free'`
 

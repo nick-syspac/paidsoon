@@ -1,9 +1,8 @@
+# currency-aware-debt-summaries Specification
+
 ## Purpose
-
 Prevent dashboard and email debt summaries from silently combining invoice amounts across currencies.
-
-## ADDED Requirements
-
+## Requirements
 ### Requirement: Debt summaries must stay currency-aware
 
 The system SHALL not combine invoices with different currencies into a single displayed debt total. When a summary contains invoices in more than one currency, the system SHALL partition the summary by currency and display each currency separately.
@@ -40,3 +39,4 @@ The system SHALL render weekly debtor summary totals and debtor lists per curren
 
 - **WHEN** the weekly debtor summary is generated from invoices in more than one currency
 - **THEN** the email contains separate currency sections for outstanding totals and top debtors
+
