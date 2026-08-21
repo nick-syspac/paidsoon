@@ -13,8 +13,10 @@ const navLinks = [
   { label: "Contact", href: "/contact" },
 ]
 
-export function MarketingNav() {
+export function MarketingNav({ liveMode }: { liveMode: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const ctaLabel = liveMode ? "Start Free Trial" : "Request early access"
+  const ctaHref = liveMode ? "/sign-up" : "/contact"
 
   return (
     <header className="border-b border-gray-100 bg-white sticky top-0 z-40">
@@ -56,10 +58,10 @@ export function MarketingNav() {
             Log In
           </Link>
           <Link
-            href="/contact"
+            href={ctaHref}
             className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
-            Request early access
+            {ctaLabel}
           </Link>
         </div>
 
@@ -109,11 +111,11 @@ export function MarketingNav() {
             Log In
           </Link>
           <Link
-            href="/contact"
+            href={ctaHref}
             className="text-sm bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-center"
             onClick={() => setMobileOpen(false)}
           >
-            Request early access
+            {ctaLabel}
           </Link>
         </nav>
       )}

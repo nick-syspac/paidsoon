@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { isDebugEnabled } from "@/lib/diagnostics/server"
+import { isLiveMode } from "@/lib/liveMode"
 import DebugDbCheckButton from "@/components/marketing/DebugDbCheckButton"
 import { getPublicPlans, PLAN_CATALOG } from "@/lib/subscriptionPlans"
 import { formatPlanPrice, lowestTierWithFeature } from "@/lib/planPresentation"
@@ -68,6 +69,10 @@ const steps = [
 ]
 
 export default function HomePage() {
+  const liveMode = isLiveMode()
+  const heroCtaLabel = liveMode ? "Start Free Trial" : "Request early access"
+  const heroCtaHref = liveMode ? "/sign-up" : "/contact"
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero */}
@@ -82,10 +87,10 @@ export default function HomePage() {
         </p>
         <div className="mt-8 flex items-center justify-center gap-4">
           <Link
-            href="/contact"
+            href={heroCtaHref}
             className="bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-medium hover:bg-blue-700"
           >
-            Request early access
+            {heroCtaLabel}
           </Link>
           <Link href="/how-it-works" className="text-sm text-gray-500 hover:text-gray-900">
             How it works →
