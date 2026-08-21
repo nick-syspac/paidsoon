@@ -1,9 +1,7 @@
 import type { PrismaTx } from "@/lib/db/withUserContext"
 
 /**
- * Counts invoices flagged `disputed` for this tenant. Always 0 until
- * `add-dispute-pause` ships and starts setting `TrackedInvoice.status =
- * "disputed"` — the query is real and forward-compatible, not a stub.
+ * Counts invoices flagged `disputed` for this tenant.
  */
 export async function loadDisputedInvoiceCountWithTx(tx: PrismaTx, userId: string): Promise<number> {
   return tx.trackedInvoice.count({ where: { userId, status: "disputed" } })
