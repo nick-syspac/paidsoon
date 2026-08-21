@@ -211,8 +211,9 @@ subsection documents a functional module.
   from price id, persist the refreshed period start/end), `customer.subscription.deleted`
   (revert to `starter`, pause invoices over the starter limit — this is a
   separate, pre-existing concurrent-count safeguard on downgrade, distinct
-  from the chase-volume allowance). **`invoice.payment_failed`
-  is not handled** (proposed in `changes/handle-billing-payment-failed-webhook`).
+  from the chase-volume allowance), and `invoice.payment_failed` (looks up the
+  `UserProfile` by Stripe customer id and sets `subscriptionStatus = "past_due"`
+  without changing `subscriptionTier` — see `changes/handle-stripe-payment-failed`).
 
 ### 4.7 Dashboard actions (`app/api/invoices/[id]/**`)
 
@@ -760,10 +761,11 @@ stateDiagram-v2
 - **GST:** all three prices are inclusive of GST. The corresponding Stripe Price
   objects must carry `tax_behavior: "inclusive"` — this attribute is immutable
   once set, so it must be confirmed before pricing/checkout changes, not after.
-- **Not implemented:** `invoice.payment_failed` → `past_due`
-  (`changes/handle-billing-payment-failed-webhook`); add-ons; usage events;
+- **Not implemented:** add-ons; usage events;
   monthly chased-invoice allowance enforcement semantics (counting, warning,
   pausing) — see `changes/monthly-chase-volume-limits`.
+- `invoice.payment_failed` → `past_due` is implemented — see
+  `changes/handle-stripe-payment-failed`.
 
 ## 12. AI Rewrite Design
 
@@ -1008,7 +1010,7 @@ automated tests; only pure helpers are unit-tested.
 | AI rewrite | Yes | Specified | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | GPT-4o-mini; usage logged; UI embedded in templates page |
 | Subscription plan switching | Yes | Specified | `app/api/billing/{checkout,downgrade}/route.ts` | `changes/subscription-plan-switching` | Upgrade mid-cycle; deferred downgrade via Stripe Schedule |
 | Team seats / invites | Partially implemented | Not specified | `app/api/settings/team/invite/route.ts` | — | No persistence |
-| `invoice.payment_failed` | No | Proposed | (`app/api/webhooks/stripe-billing/route.ts`) | `changes/handle-billing-payment-failed-webhook` | Not in code |
+| `invoice.payment_failed` | Yes | Specified | `app/api/webhooks/stripe-billing/route.ts` | `changes/handle-stripe-payment-failed` | Sets `subscriptionStatus = "past_due"` |
 | Env-var drift CI check | No | Proposed | (`scripts/check-runbook-envvars.ts`) | `changes/ci-runbook-envvar-drift-check` | No CI at all |
 | Go-live execution | N/A (ops) | Proposed (ops runbook) | — | `changes/go-live-runbook` | Operator actions |
 | Organisations/RBAC/workflow/compliance/AI gateway/verticals | No | Not specified | — | — | Not this product |
@@ -1027,7 +1029,6 @@ automated tests; only pure helpers are unit-tested.
   any OpenSpec coverage.
 
 **Code gaps**
-- `invoice.payment_failed` handler missing (proposed).
 - Team invites are a non-functional scaffold (no membership model or persistence).
 - Cron `send-emails` loops sequentially over all due invoices with no
   pagination/batching — a scaling risk.
@@ -1088,16 +1089,10 @@ automated tests; only pure helpers are unit-tested.
 `sample-overdue-preview-upsell`, `build-environment-runbooks`,
 `expand-how-it-works-with-plan-gated-features`, `signup-trial-onboarding`,
 `email-settings-field-hints`, `templates-sidebar-help`, `ai-message-rewrite`,
-`subscription-plan-switching`.
+`subscription-plan-switching`, `handle-stripe-payment-failed`.
 
-**Proposed / not implemented:** `handle-billing-payment-failed-webhook`
-(no `invoice.payment_failed` case in code), `ci-runbook-envvar-drift-check`
+**Proposed / not implemented:** `ci-runbook-envvar-drift-check`
 (no script, no CI).
-
-**Operator runbook (no code):** `go-live-runbook`.
-
-Delta specs live under `openspec/changes/<change>/specs/<capability>/spec.md`.
-There is no `openspec/specs/**` baseline directory.
 
 ## 25. Appendix C — Glossary
 
