@@ -2,8 +2,13 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { isDebugEnabled } from "@/lib/diagnostics/server"
 import DebugDbCheckButton from "@/components/marketing/DebugDbCheckButton"
-import { getPublicPlans } from "@/lib/subscriptionPlans"
-import { formatPlanPrice } from "@/lib/planPresentation"
+import { getPublicPlans, PLAN_CATALOG } from "@/lib/subscriptionPlans"
+import { formatPlanPrice, lowestTierWithFeature } from "@/lib/planPresentation"
+import {
+  getIntegrations,
+  INTEGRATION_STATUS_BADGE_STYLES,
+  INTEGRATION_STATUS_LABEL,
+} from "@/lib/integrationsCatalog"
 
 export const metadata: Metadata = {
   title: "PaidSoon — Financial Control for Australian Businesses",
@@ -38,18 +43,29 @@ const features = [
   },
 ]
 
-const steps = [
-  { n: "1", title: "Connect your Stripe account", body: "OAuth in one click — no credentials to share." },
-  { n: "2", title: "Import unpaid invoices", body: "PaidSoon syncs overdue invoices automatically." },
-  { n: "3", title: "Configure your schedule", body: "Set reminder intervals that match your business style." },
-  { n: "4", title: "Reminders go out automatically", body: "Polite, professional follow-ups without lifting a finger." },
-]
-
 const pricingPreview = getPublicPlans().map((plan) => ({
   name: plan.name,
   price: formatPlanPrice(plan.monthlyPriceAud),
   featured: Boolean(plan.popular),
 }))
+
+const integrations = getIntegrations()
+
+const customSenderNameTier = lowestTierWithFeature("custom_sender_name")
+const customSenderNameTierName = customSenderNameTier
+  ? PLAN_CATALOG[customSenderNameTier].name
+  : "a paid"
+
+const steps = [
+  {
+    n: "1",
+    title: "Connect an invoice source — or upload a spreadsheet",
+    body: "Connect Stripe, Xero, or MYOB via OAuth in one click, or skip integrations entirely and upload a CSV or XLSX file of your invoices.",
+  },
+  { n: "2", title: "Import unpaid invoices", body: "Connected accounts sync overdue invoices automatically; spreadsheet uploads import them in minutes." },
+  { n: "3", title: "Configure your schedule", body: "Set reminder intervals that match your business style." },
+  { n: "4", title: "Reminders go out automatically", body: "Polite, professional follow-ups without lifting a finger." },
+]
 
 export default function HomePage() {
   return (
@@ -75,6 +91,9 @@ export default function HomePage() {
             How it works →
           </Link>
         </div>
+        <p className="mt-4 text-sm text-gray-400">
+          No accounting software required to start — import your invoices from a CSV or XLSX file today.
+        </p>
         {isDebugEnabled() && <DebugDbCheckButton />}
       </section>
 
@@ -189,28 +208,21 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">Connects to tools you already use</h2>
           <div className="grid md:grid-cols-4 gap-4">
-            {[
-              { name: "Stripe", status: "Available" },
-              { name: "MYOB", status: "Early access" },
-              { name: "Xero", status: "Coming soon" },
-              { name: "QuickBooks", status: "Coming soon" },
-            ].map((integration) => (
-              <div key={integration.name} className="bg-white rounded-lg border border-gray-200 p-5 text-center">
+            {integrations.map((integration) => (
+              <div key={integration.id} className="bg-white rounded-lg border border-gray-200 p-5 text-center">
                 <p className="font-semibold text-gray-900">{integration.name}</p>
                 <span
-                  className={`mt-2 inline-block text-xs px-2 py-0.5 rounded-full ${
-                    integration.status === "Available"
-                      ? "bg-green-50 text-green-700"
-                      : integration.status === "Early access"
-                      ? "bg-amber-50 text-amber-700"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
+                  className={`mt-2 inline-block text-xs px-2 py-0.5 rounded-full ${INTEGRATION_STATUS_BADGE_STYLES[integration.status]}`}
                 >
-                  {integration.status}
+                  {INTEGRATION_STATUS_LABEL[integration.status]}
                 </span>
               </div>
             ))}
           </div>
+          <p className="text-center text-sm text-gray-500 mt-6">
+            Don&apos;t want to connect an accounting system yet? Upload a CSV or XLSX spreadsheet instead —
+            works on every plan, no integration required.
+          </p>
           <div className="text-center mt-6">
             <Link href="/integrations" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
               View all integrations →
@@ -305,8 +317,12 @@ export default function HomePage() {
           <div className="space-y-6">
             {[
               {
+                q: "Do I need to connect Stripe, Xero, or MYOB to use PaidSoon?",
+                a: "No. You can upload your outstanding invoices from a CSV or XLSX spreadsheet and start sending reminders right away, on any plan. Connect Stripe, Xero, or MYOB later if you'd like automatic syncing.",
+              },
+              {
                 q: "Does PaidSoon send emails in my name?",
-                a: "Yes. On paid plans you can use your own email address and domain. On the free trial, emails come from PaidSoon's domain with your name in the sender field.",
+                a: `Yes, on ${customSenderNameTierName} plans and above you can set a custom sender name, and on Small Business plans and above you can send from your own verified domain. On the free trial and Starter plan, emails come from PaidSoon's domain with your name in the sender field.`,
               },
               {
                 q: "What happens when an invoice is paid?",

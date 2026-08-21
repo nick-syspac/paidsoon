@@ -1,6 +1,9 @@
 import {
+  hasPlanFeature,
   isFeatureImplemented,
   PLAN_CATALOG,
+  PLAN_ORDER,
+  type SubscriptionFeature,
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans"
 
@@ -14,6 +17,13 @@ import {
 
 export function formatPlanPrice(monthlyPriceAud: number | null): string {
   return monthlyPriceAud === null ? "Contact us" : `$${monthlyPriceAud}/mo`
+}
+
+/** Lowest tier (by PLAN_ORDER) at which a feature is enabled, or undefined if
+ * no tier has it. Used by marketing copy to name the correct tier for a
+ * feature instead of hardcoding a tier name that can drift from the catalog. */
+export function lowestTierWithFeature(feature: SubscriptionFeature): SubscriptionTier | undefined {
+  return PLAN_ORDER.find((tier) => hasPlanFeature(tier, feature))
 }
 
 export const PLAN_TAGLINE: Record<SubscriptionTier, string> = {

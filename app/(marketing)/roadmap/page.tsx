@@ -1,5 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { getIntegrationsByStatus } from "@/lib/integrationsCatalog"
+import { PLAN_CATALOG } from "@/lib/subscriptionPlans"
+import { lowestTierWithFeature } from "@/lib/planPresentation"
 
 export const metadata: Metadata = {
   title: "Product Roadmap — PaidSoon",
@@ -7,9 +10,13 @@ export const metadata: Metadata = {
     "PaidSoon product roadmap — what is live today, what SpendLeak adds next, and what remains later-stage financial operations work.",
 }
 
+const csvExportTier = lowestTierWithFeature("csv_export")
+const csvExportTierName = csvExportTier ? PLAN_CATALOG[csvExportTier].name : "higher"
+
 const available = [
-  "Stripe Connect integration",
-  "MYOB Business integration (early access)",
+  ...getIntegrationsByStatus("available").map((integration) => `${integration.name} integration`),
+  "CSV/XLSX invoice import (all plans, no integration required)",
+  `CSV/XLSX invoice export (${csvExportTierName} plans and above)`,
   "Unpaid and overdue invoice monitoring",
   "Automated reminder sequences",
   "Friendly, firm and final notice reminder templates",

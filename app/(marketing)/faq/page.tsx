@@ -1,4 +1,7 @@
 import type { Metadata } from "next"
+import { formatIntegrationNameList, getIntegrationsByStatus } from "@/lib/integrationsCatalog"
+import { PLAN_CATALOG } from "@/lib/subscriptionPlans"
+import { lowestTierWithFeature } from "@/lib/planPresentation"
 
 export const metadata: Metadata = {
   title: "Frequently Asked Questions — PaidSoon",
@@ -6,14 +9,24 @@ export const metadata: Metadata = {
     "Answers to common questions about PaidSoon — how it works, pricing, integrations, and getting started.",
 }
 
+const availableIntegrationNames = getIntegrationsByStatus("available").map((i) => i.name)
+const plannedIntegrationNames = getIntegrationsByStatus("planned").map((i) => i.name)
+
+const csvExportTier = lowestTierWithFeature("csv_export")
+const csvExportTierName = csvExportTier ? PLAN_CATALOG[csvExportTier].name : "higher"
+
 const faqs = [
   {
     q: "What does PaidSoon do?",
     a: "PaidSoon helps businesses follow up overdue invoices automatically. It monitors unpaid invoices, sends polite reminder emails, tracks promises to pay, pauses reminders for disputes and gives you a clear debtor dashboard.",
   },
   {
+    q: "Do I need to connect Stripe, Xero, or MYOB to use PaidSoon?",
+    a: `No. You can upload your outstanding invoices from a CSV or XLSX spreadsheet and start sending reminders right away, on any plan including Starter. Connect Stripe, Xero, or MYOB later if you'd like invoices to sync automatically. You can also export your invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
+  },
+  {
     q: "What accounting software does PaidSoon support?",
-    a: "PaidSoon currently supports Stripe Connect in private beta. MYOB Business is available to early-access users while we finish validating full production support; Xero and QuickBooks Online integrations are planned.",
+    a: `PaidSoon currently supports Stripe Connect plus ${formatIntegrationNameList(availableIntegrationNames.filter((name) => name !== "Stripe Connect"))}. ${formatIntegrationNameList(plannedIntegrationNames)} integration is planned.`,
   },
   {
     q: "Does PaidSoon send emails in my name?",
@@ -37,11 +50,11 @@ const faqs = [
   },
   {
     q: "Is there a free trial?",
-    a: "PaidSoon plans to offer a free trial. During private beta, access may be limited to invited users and early access customers.",
+    a: "Yes. PaidSoon offers a 14-day free trial with no credit card required, so you can try automated invoice follow-ups before choosing a plan.",
   },
   {
     q: "Can I cancel at any time?",
-    a: "Yes. PaidSoon is designed with no lock-in contracts. Subscription cancellation details will be available in account settings once public billing is enabled.",
+    a: "Yes. PaidSoon has no lock-in contracts — you can cancel or downgrade your subscription at any time from your account settings.",
   },
   {
     q: "Is PaidSoon a debt collector?",

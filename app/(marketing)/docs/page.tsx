@@ -1,10 +1,15 @@
 import type { Metadata } from "next"
+import { PLAN_CATALOG } from "@/lib/subscriptionPlans"
+import { lowestTierWithFeature } from "@/lib/planPresentation"
 
 export const metadata: Metadata = {
   title: "Documentation — PaidSoon",
   description:
-    "Technical and configuration documentation for PaidSoon — Stripe Connect, invoice sync, reminder workflow, email sending, and audit trail.",
+    "Technical and configuration documentation for PaidSoon — Stripe Connect, CSV/XLSX invoice import and export, invoice sync, reminder workflow, and email sending.",
 }
+
+const csvExportTier = lowestTierWithFeature("csv_export")
+const csvExportTierName = csvExportTier ? PLAN_CATALOG[csvExportTier].name : "higher"
 
 const currentDocs = [
   {
@@ -28,13 +33,20 @@ const currentDocs = [
     body: "PaidSoon records key workflow events such as invoice syncs, reminder sends, promise-to-pay updates, dispute pauses and manual actions.",
   },
   {
-    title: "MYOB Business integration (early access)",
-    body: "Early-access users can connect a MYOB Business company file to import overdue invoices. Full production support is still being validated — see the roadmap for status.",
+    title: "MYOB Business integration",
+    body: "Connect a MYOB Business company file to import overdue invoices and manage follow-ups from PaidSoon.",
+  },
+  {
+    title: "Xero integration",
+    body: "Connect Xero to sync overdue invoices automatically and trigger PaidSoon's reminder sequences.",
+  },
+  {
+    title: "Spreadsheet import and export",
+    body: `Don't want to connect an accounting system? Upload outstanding invoices from a CSV or XLSX file on any plan, using a downloadable template with column mapping and validation. Export invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
   },
 ]
 
 const futureDocs = [
-  "Xero integration",
   "QuickBooks Online integration",
   "Webhooks",
   "Public API",
