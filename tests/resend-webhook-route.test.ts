@@ -69,6 +69,32 @@ describe("Resend webhook route", () => {
     assert.equal(updateManyCalls.length, 0)
   })
 
+  test("fails closed with a non-2xx response when RESEND_WEBHOOK_SECRET is unset", async () => {
+    delete process.env.RESEND_WEBHOOK_SECRET
+    try {
+      const body = JSON.stringify({ type: "email.delivered", data: { email_id: "re_123" } })
+      const res = await resendRoute(signedRequest(body))
+
+      assert.ok(res.status >= 400)
+      assert.equal(updateManyCalls.length, 0)
+    } finally {
+      process.env.RESEND_WEBHOOK_SECRET = WEBHOOK_SECRET
+    }
+  })
+
+  test("fails closed with a non-2xx response when RESEND_WEBHOOK_SECRET is an empty string", async () => {
+    process.env.RESEND_WEBHOOK_SECRET = ""
+    try {
+      const body = JSON.stringify({ type: "email.delivered", data: { email_id: "re_123" } })
+      const res = await resendRoute(signedRequest(body))
+
+      assert.ok(res.status >= 400)
+      assert.equal(updateManyCalls.length, 0)
+    } finally {
+      process.env.RESEND_WEBHOOK_SECRET = WEBHOOK_SECRET
+    }
+  })
+
   test("updates the matching EmailLog status on a verified delivered event", async () => {
     const body = JSON.stringify({ type: "email.delivered", data: { email_id: "re_123" } })
     const res = await resendRoute(signedRequest(body))

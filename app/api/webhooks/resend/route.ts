@@ -14,6 +14,13 @@ import {
 export async function POST(request: Request) {
   const payload = await request.text()
 
+  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET
+  if (!webhookSecret) {
+    // Fail closed: an unset/empty secret must never be treated as a valid
+    // verification key, which would turn signature checking into a no-op.
+    return NextResponse.json({ error: "Webhook not configured" }, { status: 500 })
+  }
+
   const isValid = verifyResendWebhookSignature(
     payload,
     {
@@ -21,7 +28,7 @@ export async function POST(request: Request) {
       "svix-timestamp": request.headers.get("svix-timestamp"),
       "svix-signature": request.headers.get("svix-signature"),
     },
-    process.env.RESEND_WEBHOOK_SECRET ?? "",
+    webhookSecret,
   )
 
   if (!isValid) {
