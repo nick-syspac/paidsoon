@@ -64,7 +64,7 @@ describe("GET /api/diagnostics/db-check", () => {
 
   test("reports success when the database and both API keys work", async () => {
     const requests: Array<{ url: string; apiKey: string; authorization: string | null }> = []
-    mock.method(globalThis, "fetch", async (input, init) => {
+    mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
       const headers = new Headers(init?.headers)
       requests.push({
         url: String(input),
@@ -105,7 +105,7 @@ describe("GET /api/diagnostics/db-check", () => {
   })
 
   test("fails the overall check when Supabase rejects the secret key", async () => {
-    mock.method(globalThis, "fetch", async (_input, init) => {
+    mock.method(globalThis, "fetch", async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
       const key = new Headers(init?.headers).get("apikey")
       return new Response("{}", { status: key === secretKey ? 401 : 200 })
     })

@@ -30,7 +30,7 @@ function assertSecretsRedacted(output: string) {
   }
 }
 
-function isolatedEnvironment(values: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+function isolatedEnvironment(values: Partial<NodeJS.ProcessEnv> = {}): NodeJS.ProcessEnv {
   const environment = { ...process.env }
   delete environment.NEXT_PUBLIC_SUPABASE_URL
   delete environment.DATABASE_URL
@@ -39,10 +39,10 @@ function isolatedEnvironment(values: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv 
   return { ...environment, ...values }
 }
 
-function runNode(args: string[], env: NodeJS.ProcessEnv) {
+function runNode(args: string[], env: Partial<NodeJS.ProcessEnv>) {
   return spawnSync(process.execPath, ["--import", "tsx", ...args], {
     cwd: ROOT,
-    env,
+    env: env as NodeJS.ProcessEnv,
     encoding: "utf8",
   })
 }
