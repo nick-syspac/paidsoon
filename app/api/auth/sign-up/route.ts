@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
+import { createUserProfile } from "@/lib/actions/auth"
 
 const signUpSchema = z.object({
   email: z.string().email(),
@@ -38,8 +39,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
-  // Session is live (email confirmation disabled or auto-confirmed)
+  // Session is live (email confirmation disabled or auto-confirmed) — no
+  // /auth/callback round trip will happen for this account, so bootstrap the
+  // profile here before the client navigates straight to /dashboard.
   if (data.session) {
+    if (data.user) {
+      await createUserProfile(data.user.id)
+    }
     return NextResponse.json({ ok: true, status: "session" })
   }
 
