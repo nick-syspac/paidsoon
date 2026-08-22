@@ -164,6 +164,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
             amountDue: toCents(outstandingAmount),
             currency,
             dueDate,
+            paymentUrl: values.payment_url?.trim() || null,
             // Imports are always created paused: reminders are only ever
             // activated by an explicit user review action (design.md).
             status: "paused",
@@ -230,6 +231,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
           ...(customer ? { customerId: customer.id } : {}),
           currency,
           dueDate,
+          paymentUrl: values.payment_url?.trim() || null,
           providerMetadata,
         },
       })

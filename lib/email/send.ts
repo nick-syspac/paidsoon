@@ -216,7 +216,7 @@ export async function sendFollowUpEmail(
     currency: invoice.currency,
     dueDate: invoice.dueDate,
     freelancerName,
-    paymentUrl: undefined, // TODO: enrich from provider.getInvoiceDetails if needed
+    paymentUrl: invoice.paymentUrl ?? undefined,
     p2pLink,
   })
 

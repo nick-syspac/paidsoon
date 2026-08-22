@@ -4,6 +4,14 @@
 **Scope:** full-stack production-readiness audit (auth, onboarding, dashboard, invoices, reminder engine, CSV/XLSX import/export, Xero, MYOB, email, settings, billing/Stripe, background workers, environment variables, database/RLS, security, tests, build/lint/typecheck, dependencies, documentation).
 **Method:** direct repository inspection, 9 parallel read-only research passes across functional domains, cross-checked against a pre-existing partial audit (`docs/releae-todo-list.md`), and first-hand execution of `npm run lint`, `npx tsc --noEmit`, `npm run test`, and `npm run build`. Any finding below that is asserted as fact was confirmed by directly reading the cited file. This is an audit only — **no application code was modified** while producing this report.
 
+**2026-08-22 re-audit update:** Full scan against live repo. Tests now 700/700 (up from
+696). All P0 items remain resolved. P1 items remain open (unchanged — see §23). Eight
+changes with all tasks complete are pending archival (see new §26). `go-live-runbook` change
+is stale (references retired `STRIPE_PRO_PRICE_ID`, instructs enabling Google OAuth — see
+new §27). `.env.example` still missing `NEXT_PUBLIC_TURNSTILE_SITE_KEY`,
+`TURNSTILE_SECRET_KEY`, `OPENAI_API_KEY`, and `RESEND_WEBHOOK_SECRET`. Full detail in §§26–27
+added below.
+
 **2026-08-21 re-audit update:** B-1 through B-4 have since been implemented, tested, and
 archived as OpenSpec changes (`fix-resend-webhook-fail-open`, `add-email-log-dedup-guard`,
 `handle-stripe-payment-failed`, `add-password-reset-flow` — see
@@ -40,18 +48,18 @@ Both are called out below so they are not mistakenly re-flagged as gaps in futur
 
 ## 2. Release Score: 57 / 100 (original) → 81 / 100 (2026-08-21 re-audit)
 
-| Category | Weight | Original Score | 2026-08-21 Score | Notes |
-|---|---|---|---|---|
-| Core workflow completeness (auth→onboarding→dashboard→invoices→reminders) | 20 | 14/20 | 19/20 | Password reset shipped (B-4); dedup gap closed (B-2) |
-| Billing & Stripe correctness | 15 | 9/15 | 14/15 | `payment_failed` now handled (B-3) |
-| CSV/XLSX import & export | 10 | 9/10 | 9/10 | Unchanged — minor pagination/cosmetic gaps only |
-| Accounting integrations (Xero/MYOB) | 10 | 7/10 | 7/10 | Unchanged — Xero complete; MYOB partial |
-| Security (OWASP-relevant findings) | 15 | 7/15 | 14/15 | Webhook fail-open fixed (B-1); dedup guard added (B-2) |
-| Background jobs / scheduling | 10 | 4/10 | 6/10 | Railway proven stable in Preview; prod cutover still pending (B-5, non-blocking) |
-| Test coverage & CI signal | 10 | 8/10 | 8/10 | 696/696 passing, clean lint; same 16 typecheck errors confined to test fixtures |
-| Build/lint/typecheck health | 5 | 4/5 | 4/5 | Unchanged — build & lint clean; test-fixture type errors remain |
-| Documentation accuracy | 5 | 3/5 | 3/5 | Unchanged — `.github/copilot-instructions.md` templates claim still stale |
-| **Total** | **100** | **57** | **81** | |
+| Category | Weight | Original Score | 2026-08-21 Score | 2026-08-22 Score | Notes |
+|---|---|---|---|---|---|
+| Core workflow completeness (auth→onboarding→dashboard→invoices→reminders) | 20 | 14/20 | 19/20 | 19/20 | Unchanged |
+| Billing & Stripe correctness | 15 | 9/15 | 14/15 | 14/15 | Unchanged; Stripe price-ID confirmation still pending ops |
+| CSV/XLSX import & export | 10 | 9/10 | 9/10 | 9/10 | Unchanged |
+| Accounting integrations (Xero/MYOB) | 10 | 7/10 | 7/10 | 7/10 | MYOB sandbox validation still pending |
+| Security (OWASP-relevant findings) | 15 | 7/15 | 14/15 | 14/15 | Unchanged |
+| Background jobs / scheduling | 10 | 4/10 | 6/10 | 6/10 | Unchanged |
+| Test coverage & CI signal | 10 | 8/10 | 8/10 | 8/10 | 700/700 passing; 16 tsc errors unchanged |
+| Build/lint/typecheck health | 5 | 4/5 | 4/5 | 4/5 | Unchanged — 4 lint warnings remain |
+| Documentation accuracy | 5 | 3/5 | 3/5 | 3/5 | `copilot-instructions.md` stale claims still unpatched; `go-live-runbook` references retired vars |
+| **Total** | **100** | **57** | **81** | **81** | No regression; no new code P0s |
 
 Do not treat this score as inflated — it reflects genuine, cited defects, not aspirational risk.
 Remaining P1/P2 gaps (documentation staleness, MYOB parity, test-fixture typing) still cap the
@@ -220,6 +228,11 @@ Confirmed via this audit and prior session research (see `/memories/session/audi
 - **`npm run test`**: ✅ 683/683 passing, 150 suites, 0 failed, 0 skipped (3.85s)
 - **`npm run build`**: ✅ Succeeds — `next build` completes, all 111 static pages generate, all dynamic routes compile (including `ƒ Proxy (Middleware)`)
 
+**2026-08-22 re-audit (after session exploration):**
+- **`npm run lint`**: ✅ Pass — 0 errors, same 4 warnings as 2026-08-21
+- **`npx tsc --noEmit`**: ❌ Same 16 errors, still confined to the same 4 test files — unchanged
+- **`npm run test`**: ✅ **700/700** passing, 155 suites, 0 failed, 0 skipped — 4 new tests added since 2026-08-21
+
 **2026-08-21 re-audit (after B-1–B-4 shipped):**
 - **`npm run lint`**: ✅ Pass — 0 errors, same 4 warnings as above
 - **`npx tsc --noEmit`**: ❌ Same 16 errors, still confined to the same 4 test files — unchanged, not introduced by this session's work
@@ -262,16 +275,17 @@ clean CI gate today.
 - [ ] Fix 16 `tsc --noEmit` errors in `tests/**` so typecheck can be a clean CI gate
 - [ ] Add route-level tests for `resend` and `send-emails` webhooks/cron (`stripe-billing` now covered)
 - [ ] Fold `prisma/rls-*-hotfix.sql` files into proper tracked migrations
-- [ ] Add `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to `.env.example` templates
-- [ ] Enrich `paymentUrl` in reminder emails instead of hardcoding `undefined`
+- [ ] Add `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `OPENAI_API_KEY`, and `RESEND_WEBHOOK_SECRET` to `.env.example` template (all missing as of 2026-08-22)
+- [ ] Enrich `paymentUrl` in reminder emails instead of hardcoding `undefined` (`lib/email/send.ts:219`)
 - [ ] Improve MYOB field mapping/error handling toward Xero parity, or explicitly document MYOB as "partial support"
-- [ ] Correct `.github/copilot-instructions.md`'s custom-email-templates scaffold claim
+- [ ] Correct `.github/copilot-instructions.md`'s two stale "Scaffolded Features" claims (AI rewrite is real; custom templates do persist — see §26)
 
 ### P2 (cleanup / low risk)
-- [ ] Remove 4 unused-variable lint warnings
+- [ ] Remove 4 unused-variable lint warnings (unchanged — `persistClientTraceCookie` in sign-in, `LedgerPayment`, `error`, `STATUS_LABELS`)
 - [ ] Add pagination to large CSV/XLSX exports
 - [ ] Persist a default AI-rewrite tone preference per user
 - [ ] Implement team-invite persistence or clearly mark as "coming soon" in the UI
+- [ ] Archive 8 completed-but-unarchived OpenSpec changes (see §26)
 
 ## 24. Final Release Checklist
 
@@ -293,13 +307,67 @@ clean CI gate today.
   — Railway has never touched Production, so today's single-writer (Vercel Cron only) posture
   is unchanged from before Railway existed; its cutover remains a legitimate, explicitly tracked
   post-launch project rather than something blocking this release.
+- **2026-08-22 status: 🟢 Still P0-clear.** No new blockers introduced. Tests at 700/700.
+  The primary remaining gate is **operational** (Stripe price-ID confirmation + domain/DNS/Vercel
+  setup), not code. Reconcile the `go-live-runbook` staleness (§27) before using it to deploy.
 - **Blocker count:** 0 remaining launch blockers (5 originally identified; 4 resolved, 1 reassessed as non-blocking)
-- **High-priority (non-blocker) count:** 6 P1 items, unchanged — recommended soon after launch, not before
+- **High-priority (non-blocker) count:** 7 P1 items (6 unchanged from 2026-08-21 + 1 new: additional missing env vars in `.env.example`)
 - **Most important item resolved:** B-2 — the reminder engine now has a durable, DB-level
   guard (`EmailLog.@@unique([trackedInvoiceId, stage])` + check-before-send) against sending a
   customer the same reminder twice, which is also the load-bearing safety net for the eventual
   Railway/Vercel parallel-run cutover.
 - **Remaining work before the P1 list is clear:** fix the 16 test-fixture `tsc` errors, add
   route-level tests for `resend`/`send-emails`, fold the RLS hotfix SQL files into tracked
-  migrations, add the missing Turnstile env var to `.env.example`, and correct the stale
-  `copilot-instructions.md` templates claim. None of these block this release.
+  migrations, add the 4 missing env vars to `.env.example`, fix the `copilot-instructions.md`
+  stale claims, and enrich `paymentUrl` in reminder emails. None of these block this release.
+
+---
+
+## 26. Changes Completed but Not Yet Archived (2026-08-22)
+
+The following active changes have zero unchecked tasks and can be archived. Archival is
+housekeeping only — the code is already in the repo.
+
+| Change | All tasks ✅ | Notes |
+|---|---|---|
+| `remove-google-oauth` | Yes | Google buttons removed from both auth pages; `persistClientTraceCookie` lint warning remains (see §5) |
+| `gate-marketing-cta-live-mode` | Yes | CTA switches between "Request early access" and "Start Free Trial" correctly |
+| `align-marketing-integration-status` | Yes | |
+| `mixed-currency-dashboard-aggregation` | Yes | Archived 2026-08-21 change covers this — confirm |
+| `monthly-chase-volume-limits` | Yes | |
+| `move-account-health-to-top` | Yes | |
+| `reframe-accountants-marketing-page` | Yes | |
+| `add-learning-studio-with-tiptap` | Yes | |
+
+The following changes have only manual verification / operational tasks left (no code to
+write):
+
+| Change | Remaining | Type |
+|---|---|---|
+| `ai-message-rewrite` | 5 tasks | Manual UI smoke tests + set `OPENAI_API_KEY` in Vercel |
+| `fix-myob-company-file-identity` | 1 task | MYOB sandbox validation |
+| `add-cancel-snooze-action` | 1 task | Manual dashboard UI check |
+| `fix-signup-session-profile-bootstrap` | 1 task | Manual sign-up verification |
+| `sample-overdue-preview-upsell` | 1 task | Manual dashboard UI check |
+| `harden-myob-business-go-live` | 2 tasks | MYOB sandbox validation |
+| `implement-paidsoon-marketing-navigation` | 5 tasks | Manual route/nav/footer/mobile checks |
+
+---
+
+## 27. `go-live-runbook` Staleness (2026-08-22)
+
+The `openspec/changes/go-live-runbook/` change is the intended deployment guide but is out
+of sync with the current codebase. **Do not follow it verbatim to deploy.** Specific issues:
+
+| Step | Problem | Correct value |
+|---|---|---|
+| 2.5 | Instructs "enable Google OAuth" | Google OAuth has been removed (`remove-google-oauth`). Enable **Email** only. |
+| 3.2 | Creates one "PaidSoon Pro" price at $19/month, assigns to `STRIPE_PRO_PRICE_ID` | Three prices required: Starter A$9 → `STRIPE_STARTER_PRICE_ID`, Solo A$19 → `STRIPE_SOLO_PRICE_ID`, Small Business A$39 → `STRIPE_SMALL_BUSINESS_PRICE_ID`. `STRIPE_PRO_PRICE_ID` is retired. |
+| 4.2 table | Lists `STRIPE_PRO_PRICE_ID` as a required env var | Replace with `STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, `STRIPE_SMALL_BUSINESS_PRICE_ID` |
+| 4.2 table | Missing `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Add both — required for Cloudflare Turnstile on auth pages |
+| 4.2 table | Missing `OPENAI_API_KEY` | Required for AI rewrite (`ai-message-rewrite` task 7.7) |
+| 4.2 table | Missing `RESEND_WEBHOOK_SECRET` | Required — webhook fails closed (500) if unset (B-1) |
+| 5.3 brand check | Mentions "Invoice Nudge" as a string to find | Should read "PaidSoon" everywhere; `rename-to-paidsoon` change shipped |
+
+Until the runbook is corrected, use the P0-resolved §§3–4 of this document plus
+`docs/runbooks/README.md` as the authoritative env-var matrix.
