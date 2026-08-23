@@ -1,8 +1,6 @@
-import * as XLSX from "xlsx"
-
 import { INVOICE_IMPORT_CANONICAL_FIELDS } from "@/lib/invoiceImport/template"
 
-export type InvoiceImportFileType = "csv" | "xlsx"
+export type InvoiceImportFileType = "csv"
 
 export type ParsedInvoiceImportRow = {
   rowNumber: number
@@ -19,7 +17,6 @@ export type ParsedInvoiceImportFile = {
   rows: ParsedInvoiceImportRow[]
 }
 
-const SUPPORTED_EXTENSIONS = new Set([".csv", ".xlsx"])
 const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024
 
 function normalizeHeader(header: string): string {
@@ -39,47 +36,8 @@ function assertSupportedExtension(fileName: string): InvoiceImportFileType {
   const ext = extractFileExtension(fileName)
 
   if (ext === ".csv") return "csv"
-  if (ext === ".xlsx") return "xlsx"
 
   throw new Error(`Unsupported file type for invoice import: ${fileName} (not supported)`)
-}
-
-function getWorksheetRows(sheet: XLSX.WorkSheet): Array<Record<string, unknown>> {
-  const matrix = XLSX.utils.sheet_to_json<Array<string | number | boolean | null>>(sheet, {
-    header: 1,
-    defval: "",
-    raw: false,
-    blankrows: false,
-  })
-
-  if (!Array.isArray(matrix) || matrix.length === 0) {
-    return []
-  }
-
-  const headerRow = Array.isArray(matrix[0]) ? matrix[0] : []
-  const headers = headerRow.map((header, index) => {
-    const normalized = normalizeHeader(String(header ?? `column_${index + 1}`))
-    return normalized || `column_${index + 1}`
-  })
-
-  return matrix.slice(1).map((row) => {
-    const normalizedRow = Array.isArray(row) ? row : []
-    return Object.fromEntries(
-      headers.map((header, index) => [header, normalizedRow[index] ?? ""]),
-    )
-  })
-}
-
-function detectFormulaCells(sheet: XLSX.WorkSheet): boolean {
-  for (const cellKey of Object.keys(sheet)) {
-    if (cellKey.startsWith("!")) continue
-    const cell = sheet[cellKey]
-    if (cell && typeof cell === "object" && "f" in cell && cell.f) {
-      return true
-    }
-  }
-
-  return false
 }
 
 function stringifyCellValue(rawValue: unknown): string {
@@ -124,45 +82,12 @@ export function parseInvoiceImportFile(fileBuffer: Buffer, fileName: string): Pa
     throw new Error("The uploaded file is larger than the supported import size limit.")
   }
 
-  if (fileType === "xlsx") {
-    const signature = fileBuffer.subarray(0, 4)
-    if (!signature.equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) {
-      throw new Error("The uploaded spreadsheet does not have a valid XLSX signature.")
-    }
-  }
-
   if (fileType === "csv" && fileBuffer.includes(0x00)) {
     throw new Error("The uploaded CSV contains invalid binary data.")
   }
 
-  let workbook: XLSX.WorkBook
-
-  try {
-    workbook = XLSX.read(fileBuffer, {
-      type: "array",
-      raw: false,
-      cellFormula: true,
-      cellDates: true,
-    })
-  } catch {
-    throw new Error("The uploaded spreadsheet is invalid or cannot be read.")
-  }
-
-  const firstSheetName = workbook.SheetNames[0]
-  if (!firstSheetName) {
-    throw new Error("The uploaded file does not contain a worksheet.")
-  }
-
-  const sheet = workbook.Sheets[firstSheetName]
-  if (!sheet) {
-    throw new Error("The uploaded file could not be read into a worksheet.")
-  }
-
-  if (detectFormulaCells(sheet)) {
-    throw new Error("Formula cells are not supported in invoice imports.")
-  }
-
-  const rows = getWorksheetRows(sheet)
+  const csvText = fileBuffer.toString("utf8")
+  const rows = parseCsvRows(csvText)
   if (rows.length === 0) {
     throw new Error("The uploaded file does not contain any rows.")
   }
@@ -188,18 +113,60 @@ export function parseInvoiceImportFile(fileBuffer: Buffer, fileName: string): Pa
     raw: parseRawRowValues(rawRow),
   }))
 
-  if (fileType === "xlsx" && fileName.toLowerCase().endsWith(".xlsm")) {
-    throw new Error(`Unsupported file type for invoice import: ${fileName} (not supported)`)
-  }
-
-  if (!SUPPORTED_EXTENSIONS.has(extractFileExtension(fileName))) {
-    throw new Error(`Unsupported file type for invoice import: ${fileName} (not supported)`)
-  }
-
   return {
     fileType,
     columns: canonicalColumns,
     sourceColumns,
     rows: parsedRows,
   }
+}
+
+function parseCsvRows(csvText: string): Array<Record<string, unknown>> {
+  const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0)
+
+  if (lines.length === 0) {
+    return []
+  }
+
+  const headers = parseCsvLine(lines[0] ?? "").map((header, index) => {
+    const normalized = normalizeHeader(header || `column_${index + 1}`)
+    return normalized || `column_${index + 1}`
+  })
+
+  return lines.slice(1).map((line) => {
+    const cells = parseCsvLine(line)
+    return Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""]))
+  })
+}
+
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = []
+  let current = ""
+  let inQuotes = false
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+    const nextChar = line[index + 1]
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (char === "," && !inQuotes) {
+      cells.push(current.trim())
+      current = ""
+      continue
+    }
+
+    current += char
+  }
+
+  cells.push(current.trim())
+  return cells
 }

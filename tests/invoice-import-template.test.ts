@@ -1,7 +1,5 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import * as XLSX from "xlsx"
-
 import {
   applyInvoiceImportMapping,
   canReuseInvoiceImportMappingProfile,
@@ -57,22 +55,9 @@ test("invoice import parser rejects unsupported or unsafe spreadsheet content", 
   )
 
   assert.throws(
-    () => parseInvoiceImportFile(Buffer.from("customer_name,customer_email\nAcme,hello@example.com\n"), "invoice-import.xlsm"),
+    () => parseInvoiceImportFile(Buffer.from("customer_name,customer_email\nAcme,hello@example.com\n"), "invoice-import.xlsx"),
     /not supported/i,
   )
-
-  const workbook = XLSX.utils.book_new()
-  const sheet = XLSX.utils.aoa_to_sheet([
-    ["customer_name", "customer_email", "invoice_number"],
-    ["=SUM(1,1)", "hello@example.com", "INV-0001"],
-  ])
-
-  sheet["A2"] = { t: "n", f: "SUM(1,1)", v: 2 }
-  XLSX.utils.book_append_sheet(workbook, sheet, "Invoices")
-
-  const unsafeBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })
-
-  assert.throws(() => parseInvoiceImportFile(unsafeBuffer, "unsafe.xlsx"), /Formula/i)
 })
 
 test("invoice import header mapping infers canonical fields from common aliases", () => {
