@@ -40,7 +40,7 @@ const features = [
   },
   {
     title: "Weekly Debtor Summary",
-    body: "A weekly email summary of your outstanding invoices so you're never surprised.",
+    body: "Coming soon: weekly email summaries of your outstanding invoices once the production scheduler cutover is complete.",
   },
 ]
 

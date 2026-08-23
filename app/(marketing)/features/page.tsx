@@ -6,7 +6,7 @@ import { lowestTierWithFeature } from "@/lib/planPresentation"
 export const metadata: Metadata = {
   title: "Features — PaidSoon",
   description:
-    "Explore all PaidSoon features: automated invoice reminders, configurable schedules, AI-assisted wording, promise-to-pay tracking, dispute handling, debtor dashboard, weekly summary reports, and custom branding.",
+    "Explore all PaidSoon features: automated invoice reminders, configurable schedules, AI-assisted wording, promise-to-pay tracking, dispute handling, debtor dashboard, and custom branding, with weekly summary reports coming soon.",
 }
 
 const aiRewriteTier = lowestTierWithFeature("ai_rewrite")
@@ -52,7 +52,7 @@ const featureSections = [
   },
   {
     title: "Weekly Debtor Summary Reports",
-    body: "Receive a weekly email digest of your outstanding invoices, who owes what, and which stage of follow-up each debtor is at. Stay informed without logging in every day.",
+    body: "Coming soon: weekly email digests of your outstanding invoices, who owes what, and which stage of follow-up each debtor is at, once production scheduling is activated.",
   },
   {
     title: "Accountant and Client Visibility",

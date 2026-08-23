@@ -23,12 +23,12 @@ const available = [
   "Debtor dashboard",
   "Promise-to-pay tracking",
   "Dispute pause",
-  "Weekly debtor summary email",
 ]
 
 const phase1 = [
   "Promise to pay",
   "Disputes",
+  "Weekly debtor summary email (after production scheduler cutover)",
   "Customer payment scoring",
 ]
 

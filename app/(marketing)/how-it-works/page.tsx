@@ -35,8 +35,8 @@ const steps = [
   },
   {
     n: "6",
-    title: "Weekly debtor summary delivered to your inbox",
-    body: "Every week, PaidSoon sends you a summary of all outstanding invoices, their status, and which follow-up stage each debtor is at — so you're always informed without manual checking.",
+    title: "Weekly debtor summary (coming soon)",
+    body: "After production scheduler activation, PaidSoon will send a weekly summary of outstanding invoices and follow-up stages so you can monitor progress without manual checking.",
   },
 ]
 
