@@ -14,8 +14,6 @@ function SupportBannerInner() {
   const [timingOut, setTimingOut] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  if (!isSupportView || !supportSession) return null
-
   const endSession = useCallback(async (reason: "manual" | "timeout") => {
     if (reason === "timeout") {
       setTimingOut(true)
@@ -43,6 +41,15 @@ function SupportBannerInner() {
   }, [router])
 
   useEffect(() => {
+    if (!isSupportView || !supportSession) {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
+
+      return
+    }
+
     const resetTimeout = () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       timeoutRef.current = setTimeout(() => {
@@ -70,7 +77,9 @@ function SupportBannerInner() {
         window.removeEventListener(eventName, resetTimeout)
       }
     }
-  }, [endSession])
+  }, [endSession, isSupportView, supportSession])
+
+  if (!isSupportView || !supportSession) return null
 
   return (
     <div className="bg-amber-500 text-amber-950 px-4 py-2 text-sm font-medium flex items-center justify-between">

@@ -1,7 +1,7 @@
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
 import type { PaidInvoiceSummary } from "@/lib/dashboard/loadDashboardMetrics"
 import { daysBetween, formatCents, startOfUtcDay } from "@/lib/dashboard/format"
-import { computeOutstanding, type LedgerPayment } from "@/lib/invoices/payments"
+import { computeOutstanding } from "@/lib/invoices/payments"
 
 export interface AiSummaryLine {
   id: string

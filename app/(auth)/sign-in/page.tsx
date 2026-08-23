@@ -7,7 +7,6 @@ import { Turnstile } from "@marsidev/react-turnstile"
 import { Spinner } from "@/components/ui/Spinner"
 import {
   createClientTraceState,
-  persistClientTraceCookie,
   traceClientEvent,
   traceRequestHeaders,
   updateClientTraceStateFromResponse,

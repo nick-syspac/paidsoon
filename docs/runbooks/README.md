@@ -52,17 +52,19 @@ For a brand-new production setup, work through the runbooks in this order:
 
 1. [resend.md](./resend.md) — start DNS verification first (slow record propagation).
 2. [supabase.md](./supabase.md) — Supabase project and schema.
-3. [stripe.md](./stripe.md) §1–§4 — Stripe Connect application (async), API keys, billing products.
-4. [vercel.md](./vercel.md) — import the project, set env vars, deploy.
-5. [railway.md](./railway.md) — provision Redis, worker, Beat, and the trigger API after the Vercel URL exists.
-6. [stripe.md](./stripe.md) §5 onward — register webhooks against the deployed URL.
-7. Post-deploy fixups — see the last section of [vercel.md](./vercel.md).
-8. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
-9. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
+3. Optional test harness: [supabase-storage-integration-testing.md](./supabase-storage-integration-testing.md) — private Storage bucket for integration-test artifacts only.
+4. Supabase environment rollout checklist: [supabase-environment-rollout-checklist.md](./supabase-environment-rollout-checklist.md) — compact operator checklist for canonical-input rollout, legacy URL removal, rotation, rollback drill, and final acceptance.
+5. [stripe.md](./stripe.md) §1–§4 — Stripe Connect application (async), API keys, billing products.
+6. [vercel.md](./vercel.md) — import the project, set env vars, deploy.
+7. [railway.md](./railway.md) — provision Redis, worker, Beat, and the trigger API after the Vercel URL exists.
+8. [stripe.md](./stripe.md) §5 onward — register webhooks against the deployed URL.
+9. Post-deploy fixups — see the last section of [vercel.md](./vercel.md).
+10. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
+11. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
      Touch ID path: [admin-touchid.md](./admin-touchid.md).
-10. Verification — see the last section of [supabase.md](./supabase.md), [vercel.md](./vercel.md), and [railway.md](./railway.md).
-11. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
-12. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
+12. Verification — see the last section of [supabase.md](./supabase.md), [vercel.md](./vercel.md), [railway.md](./railway.md), and [supabase-environment-rollout-checklist.md](./supabase-environment-rollout-checklist.md).
+13. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
+14. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
 
 For launch readiness review and final go/no-go criteria, use:
 

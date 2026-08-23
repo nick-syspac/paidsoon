@@ -144,7 +144,7 @@ export function parseInvoiceImportFile(fileBuffer: Buffer, fileName: string): Pa
       cellFormula: true,
       cellDates: true,
     })
-  } catch (error) {
+  } catch {
     throw new Error("The uploaded spreadsheet is invalid or cannot be read.")
   }
 
