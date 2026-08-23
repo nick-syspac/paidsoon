@@ -78,3 +78,8 @@ test("preserves the current live-mode sign-in behavior for a verified user", asy
 
   assert.equal(response.status, 200)
 })
+
+test("includes forgot-password in the auth gate matcher", async () => {
+  const { config } = await import("@/proxy")
+  assert.ok(config.matcher.includes("/forgot-password"))
+})

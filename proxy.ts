@@ -255,5 +255,6 @@ export const config = {
     "/api/admin/:path*",
     "/sign-in",
     "/sign-up",
+    "/forgot-password",
   ],
 }

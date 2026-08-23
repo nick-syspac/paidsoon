@@ -9,6 +9,7 @@ test("auth proxy runs only for routes that need proxy-level auth behavior", () =
     "/api/admin/:path*",
     "/sign-in",
     "/sign-up",
+    "/forgot-password",
   ])
   assert.ok(!config.matcher.includes("/:path*"))
   assert.ok(!config.matcher.some((matcher) => matcher.startsWith("/api/:")))
