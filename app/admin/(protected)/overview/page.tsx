@@ -1,4 +1,5 @@
 import { prismaAdmin } from "@/lib/db/admin"
+import { StaffActivityFeed } from "@/components/admin/StaffActivityFeed"
 
 /**
  * /admin/overview — System health summary.
@@ -68,6 +69,8 @@ export default async function AdminOverviewPage() {
           </table>
         </div>
       </div>
+
+      <StaffActivityFeed />
     </div>
   )
 }

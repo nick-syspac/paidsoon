@@ -2,20 +2,30 @@
 
 import { useSearchParams, useRouter } from "next/navigation"
 import { Suspense } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+
+const SESSION_IDLE_TIMEOUT_MS = 60 * 60 * 1000
 
 function SupportBannerInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const isSupportView = searchParams.get("support_view") === "true"
   const supportSession = searchParams.get("support_session")
+  const [timingOut, setTimingOut] = useState(false)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   if (!isSupportView || !supportSession) return null
 
-  async function endSession() {
+  const endSession = useCallback(async (reason: "manual" | "timeout") => {
+    if (reason === "timeout") {
+      setTimingOut(true)
+    }
+
     try {
       const resp = await fetch("/api/admin/impersonation/end", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
       })
 
       if (resp.ok) {
@@ -30,7 +40,37 @@ function SupportBannerInner() {
       // Redirect even if the API fails
       router.push("/admin/customers")
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    const resetTimeout = () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      timeoutRef.current = setTimeout(() => {
+        void endSession("timeout")
+      }, SESSION_IDLE_TIMEOUT_MS)
+    }
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "click",
+      "keydown",
+      "mousemove",
+      "scroll",
+      "touchstart",
+    ]
+
+    for (const eventName of activityEvents) {
+      window.addEventListener(eventName, resetTimeout, { passive: true })
+    }
+
+    resetTimeout()
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      for (const eventName of activityEvents) {
+        window.removeEventListener(eventName, resetTimeout)
+      }
+    }
+  }, [endSession])
 
   return (
     <div className="bg-amber-500 text-amber-950 px-4 py-2 text-sm font-medium flex items-center justify-between">
@@ -38,10 +78,11 @@ function SupportBannerInner() {
         ⚠️ <strong>Support Mode: Read-only view.</strong> All actions are monitored and logged.
       </span>
       <button
-        onClick={endSession}
+        onClick={() => void endSession("manual")}
+        disabled={timingOut}
         className="bg-amber-700 hover:bg-amber-800 text-amber-100 px-3 py-1 rounded text-xs font-semibold transition-colors"
       >
-        End Support Session
+        {timingOut ? "Session timing out..." : "End Support Session"}
       </button>
     </div>
   )

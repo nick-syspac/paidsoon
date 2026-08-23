@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import type {
   EmailLog,
   InvoicePayment,
@@ -122,6 +122,8 @@ export function InvoiceTable({
   heldAllowance?: { usage: number; allowance: number; resetsAt: Date | string }
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isSupportReadOnly = searchParams.get("support_view") === "true"
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [bulkActionError, setBulkActionError] = useState<string | null>(null)
@@ -213,6 +215,7 @@ export function InvoiceTable({
     action: "pause" | "resume" | "snooze" | "cancel-snooze" | "resolve" | "dispute" | "resolve-dispute",
     note?: string,
   ) {
+    if (isSupportReadOnly) return
     if (selectedIds.length === 0) return
     setBulkActionLoading(true)
     setBulkActionError(null)
@@ -256,6 +259,7 @@ export function InvoiceTable({
   }
 
   async function createArrangement(invoiceIds: string[]) {
+    if (isSupportReadOnly) return
     setArrangementError(null)
     if (!promisedPayBy) {
       setArrangementError("Select an arrangement date before creating an arrangement.")
@@ -312,6 +316,11 @@ export function InvoiceTable({
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       {!showResolved && (
         <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+          {isSupportReadOnly && (
+            <p className="mb-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+              Support mode is read-only. Invoice actions are disabled during impersonation.
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs text-gray-600 font-medium">
               Selected: {selectedIds.length}
@@ -343,7 +352,7 @@ export function InvoiceTable({
             )}
             <button
               type="button"
-              disabled={selectedIds.length === 0 || arrangementSubmitting}
+              disabled={isSupportReadOnly || selectedIds.length === 0 || arrangementSubmitting}
               onClick={() => createArrangement(selectedIds)}
               className="text-xs bg-gray-900 text-white rounded px-3 py-1.5 disabled:opacity-40"
             >
@@ -355,7 +364,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => doBulkAction("snooze")}
-              disabled={!canSnooze || bulkActionLoading}
+              disabled={isSupportReadOnly || !canSnooze || bulkActionLoading}
               className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Snooze
@@ -363,7 +372,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => doBulkAction("pause")}
-              disabled={!canPause || bulkActionLoading}
+              disabled={isSupportReadOnly || !canPause || bulkActionLoading}
               className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Pause
@@ -371,7 +380,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => doBulkAction("resume")}
-              disabled={!canResume || bulkActionLoading}
+              disabled={isSupportReadOnly || !canResume || bulkActionLoading}
               className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Resume
@@ -379,7 +388,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => doBulkAction("cancel-snooze")}
-              disabled={!canCancelSnooze || bulkActionLoading}
+              disabled={isSupportReadOnly || !canCancelSnooze || bulkActionLoading}
               className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Cancel snooze
@@ -387,7 +396,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => createArrangement(selectedIds)}
-              disabled={selectedIds.length === 0 || arrangementSubmitting}
+              disabled={isSupportReadOnly || selectedIds.length === 0 || arrangementSubmitting}
               className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Arrange
@@ -395,7 +404,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => setDisputeDialogOpen(true)}
-              disabled={!canDispute || bulkActionLoading}
+              disabled={isSupportReadOnly || !canDispute || bulkActionLoading}
               className="text-xs text-red-700 hover:text-red-900 border border-red-200 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Dispute
@@ -403,7 +412,7 @@ export function InvoiceTable({
             <button
               type="button"
               onClick={() => setResolveDisputeDialogOpen(true)}
-              disabled={!canResolveDispute || bulkActionLoading}
+              disabled={isSupportReadOnly || !canResolveDispute || bulkActionLoading}
               className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-3 py-1.5 disabled:opacity-40"
             >
               Resolve dispute
@@ -414,6 +423,7 @@ export function InvoiceTable({
                   type="button"
                   onClick={() => doBulkAction("resolve")}
                   disabled={bulkActionLoading}
+                  aria-disabled={isSupportReadOnly}
                   className="text-xs text-green-700 hover:text-green-900 border border-green-200 rounded px-3 py-1.5 font-medium disabled:opacity-40"
                 >
                   Confirm resolve
@@ -431,6 +441,7 @@ export function InvoiceTable({
                 type="button"
                 onClick={() => setConfirmBulkResolve(true)}
                 disabled={selectedIds.length === 0}
+                aria-disabled={isSupportReadOnly}
                 className="text-xs text-gray-500 hover:text-gray-700 border border-gray-300 rounded px-3 py-1.5 disabled:opacity-40"
               >
                 Resolve
@@ -450,6 +461,7 @@ export function InvoiceTable({
                   type="checkbox"
                   aria-label="Select all invoices"
                   checked={selectedIds.length > 0 && selectedIds.length === invoices.length}
+                  disabled={isSupportReadOnly}
                   onChange={(event) => toggleAll(event.target.checked)}
                 />
               </th>
@@ -499,6 +511,7 @@ export function InvoiceTable({
                         type="checkbox"
                         aria-label={`Select invoice ${inv.clientName}`}
                         checked={selectedIds.includes(inv.id)}
+                        disabled={isSupportReadOnly}
                         onChange={(event) => toggleSelected(inv.id, event.target.checked)}
                       />
                     </td>
@@ -702,7 +715,7 @@ export function InvoiceTable({
               <button
                 type="button"
                 onClick={() => doBulkAction("dispute", disputeNoteInput || undefined)}
-                disabled={bulkActionLoading}
+                disabled={isSupportReadOnly || bulkActionLoading}
                 className="text-xs bg-red-700 text-white rounded px-3 py-1.5 disabled:opacity-40"
               >
                 {bulkActionLoading ? "Disputing..." : "Confirm dispute"}
@@ -747,7 +760,7 @@ export function InvoiceTable({
               <button
                 type="button"
                 onClick={() => doBulkAction("resolve-dispute", resolutionNoteInput || undefined)}
-                disabled={bulkActionLoading}
+                disabled={isSupportReadOnly || bulkActionLoading}
                 className="text-xs bg-blue-700 text-white rounded px-3 py-1.5 disabled:opacity-40"
               >
                 {bulkActionLoading ? "Resolving..." : "Confirm resolve"}

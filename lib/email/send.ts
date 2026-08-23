@@ -88,6 +88,14 @@ export type ContactEnquiryEmailInput = {
   message: string
 }
 
+export type SupportAccessNotificationEmailInput = {
+  customerEmail: string
+  customerName?: string | null
+  staffEmail: string
+  startedAt: Date
+  endedAt: Date
+}
+
 /**
  * Send a contact enquiry email to the internal team mailbox for the selected type.
  * Returns Resend message ID on success, null on failure.
@@ -120,6 +128,57 @@ export async function sendContactEnquiryEmail(input: ContactEnquiryEmailInput): 
       enquiryType: input.enquiryType,
       error: err,
     })
+    return null
+  }
+}
+
+/**
+ * Send a customer-facing notification after a support impersonation session.
+ */
+export async function sendSupportAccessNotificationEmail(
+  input: SupportAccessNotificationEmailInput,
+): Promise<string | null> {
+  if (isUndeliverableAddress(input.customerEmail)) return SUPPRESSED_MESSAGE_ID
+
+  const from = `${process.env.RESEND_FROM_NAME!} <${process.env.RESEND_FROM_EMAIL!}>`
+  const subject = "PaidSoon support access notification"
+  const customerName = sanitizeHtml(input.customerName?.trim() || "there")
+  const startedAtLabel = input.startedAt.toISOString()
+  const endedAtLabel = input.endedAt.toISOString()
+  const safeStaffEmail = sanitizeHeaderText(input.staffEmail)
+
+  const html = `<p>Hi ${customerName},</p>
+<p>Our support team accessed your PaidSoon account to assist with troubleshooting.</p>
+<p><strong>Started:</strong> ${startedAtLabel}<br>
+<strong>Ended:</strong> ${endedAtLabel}<br>
+<strong>Support staff:</strong> ${sanitizeHtml(safeStaffEmail)}</p>
+<p>If you did not request support, reply to this email and our team will investigate immediately.</p>
+<p>Thanks,<br>PaidSoon</p>`
+
+  const text = `Hi ${input.customerName?.trim() || "there"},
+
+Our support team accessed your PaidSoon account to assist with troubleshooting.
+
+Started: ${startedAtLabel}
+Ended: ${endedAtLabel}
+Support staff: ${safeStaffEmail}
+
+If you did not request support, reply to this email and our team will investigate immediately.
+
+Thanks,
+PaidSoon`
+
+  try {
+    const result = await getResend().emails.send({
+      from,
+      to: input.customerEmail,
+      subject,
+      html,
+      text,
+    })
+    return result.data?.id ?? null
+  } catch (err) {
+    console.error("Failed to send support access notification email", err)
     return null
   }
 }
