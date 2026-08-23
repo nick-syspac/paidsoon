@@ -5,7 +5,7 @@ import { lowestTierWithFeature } from "@/lib/planPresentation"
 export const metadata: Metadata = {
   title: "Documentation — PaidSoon",
   description:
-    "Technical and configuration documentation for PaidSoon — Stripe Connect, CSV/XLSX invoice import and export, invoice sync, reminder workflow, and email sending.",
+    "Technical and configuration documentation for PaidSoon — Stripe Connect, CSV invoice import and export, invoice sync, reminder workflow, and email sending.",
 }
 
 const csvExportTier = lowestTierWithFeature("csv_export")
@@ -42,7 +42,7 @@ const currentDocs = [
   },
   {
     title: "Spreadsheet import and export",
-    body: `Don't want to connect an accounting system? Upload outstanding invoices from a CSV or XLSX file on any plan, using a downloadable template with column mapping and validation. Export invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
+    body: `Don't want to connect an accounting system? Upload outstanding invoices from a CSV file on any plan, using a downloadable template with column mapping and validation. Export invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
   },
 ]
 

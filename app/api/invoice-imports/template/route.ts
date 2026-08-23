@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import * as XLSX from "xlsx"
 
 import { createClient } from "@/lib/supabase/server"
-import {
-  buildCsvTemplateContent,
-  buildXlsxTemplateWorkbook,
-  INVOICE_IMPORT_TEMPLATE_VERSION,
-} from "@/lib/invoiceImport/template"
+import { buildCsvTemplateContent, INVOICE_IMPORT_TEMPLATE_VERSION } from "@/lib/invoiceImport/template"
 
 const QuerySchema = z.object({
-  format: z.enum(["csv", "xlsx"]).default("csv"),
+  format: z.enum(["csv"]).default("csv"),
 })
 
 export async function GET(request: Request) {
@@ -33,32 +28,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
     }
 
-    const { format } = parsed.data
-
-    if (format === "csv") {
-      const body = buildCsvTemplateContent()
-      return new NextResponse(body, {
-        status: 200,
-        headers: {
-          "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": 'attachment; filename="paidsoon-invoice-import-template.csv"',
-          "X-PaidSoon-Import-Schema": INVOICE_IMPORT_TEMPLATE_VERSION,
-        },
-      })
-    }
-
-    const workbook = buildXlsxTemplateWorkbook()
-    const fileBuffer = XLSX.write(workbook, {
-      type: "buffer",
-      bookType: "xlsx",
-      compression: true,
-    })
-
-    return new NextResponse(fileBuffer, {
+    const body = buildCsvTemplateContent()
+    return new NextResponse(body, {
       status: 200,
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": 'attachment; filename="paidsoon-invoice-import-template.xlsx"',
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="paidsoon-invoice-import-template.csv"',
         "X-PaidSoon-Import-Schema": INVOICE_IMPORT_TEMPLATE_VERSION,
       },
     })

@@ -22,7 +22,7 @@ const faqs = [
   },
   {
     q: "Do I need to connect Stripe, Xero, or MYOB to use PaidSoon?",
-    a: `No. You can upload your outstanding invoices from a CSV or XLSX spreadsheet and start sending reminders right away, on any plan including Starter. Connect Stripe, Xero, or MYOB later if you'd like invoices to sync automatically. You can also export your invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
+    a: `No. You can upload your outstanding invoices from a CSV spreadsheet and start sending reminders right away, on any plan including Starter. Connect Stripe, Xero, or MYOB later if you'd like invoices to sync automatically. You can still export your invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
   },
   {
     q: "What accounting software does PaidSoon support?",

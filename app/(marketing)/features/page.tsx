@@ -28,7 +28,7 @@ const featureSections = [
   },
   {
     title: "Spreadsheet Import & Export",
-    body: `Not ready to connect Stripe, Xero, or MYOB? Upload your outstanding invoices from a CSV or XLSX file on any plan, including Starter — no integration required to get started. Export your invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
+    body: `Not ready to connect Stripe, Xero, or MYOB? Upload your outstanding invoices from a CSV file on any plan, including Starter — no integration required to get started. Export your invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
   },
   {
     title: "Configurable Reminder Schedules",

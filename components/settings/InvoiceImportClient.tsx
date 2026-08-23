@@ -48,6 +48,7 @@ type DuplicateMode = "skip_existing" | "update_eligible"
 type WizardStep = "idle" | "mapping" | "validated" | "confirmed"
 
 const IGNORE_VALUE = ""
+const LAUNCH_SAFE_IMPORT_ERROR = "Only CSV invoice imports are supported for launch"
 
 const STATUS_BADGES: Record<string, string> = {
   uploaded: "bg-gray-100 text-gray-600",
@@ -116,6 +117,11 @@ export function InvoiceImportClient({ initialBatches }: { initialBatches: Import
     setError(null)
     setUploading(true)
     try {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setError(LAUNCH_SAFE_IMPORT_ERROR)
+        return
+      }
+
       const formData = new FormData()
       formData.append("file", file)
       const res = await fetch("/api/invoice-imports/upload", { method: "POST", body: formData })
@@ -210,9 +216,9 @@ export function InvoiceImportClient({ initialBatches }: { initialBatches: Import
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Import invoices from a spreadsheet</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Import invoices from CSV</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Bring in overdue invoices from a CSV or Excel export. Imported invoices are added
+          Bring in overdue invoices from a CSV file. Imported invoices are added
           paused &mdash; no reminder emails are sent until you explicitly resume them.
         </p>
       </div>
@@ -283,21 +289,15 @@ function UploadStep({
           >
             Download CSV template
           </Link>
-          <Link
-            href="/api/invoice-imports/template?format=xlsx"
-            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-          >
-            Download Excel template
-          </Link>
         </div>
       </div>
 
       <div className="border border-gray-200 rounded-lg p-4 space-y-3">
         <p className="text-sm font-medium text-gray-900">2. Upload your file</p>
-        <p className="text-sm text-gray-500">CSV or .xlsx, up to 5MB.</p>
+        <p className="text-sm text-gray-500">CSV only, up to 5MB.</p>
         <input
           type="file"
-          accept=".csv,.xlsx"
+          accept=".csv,text/csv"
           disabled={uploading}
           onChange={(event) => {
             const file = event.target.files?.[0]

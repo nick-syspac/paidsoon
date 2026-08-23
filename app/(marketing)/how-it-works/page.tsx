@@ -4,14 +4,14 @@ import Link from "next/link"
 export const metadata: Metadata = {
   title: "How It Works — PaidSoon",
   description:
-    "See how PaidSoon automates invoice follow-ups: connect your accounting software or upload a CSV/XLSX spreadsheet, import invoices, configure reminders, and let PaidSoon do the rest.",
+    "See how PaidSoon automates invoice follow-ups: connect your accounting software or upload a CSV spreadsheet, import invoices, configure reminders, and let PaidSoon do the rest.",
 }
 
 const steps = [
   {
     n: "1",
     title: "Connect an invoice source — or upload a spreadsheet",
-    body: "Authorise PaidSoon to connect to Stripe, Xero, or MYOB via OAuth — no credentials to share, revocable at any time. Prefer not to connect anything yet? Upload a CSV or XLSX file of your outstanding invoices instead and get started immediately, on any plan.",
+    body: "Authorise PaidSoon to connect to Stripe, Xero, or MYOB via OAuth — no credentials to share, revocable at any time. Prefer not to connect anything yet? Upload a CSV file of your outstanding invoices instead and get started immediately, on any plan.",
   },
   {
     n: "2",

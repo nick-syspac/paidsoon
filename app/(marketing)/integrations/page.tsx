@@ -9,7 +9,7 @@ import {
 export const metadata: Metadata = {
   title: "Integrations — PaidSoon",
   description:
-    "PaidSoon integrates with Stripe Connect, MYOB Business, and Xero today, with QuickBooks Online planned. No accounting software? Import invoices from a CSV or XLSX spreadsheet instead.",
+    "PaidSoon integrates with Stripe Connect, MYOB Business, and Xero today, with QuickBooks Online planned. No accounting software? Import invoices from a CSV spreadsheet instead.",
 }
 
 const integrations = getIntegrations()
@@ -44,7 +44,7 @@ export default function IntegrationsPage() {
         <div className="mt-12 text-center border border-blue-100 bg-blue-50 rounded-xl p-8">
           <h2 className="font-semibold text-gray-900 mb-2">Not ready to connect an accounting system?</h2>
           <p className="text-sm text-gray-600 mb-5">
-            Upload your outstanding invoices from a CSV or XLSX spreadsheet instead — no integration
+            Upload your outstanding invoices from a CSV spreadsheet instead — no integration
             required, and it works on every plan including Starter. You can connect Stripe, Xero, or
             MYOB for automatic syncing whenever you&apos;re ready.
           </p>

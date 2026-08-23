@@ -1,7 +1,7 @@
 # PaidSoon — Go-Live Readiness Audit
 
 **Audit date:** confirmed against a live checkout of the repository on the date of this report.
-**Scope:** full-stack production-readiness audit (auth, onboarding, dashboard, invoices, reminder engine, CSV/XLSX import/export, Xero, MYOB, email, settings, billing/Stripe, background workers, environment variables, database/RLS, security, tests, build/lint/typecheck, dependencies, documentation).
+**Scope:** full-stack production-readiness audit (auth, onboarding, dashboard, invoices, reminder engine, CSV import/export, Xero, MYOB, email, settings, billing/Stripe, background workers, environment variables, database/RLS, security, tests, build/lint/typecheck, dependencies, documentation).
 **Method:** direct repository inspection, 9 parallel read-only research passes across functional domains, cross-checked against a pre-existing partial audit (`docs/releae-todo-list.md`), and first-hand execution of `npm run lint`, `npx tsc --noEmit`, `npm run test`, and `npm run build`. Any finding below that is asserted as fact was confirmed by directly reading the cited file. This is an audit only — **no application code was modified** while producing this report.
 
 **2026-08-22 re-audit update:** Full scan against live repo. Tests now 700/700 (up from

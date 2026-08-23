@@ -61,7 +61,7 @@ const steps = [
   {
     n: "1",
     title: "Connect an invoice source — or upload a spreadsheet",
-    body: "Connect Stripe, Xero, or MYOB via OAuth in one click, or skip integrations entirely and upload a CSV or XLSX file of your invoices.",
+    body: "Connect Stripe, Xero, or MYOB via OAuth in one click, or skip integrations entirely and upload a CSV file of your invoices.",
   },
   { n: "2", title: "Import unpaid invoices", body: "Connected accounts sync overdue invoices automatically; spreadsheet uploads import them in minutes." },
   { n: "3", title: "Configure your schedule", body: "Set reminder intervals that match your business style." },
@@ -97,7 +97,7 @@ export default function HomePage() {
           </Link>
         </div>
         <p className="mt-4 text-sm text-gray-400">
-          No accounting software required to start — import your invoices from a CSV or XLSX file today.
+          No accounting software required to start — import your invoices from a CSV file today.
         </p>
         {isDebugEnabled() && <DebugDbCheckButton />}
       </section>
@@ -225,7 +225,7 @@ export default function HomePage() {
             ))}
           </div>
           <p className="text-center text-sm text-gray-500 mt-6">
-            Don&apos;t want to connect an accounting system yet? Upload a CSV or XLSX spreadsheet instead —
+            Don&apos;t want to connect an accounting system yet? Upload a CSV spreadsheet instead —
             works on every plan, no integration required.
           </p>
           <div className="text-center mt-6">
@@ -323,7 +323,7 @@ export default function HomePage() {
             {[
               {
                 q: "Do I need to connect Stripe, Xero, or MYOB to use PaidSoon?",
-                a: "No. You can upload your outstanding invoices from a CSV or XLSX spreadsheet and start sending reminders right away, on any plan. Connect Stripe, Xero, or MYOB later if you'd like automatic syncing.",
+                a: "No. You can upload your outstanding invoices from a CSV spreadsheet and start sending reminders right away, on any plan. Connect Stripe, Xero, or MYOB later if you'd like automatic syncing.",
               },
               {
                 q: "Does PaidSoon send emails in my name?",
