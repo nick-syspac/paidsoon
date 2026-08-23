@@ -92,6 +92,9 @@ describe("Invoice import commit route", () => {
                 return { id: "payment-1", ...(args as { data: Record<string, unknown> }).data }
               },
             },
+            schedule: {
+              findUnique: async () => null,
+            },
             invoiceImportError: {
               create: async (args: unknown) => {
                 lastImportErrorCreateArgs = args
@@ -163,16 +166,16 @@ describe("Invoice import commit route", () => {
     assert.equal(res.status, 404)
   })
 
-  test("new invoices are created paused and never enqueue reminders", async () => {
+  test("new invoices are created pending and scheduled for reminder eligibility", async () => {
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
     const body = await res.json()
 
     assert.equal(res.status, 200)
     assert.equal(body.invoicesCreated, 1)
     const createData = (lastCreateArgs as { data: Record<string, unknown> }).data
-    assert.equal(createData.status, "paused")
+    assert.equal(createData.status, "pending")
     assert.equal(createData.currentStage, 0)
-    assert.equal(createData.nextEmailAt, null)
+    assert.ok(createData.nextEmailAt)
   })
 
   test("skip_existing mode leaves a matching invoice untouched", async () => {

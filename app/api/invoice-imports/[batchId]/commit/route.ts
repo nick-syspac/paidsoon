@@ -12,6 +12,7 @@ import {
 import type { InvoiceImportCanonicalField } from "@/lib/invoiceImport/template"
 import { createClient } from "@/lib/supabase/server"
 import { Prisma } from "@/lib/generated/prisma/client"
+import { computeNextEmailAt } from "@/lib/email/schedule"
 import { computeOutstanding, recordInvoicePayment } from "@/lib/invoices/payments"
 
 type Params = { params: Promise<{ batchId: string }> }
@@ -152,6 +153,15 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
         : null
 
       if (!existing) {
+        const schedule = await tx.schedule.findUnique({
+          where: { userId: user.id },
+        })
+        const nextEmailAt = computeNextEmailAt(
+          dueDate,
+          1,
+          schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 },
+        )
+
         await tx.trackedInvoice.create({
           data: {
             userId: user.id,
@@ -165,11 +175,9 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
             currency,
             dueDate,
             paymentUrl: values.payment_url?.trim() || null,
-            // Imports are always created paused: reminders are only ever
-            // activated by an explicit user review action (design.md).
-            status: "paused",
+            status: "pending",
             currentStage: 0,
-            nextEmailAt: null,
+            nextEmailAt,
             providerMetadata,
           },
         })
