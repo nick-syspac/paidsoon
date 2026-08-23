@@ -15,7 +15,7 @@ const csvExportTierName = csvExportTier ? PLAN_CATALOG[csvExportTier].name : "hi
 
 const available = [
   ...getIntegrationsByStatus("available").map((integration) => `${integration.name} integration`),
-  "CSV/XLSX invoice import (all plans, no integration required)",
+  "CSV invoice import (all plans, no integration required)",
   `CSV/XLSX invoice export (${csvExportTierName} plans and above)`,
   "Unpaid and overdue invoice monitoring",
   "Automated reminder sequences",

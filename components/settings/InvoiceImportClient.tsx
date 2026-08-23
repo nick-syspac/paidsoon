@@ -218,8 +218,8 @@ export function InvoiceImportClient({ initialBatches }: { initialBatches: Import
       <div>
         <h2 className="text-lg font-semibold text-gray-900">Import invoices from CSV</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Bring in overdue invoices from a CSV file. Imported invoices are added
-          paused &mdash; no reminder emails are sent until you explicitly resume them.
+          Bring in overdue invoices from a CSV file. Imported invoices enter the normal reminder
+          workflow and continue on the same chasing schedule once the import is committed.
         </p>
       </div>
 

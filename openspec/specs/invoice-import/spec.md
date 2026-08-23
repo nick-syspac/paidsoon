@@ -4,7 +4,7 @@
 The invoice-import capability gives a tenant user a safe, reviewable spreadsheet workflow for bringing in customer and invoice records without requiring a live accounting sync. It provides versioned templates, explicit column mapping, server-side validation, and a paused-import safety model so reminder workflows remain intentionally controlled.
 ## Requirements
 ### Requirement: Downloadable import templates
-The system SHALL provide version-compatible CSV and XLSX invoice-import templates from the invoice-import screen.
+The system SHALL provide a version-compatible CSV invoice-import template from the invoice-import screen.
 
 #### Scenario: Download CSV template
 - **WHEN** an authorised user selects Download CSV template
@@ -12,23 +12,17 @@ The system SHALL provide version-compatible CSV and XLSX invoice-import template
 - **AND** the sample email addresses use a non-deliverable domain
 - **AND** the file can be uploaded and mapped by the current importer after the sample values are replaced
 
-#### Scenario: Download XLSX template
-- **WHEN** an authorised user selects Download Excel template
-- **THEN** the system downloads an XLSX workbook with Instructions and Invoices worksheets
-- **AND** the instructions identify required fields, formats, limits, and the one-row-per-invoice rule
-- **AND** the Invoices worksheet is compatible with the current importer
-
-### Requirement: CSV and XLSX upload support
-The system SHALL accept supported CSV and XLSX files within configured safety and size limits.
+### Requirement: CSV upload support
+The system SHALL accept supported CSV files within configured safety and size limits.
 
 #### Scenario: Upload supported file
-- **WHEN** an authorised user uploads a valid CSV or XLSX file within the configured limits
+- **WHEN** an authorised user uploads a valid CSV file within the configured limits
 - **THEN** the system creates a tenant-scoped import batch
 - **AND** inspects its headings and data without changing customers or invoices
 - **AND** advances to sheet selection or column mapping
 
 #### Scenario: Reject unsupported file
-- **WHEN** a user uploads an unsupported, encrypted, macro-enabled, malformed, empty, or over-limit file
+- **WHEN** a user uploads an unsupported, encrypted, macro-enabled, malformed, empty, over-limit, or XLSX file
 - **THEN** the system rejects it without importing records
 - **AND** displays an actionable reason without exposing internal implementation details
 
