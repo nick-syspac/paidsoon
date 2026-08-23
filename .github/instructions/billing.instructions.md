@@ -36,7 +36,7 @@ Four tiers defined in `lib/subscriptionPlans.ts` (source of truth) — three pub
     `dispute_pause` (all paid tiers — the core follow-up promise is never gated)
   - `email_reminder_sequence` (custom timing, solo+), `custom_reminder_templates` (solo+),
     `custom_sender_name` (solo+), `ai_rewrite`, `tone_settings` (solo+)
-  - `custom_reply_to` (all paid tiers) and `verified_from_domain` (small_business+) —
+  - `custom_reply_to` (solo+) and `verified_from_domain` (small_business+) —
     together with `custom_sender_name` these form the sender-identity ladder; there is no
     single `own_email_address` flag
   - `customer_specific_sequences`, `multi_template_customer_wording`, `weekly_summary_email`,

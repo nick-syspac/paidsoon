@@ -73,8 +73,10 @@ export function planHighlights(tier: SubscriptionTier): string[] {
     highlights.push("Verified custom from-address")
   } else if (plan.features.custom_sender_name) {
     highlights.push("Custom sender name & reply-to")
-  } else {
+  } else if (plan.features.custom_reply_to) {
     highlights.push("Custom reply-to address")
+  } else {
+    highlights.push("Replies go to your account email")
   }
   if (plan.features.ai_rewrite) {
     highlights.push("AI-assisted reminder wording")

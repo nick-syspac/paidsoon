@@ -103,7 +103,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       custom_reminder_templates: false,
       multi_template_customer_wording: false,
       paid_soon_branding: true,
-      custom_reply_to: true,
+      custom_reply_to: false,
       custom_sender_name: false,
       verified_from_domain: false,
       ai_rewrite: false,

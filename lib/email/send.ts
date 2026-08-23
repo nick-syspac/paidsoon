@@ -126,9 +126,10 @@ export async function sendContactEnquiryEmail(input: ContactEnquiryEmailInput): 
 
 /**
  * Resolve the "From" address and reply-to for a user, per the sender-identity
- * ladder: Starter gets the PaidSoon system address with a custom reply-to;
- * Solo adds a custom sender display name alongside the system address; Small
- * Business (and Accountant Partner) adds a fully custom, verified from-domain.
+ * ladder: Starter gets the PaidSoon system address with account-email replies;
+ * Solo adds a custom reply-to and custom sender display name alongside the
+ * system address; Small Business (and Accountant Partner) adds a fully custom,
+ * verified from-domain.
  * This is the single enforcement point for sender identity — settings routes
  * only persist values, they do not decide what gets used to send.
  */

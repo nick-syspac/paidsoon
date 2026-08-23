@@ -129,7 +129,7 @@ Proof of RLS isolation is in `scripts/verify-rls.ts`. Run `npm run verify-rls` a
 - Email is sent via Resend. The `RESEND_API_KEY` environment variable is required.
 - All sending goes through `lib/email/send.ts` → `sendFollowUpEmail()`.
 - Never call `resend.emails.send()` directly from a route handler or component. Always go through `sendFollowUpEmail`.
-- Custom "From" addresses require the `verified_from_domain` feature (Small Business+) AND `EmailSettings.resendVerified = true` for that user. Every paid tier can set a custom reply-to (`custom_reply_to`); Solo+ can also set a custom sender name (`custom_sender_name`).
+- Custom "From" addresses require the `verified_from_domain` feature (Small Business+) AND `EmailSettings.resendVerified = true` for that user. Solo+ can set a custom reply-to (`custom_reply_to`) and custom sender name (`custom_sender_name`).
 - If none of the above is true, fall back to the system domain from `RESEND_FROM_EMAIL`.
 - Never send real emails from tests. Use mock or stub the Resend client in tests.
 - Every sent email is logged to the `email_logs` table via `prismaAdmin` (cron context).

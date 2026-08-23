@@ -135,12 +135,12 @@ is), not describe it as a future capability.
 > address and domain."
 
 Per `lib/subscriptionPlans.ts` and `.github/instructions/billing.instructions.md`:
-- `custom_reply_to` — every paid tier.
+- `custom_reply_to` — Solo and above.
 - `custom_sender_name` — Solo and above only (not Starter).
 - `verified_from_domain` (actual custom **domain** sending) — Small Business and above only.
 
 "On paid plans... your own email address and domain" is only true for Small Business+;
-Starter customers get reply-to only, and Solo customers get a sender name but not a
+Starter customers use the system sender/address defaults, and Solo customers get a sender name plus reply-to but not a
 verified custom domain. This should be corrected to reflect the tiered reality, similar to
 how the `/pricing` comparison table already does correctly via `isFeatureImplemented`/`hasPlanFeature`.
 

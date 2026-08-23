@@ -157,8 +157,8 @@ subsection documents a functional module.
   - `sendP2PNotification` (`lib/email/send.ts`) — sends freelancer notifications for
     promise received and promise broken events. Goes to the freelancer (not the client).
   - `generateP2PToken` (`lib/email/send.ts`) — 32-byte cryptographically random hex token.
-  - `resolveFromAddress` — sender-identity ladder: system address + custom reply-to
-    (`custom_reply_to`, all tiers) → custom sender name (`custom_sender_name`, Solo+) →
+  - `resolveFromAddress` — sender-identity ladder: system address (Starter) →
+    custom reply-to + custom sender name (`custom_reply_to` + `custom_sender_name`, Solo+) →
     verified custom from-domain (`verified_from_domain`, Small Business+, requires
     Resend verification).
   - `computeNextEmailAt` (`lib/email/schedule.ts`) — `dueDate + dayOffset`.
@@ -170,7 +170,7 @@ subsection documents a functional module.
 - **GET:** returns settings; if a custom `fromEmail` is set but unverified,
   polls `resend.domains.list()` and flips `resendVerified` when the sending
   domain reports `verified`.
-- **PUT:** gated by `custom_reply_to` (available on every paid tier); a Resend
+- **PUT:** gated by `custom_reply_to` (available on Solo+); a Resend
   domain-verification call is only triggered for tiers with `verified_from_domain`.
 
 ### 4.6 Billing & entitlements (`app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts`)
@@ -707,7 +707,7 @@ stateDiagram-v2
 | `custom_reminder_templates` | — | ✓ | ✓ | ✓ |
 | `multi_template_customer_wording` ◷ | — | — | ◷ | ◷ |
 | `paid_soon_branding` | ✓ | ✓ | ✓ | ✓ |
-| `custom_reply_to` | ✓ | ✓ | ✓ | ✓ |
+| `custom_reply_to` | — | ✓ | ✓ | ✓ |
 | `custom_sender_name` | — | ✓ | ✓ | ✓ |
 | `verified_from_domain` | — | — | ✓ | ✓ |
 | `ai_rewrite` | — | ✓ | ✓ | ✓ |

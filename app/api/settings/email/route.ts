@@ -53,13 +53,13 @@ export async function PUT(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  // Every paid tier can configure at least a reply-to address (custom_reply_to).
+  // Reply-to configuration is available on Solo and above (custom_reply_to).
   // Setting a custom sender name or a verified custom from-domain is gated
   // separately below, per-field, in line with the sender-identity ladder.
   const hasCustomReplyTo = await requireFeature(user.id, "custom_reply_to")
   if (!hasCustomReplyTo) {
     return NextResponse.json(
-      { error: "A paid subscription is required to customise sending identity" },
+      { error: "A Solo or Small Business subscription is required to set a custom reply-to" },
       { status: 403 }
     )
   }
