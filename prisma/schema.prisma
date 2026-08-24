@@ -21,6 +21,7 @@ model UserProfile {
   stripeSubscriptionId           String?   @map("stripe_subscription_id")
   subscriptionCurrentPeriodStart DateTime? @map("subscription_current_period_start")
   subscriptionCurrentPeriodEnd   DateTime? @map("subscription_current_period_end")
+  subscriptionCancelAt           DateTime? @map("subscription_cancel_at")
   pendingDowngradeTier           String?   @map("pending_downgrade_tier")
   stripeScheduleId               String?   @map("stripe_schedule_id")
   subscriptionTier               String    @default("starter") // 'starter' | 'solo' | 'small_business' | 'accountant_partner'
