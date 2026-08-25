@@ -29,4 +29,4 @@
 - [x] 4.3 Add or update tests for subscription settings rendering of active, trial-only, and `Cancels on [date]` states
 - [x] 4.4 Run `npm run test`
 - [x] 4.5 Run `openspec validate add-subscription-cancellation-flow --type change --strict`
-- [ ] 4.6 Verify the Stripe customer portal configuration is set to cancel subscriptions at period end, not immediately
+- [ ] 4.6 **[BLOCKING — do not release until resolved]** Verify the Stripe customer portal configuration is set to cancel subscriptions at period end, not immediately. If the portal is configured for immediate cancellation, the UI's "access until end of billing period" promise is incorrect and customers can lose access immediately. Check the Stripe Dashboard → Billing → Customer portal → Subscriptions → Cancellation timing and confirm it is set to "At end of billing period".
