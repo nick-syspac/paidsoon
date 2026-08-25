@@ -29,6 +29,7 @@ describe("interpolate", () => {
       daysOverdue: "",
       firmDeadline: "",
       promiseToPayLink: "",
+      promiseToPayLinkText: "",
     }
     const result = interpolate("Hi {{clientName}}, your {{invoiceRef}} is due.", vars)
     assert.equal(result, "Hi Sarah, your Invoice INV-042 is due.")
@@ -46,6 +47,7 @@ describe("interpolate", () => {
       daysOverdue: "",
       firmDeadline: "",
       promiseToPayLink: "",
+      promiseToPayLinkText: "",
     }
     const result = interpolate("Hello {{clientName}} and {{unknownToken}}", vars)
     assert.equal(result, "Hello Sarah and {{unknownToken}}")
@@ -76,6 +78,21 @@ describe("resolveVars — paymentLink", () => {
     const vars = resolveVars(1, { ...baseVars })
     assert.equal(vars.paymentLink, "")
     assert.equal(vars.paymentLinkText, "")
+  })
+})
+
+describe("resolveVars — promiseToPayLink", () => {
+  test("resolves HTML and plain-text variants when p2pLink is present", () => {
+    const vars = resolveVars(1, { ...baseVars, p2pLink: "https://paidsoon.test/promise/abc123" })
+    assert.ok(vars.promiseToPayLink.includes("https://paidsoon.test/promise/abc123"))
+    assert.ok(vars.promiseToPayLink.startsWith("<a href="))
+    assert.equal(vars.promiseToPayLinkText, "https://paidsoon.test/promise/abc123")
+  })
+
+  test("resolves empty strings when p2pLink is absent", () => {
+    const vars = resolveVars(1, { ...baseVars })
+    assert.equal(vars.promiseToPayLink, "")
+    assert.equal(vars.promiseToPayLinkText, "")
   })
 })
 

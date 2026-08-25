@@ -250,8 +250,8 @@ export async function sendFollowUpEmail(
 
   const { from, replyTo } = await resolveFromAddress(invoice.userId)
 
-  // Resolve p2pLink for Business+ users. Generate and persist the token if
-  // the invoice doesn't have one yet.
+  // Resolve p2pLink for tiers that include promise-to-pay tracking. Generate
+  // and persist the token if the invoice doesn't have one yet.
   let p2pLink: string | undefined
   const profile = await prisma.userProfile.findUnique({
     where: { userId: invoice.userId },
