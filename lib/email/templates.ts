@@ -4,7 +4,7 @@ interface TemplateVars {
   amountDue: string // pre-formatted, e.g. "$4,500.00"
   dueDate: string   // pre-formatted date string
   paymentUrl?: string
-  p2pLink?: string  // promise-to-pay URL; only present for Business+ users
+  p2pLink?: string  // promise-to-pay URL when the tier includes that feature
   freelancerName: string
   daysOverdue?: number
   firmDeadline?: string
@@ -25,7 +25,8 @@ export interface ResolvedTemplateVars {
   yourName: string
   daysOverdue: string       // integer string | "" for Stage 1/2
   firmDeadline: string      // formatted date | "" for Stage 1/2
-  promiseToPayLink: string  // <a href="...">Confirm payment date →</a> | ""
+  promiseToPayLink: string      // <a href="...">Confirm payment date →</a> | ""
+  promiseToPayLinkText: string  // raw URL | ""  (plain-text only)
 }
 
 export function resolveVars(stage: 1 | 2 | 3, vars: TemplateVars): ResolvedTemplateVars {
@@ -37,6 +38,7 @@ export function resolveVars(stage: 1 | 2 | 3, vars: TemplateVars): ResolvedTempl
   const promiseToPayLink = vars.p2pLink
     ? `<a href="${vars.p2pLink}">Confirm when you'll pay →</a>`
     : ""
+  const promiseToPayLinkText = vars.p2pLink ?? ""
   const isStage3 = stage === 3
   return {
     clientName: vars.clientName,
@@ -49,6 +51,7 @@ export function resolveVars(stage: 1 | 2 | 3, vars: TemplateVars): ResolvedTempl
     daysOverdue: isStage3 && vars.daysOverdue != null ? String(vars.daysOverdue) : "",
     firmDeadline: isStage3 && vars.firmDeadline != null ? vars.firmDeadline : "",
     promiseToPayLink,
+    promiseToPayLinkText,
   }
 }
 
@@ -81,7 +84,7 @@ export const DEFAULT_STAGE_1 = {
 
 Just a quick heads-up that {{invoiceRef}} for {{amountDue}} became due on {{dueDate}}. Things get busy — totally understand!
 {{paymentLinkText}}
-{{promiseToPayLink}}
+{{promiseToPayLinkText}}
 Thanks so much,
 {{yourName}}`,
 }
@@ -97,7 +100,7 @@ export const DEFAULT_STAGE_2 = {
 
 I'm following up on {{invoiceRef}} for {{amountDue}}, which was due on {{dueDate}} and remains outstanding. Could you let me know when we can expect payment, or if there are any questions I can help with?
 {{paymentLinkText}}
-{{promiseToPayLink}}
+{{promiseToPayLinkText}}
 Best,
 {{yourName}}`,
 }
@@ -116,7 +119,7 @@ I'm writing regarding {{invoiceRef}} for {{amountDue}}, which is now {{daysOverd
 
 Please arrange payment by {{firmDeadline}}, or contact me immediately to discuss.
 {{paymentLinkText}}
-{{promiseToPayLink}}
+{{promiseToPayLinkText}}
 {{yourName}}`,
 }
 
