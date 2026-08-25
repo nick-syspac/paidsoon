@@ -3,7 +3,7 @@
 ## Purpose
 Ensures that reminder emails include a direct "Pay invoice →" hyperlink when a payment URL
 is known for the invoice — either the Stripe-hosted invoice page or a custom URL supplied
-during CSV/XLSX import.
+during CSV import.
 ## Requirements
 ### Requirement: Reminder email includes payment link when URL is available
 When a `TrackedInvoice` row has a non-null `paymentUrl`, the system SHALL include a
@@ -22,12 +22,12 @@ no link is rendered.
 - **AND** the reminder email is sent without a payment link
 
 #### Scenario: CSV-imported invoice with payment_url column
-- **WHEN** an invoice is imported via CSV/XLSX with a non-empty, valid `payment_url` value
+- **WHEN** an invoice is imported via CSV with a non-empty, valid `payment_url` value
 - **THEN** the invoice's `paymentUrl` field is populated with that URL
 - **AND** when a reminder email is sent for that invoice, it contains a "Pay invoice →" link pointing to that URL
 
 #### Scenario: CSV-imported invoice without payment_url column
-- **WHEN** an invoice is imported via CSV/XLSX with no `payment_url` value
+- **WHEN** an invoice is imported via CSV with no `payment_url` value
 - **THEN** the invoice's `paymentUrl` field is null
 - **AND** the reminder email is sent without a payment link
 
