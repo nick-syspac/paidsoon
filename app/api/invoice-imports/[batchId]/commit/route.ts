@@ -120,6 +120,10 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       invoicesAnomalies: 0,
     }
 
+    const schedule = await tx.schedule.findUnique({
+      where: { userId: user.id },
+    })
+
     for (const stagingRow of stagingRows) {
       const values = (stagingRow.normalized ?? {}) as Partial<Record<InvoiceImportCanonicalField, string>>
       const externalId = resolveInvoiceImportExternalId(values)
@@ -153,9 +157,6 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
         : null
 
       if (!existing) {
-        const schedule = await tx.schedule.findUnique({
-          where: { userId: user.id },
-        })
         const nextEmailAt = computeNextEmailAt(
           dueDate,
           1,
