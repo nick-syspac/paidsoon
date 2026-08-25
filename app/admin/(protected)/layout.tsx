@@ -47,6 +47,7 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
               <Link href="/admin/admin-devices" className="text-gray-300 hover:text-white">Devices</Link>
               <Link href="/admin/staff" className="text-gray-300 hover:text-white">Staff</Link>
               <Link href="/admin/customers" className="text-gray-300 hover:text-white">Customers</Link>
+              <Link href="/admin/audit-log" className="text-gray-300 hover:text-white">Audit Log</Link>
               <Link href="/admin/training" className="text-gray-300 hover:text-white">Training</Link>
               <Link href="/admin/runbooks" className="text-gray-300 hover:text-white">Runbooks</Link>
             </nav>

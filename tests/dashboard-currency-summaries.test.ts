@@ -6,9 +6,9 @@ import type { PaidInvoiceSummary } from "@/lib/dashboard/loadDashboardMetrics"
 
 function makeActiveInvoice(overrides: Partial<InvoiceWithRelations> & { id: string }): InvoiceWithRelations {
   return {
-    id: overrides.id,
     userId: "user-1",
     invoiceConnectionId: "conn-1",
+    customerId: null,
     externalId: `ext-${overrides.id}`,
     provider: "stripe",
     clientEmail: overrides.clientEmail ?? "client@example.com",
@@ -16,6 +16,7 @@ function makeActiveInvoice(overrides: Partial<InvoiceWithRelations> & { id: stri
     amountDue: overrides.amountDue ?? 1000,
     currency: overrides.currency ?? "usd",
     dueDate: overrides.dueDate ?? new Date("2026-08-01T00:00:00Z"),
+    paymentUrl: null,
     status: (overrides.status ?? "pending") as InvoiceWithRelations["status"],
     currentStage: overrides.currentStage ?? 0,
     nextEmailAt: null,
@@ -23,6 +24,9 @@ function makeActiveInvoice(overrides: Partial<InvoiceWithRelations> & { id: stri
     firstChasedAt: null,
     providerMetadata: null,
     p2pToken: null,
+    disputeNote: null,
+    disputeRaisedAt: null,
+    disputeResolvedAt: null,
     createdAt: new Date("2026-07-01T00:00:00Z"),
     updatedAt: new Date("2026-08-01T00:00:00Z"),
     emailLogs: [],
@@ -35,7 +39,6 @@ function makeActiveInvoice(overrides: Partial<InvoiceWithRelations> & { id: stri
 
 function makePaidInvoice(overrides: Partial<PaidInvoiceSummary> & { id: string }): PaidInvoiceSummary {
   return {
-    id: overrides.id,
     clientEmail: overrides.clientEmail ?? "client@example.com",
     clientName: overrides.clientName ?? "Client",
     amountDue: overrides.amountDue ?? 1000,

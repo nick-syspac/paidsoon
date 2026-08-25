@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx"
 
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
-import { STAGE_LABELS, STATUS_LABELS } from "@/lib/dashboard/invoiceStatusLabels"
+import { STAGE_LABELS } from "@/lib/dashboard/invoiceStatusLabels"
 import { computeOutstanding } from "@/lib/invoices/payments"
 import { INVOICE_IMPORT_PROVIDER } from "@/lib/invoiceImport/matching"
 import { EXPORT_FIELDS, type ExportFieldKey, type ExportRow } from "@/lib/invoices/exportFields"

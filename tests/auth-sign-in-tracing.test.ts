@@ -4,10 +4,14 @@ import { TRACE_DEBUG_HEADER, TRACE_ID_HEADER } from "@/lib/diagnostics/shared"
 
 type SignInResult = {
   error: Error | null
+  data?: { user: { id: string } } | null
 }
 
-let signInResult: SignInResult = { error: null }
+const TEST_USER_ID = "user-test-id"
+
+let signInResult: SignInResult = { error: null, data: { user: { id: TEST_USER_ID } } }
 let signInArgs: unknown = null
+let createUserProfileCalls: string[] = []
 let POST: (request: Request) => Promise<Response>
 
 describe("POST /api/auth/sign-in diagnostic tracing", () => {
@@ -25,12 +29,21 @@ describe("POST /api/auth/sign-in diagnostic tracing", () => {
       },
     })
 
+    await mock.module("@/lib/actions/auth", {
+      namedExports: {
+        createUserProfile: async (userId: string) => {
+          createUserProfileCalls.push(userId)
+        },
+      },
+    })
+
     ;({ POST } = await import("@/app/api/auth/sign-in/route"))
   })
 
   beforeEach(() => {
-    signInResult = { error: null }
+    signInResult = { error: null, data: { user: { id: TEST_USER_ID } } }
     signInArgs = null
+    createUserProfileCalls = []
     delete process.env.DEBUG
     mock.restoreAll()
   })
@@ -67,6 +80,7 @@ describe("POST /api/auth/sign-in diagnostic tracing", () => {
       password: "secret-password",
       options: { captchaToken: "turnstile-token" },
     })
+    assert.deepEqual(createUserProfileCalls, [TEST_USER_ID])
   })
 
   test("DEBUG=true emits structured success traces and diagnostic headers", async () => {

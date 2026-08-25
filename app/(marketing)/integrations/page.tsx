@@ -1,44 +1,18 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import {
+  getIntegrations,
+  INTEGRATION_STATUS_BADGE_STYLES,
+  INTEGRATION_STATUS_LABEL,
+} from "@/lib/integrationsCatalog"
 
 export const metadata: Metadata = {
   title: "Integrations — PaidSoon",
   description:
-    "PaidSoon integrates with Stripe Connect, MYOB Business, and Xero today, with QuickBooks Online planned. Connect your accounting software and automate invoice follow-ups.",
+    "PaidSoon integrates with Stripe Connect, MYOB Business, and Xero today, with QuickBooks Online planned. No accounting software? Import invoices from a CSV spreadsheet instead.",
 }
 
-const integrations = [
-  {
-    name: "Stripe Connect",
-    description:
-      "Connect your Stripe account via OAuth. PaidSoon monitors your Stripe invoices and automatically sends follow-up reminders when they go overdue.",
-    status: "Available",
-  },
-  {
-    name: "MYOB Business",
-    description:
-      "Connect a MYOB Business company file to import invoice data and manage follow-ups from PaidSoon.",
-    status: "Available",
-  },
-  {
-    name: "Xero",
-    description:
-      "Connect Xero to sync overdue invoices automatically and trigger PaidSoon's reminder sequences.",
-    status: "Available",
-  },
-  {
-    name: "QuickBooks Online",
-    description:
-      "QuickBooks Online integration for automated invoice monitoring and follow-up emails.",
-    status: "Planned",
-  },
-]
-
-const STATUS_BADGE_STYLES: Record<string, string> = {
-  Available: "bg-green-50 text-green-700",
-  "Early access": "bg-amber-50 text-amber-700",
-  Planned: "bg-gray-100 text-gray-500",
-}
+const integrations = getIntegrations()
 
 export default function IntegrationsPage() {
   return (
@@ -53,15 +27,13 @@ export default function IntegrationsPage() {
       <section className="max-w-4xl mx-auto px-4 pb-16">
         <div className="grid md:grid-cols-2 gap-6">
           {integrations.map((integration) => (
-            <div key={integration.name} className="border border-gray-200 rounded-xl p-6">
+            <div key={integration.id} className="border border-gray-200 rounded-xl p-6">
               <div className="flex items-start justify-between mb-3">
                 <h2 className="font-semibold text-gray-900 text-lg">{integration.name}</h2>
                 <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                    STATUS_BADGE_STYLES[integration.status] ?? "bg-gray-100 text-gray-500"
-                  }`}
+                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${INTEGRATION_STATUS_BADGE_STYLES[integration.status]}`}
                 >
-                  {integration.status}
+                  {INTEGRATION_STATUS_LABEL[integration.status]}
                 </span>
               </div>
               <p className="text-sm text-gray-500 leading-relaxed">{integration.description}</p>
@@ -69,7 +41,16 @@ export default function IntegrationsPage() {
           ))}
         </div>
 
-        <div className="mt-12 text-center border border-gray-200 rounded-xl p-8">
+        <div className="mt-12 text-center border border-blue-100 bg-blue-50 rounded-xl p-8">
+          <h2 className="font-semibold text-gray-900 mb-2">Not ready to connect an accounting system?</h2>
+          <p className="text-sm text-gray-600 mb-5">
+            Upload your outstanding invoices from a CSV spreadsheet instead — no integration
+            required, and it works on every plan including Starter. You can connect Stripe, Xero, or
+            MYOB for automatic syncing whenever you&apos;re ready.
+          </p>
+        </div>
+
+        <div className="mt-8 text-center border border-gray-200 rounded-xl p-8">
           <h2 className="font-semibold text-gray-900 mb-2">Don&apos;t see your accounting software?</h2>
           <p className="text-sm text-gray-500 mb-5">
             Let us know which integration would be most useful for you — we prioritise based on demand.

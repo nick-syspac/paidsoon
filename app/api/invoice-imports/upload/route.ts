@@ -39,6 +39,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "A spreadsheet file is required" }, { status: 400 })
     }
 
+    if (!uploadedFile.name.toLowerCase().endsWith(".csv")) {
+      return NextResponse.json(
+        { error: "Only CSV invoice imports are supported for launch" },
+        { status: 400 },
+      )
+    }
+
     const buffer = Buffer.from(await uploadedFile.arrayBuffer())
     const parsedFile = parseInvoiceImportFile(buffer, uploadedFile.name)
     const contentHash = createHash("sha256").update(buffer).digest("hex")

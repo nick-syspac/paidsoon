@@ -65,8 +65,24 @@ export function EmailSettingsClient({
       </div>
 
       {!canUseCustomReplyTo ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-          Upgrade to a paid plan to customise where client replies are sent.
+        <div className="space-y-3">
+          <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
+            Upgrade to Solo or Small Business to set a custom reply-to address.
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Reply-to (optional)
+            </label>
+            <input
+              type="email"
+              value={replyTo}
+              readOnly
+              disabled
+              placeholder="replies@yourcompany.com"
+              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm bg-gray-100 text-gray-500 cursor-not-allowed"
+            />
+            <p className="text-xs text-gray-400 mt-1">Available on Solo and Small Business plans.</p>
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-4">

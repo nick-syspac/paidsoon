@@ -15,7 +15,6 @@ const privateBetaScope = [
   "Debtor dashboard",
   "Promise-to-pay tracking",
   "Dispute pause",
-  "Weekly debtor summary email",
   "Basic account and subscription management",
 ]
 
@@ -23,6 +22,7 @@ const upcomingUpdates = [
   "Early access onboarding improvements",
   "Accountant partner workflow enhancements",
   "MYOB Business integration — full production validation",
+  "Weekly debtor summary email (coming soon)",
   "Xero integration planning",
   "Help Centre articles",
   "Public API and webhook documentation",

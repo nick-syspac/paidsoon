@@ -44,6 +44,9 @@ export type SubscriptionFeature =
 export const UNIMPLEMENTED_FEATURES: SubscriptionFeature[] = [
   "customer_specific_sequences",
   "multi_template_customer_wording",
+  // Weekly summary is entitlement-gated but remains coming-soon until
+  // production scheduler activation is verified.
+  "weekly_summary_email",
   "approval_mode",
   "contact_suppression",
   "team_seats",
@@ -103,7 +106,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       custom_reminder_templates: false,
       multi_template_customer_wording: false,
       paid_soon_branding: true,
-      custom_reply_to: true,
+      custom_reply_to: false,
       custom_sender_name: false,
       verified_from_domain: false,
       ai_rewrite: false,

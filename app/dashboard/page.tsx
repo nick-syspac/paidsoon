@@ -144,6 +144,11 @@ export default async function DashboardOverviewPage({
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-gray-900">Overview</h1>
 
+      <div>
+        <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
+        <OverviewCards cards={cards} />
+      </div>
+
       {currencySummaries.map((summary) => (
         <CurrencySummarySection
           key={summary.currency}
@@ -151,11 +156,6 @@ export default async function DashboardOverviewPage({
           showCurrencyHeading={showCurrencyHeadings}
         />
       ))}
-
-      <div>
-        <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
-        <OverviewCards cards={cards} />
-      </div>
 
       <AttentionRequired summary={needsAttention} />
 

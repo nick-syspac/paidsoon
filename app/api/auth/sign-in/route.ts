@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
+import { createUserProfile } from "@/lib/actions/auth"
 import {
   applyTraceResponseHeaders,
   createServerTraceContext,
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
 
   const supabase = await createClient()
   // captchaToken is verified by Supabase against the configured Turnstile provider
-  const { error } = await traceOperation(
+  const { data, error } = await traceOperation(
     traceContext,
     {
       traceId: traceContext.traceId,
@@ -153,6 +154,21 @@ export async function POST(request: Request) {
     applyTraceResponseHeaders(response, traceContext, secureTraceCookie)
     return response
   }
+
+  // A profile may not exist yet (e.g. session established outside /auth/callback,
+  // or the profile row is otherwise missing) — bootstrap is idempotent.
+  await traceOperation(
+    traceContext,
+    {
+      traceId: traceContext.traceId,
+      stage: "auth.sign_in.profile_bootstrap",
+      operation: "createUserProfile",
+      subsystem: "auth",
+      component: "app/api/auth/sign-in/route.ts",
+      http: { method: "POST", route: "/api/auth/sign-in" },
+    },
+    () => createUserProfile(data.user.id),
+  )
 
   const response = NextResponse.json({ ok: true })
   applyTraceResponseHeaders(response, traceContext, secureTraceCookie)

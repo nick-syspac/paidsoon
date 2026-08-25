@@ -18,6 +18,7 @@ function makeCoverage(status: "active" | "broken" | "fulfilled", coverageCount: 
     arrangement: {
       id: `arr-${status}`,
       userId: "user-1",
+      customerId: null,
       debtorEmail: "client@example.com",
       debtorName: "Client",
       arrangementType: "full_payment",

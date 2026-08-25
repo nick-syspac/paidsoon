@@ -83,9 +83,9 @@ test("createUserProfile trial duration constant is 14 days in ms", () => {
 // Onboarding tier validation (mirrors Zod schema in /api/onboarding)
 // ---------------------------------------------------------------------------
 
-const VALID_TIERS = new Set(["starter", "solo", "small_business", "accountant_partner"])
+const VALID_TIERS = new Set(["starter", "solo", "small_business"])
 
-function validateOnboardingTier(tier: unknown): tier is "starter" | "solo" | "small_business" | "accountant_partner" {
+function validateOnboardingTier(tier: unknown): tier is "starter" | "solo" | "small_business" {
   return typeof tier === "string" && VALID_TIERS.has(tier)
 }
 
@@ -93,7 +93,7 @@ test("valid tiers are accepted by onboarding route schema", () => {
   assert.equal(validateOnboardingTier("starter"), true)
   assert.equal(validateOnboardingTier("solo"), true)
   assert.equal(validateOnboardingTier("small_business"), true)
-  assert.equal(validateOnboardingTier("accountant_partner"), true)
+  assert.equal(validateOnboardingTier("accountant_partner"), false)
 })
 
 test("invalid tiers are rejected by onboarding route schema", () => {

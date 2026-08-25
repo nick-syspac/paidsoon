@@ -26,8 +26,7 @@ export default function ForgotPasswordPage() {
         <div className="max-w-md w-full bg-white rounded-lg shadow p-8 text-center">
           <h1 className="text-2xl font-bold mb-2">Check your email</h1>
           <p className="text-gray-600">
-            If an account exists for <strong>{email}</strong>, we&apos;ve sent
-            a link to reset your password.
+            If an account exists for that address, we&apos;ve sent a reset link.
           </p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getInvoiceLimitForTier } from "@/lib/billing"
+import { retrieveSubscriptionWithLatestInvoice } from "@/lib/billing/stripeSubscriptions"
 import {
   DEFAULT_SUBSCRIPTION_TIER,
   PLAN_ORDER,
@@ -60,9 +61,7 @@ export async function POST(request: Request) {
         const subscriptionId = session.subscription as string
         // Fetch subscription and expand latest_invoice to get period_end
         // (current_period_end was removed from Subscription in API 2026-05-27)
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
-          expand: ["latest_invoice"],
-        })
+        const subscription = await retrieveSubscriptionWithLatestInvoice(stripe, subscriptionId)
         const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null
         const periodStart = latestInvoice?.period_start ? new Date(latestInvoice.period_start * 1000) : null
         const periodEnd = latestInvoice?.period_end ? new Date(latestInvoice.period_end * 1000) : null
@@ -76,6 +75,7 @@ export async function POST(request: Request) {
             stripeSubscriptionId: subscriptionId,
             subscriptionCurrentPeriodStart: periodStart,
             subscriptionCurrentPeriodEnd: periodEnd,
+            subscriptionCancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
           },
         })
       }
@@ -102,9 +102,7 @@ export async function POST(request: Request) {
 
         // Fetch latest invoice to get period_end
         // (current_period_end was removed from Subscription in API 2026-05-27)
-        const subExpanded = await stripe.subscriptions.retrieve(subscription.id, {
-          expand: ["latest_invoice"],
-        })
+        const subExpanded = await retrieveSubscriptionWithLatestInvoice(stripe, subscription.id)
         const latestInv = subExpanded.latest_invoice as Stripe.Invoice | null
         const periodStart = latestInv?.period_start ? new Date(latestInv.period_start * 1000) : null
         const periodEnd = latestInv?.period_end ? new Date(latestInv.period_end * 1000) : null
@@ -116,6 +114,7 @@ export async function POST(request: Request) {
             stripeSubscriptionId: subscription.id,
             subscriptionCurrentPeriodStart: periodStart,
             subscriptionCurrentPeriodEnd: periodEnd,
+            subscriptionCancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
             ...(scheduleExecuted
               ? { pendingDowngradeTier: null, stripeScheduleId: null }
               : {}),
@@ -137,6 +136,7 @@ export async function POST(request: Request) {
           data: {
             subscriptionTier: DEFAULT_SUBSCRIPTION_TIER,
             subscriptionStatus: "cancelled",
+            subscriptionCancelAt: null,
           },
         })
 

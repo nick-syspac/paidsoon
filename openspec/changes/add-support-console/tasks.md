@@ -14,8 +14,8 @@
 - [x] 2.2 Export audit creation functions for use in route handlers
 - [x] 2.3 Add new action enum values to Zod schema: customer_search, impersonate_start, impersonate_end, trigger_email, etc.
 - [ ] 2.4 Create middleware/interceptor to auto-log failed admin API calls (401/403 responses)
-- [ ] 2.5 Update `lib/admin/session.ts` to create `impersonate_start` event when session starts
-- [ ] 2.6 Update `lib/admin/session.ts` to create `impersonate_end` event when session ends
+- [x] 2.5 Update `lib/admin/session.ts` to create `impersonate_start` event when session starts
+- [x] 2.6 Update `lib/admin/session.ts` to create `impersonate_end` event when session ends
 - [ ] 2.7 Add automatic `adminSessionId` context propagation (thread-local or request-scoped) during impersonation
 
 ## 3. Customer Search Endpoints & UI
@@ -28,7 +28,7 @@
 - [x] 3.6 Add [Impersonate] and [View Audit Log] buttons to customer detail view
 - [x] 3.7 Add quick stats: subscription tier, status, invoice count, last activity date
 - [x] 3.8 Create `app/admin/(protected)/customers/[userId]/audit/page.tsx`: paginated full audit trail for a customer
-- [ ] 3.9 Test: search by partial email, verify pagination works, verify audit events created for searches
+- [x] 3.9 Test: search by partial email, verify pagination works, verify audit events created for searches
 
 ## 4. Impersonation System
 
@@ -40,48 +40,48 @@
 - [x] 4.6 Add [End Support Session] button via `components/dashboard/SupportBanner.tsx` client component
 - [x] 4.7 Add support banner to `/dashboard` layout: displayed when `support_view=true` query param is present
 - [ ] 4.8 Disable all action buttons (UI-level) during support mode (check `support_view` query param in each action component)
-- [ ] 4.9 Add automatic session timeout: 60-min inactivity timer on support banner, calls end API and logs `impersonate_timeout`
+- [x] 4.9 Add automatic session timeout: 60-min inactivity timer on support banner, calls end API and logs `impersonate_timeout`
 - [ ] 4.10 Test: start impersonation, verify read-only banner, end session, verify redirected back to admin customer profile
 - [ ] 4.11 Test: verify audit events linked to impersonation session (impersonate_start → impersonate_end)
 
 ## 5. Admin Quick-Actions & Modifications
 
-- [ ] 5.1 Create `app/api/admin/customers/[userId]/actions/edit-schedule/route.ts` POST: update Schedule with reason validation
-- [ ] 5.2 Create `app/api/admin/customers/[userId]/actions/pause-invoices/route.ts` POST: pause all TrackedInvoices with reason
-- [ ] 5.3 Create `app/api/admin/customers/[userId]/actions/resume-invoices/route.ts` POST: resume all TrackedInvoices with reason
-- [ ] 5.4 Create `app/api/admin/customers/[userId]/actions/trigger-email/route.ts` POST: send email for specific invoice/stage with reason
-- [ ] 5.5 Create `app/api/admin/customers/[userId]/actions/mark-invoice-paid/route.ts` POST: mark invoice as paid with reason
-- [ ] 5.6 Add Zod schema for all action endpoints: validate `reason` (required, min 10 chars)
-- [ ] 5.7 Add audit logging to each action endpoint: capture old/new values in `details`, action type, targetUserId, resourceId, reason
-- [ ] 5.8 Ensure all actions use `prismaAdmin` (blanket access, no RLS)
-- [ ] 5.9 Create UI modals for each action: confirmation dialog with reason text area (pre-focused), submit button
-- [ ] 5.10 Add Quick Actions sidebar to `/admin/customers/[userId]`: buttons for each action
-- [ ] 5.11 Add current schedule display: shows email1, email2, email3 days with [Edit] button
-- [ ] 5.12 Add invoice list with per-invoice action buttons: [Mark as Paid], [Pause], [Resume], [Force Send Email]
+- [x] 5.1 Create `app/api/admin/customers/[userId]/actions/edit-schedule/route.ts` POST: update Schedule with reason validation
+- [x] 5.2 Create `app/api/admin/customers/[userId]/actions/pause-invoices/route.ts` POST: pause all TrackedInvoices with reason
+- [x] 5.3 Create `app/api/admin/customers/[userId]/actions/resume-invoices/route.ts` POST: resume all TrackedInvoices with reason
+- [x] 5.4 Create `app/api/admin/customers/[userId]/actions/trigger-email/route.ts` POST: send email for specific invoice/stage with reason
+- [x] 5.5 Create `app/api/admin/customers/[userId]/actions/mark-invoice-paid/route.ts` POST: mark invoice as paid with reason
+- [x] 5.6 Add Zod schema for all action endpoints: validate `reason` (required, min 10 chars)
+- [x] 5.7 Add audit logging to each action endpoint: capture old/new values in `details`, action type, targetUserId, resourceId, reason
+- [x] 5.8 Ensure all actions use `prismaAdmin` (blanket access, no RLS)
+- [x] 5.9 Create UI modals for each action: confirmation dialog with reason text area (pre-focused), submit button
+- [x] 5.10 Add Quick Actions sidebar to `/admin/customers/[userId]`: buttons for each action
+- [x] 5.11 Add current schedule display: shows email1, email2, email3 days with [Edit] button
+- [x] 5.12 Add invoice list with per-invoice action buttons: [Mark as Paid], [Pause], [Resume], [Force Send Email]
 - [ ] 5.13 Test: perform each action, verify reason is required and validated, verify audit events created with correct details
 
 ## 6. Customer Notification on Impersonation
 
-- [ ] 6.1 Update impersonation start endpoint: if `notifyCustomer = true`, queue email for sending after session ends
-- [ ] 6.2 Update impersonation end endpoint: check if notification is queued and send via Resend
-- [ ] 6.3 Create email template: "Support Access Notification" with customer-friendly wording
-- [ ] 6.4 Add notification flag to `AdminAuditEvent.details` (track whether customer was notified)
+- [x] 6.1 Update impersonation start endpoint: if `notifyCustomer = true`, queue email for sending after session ends
+- [x] 6.2 Update impersonation end endpoint: check if notification is queued and send via Resend
+- [x] 6.3 Create email template: "Support Access Notification" with customer-friendly wording
+- [x] 6.4 Add notification flag to `AdminAuditEvent.details` (track whether customer was notified)
 - [ ] 6.5 Test: send impersonation notification, verify email received, verify audit trail captures notification
 
 ## 7. Staff Activity Feed
 
-- [ ] 7.1 Create `app/api/admin/activity-feed/route.ts` GET handler: return recent audit events (last 48 hours) grouped by session
-- [ ] 7.2 Add pagination and filtering: `days` (default 2), `limit` (default 20)
-- [ ] 7.3 Create activity feed component: `components/admin/StaffActivityFeed.tsx`
-- [ ] 7.4 Display impersonation sessions: customer name, duration, action count, timestamp
-- [ ] 7.5 Display direct admin actions: action type, customer, reason, timestamp
-- [ ] 7.6 Display customer searches: count, query, timestamp
-- [ ] 7.7 Add summary stats: "You've worked with X customers today (Y searches, Z impersonations, W actions)"
-- [ ] 7.8 Add grouping by day: "Today", "Yesterday", etc.
-- [ ] 7.9 Make each entry clickable to view full audit details: `/admin/audit-log/[sessionId]` or `/admin/audit-log/[eventId]`
-- [ ] 7.10 Create `/admin/audit-log/[sessionId]/page.tsx`: show all events within a session, with linked session context
-- [ ] 7.11 Create `/admin/audit-log/[eventId]/page.tsx`: show single event with full details (changes, reason, target, resources)
-- [ ] 7.12 Add the activity feed widget to `/admin` dashboard overview
+- [x] 7.1 Create `app/api/admin/activity-feed/route.ts` GET handler: return recent audit events (last 48 hours) grouped by session
+- [x] 7.2 Add pagination and filtering: `days` (default 2), `limit` (default 20)
+- [x] 7.3 Create activity feed component: `components/admin/StaffActivityFeed.tsx`
+- [x] 7.4 Display impersonation sessions: customer name, duration, action count, timestamp
+- [x] 7.5 Display direct admin actions: action type, customer, reason, timestamp
+- [x] 7.6 Display customer searches: count, query, timestamp
+- [x] 7.7 Add summary stats: "You've worked with X customers today (Y searches, Z impersonations, W actions)"
+- [x] 7.8 Add grouping by day: "Today", "Yesterday", etc.
+- [x] 7.9 Make each entry clickable to view full audit details: `/admin/audit-log/[sessionId]` or `/admin/audit-log/[eventId]`
+- [x] 7.10 Create `/admin/audit-log/[sessionId]/page.tsx`: show all events within a session, with linked session context
+- [x] 7.11 Create `/admin/audit-log/[eventId]/page.tsx`: show single event with full details (changes, reason, target, resources)
+- [x] 7.12 Add the activity feed widget to `/admin` dashboard overview
 - [ ] 7.13 Test: verify activity feed populated after impersonations and actions, verify linking to detail views
 
 ## 8. Audit Log Retention & Archival
@@ -105,12 +105,12 @@
 
 ## 9. Audit Log Querying & Viewing
 
-- [ ] 9.1 Create `app/api/admin/audit-log/route.ts` GET handler: query audit events with filtering (targetUserId, action, sessionId, date range)
-- [ ] 9.2 Add pagination support: cursor-based or offset-based
-- [ ] 9.3 Add sorting: by timestamp (desc default)
-- [ ] 9.4 Create `/admin/audit-log` page: searchable audit log viewer with filters
-- [ ] 9.5 Implement session grouping: show sessions with child events collapsible
-- [ ] 9.6 Test: query by customer, verify all sessions and actions returned; query by session, verify only that session's events returned
+- [x] 9.1 Create `app/api/admin/audit-log/route.ts` GET handler: query audit events with filtering (targetUserId, action, sessionId, date range)
+- [x] 9.2 Add pagination support: cursor-based or offset-based
+- [x] 9.3 Add sorting: by timestamp (desc default)
+- [x] 9.4 Create `/admin/audit-log` page: searchable audit log viewer with filters
+- [x] 9.5 Implement session grouping: show sessions with child events collapsible
+- [x] 9.6 Test: query by customer, verify all sessions and actions returned; query by session, verify only that session's events returned
 
 ## 10. Integration Testing
 

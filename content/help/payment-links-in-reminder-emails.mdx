@@ -1,0 +1,64 @@
+---
+title: Payment links in reminder emails
+description: How PaidSoon includes a direct "Pay invoice" link in your reminder emails, and how to make sure it's populated.
+lastVerified: 2026-08-22
+---
+
+When PaidSoon knows the URL where your client can pay their invoice, it adds a **"Pay invoice →"**
+link directly in the reminder email body. This lets your client settle immediately without needing
+to look up the invoice separately.
+
+## How the link gets included
+
+PaidSoon sources the payment URL automatically — you don't need to configure anything for
+Stripe-connected accounts.
+
+| Invoice source | How the link is sourced |
+|---|---|
+| **Stripe** (connected via Settings → Connections) | PaidSoon uses Stripe's hosted invoice URL (`hosted_invoice_url`), which Stripe generates for every invoice. The link is captured when the invoice is first imported. |
+| **Xero / MYOB** | Payment URL not currently included. |
+| **CSV / XLSX import** | Included if you provide a `payment_url` column in your import file (see below). |
+
+## Stripe-connected accounts
+
+No action required. Every Stripe invoice imports with its hosted invoice URL. As long as your
+client's invoice exists in Stripe, PaidSoon will include the link in each reminder automatically.
+
+<Callout title="Invoice imported before this feature was released?">
+  Invoices imported before payment links were supported were stored without a URL. Re-syncing
+  a connection (**Settings → Connections → Sync now**) does not backfill existing rows. If the
+  link is missing on an older invoice, it will be included for any invoices imported fresh after
+  connecting.
+</Callout>
+
+## CSV / XLSX imports
+
+To include a payment link for CSV-imported invoices, add a `payment_url` column to your file.
+
+1. Download the latest **import template** from **Dashboard → Import** — it includes a
+   `payment_url` column.
+2. Fill in the direct payment URL for each invoice (e.g. your accounting software's client
+   payment portal link, or a custom payment page).
+3. Import the file. PaidSoon validates the value is a well-formed URL and rejects the row if not.
+4. The link is stored on the invoice and included in every reminder sent for that invoice.
+
+If you re-upload the same invoice later with a different `payment_url`, the stored URL is updated.
+
+## What the link looks like in the email
+
+The link renders as a plain inline hyperlink: **Pay invoice →**. It appears in the email body
+wherever your template places the appropriate token. The default templates already include
+this token — it is simply omitted when no URL is available.
+
+If you've set up a [custom email template](/help/configure-reminder-schedule) and want to control
+where the link appears, use the correct token for each part of your template:
+
+- **HTML body** — use `{{paymentLink}}`, which renders as a clickable `Pay invoice →` anchor tag.
+- **Plain-text body** — use `{{paymentLinkText}}`, which renders as the raw URL so recipients see a clean link rather than HTML markup.
+
+## Common problems
+
+- **No "Pay invoice" link in my emails** — check that your invoice source is Stripe (Xero/MYOB
+  don't yet provide a payment URL) or that your CSV import included a `payment_url` value.
+- **Link goes to the wrong place** — for CSV imports, re-import with the corrected `payment_url`;
+  for Stripe, the link comes directly from Stripe's invoice — update it in Stripe if needed.

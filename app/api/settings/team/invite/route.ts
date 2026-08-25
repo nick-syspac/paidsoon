@@ -1,11 +1,18 @@
 import { createClient } from "@/lib/supabase/server"
 import { getSubscriptionTier, getUserSeatLimitForTier } from "@/lib/billing"
+import { isFeatureImplemented } from "@/lib/subscriptionPlans"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
 const inviteSchema = z.object({
   email: z.string().email(),
 })
+
+const TEAM_SEATS_UNAVAILABLE = {
+  error: "Team seats are coming soon",
+  code: "feature_not_implemented",
+  feature: "team_seats",
+} as const
 
 export async function GET() {
   const supabase = await createClient()
@@ -20,12 +27,19 @@ export async function GET() {
   const tier = await getSubscriptionTier(user.id)
   const seatLimit = getUserSeatLimitForTier(tier)
   const currentSeats = 1
+  const teamSeatsImplemented = isFeatureImplemented("team_seats")
 
   return NextResponse.json({
     tier,
     seatLimit,
     currentSeats,
     availableSeats: Math.max(seatLimit - currentSeats, 0),
+    featureAvailability: {
+      teamSeats: {
+        implemented: teamSeatsImplemented,
+        actionable: teamSeatsImplemented,
+      },
+    },
   })
 }
 
@@ -49,6 +63,18 @@ export async function POST(request: Request) {
   const seatLimit = getUserSeatLimitForTier(tier)
   const currentSeats = 1
 
+  if (!isFeatureImplemented("team_seats")) {
+    return NextResponse.json(
+      {
+        ...TEAM_SEATS_UNAVAILABLE,
+        tier,
+        seatLimit,
+        currentSeats,
+      },
+      { status: 409 },
+    )
+  }
+
   if (currentSeats >= seatLimit) {
     return NextResponse.json(
       {
@@ -62,10 +88,9 @@ export async function POST(request: Request) {
     )
   }
 
-  // Scaffold behavior: persistence is intentionally deferred until team-membership model exists.
   return NextResponse.json({
     success: true,
-    message: `Seat available for ${parsed.data.email}. Invitation persistence scaffolded and ready for team model integration.`,
+    message: `Seat available for ${parsed.data.email}.`,
     tier,
     seatLimit,
     currentSeats,

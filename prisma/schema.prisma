@@ -21,6 +21,7 @@ model UserProfile {
   stripeSubscriptionId           String?   @map("stripe_subscription_id")
   subscriptionCurrentPeriodStart DateTime? @map("subscription_current_period_start")
   subscriptionCurrentPeriodEnd   DateTime? @map("subscription_current_period_end")
+  subscriptionCancelAt           DateTime? @map("subscription_cancel_at")
   pendingDowngradeTier           String?   @map("pending_downgrade_tier")
   stripeScheduleId               String?   @map("stripe_schedule_id")
   subscriptionTier               String    @default("starter") // 'starter' | 'solo' | 'small_business' | 'accountant_partner'
@@ -233,6 +234,7 @@ model TrackedInvoice {
   amountDue           Int // in smallest currency unit (cents); the invoice's fixed original total — NOT the current outstanding balance, which is amountDue minus the sum of its InvoicePayment rows (lib/invoices/payments.ts#computeOutstanding)
   currency            String    @default("usd")
   dueDate             DateTime
+  paymentUrl          String?   @map("payment_url")
   status              String    @default("pending")
   // 'pending' | 'paid' | 'paused' | 'snoozed' | 'sequence_complete' | 'manually_resolved' | 'disputed'
   currentStage        Int       @default(0) // 0=not started, 1=email1 sent, 2=email2 sent, 3=email3 sent

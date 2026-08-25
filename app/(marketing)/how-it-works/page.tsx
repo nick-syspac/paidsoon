@@ -4,19 +4,19 @@ import Link from "next/link"
 export const metadata: Metadata = {
   title: "How It Works — PaidSoon",
   description:
-    "See how PaidSoon automates invoice follow-ups from connection to payment: connect your accounting software, import invoices, configure reminders, and let PaidSoon do the rest.",
+    "See how PaidSoon automates invoice follow-ups: connect your accounting software or upload a CSV spreadsheet, import invoices, configure reminders, and let PaidSoon do the rest.",
 }
 
 const steps = [
   {
     n: "1",
-    title: "Connect your accounting software",
-    body: "Authorise PaidSoon to connect to your Stripe account via OAuth. No credentials to share — the connection is revocable at any time from your dashboard.",
+    title: "Connect an invoice source — or upload a spreadsheet",
+    body: "Authorise PaidSoon to connect to Stripe, Xero, or MYOB via OAuth — no credentials to share, revocable at any time. Prefer not to connect anything yet? Upload a CSV file of your outstanding invoices instead and get started immediately, on any plan.",
   },
   {
     n: "2",
     title: "Import your unpaid invoices",
-    body: "PaidSoon syncs overdue and unpaid invoices automatically from your connected account. New invoices are picked up on each sync cycle — no manual importing required.",
+    body: "If you connected an accounting source, PaidSoon syncs overdue and unpaid invoices automatically on each sync cycle. If you're using spreadsheet import, upload a new file any time to add or update invoices — no integration required.",
   },
   {
     n: "3",
@@ -35,8 +35,8 @@ const steps = [
   },
   {
     n: "6",
-    title: "Weekly debtor summary delivered to your inbox",
-    body: "Every week, PaidSoon sends you a summary of all outstanding invoices, their status, and which follow-up stage each debtor is at — so you're always informed without manual checking.",
+    title: "Weekly debtor summary (coming soon)",
+    body: "After production scheduler activation, PaidSoon will send a weekly summary of outstanding invoices and follow-up stages so you can monitor progress without manual checking.",
   },
 ]
 

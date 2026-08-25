@@ -9,24 +9,24 @@ const SEVERITY_STYLES: Record<CardSeverity, { dot: string; border: string; bg: s
 
 export function OverviewCards({ cards }: { cards: OverviewCard[] }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
       {cards.map((card) => {
         const styles = SEVERITY_STYLES[card.severity]
         return (
           <Link
             key={card.id}
             href={card.href}
-            className={`rounded-lg border ${styles.border} ${styles.bg} p-4 hover:shadow-sm transition-shadow`}
+            className={`min-w-0 rounded-lg border ${styles.border} ${styles.bg} p-3 hover:shadow-sm transition-shadow`}
           >
             <div className="flex items-center gap-2">
               <span
                 aria-hidden="true"
-                className={`h-2.5 w-2.5 rounded-full ${styles.dot}`}
+                className={`h-2 w-2 rounded-full ${styles.dot}`}
               />
-              <span className="text-xs font-medium text-gray-600">{card.label}</span>
+              <span className="text-[11px] font-medium uppercase tracking-wide text-gray-600">{card.label}</span>
             </div>
-            <p className="mt-2 text-lg font-semibold text-gray-900">{card.stat}</p>
-            {card.detail && <p className="mt-1 text-xs text-gray-500">{card.detail}</p>}
+            <p className="mt-1.5 text-sm font-semibold text-gray-900">{card.stat}</p>
+            {card.detail && <p className="mt-1 text-[11px] leading-4 text-gray-500">{card.detail}</p>}
           </Link>
         )
       })}

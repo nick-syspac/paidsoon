@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { getSubscriptionBillingState } from "@/lib/subscriptionStatusPresentation"
 import {
   PLAN_CATALOG,
   PLAN_ORDER,
@@ -9,20 +10,14 @@ import {
   resolvePlanSelectorTier,
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans"
-
-function formatDate(date: Date | string | number | null | undefined): string {
-  if (!date) return ""
-  return new Date(date).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-}
+import { formatSubscriptionDate as formatDate } from "@/lib/subscriptionStatusPresentation"
 
 export function SubscriptionClient({
   tier,
   status,
   currentPeriodEnd,
+  subscriptionCancelAt,
+  canCancelSubscription,
   pendingDowngradeTier,
   preselectedTier,
   successMessage,
@@ -30,6 +25,8 @@ export function SubscriptionClient({
   tier: SubscriptionTier
   status: string
   currentPeriodEnd: Date | null
+  subscriptionCancelAt: Date | null
+  canCancelSubscription: boolean
   pendingDowngradeTier: SubscriptionTier | null
   preselectedTier?: SubscriptionTier
   successMessage: string | null
@@ -49,6 +46,12 @@ export function SubscriptionClient({
     confirmingChangeTo != null && PLAN_ORDER.indexOf(confirmingChangeTo) < PLAN_ORDER.indexOf(tier)
   const impact = confirmingChangeTo && isConfirmingDowngrade ? getPlanChangeImpact(tier, confirmingChangeTo) : null
   const benefits = confirmingChangeTo && !isConfirmingDowngrade ? getPlanChangeBenefits(tier, confirmingChangeTo) : null
+  const billingState = getSubscriptionBillingState({
+    status,
+    currentPeriodEnd,
+    subscriptionCancelAt,
+    canCancelSubscription,
+  })
   const planOptions = PLAN_ORDER.filter((planId) => PLAN_CATALOG[planId].visibility === "public").map(
     (planId) => PLAN_CATALOG[planId],
   )
@@ -146,6 +149,10 @@ export function SubscriptionClient({
     }
   }
 
+  async function handleCancelSubscription() {
+    window.location.assign("/dashboard/settings/subscription/cancel")
+  }
+
   return (
     <div className="max-w-lg space-y-6">
       {successMessage && (
@@ -192,8 +199,15 @@ export function SubscriptionClient({
           </span>
         </div>
 
-        {currentPeriodEnd && (
-          <p className="text-sm text-gray-500">Next billing date: {formatDate(currentPeriodEnd)}</p>
+        {billingState.headline && (
+          <div
+            className={`rounded-lg border p-3 text-sm ${billingState.isTrialOnly ? "border-gray-200 bg-gray-50 text-gray-700" : subscriptionCancelAt ? "border-amber-200 bg-amber-50 text-amber-800" : "border-transparent bg-transparent p-0 text-gray-500"}`}
+          >
+            <p className={`font-medium ${billingState.isTrialOnly || subscriptionCancelAt ? "text-gray-900" : "text-gray-500"}`}>
+              {billingState.headline}
+            </p>
+            {billingState.description ? <p className="mt-1">{billingState.description}</p> : null}
+          </div>
         )}
 
         {pendingDowngrade && pendingPlan && currentPeriodEnd && (
@@ -254,6 +268,16 @@ export function SubscriptionClient({
         >
           {loading ? "Opening…" : "Manage billing →"}
         </button>
+
+        {billingState.showCancelAction && (
+          <button
+            onClick={handleCancelSubscription}
+            disabled={loading}
+            className="w-full border border-red-200 text-red-700 text-sm py-2 rounded-md hover:bg-red-50 disabled:opacity-60 transition-colors"
+          >
+            {billingState.isTrialOnly ? "End free trial" : "Cancel subscription"}
+          </button>
+        )}
       </div>
 
       {confirmingChangeTo && confirmingPlan && (impact || benefits) && (

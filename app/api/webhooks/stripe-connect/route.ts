@@ -91,6 +91,7 @@ async function handleOverdueInvoice(
       amountDue: invoice.amountDue,
       currency: invoice.currency,
       dueDate: invoice.dueDate,
+      paymentUrl: invoice.paymentUrl ?? null,
       status: "pending",
       currentStage: 0,
       nextEmailAt,

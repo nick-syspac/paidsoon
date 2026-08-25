@@ -24,6 +24,7 @@ describe("interpolate", () => {
       amountDue: "£500.00",
       dueDate: "June 10, 2026",
       paymentLink: "",
+      paymentLinkText: "",
       yourName: "John",
       daysOverdue: "",
       firmDeadline: "",
@@ -40,6 +41,7 @@ describe("interpolate", () => {
       amountDue: "£500.00",
       dueDate: "June 10, 2026",
       paymentLink: "",
+      paymentLinkText: "",
       yourName: "John",
       daysOverdue: "",
       firmDeadline: "",
@@ -67,11 +69,13 @@ describe("resolveVars — paymentLink", () => {
     const vars = resolveVars(1, { ...baseVars, paymentUrl: "https://pay.example.com/inv" })
     assert.ok(vars.paymentLink.includes("https://pay.example.com/inv"))
     assert.ok(vars.paymentLink.startsWith("<a href="))
+    assert.equal(vars.paymentLinkText, "https://pay.example.com/inv")
   })
 
   test("resolves to empty string when paymentUrl is absent", () => {
     const vars = resolveVars(1, { ...baseVars })
     assert.equal(vars.paymentLink, "")
+    assert.equal(vars.paymentLinkText, "")
   })
 })
 

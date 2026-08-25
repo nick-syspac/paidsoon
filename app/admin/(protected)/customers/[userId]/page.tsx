@@ -3,6 +3,8 @@ import { notFound } from "next/navigation"
 import { requireAdminElevation } from "@/lib/admin/guard"
 import { prismaAdmin } from "@/lib/db/admin"
 import { ImpersonateButton } from "@/components/admin/ImpersonateButton"
+import { CustomerQuickActions } from "@/components/admin/CustomerQuickActions"
+import { CustomerInvoiceActions } from "@/components/admin/CustomerInvoiceActions"
 
 const TIER_LABELS: Record<string, string> = {
   free: "Starter",
@@ -57,7 +59,7 @@ export default async function AdminCustomerDetailPage({
 
   if (!profile) notFound()
 
-  const [invoices, impersonationSessions, recentAudit, invoiceConnection] = await Promise.all([
+  const [invoices, impersonationSessions, recentAudit, invoiceConnection, schedule] = await Promise.all([
     prismaAdmin.trackedInvoice.findMany({
       where: { userId },
       select: {
@@ -103,6 +105,14 @@ export default async function AdminCustomerDetailPage({
     prismaAdmin.invoiceConnection.findFirst({
       where: { userId, provider: "stripe" },
       select: { isActive: true, createdAt: true },
+    }),
+    prismaAdmin.schedule.findUnique({
+      where: { userId },
+      select: {
+        email1DaysAfterDue: true,
+        email2DaysAfterDue: true,
+        email3DaysAfterDue: true,
+      },
     }),
   ])
 
@@ -205,6 +215,7 @@ export default async function AdminCustomerDetailPage({
                   <th className="px-4 py-3">Due</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Paused</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -218,6 +229,13 @@ export default async function AdminCustomerDetailPage({
                     <td className="px-4 py-3 text-gray-300">{inv.status}</td>
                     <td className={`px-4 py-3 ${inv.status === "paused" ? "text-yellow-400" : "text-gray-600"}`}>
                       {inv.status === "paused" ? "Yes" : "No"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <CustomerInvoiceActions
+                        userId={userId}
+                        invoiceId={inv.id}
+                        status={inv.status}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -306,12 +324,21 @@ export default async function AdminCustomerDetailPage({
       )}
 
       {/* Admin actions (Phase 5) — placeholder */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Admin Actions</h2>
-        <div className="bg-gray-900 rounded-lg p-6 text-center text-gray-600 text-sm">
-          Schedule edits, pause/resume invoices, and manual email triggers will be added in a future update.
-        </div>
-      </section>
+      <CustomerQuickActions
+        userId={userId}
+        schedule={{
+          email1DaysAfterDue: schedule?.email1DaysAfterDue ?? 3,
+          email2DaysAfterDue: schedule?.email2DaysAfterDue ?? 10,
+          email3DaysAfterDue: schedule?.email3DaysAfterDue ?? 21,
+        }}
+        invoices={activeInvoices.map((invoice) => ({
+          id: invoice.id,
+          clientName: invoice.clientName,
+          status: invoice.status,
+          amountDue: invoice.amountDue,
+          currency: invoice.currency,
+        }))}
+      />
     </div>
   )
 }

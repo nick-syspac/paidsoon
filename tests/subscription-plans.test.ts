@@ -58,7 +58,7 @@ test("solo and small_business are first-class tiers, not aliases", () => {
 })
 
 test("sender-identity ladder is gated by tier", () => {
-  assert.equal(hasPlanFeature("starter", "custom_reply_to"), true)
+  assert.equal(hasPlanFeature("starter", "custom_reply_to"), false)
   assert.equal(hasPlanFeature("starter", "custom_sender_name"), false)
   assert.equal(hasPlanFeature("starter", "verified_from_domain"), false)
 

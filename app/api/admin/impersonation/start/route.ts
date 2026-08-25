@@ -4,6 +4,7 @@ import { prismaAdmin } from "@/lib/db/admin"
 import { requireAdminElevation, AdminGuardError } from "@/lib/admin/guard"
 import { logAdminEvent } from "@/lib/admin/audit"
 import { getIpAddress, getUserAgent, generateRequestId } from "@/lib/admin/request"
+import { beginSupportImpersonation } from "@/lib/admin/session"
 
 // ---------------------------------------------------------------------------
 // Schema: support both legacy tenantId and new userId (support console)
@@ -85,32 +86,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       )
     }
 
-    await prismaAdmin.adminSession.update({
-      where: { id: ctx.adminSession.id },
-      data: {
-        impersonatedUserId: userId,
-        notifyCustomer: notifyCustomer ?? false,
-        startedAt: new Date(),
-      },
-    })
-
-    await logAdminEvent({
-      actorUserId: ctx.userId,
+    await beginSupportImpersonation({
+      adminSessionId: ctx.adminSession.id,
+      adminUserId: ctx.userId,
       actorEmail: ctx.userEmail,
       platformRole: ctx.platformRole.role,
-      adminDeviceId: ctx.adminSession.adminDeviceId,
-      adminSessionId: ctx.adminSession.id,
-      action: "impersonate_start",
-      targetType: "user_profile",
-      targetId: userId,
       targetUserId: userId,
-      ipAddress,
-      userAgent,
-      requestId,
-      success: true,
-      details: {
-        targetDisplayName: targetProfile.displayName,
-        notifyCustomer: notifyCustomer ?? false,
+      targetDisplayName: targetProfile.displayName,
+      notifyCustomer: notifyCustomer ?? false,
+      adminDeviceId: ctx.adminSession.adminDeviceId,
+      requestMeta: {
+        ipAddress,
+        userAgent,
+        requestId,
       },
     })
 

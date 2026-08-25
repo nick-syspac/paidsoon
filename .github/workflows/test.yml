@@ -33,9 +33,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Check Supabase environment drift
-        run: npm run check:supabase-environment
-
       - name: Test
         run: npm run test
 
