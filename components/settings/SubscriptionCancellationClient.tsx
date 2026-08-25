@@ -23,8 +23,9 @@ export function SubscriptionCancellationClient({
     try {
       const res = await fetch("/api/billing/cancel", { method: "POST" })
       const data = await res.json()
-      if (data.url) {
-        window.location.assign(data.url)
+      const redirectUrl = data.url ?? data.redirectUrl
+      if (res.ok && redirectUrl) {
+        window.location.assign(redirectUrl)
         return
       }
       setError(data.error ?? "Something went wrong. Please try again.")
