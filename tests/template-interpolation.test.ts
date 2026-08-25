@@ -83,10 +83,10 @@ describe("resolveVars — paymentLink", () => {
 
 describe("resolveVars — promiseToPayLink", () => {
   test("resolves HTML and plain-text variants when p2pLink is present", () => {
-    const vars = resolveVars(1, { ...baseVars, p2pLink: "https://paidsoon.test/promise/abc123" })
-    assert.ok(vars.promiseToPayLink.includes("https://paidsoon.test/promise/abc123"))
-    assert.ok(vars.promiseToPayLink.startsWith("<a href="))
-    assert.equal(vars.promiseToPayLinkText, "https://paidsoon.test/promise/abc123")
+    const p2pLink = "https://paidsoon.test/promise/abc123"
+    const vars = resolveVars(1, { ...baseVars, p2pLink })
+    assert.equal(vars.promiseToPayLink, `<a href="${p2pLink}">Confirm when you'll pay →</a>`)
+    assert.equal(vars.promiseToPayLinkText, p2pLink)
   })
 
   test("resolves empty strings when p2pLink is absent", () => {
