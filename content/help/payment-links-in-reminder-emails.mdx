@@ -47,11 +47,14 @@ If you re-upload the same invoice later with a different `payment_url`, the stor
 ## What the link looks like in the email
 
 The link renders as a plain inline hyperlink: **Pay invoice →**. It appears in the email body
-wherever your template places the `{{paymentLink}}` token. The default templates already include
+wherever your template places the appropriate token. The default templates already include
 this token — it is simply omitted when no URL is available.
 
 If you've set up a [custom email template](/help/configure-reminder-schedule) and want to control
-where the link appears, add `{{paymentLink}}` to your template's body text.
+where the link appears, use the correct token for each part of your template:
+
+- **HTML body** — use `{{paymentLink}}`, which renders as a clickable `Pay invoice →` anchor tag.
+- **Plain-text body** — use `{{paymentLinkText}}`, which renders as the raw URL so recipients see a clean link rather than HTML markup.
 
 ## Common problems
 
