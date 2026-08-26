@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { DEFAULT_STAGE_1 } from "@/lib/email/templates"
 import { TemplatesClient } from "@/components/settings/TemplatesClient"
+import { getAiRewriteGuardrailStatus } from "@/lib/email/ai-usage-guardrails"
 
 export default async function TemplatesSettingsPage() {
   const {
@@ -22,6 +23,7 @@ export default async function TemplatesSettingsPage() {
   const hasBasic = hasPlanFeature(tier, "basic_templates")
   const canCustomize = hasPlanFeature(tier, "custom_reminder_templates")
   const canRewrite = hasPlanFeature(tier, "ai_rewrite")
+  const aiGuardrailStatus = canRewrite ? await getAiRewriteGuardrailStatus(user.id) : null
 
   if (!hasBasic) {
     return (
@@ -81,6 +83,7 @@ export default async function TemplatesSettingsPage() {
   return (
     <TemplatesClient
       canRewrite={canRewrite}
+      initialRemainingMonthlyCredits={aiGuardrailStatus?.remainingMonthlyCredits ?? null}
       data={{
         tier,
         templates: [

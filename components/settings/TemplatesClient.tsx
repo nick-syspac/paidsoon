@@ -23,6 +23,18 @@ interface TemplateData {
   isCustom: boolean
 }
 
+interface AiRewriteErrorPayload {
+  error?: string
+  remainingMonthlyCredits?: number
+}
+
+export function formatAiRewriteErrorMessage(payload: AiRewriteErrorPayload): string {
+  if (payload.error === "Usage limit reached" && typeof payload.remainingMonthlyCredits === "number") {
+    return `${payload.error}. ${payload.remainingMonthlyCredits} credits remaining this period.`
+  }
+  return payload.error ?? "Rewrite failed"
+}
+
 const STAGE_LABELS: Record<1 | 2 | 3, string> = {
   1: "Stage 1 – Gentle Reminder",
   2: "Stage 2 – Firm Follow-up",
@@ -89,7 +101,15 @@ function TemplatesSidebar({
   )
 }
 
-export function TemplatesClient({ data, canRewrite }: { data: TemplateData; canRewrite: boolean }) {
+export function TemplatesClient({
+  data,
+  canRewrite,
+  initialRemainingMonthlyCredits = null,
+}: {
+  data: TemplateData
+  canRewrite: boolean
+  initialRemainingMonthlyCredits?: number | null
+}) {
   const [stage, setStage] = useState<1 | 2 | 3>(data.stage)
   const [customFlags, setCustomFlags] = useState<Record<number, boolean>>({
     [data.stage]: data.isCustom,
@@ -109,6 +129,9 @@ export function TemplatesClient({ data, canRewrite }: { data: TemplateData; canR
   const [aiVariants, setAiVariants] = useState<RewriteOutput | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [remainingMonthlyCredits, setRemainingMonthlyCredits] = useState<number | null>(
+    initialRemainingMonthlyCredits,
+  )
 
   const STAGE_TO_TONE: Record<1 | 2 | 3, keyof RewriteOutput> = {
     1: "friendly",
@@ -125,10 +148,17 @@ export function TemplatesClient({ data, canRewrite }: { data: TemplateData; canR
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: textBody, stage }),
     })
-    const payload = await res.json().catch(() => ({}))
+    const payload: AiRewriteErrorPayload & {
+      friendly?: RewriteOutput["friendly"]
+      firm?: RewriteOutput["firm"]
+      final_notice?: RewriteOutput["final_notice"]
+    } = await res.json().catch(() => ({}))
     setAiLoading(false)
+    if (typeof payload.remainingMonthlyCredits === "number") {
+      setRemainingMonthlyCredits(payload.remainingMonthlyCredits)
+    }
     if (!res.ok) {
-      setAiError(payload.error ?? "Rewrite failed")
+      setAiError(formatAiRewriteErrorMessage(payload))
       return
     }
     setAiVariants({ friendly: payload.friendly, firm: payload.firm, final_notice: payload.final_notice })
@@ -282,6 +312,11 @@ export function TemplatesClient({ data, canRewrite }: { data: TemplateData; canR
                 >
                   {aiLoading ? <><Spinner /><span>Rewriting…</span></> : "✦ AI Rewrite"}
                 </button>
+                {typeof remainingMonthlyCredits === "number" && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    AI rewrite credits remaining this period: {remainingMonthlyCredits}
+                  </p>
+                )}
                 {aiError && <p className="mt-1 text-xs text-red-600">{aiError}</p>}
               </div>
             )}

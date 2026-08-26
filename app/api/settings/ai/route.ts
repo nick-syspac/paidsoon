@@ -7,6 +7,10 @@ import {
   INPUT_COST_PER_TOKEN_USD,
   OUTPUT_COST_PER_TOKEN_USD,
 } from "@/lib/email/ai-rewrite"
+import {
+  getAiRewriteGuardrailStatus,
+  AI_USAGE_LIMIT_ERROR,
+} from "@/lib/email/ai-usage-guardrails"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -54,6 +58,21 @@ export async function POST(request: Request) {
     )
   }
 
+  const guardrailStatus = await getAiRewriteGuardrailStatus(user.id)
+  if (!guardrailStatus) {
+    return NextResponse.json({ error: "Unable to evaluate usage limits" }, { status: 500 })
+  }
+
+  if (!guardrailStatus.allowed) {
+    return NextResponse.json(
+      {
+        error: AI_USAGE_LIMIT_ERROR,
+        remainingMonthlyCredits: guardrailStatus.remainingMonthlyCredits,
+      },
+      { status: 403 },
+    )
+  }
+
   let rewriteResult
   try {
     rewriteResult = await rewriteMessage(parsed.data.text, parsed.data.stage)
@@ -71,6 +90,7 @@ export async function POST(request: Request) {
     usage.promptTokens * INPUT_COST_PER_TOKEN_USD +
     usage.completionTokens * OUTPUT_COST_PER_TOKEN_USD
 
+  let usageLogged = false
   try {
     await prismaAdmin.aiUsageLog.create({
       data: {
@@ -83,13 +103,19 @@ export async function POST(request: Request) {
         estimatedCostUsd,
       },
     })
+    usageLogged = true
   } catch (logErr) {
     // Non-fatal: log the error but do not fail the user-facing response
     console.error("[ai/route] Failed to write usage log:", logErr)
   }
 
+  const remainingMonthlyCredits = usageLogged
+    ? Math.max(guardrailStatus.remainingMonthlyCredits - 1, 0)
+    : guardrailStatus.remainingMonthlyCredits
+
   return NextResponse.json({
     success: true,
+    remainingMonthlyCredits,
     friendly: output.friendly,
     firm: output.firm,
     final_notice: output.final_notice,
