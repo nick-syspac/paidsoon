@@ -148,6 +148,9 @@ export async function rewriteMessage(text: string, stage: 1 | 2 | 3): Promise<Re
     model: client(AI_REWRITE_MODEL),
     schema: rewriteOutputJsonSchema,
     prompt: buildPrompt(text, stage),
+    // Fail fast in user-facing flows. Retries are expensive and do not help
+    // persistent provider states like insufficient_quota.
+    maxRetries: 0,
   })
 
   const inputTokens = result.usage.inputTokens ?? 0

@@ -19,6 +19,25 @@ const rewriteSchema = z.object({
   stage: z.union([z.literal(1), z.literal(2), z.literal(3)]),
 })
 
+function isInsufficientQuotaError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  if (message.includes("insufficient_quota") || message.includes("exceeded your current quota")) {
+    return true
+  }
+
+  const candidate = error as {
+    statusCode?: number
+    lastError?: {
+      statusCode?: number
+      data?: { error?: { code?: string } }
+      message?: string
+    }
+  }
+  const code = candidate.lastError?.data?.error?.code
+  return candidate.statusCode === 429 || candidate.lastError?.statusCode === 429 || code === "insufficient_quota"
+}
+
 export async function GET() {
   const supabase = await createClient()
   const {
@@ -58,7 +77,14 @@ export async function POST(request: Request) {
     )
   }
 
-  const guardrailStatus = await getAiRewriteGuardrailStatus(user.id)
+  let guardrailStatus
+  try {
+    guardrailStatus = await getAiRewriteGuardrailStatus(user.id)
+  } catch (guardrailErr) {
+    console.error("[ai/route] Guardrail evaluation failed:", guardrailErr)
+    return NextResponse.json({ error: "Unable to evaluate usage limits" }, { status: 500 })
+  }
+
   if (!guardrailStatus) {
     return NextResponse.json({ error: "Unable to evaluate usage limits" }, { status: 500 })
   }
@@ -76,7 +102,11 @@ export async function POST(request: Request) {
   let rewriteResult
   try {
     rewriteResult = await rewriteMessage(parsed.data.text, parsed.data.stage)
-  } catch {
+  } catch (rewriteErr) {
+    if (isInsufficientQuotaError(rewriteErr)) {
+      console.error("[ai/route] OpenAI quota exceeded for AI rewrite request")
+    }
+    console.error("[ai/route] Rewrite provider call failed:", rewriteErr)
     // Do not leak model error details to the client
     return NextResponse.json({ error: "Rewrite failed" }, { status: 500 })
   }

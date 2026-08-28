@@ -1,7 +1,6 @@
 import { getPlanByTier, normalizeSubscriptionTier, type SubscriptionTier } from "@/lib/subscriptionPlans"
 import { resolveAllowancePeriod, type AllowanceAccountSnapshot } from "@/lib/billing"
-import type { PrismaTx } from "@/lib/db/withUserContext"
-import type { PrismaClient } from "@/lib/generated/prisma/client"
+import { prismaAdmin } from "@/lib/db/admin"
 
 export const AI_USAGE_LIMIT_ERROR = "Usage limit reached"
 
@@ -138,41 +137,40 @@ export async function getAiRewriteGuardrailStatus(
   userId: string,
   now: Date = new Date(),
 ): Promise<AiRewriteGuardrailStatus | null> {
-  const { withUserContext } = await import("@/lib/db/withUserContext")
-
-  return withUserContext(userId, async (tx) => {
-    const account = await tx.userProfile.findUnique({
-      where: { userId },
-      select: {
-        subscriptionTier: true,
-        subscriptionStatus: true,
-        subscriptionCurrentPeriodStart: true,
-        subscriptionCurrentPeriodEnd: true,
-        trialEndsAt: true,
-        createdAt: true,
-      },
-    })
-
-    if (!account) return null
-
-    const tier = normalizeSubscriptionTier(account.subscriptionTier)
-    if (!getPlanByTier(tier).features.ai_rewrite) {
-      return null
-    }
-
-    const policy = getAiRewriteGuardrailPolicy(tier)
-    if (!policy) return null
-
-    const { usage, period } = await countAiRewriteUsageWindows(tx, userId, account, now)
-    const decision = evaluateAiRewriteGuardrails(policy, usage)
-
-    return {
-      allowed: decision.allowed,
-      reason: decision.reason,
-      monthlyQuota: policy.monthlyQuota,
-      remainingMonthlyCredits: decision.remainingMonthlyCredits,
-      usage,
-      period,
-    }
+  // Intentional RLS bypass for low-latency guardrail reads in a user-facing
+  // hot path. Scope remains tenant-safe because userId is derived from
+  // server-side auth (`supabase.auth.getUser()`) and enforced in every query.
+  const account = await prismaAdmin.userProfile.findUnique({
+    where: { userId },
+    select: {
+      subscriptionTier: true,
+      subscriptionStatus: true,
+      subscriptionCurrentPeriodStart: true,
+      subscriptionCurrentPeriodEnd: true,
+      trialEndsAt: true,
+      createdAt: true,
+    },
   })
+
+  if (!account) return null
+
+  const tier = normalizeSubscriptionTier(account.subscriptionTier)
+  if (!getPlanByTier(tier).features.ai_rewrite) {
+    return null
+  }
+
+  const policy = getAiRewriteGuardrailPolicy(tier)
+  if (!policy) return null
+
+  const { usage, period } = await countAiRewriteUsageWindows(prismaAdmin, userId, account, now)
+  const decision = evaluateAiRewriteGuardrails(policy, usage)
+
+  return {
+    allowed: decision.allowed,
+    reason: decision.reason,
+    monthlyQuota: policy.monthlyQuota,
+    remainingMonthlyCredits: decision.remainingMonthlyCredits,
+    usage,
+    period,
+  }
 }
