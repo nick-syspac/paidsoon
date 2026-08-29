@@ -161,6 +161,10 @@ export function TemplatesClient({
       setAiError(formatAiRewriteErrorMessage(payload))
       return
     }
+    if (!payload.friendly || !payload.firm || !payload.final_notice) {
+      setAiError("The AI rewrite response was incomplete. Please try again.")
+      return
+    }
     setAiVariants({ friendly: payload.friendly, firm: payload.firm, final_notice: payload.final_notice })
   }
 

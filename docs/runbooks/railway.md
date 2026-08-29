@@ -201,7 +201,7 @@ with:
 | Root directory | `/worker` |
 | Railway config file | `/worker/railway.toml` |
 | Watch path | `/worker/**` |
-| Builder | Nixpacks, inherited from `railway.toml` |
+| Builder | Dockerfile (`worker/Dockerfile`), inherited from `railway.toml` |
 
 Set a distinct start command for each service:
 
