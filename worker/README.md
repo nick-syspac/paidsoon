@@ -56,7 +56,11 @@ something that can be provisioned for you:
 1. `railway login` (opens a browser to authenticate).
 2. `railway init` from this `worker/` directory (or connect this repo/subdirectory
    in the Railway dashboard). Set each service's root directory to `/worker`
-   and its Railway config file path to `/worker/railway.toml`.
+   and its Railway config file path to `/worker/railway.toml`. Builds use the
+   checked-in `Dockerfile` (configured in `railway.toml`) — not Nixpacks —
+   because Nixpacks injects every service variable, including secrets, into
+   its generated Dockerfile as ARG/ENV instructions and fails BuildKit's
+   `SecretsUsedInArgOrEnv` lint check.
 3. Add a Redis plugin/service in the same Railway project.
 4. Create **three services** from this same source, one per `Procfile`
    process type, by overriding each service's start command:

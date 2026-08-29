@@ -13,8 +13,15 @@
 # services. Set SUPABASE_DB_POOLER_HOST only when the Connect panel differs
 # from the validated default. Do not set or interpolate DATABASE_URL.
 
+# Use worker/Dockerfile instead of Nixpacks. Nixpacks injects every service
+# variable (including secrets such as SUPABASE_DB_PASSWORD and
+# INTERNAL_JOBS_SECRET) into its generated Dockerfile as ARG/ENV
+# instructions, which fails BuildKit's SecretsUsedInArgOrEnv lint check.
+# With a custom Dockerfile, Railway only exposes variables we explicitly
+# declare via ARG — we declare none, so secrets remain runtime-only.
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 restartPolicyType = "ON_FAILURE"
