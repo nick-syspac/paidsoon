@@ -2,6 +2,8 @@
 
 These runbooks bring up PaidSoon end-to-end across three environments. Each runbook covers one external service in isolation; this README orchestrates them and is the single normative source for environment variables.
 
+For a condensed per-subsystem env-var checklist (Vercel / Supabase / Railway) with value sources and setup order, see [environment-setup.md](./environment-setup.md).
+
 ## Environments
 
 | Name | Where it runs | Supabase project | Stripe mode | Resend sender | Cron |
