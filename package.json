@@ -28,6 +28,7 @@
     "verify:training-import": "node --import tsx scripts/verify-training-import.ts",
     "db:reset:local": "SEED_ENV=local node --import tsx scripts/db-reset-local.ts",
     "seed:admin-owner": "node --import tsx scripts/seed-admin-owner.ts",
+    "seed:support-account": "node --import tsx scripts/seed-support-account.ts",
     "get:admin-devices": "node --import tsx scripts/get-admin-devices.ts",
     "reset:myob-connection": "node --import tsx scripts/reset-myob-connection.ts",
     "backfill:chase-volume-limits": "node --import tsx scripts/backfill-chase-volume-limits.ts",

@@ -37,75 +37,90 @@ ALTER TABLE arrangement_invoice_coverages ENABLE ROW LEVEL SECURITY;
 -- ---------------------------------------------------------------------------
 -- user_profiles
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own profile"
+DROP POLICY IF EXISTS "users can view own profile" ON user_profiles;
+CREATE POLICY "users can view own profile"
   ON user_profiles FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can update own profile"
+DROP POLICY IF EXISTS "users can update own profile" ON user_profiles;
+CREATE POLICY "users can update own profile"
   ON user_profiles FOR UPDATE
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own profile"
+DROP POLICY IF EXISTS "users can insert own profile" ON user_profiles;
+CREATE POLICY "users can insert own profile"
   ON user_profiles FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
 -- ---------------------------------------------------------------------------
 -- invoice_connections
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own connections"
+DROP POLICY IF EXISTS "users can view own connections" ON invoice_connections;
+CREATE POLICY "users can view own connections"
   ON invoice_connections FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own connections"
+DROP POLICY IF EXISTS "users can insert own connections" ON invoice_connections;
+CREATE POLICY "users can insert own connections"
   ON invoice_connections FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can update own connections"
+DROP POLICY IF EXISTS "users can update own connections" ON invoice_connections;
+CREATE POLICY "users can update own connections"
   ON invoice_connections FOR UPDATE
   USING (auth.uid()::text = "userId");
 
 -- ---------------------------------------------------------------------------
 -- schedules
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own schedule"
+DROP POLICY IF EXISTS "users can view own schedule" ON schedules;
+CREATE POLICY "users can view own schedule"
   ON schedules FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own schedule"
+DROP POLICY IF EXISTS "users can insert own schedule" ON schedules;
+CREATE POLICY "users can insert own schedule"
   ON schedules FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can update own schedule"
+DROP POLICY IF EXISTS "users can update own schedule" ON schedules;
+CREATE POLICY "users can update own schedule"
   ON schedules FOR UPDATE
   USING (auth.uid()::text = "userId");
 
 -- ---------------------------------------------------------------------------
 -- email_settings
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own email settings"
+DROP POLICY IF EXISTS "users can view own email settings" ON email_settings;
+CREATE POLICY "users can view own email settings"
   ON email_settings FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own email settings"
+DROP POLICY IF EXISTS "users can insert own email settings" ON email_settings;
+CREATE POLICY "users can insert own email settings"
   ON email_settings FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can update own email settings"
+DROP POLICY IF EXISTS "users can update own email settings" ON email_settings;
+CREATE POLICY "users can update own email settings"
   ON email_settings FOR UPDATE
   USING (auth.uid()::text = "userId");
 
 -- ---------------------------------------------------------------------------
 -- tracked_invoices
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own invoices"
+DROP POLICY IF EXISTS "users can view own invoices" ON tracked_invoices;
+CREATE POLICY "users can view own invoices"
   ON tracked_invoices FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own invoices"
+DROP POLICY IF EXISTS "users can insert own invoices" ON tracked_invoices;
+CREATE POLICY "users can insert own invoices"
   ON tracked_invoices FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can update own invoices"
+DROP POLICY IF EXISTS "users can update own invoices" ON tracked_invoices;
+CREATE POLICY "users can update own invoices"
   ON tracked_invoices FOR UPDATE
   USING (auth.uid()::text = "userId");
 
@@ -117,7 +132,8 @@ CREATE OR REPLACE POLICY "users can update own invoices"
 -- feature are row-level data, not row-visibility gates, so no policy change
 -- is required here — the existing join-based policies already scope every
 -- column (including the new ones) to the owning user.
-CREATE OR REPLACE POLICY "users can view own email logs"
+DROP POLICY IF EXISTS "users can view own email logs" ON email_logs;
+CREATE POLICY "users can view own email logs"
   ON email_logs FOR SELECT
   USING (
     EXISTS (
@@ -127,7 +143,8 @@ CREATE OR REPLACE POLICY "users can view own email logs"
     )
   );
 
-CREATE OR REPLACE POLICY "service role can insert email logs"
+DROP POLICY IF EXISTS "service role can insert email logs" ON email_logs;
+CREATE POLICY "service role can insert email logs"
   ON email_logs FOR INSERT
   WITH CHECK (
     EXISTS (
@@ -140,19 +157,23 @@ CREATE OR REPLACE POLICY "service role can insert email logs"
 -- ---------------------------------------------------------------------------
 -- email_templates
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own email templates"
+DROP POLICY IF EXISTS "users can view own email templates" ON email_templates;
+CREATE POLICY "users can view own email templates"
   ON email_templates FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own email templates"
+DROP POLICY IF EXISTS "users can insert own email templates" ON email_templates;
+CREATE POLICY "users can insert own email templates"
   ON email_templates FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can update own email templates"
+DROP POLICY IF EXISTS "users can update own email templates" ON email_templates;
+CREATE POLICY "users can update own email templates"
   ON email_templates FOR UPDATE
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can delete own email templates"
+DROP POLICY IF EXISTS "users can delete own email templates" ON email_templates;
+CREATE POLICY "users can delete own email templates"
   ON email_templates FOR DELETE
   USING (auth.uid()::text = "userId");
 
@@ -163,7 +184,8 @@ CREATE OR REPLACE POLICY "users can delete own email templates"
 -- ---------------------------------------------------------------------------
 ALTER TABLE ai_usage_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own AI usage logs"
+DROP POLICY IF EXISTS "users can view own AI usage logs" ON ai_usage_logs;
+CREATE POLICY "users can view own AI usage logs"
   ON ai_usage_logs FOR SELECT
   USING (auth.uid()::text = user_id);
 
@@ -174,20 +196,24 @@ CREATE OR REPLACE POLICY "users can view own AI usage logs"
 -- ---------------------------------------------------------------------------
 ALTER TABLE accounting_connections ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own accounting connections"
+DROP POLICY IF EXISTS "users can view own accounting connections" ON accounting_connections;
+CREATE POLICY "users can view own accounting connections"
   ON accounting_connections FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own accounting connections"
+DROP POLICY IF EXISTS "users can insert own accounting connections" ON accounting_connections;
+CREATE POLICY "users can insert own accounting connections"
   ON accounting_connections FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can update own accounting connections"
+DROP POLICY IF EXISTS "users can update own accounting connections" ON accounting_connections;
+CREATE POLICY "users can update own accounting connections"
   ON accounting_connections FOR UPDATE
   USING (auth.uid()::text = "userId")
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can delete own accounting connections"
+DROP POLICY IF EXISTS "users can delete own accounting connections" ON accounting_connections;
+CREATE POLICY "users can delete own accounting connections"
   ON accounting_connections FOR DELETE
   USING (auth.uid()::text = "userId");
 
@@ -198,7 +224,8 @@ CREATE OR REPLACE POLICY "users can delete own accounting connections"
 -- ---------------------------------------------------------------------------
 ALTER TABLE accounting_sync_runs ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own sync runs"
+DROP POLICY IF EXISTS "users can view own sync runs" ON accounting_sync_runs;
+CREATE POLICY "users can view own sync runs"
   ON accounting_sync_runs FOR SELECT
   USING (auth.uid()::text = "userId");
 
@@ -211,7 +238,8 @@ CREATE OR REPLACE POLICY "users can view own sync runs"
 -- ---------------------------------------------------------------------------
 ALTER TABLE provider_invoice_mappings ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own provider invoice mappings"
+DROP POLICY IF EXISTS "users can view own provider invoice mappings" ON provider_invoice_mappings;
+CREATE POLICY "users can view own provider invoice mappings"
   ON provider_invoice_mappings FOR SELECT
   USING (
     EXISTS (
@@ -229,7 +257,8 @@ CREATE OR REPLACE POLICY "users can view own provider invoice mappings"
 -- ---------------------------------------------------------------------------
 ALTER TABLE provider_contact_mappings ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own provider contact mappings"
+DROP POLICY IF EXISTS "users can view own provider contact mappings" ON provider_contact_mappings;
+CREATE POLICY "users can view own provider contact mappings"
   ON provider_contact_mappings FOR SELECT
   USING (
     EXISTS (
@@ -249,15 +278,18 @@ CREATE OR REPLACE POLICY "users can view own provider contact mappings"
 -- ---------------------------------------------------------------------------
 ALTER TABLE oauth_states ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own oauth states"
+DROP POLICY IF EXISTS "users can view own oauth states" ON oauth_states;
+CREATE POLICY "users can view own oauth states"
   ON oauth_states FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own oauth states"
+DROP POLICY IF EXISTS "users can insert own oauth states" ON oauth_states;
+CREATE POLICY "users can insert own oauth states"
   ON oauth_states FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can delete own oauth states"
+DROP POLICY IF EXISTS "users can delete own oauth states" ON oauth_states;
+CREATE POLICY "users can delete own oauth states"
   ON oauth_states FOR DELETE
   USING (auth.uid()::text = "userId");
 
@@ -268,7 +300,8 @@ CREATE OR REPLACE POLICY "users can delete own oauth states"
 -- ---------------------------------------------------------------------------
 ALTER TABLE imported_bills ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own imported bills"
+DROP POLICY IF EXISTS "users can view own imported bills" ON imported_bills;
+CREATE POLICY "users can view own imported bills"
   ON imported_bills FOR SELECT
   USING (auth.uid()::text = user_id);
 
@@ -279,7 +312,8 @@ CREATE OR REPLACE POLICY "users can view own imported bills"
 -- ---------------------------------------------------------------------------
 ALTER TABLE imported_bank_transactions ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own imported bank transactions"
+DROP POLICY IF EXISTS "users can view own imported bank transactions" ON imported_bank_transactions;
+CREATE POLICY "users can view own imported bank transactions"
   ON imported_bank_transactions FOR SELECT
   USING (auth.uid()::text = user_id);
 
@@ -290,7 +324,8 @@ CREATE OR REPLACE POLICY "users can view own imported bank transactions"
 -- ---------------------------------------------------------------------------
 ALTER TABLE supplier_profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own supplier profiles"
+DROP POLICY IF EXISTS "users can view own supplier profiles" ON supplier_profiles;
+CREATE POLICY "users can view own supplier profiles"
   ON supplier_profiles FOR SELECT
   USING (auth.uid()::text = user_id);
 
@@ -303,11 +338,13 @@ CREATE OR REPLACE POLICY "users can view own supplier profiles"
 -- ---------------------------------------------------------------------------
 ALTER TABLE spend_insights ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own spend insights"
+DROP POLICY IF EXISTS "users can view own spend insights" ON spend_insights;
+CREATE POLICY "users can view own spend insights"
   ON spend_insights FOR SELECT
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can update own spend insights"
+DROP POLICY IF EXISTS "users can update own spend insights" ON spend_insights;
+CREATE POLICY "users can update own spend insights"
   ON spend_insights FOR UPDATE
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
@@ -322,7 +359,8 @@ GRANT UPDATE (state, resolved_at) ON TABLE spend_insights TO authenticated;
 -- ---------------------------------------------------------------------------
 ALTER TABLE cash_forecast_snapshots ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own cash forecast snapshots"
+DROP POLICY IF EXISTS "users can view own cash forecast snapshots" ON cash_forecast_snapshots;
+CREATE POLICY "users can view own cash forecast snapshots"
   ON cash_forecast_snapshots FOR SELECT
   USING (auth.uid()::text = user_id);
 
@@ -347,7 +385,8 @@ ALTER TABLE dispatcher_heartbeats ENABLE ROW LEVEL SECURITY;
 -- ---------------------------------------------------------------------------
 ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own promises to pay"
+DROP POLICY IF EXISTS "users can view own promises to pay" ON promise_to_pay;
+CREATE POLICY "users can view own promises to pay"
   ON promise_to_pay FOR SELECT
   USING (auth.uid()::text = "user_id");
 
@@ -366,15 +405,18 @@ ALTER TABLE weekly_debtor_summary_deliveries ENABLE ROW LEVEL SECURITY;
 -- promise_escalation_policies
 -- Users can read and update their own retry/escalation configuration.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own promise escalation policy"
+DROP POLICY IF EXISTS "users can view own promise escalation policy" ON promise_escalation_policies;
+CREATE POLICY "users can view own promise escalation policy"
   ON promise_escalation_policies FOR SELECT
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can insert own promise escalation policy"
+DROP POLICY IF EXISTS "users can insert own promise escalation policy" ON promise_escalation_policies;
+CREATE POLICY "users can insert own promise escalation policy"
   ON promise_escalation_policies FOR INSERT
   WITH CHECK (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can update own promise escalation policy"
+DROP POLICY IF EXISTS "users can update own promise escalation policy" ON promise_escalation_policies;
+CREATE POLICY "users can update own promise escalation policy"
   ON promise_escalation_policies FOR UPDATE
   USING (auth.uid()::text = user_id);
 
@@ -382,19 +424,23 @@ CREATE OR REPLACE POLICY "users can update own promise escalation policy"
 -- arrangements
 -- Users can create and manage their own freelancer-managed arrangement records.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own arrangements"
+DROP POLICY IF EXISTS "users can view own arrangements" ON arrangements;
+CREATE POLICY "users can view own arrangements"
   ON arrangements FOR SELECT
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can insert own arrangements"
+DROP POLICY IF EXISTS "users can insert own arrangements" ON arrangements;
+CREATE POLICY "users can insert own arrangements"
   ON arrangements FOR INSERT
   WITH CHECK (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can update own arrangements"
+DROP POLICY IF EXISTS "users can update own arrangements" ON arrangements;
+CREATE POLICY "users can update own arrangements"
   ON arrangements FOR UPDATE
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can delete own arrangements"
+DROP POLICY IF EXISTS "users can delete own arrangements" ON arrangements;
+CREATE POLICY "users can delete own arrangements"
   ON arrangements FOR DELETE
   USING (auth.uid()::text = user_id);
 
@@ -402,19 +448,23 @@ CREATE OR REPLACE POLICY "users can delete own arrangements"
 -- arrangement_invoice_coverages
 -- Coverage rows are user-scoped and link arrangement headers to tracked invoices.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE POLICY "users can view own arrangement coverages"
+DROP POLICY IF EXISTS "users can view own arrangement coverages" ON arrangement_invoice_coverages;
+CREATE POLICY "users can view own arrangement coverages"
   ON arrangement_invoice_coverages FOR SELECT
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can insert own arrangement coverages"
+DROP POLICY IF EXISTS "users can insert own arrangement coverages" ON arrangement_invoice_coverages;
+CREATE POLICY "users can insert own arrangement coverages"
   ON arrangement_invoice_coverages FOR INSERT
   WITH CHECK (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can update own arrangement coverages"
+DROP POLICY IF EXISTS "users can update own arrangement coverages" ON arrangement_invoice_coverages;
+CREATE POLICY "users can update own arrangement coverages"
   ON arrangement_invoice_coverages FOR UPDATE
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can delete own arrangement coverages"
+DROP POLICY IF EXISTS "users can delete own arrangement coverages" ON arrangement_invoice_coverages;
+CREATE POLICY "users can delete own arrangement coverages"
   ON arrangement_invoice_coverages FOR DELETE
   USING (auth.uid()::text = user_id);
 
@@ -426,15 +476,18 @@ CREATE OR REPLACE POLICY "users can delete own arrangement coverages"
 -- ---------------------------------------------------------------------------
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own customers"
+DROP POLICY IF EXISTS "users can view own customers" ON customers;
+CREATE POLICY "users can view own customers"
   ON customers FOR SELECT
   USING (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can insert own customers"
+DROP POLICY IF EXISTS "users can insert own customers" ON customers;
+CREATE POLICY "users can insert own customers"
   ON customers FOR INSERT
   WITH CHECK (auth.uid()::text = "userId");
 
-CREATE OR REPLACE POLICY "users can update own customers"
+DROP POLICY IF EXISTS "users can update own customers" ON customers;
+CREATE POLICY "users can update own customers"
   ON customers FOR UPDATE
   USING (auth.uid()::text = "userId")
   WITH CHECK (auth.uid()::text = "userId");
@@ -449,15 +502,18 @@ CREATE OR REPLACE POLICY "users can update own customers"
 -- ---------------------------------------------------------------------------
 ALTER TABLE invoice_import_batches ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own invoice import batches"
+DROP POLICY IF EXISTS "users can view own invoice import batches" ON invoice_import_batches;
+CREATE POLICY "users can view own invoice import batches"
   ON invoice_import_batches FOR SELECT
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can insert own invoice import batches"
+DROP POLICY IF EXISTS "users can insert own invoice import batches" ON invoice_import_batches;
+CREATE POLICY "users can insert own invoice import batches"
   ON invoice_import_batches FOR INSERT
   WITH CHECK (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can update own invoice import batches"
+DROP POLICY IF EXISTS "users can update own invoice import batches" ON invoice_import_batches;
+CREATE POLICY "users can update own invoice import batches"
   ON invoice_import_batches FOR UPDATE
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
@@ -468,7 +524,8 @@ CREATE OR REPLACE POLICY "users can update own invoice import batches"
 -- ---------------------------------------------------------------------------
 ALTER TABLE invoice_import_column_mappings ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own invoice import column mappings"
+DROP POLICY IF EXISTS "users can view own invoice import column mappings" ON invoice_import_column_mappings;
+CREATE POLICY "users can view own invoice import column mappings"
   ON invoice_import_column_mappings FOR SELECT
   USING (
     EXISTS (
@@ -478,7 +535,8 @@ CREATE OR REPLACE POLICY "users can view own invoice import column mappings"
     )
   );
 
-CREATE OR REPLACE POLICY "users can insert own invoice import column mappings"
+DROP POLICY IF EXISTS "users can insert own invoice import column mappings" ON invoice_import_column_mappings;
+CREATE POLICY "users can insert own invoice import column mappings"
   ON invoice_import_column_mappings FOR INSERT
   WITH CHECK (
     EXISTS (
@@ -488,7 +546,8 @@ CREATE OR REPLACE POLICY "users can insert own invoice import column mappings"
     )
   );
 
-CREATE OR REPLACE POLICY "users can update own invoice import column mappings"
+DROP POLICY IF EXISTS "users can update own invoice import column mappings" ON invoice_import_column_mappings;
+CREATE POLICY "users can update own invoice import column mappings"
   ON invoice_import_column_mappings FOR UPDATE
   USING (
     EXISTS (
@@ -498,7 +557,8 @@ CREATE OR REPLACE POLICY "users can update own invoice import column mappings"
     )
   );
 
-CREATE OR REPLACE POLICY "users can delete own invoice import column mappings"
+DROP POLICY IF EXISTS "users can delete own invoice import column mappings" ON invoice_import_column_mappings;
+CREATE POLICY "users can delete own invoice import column mappings"
   ON invoice_import_column_mappings FOR DELETE
   USING (
     EXISTS (
@@ -516,7 +576,8 @@ CREATE OR REPLACE POLICY "users can delete own invoice import column mappings"
 -- ---------------------------------------------------------------------------
 ALTER TABLE invoice_import_staging_rows ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own invoice import staging rows"
+DROP POLICY IF EXISTS "users can view own invoice import staging rows" ON invoice_import_staging_rows;
+CREATE POLICY "users can view own invoice import staging rows"
   ON invoice_import_staging_rows FOR SELECT
   USING (
     EXISTS (
@@ -526,7 +587,8 @@ CREATE OR REPLACE POLICY "users can view own invoice import staging rows"
     )
   );
 
-CREATE OR REPLACE POLICY "users can insert own invoice import staging rows"
+DROP POLICY IF EXISTS "users can insert own invoice import staging rows" ON invoice_import_staging_rows;
+CREATE POLICY "users can insert own invoice import staging rows"
   ON invoice_import_staging_rows FOR INSERT
   WITH CHECK (
     EXISTS (
@@ -536,7 +598,8 @@ CREATE OR REPLACE POLICY "users can insert own invoice import staging rows"
     )
   );
 
-CREATE OR REPLACE POLICY "users can update own invoice import staging rows"
+DROP POLICY IF EXISTS "users can update own invoice import staging rows" ON invoice_import_staging_rows;
+CREATE POLICY "users can update own invoice import staging rows"
   ON invoice_import_staging_rows FOR UPDATE
   USING (
     EXISTS (
@@ -553,7 +616,8 @@ CREATE OR REPLACE POLICY "users can update own invoice import staging rows"
 -- ---------------------------------------------------------------------------
 ALTER TABLE invoice_import_errors ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own invoice import errors"
+DROP POLICY IF EXISTS "users can view own invoice import errors" ON invoice_import_errors;
+CREATE POLICY "users can view own invoice import errors"
   ON invoice_import_errors FOR SELECT
   USING (
     EXISTS (
@@ -563,7 +627,8 @@ CREATE OR REPLACE POLICY "users can view own invoice import errors"
     )
   );
 
-CREATE OR REPLACE POLICY "users can insert own invoice import errors"
+DROP POLICY IF EXISTS "users can insert own invoice import errors" ON invoice_import_errors;
+CREATE POLICY "users can insert own invoice import errors"
   ON invoice_import_errors FOR INSERT
   WITH CHECK (
     EXISTS (
@@ -573,7 +638,8 @@ CREATE OR REPLACE POLICY "users can insert own invoice import errors"
     )
   );
 
-CREATE OR REPLACE POLICY "users can delete own invoice import errors"
+DROP POLICY IF EXISTS "users can delete own invoice import errors" ON invoice_import_errors;
+CREATE POLICY "users can delete own invoice import errors"
   ON invoice_import_errors FOR DELETE
   USING (
     EXISTS (
@@ -589,20 +655,24 @@ CREATE OR REPLACE POLICY "users can delete own invoice import errors"
 -- ---------------------------------------------------------------------------
 ALTER TABLE invoice_import_mapping_profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own invoice import mapping profiles"
+DROP POLICY IF EXISTS "users can view own invoice import mapping profiles" ON invoice_import_mapping_profiles;
+CREATE POLICY "users can view own invoice import mapping profiles"
   ON invoice_import_mapping_profiles FOR SELECT
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can insert own invoice import mapping profiles"
+DROP POLICY IF EXISTS "users can insert own invoice import mapping profiles" ON invoice_import_mapping_profiles;
+CREATE POLICY "users can insert own invoice import mapping profiles"
   ON invoice_import_mapping_profiles FOR INSERT
   WITH CHECK (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can update own invoice import mapping profiles"
+DROP POLICY IF EXISTS "users can update own invoice import mapping profiles" ON invoice_import_mapping_profiles;
+CREATE POLICY "users can update own invoice import mapping profiles"
   ON invoice_import_mapping_profiles FOR UPDATE
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can delete own invoice import mapping profiles"
+DROP POLICY IF EXISTS "users can delete own invoice import mapping profiles" ON invoice_import_mapping_profiles;
+CREATE POLICY "users can delete own invoice import mapping profiles"
   ON invoice_import_mapping_profiles FOR DELETE
   USING (auth.uid()::text = user_id);
 
@@ -613,11 +683,13 @@ CREATE OR REPLACE POLICY "users can delete own invoice import mapping profiles"
 -- ---------------------------------------------------------------------------
 ALTER TABLE invoice_payments ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "users can view own invoice payments"
+DROP POLICY IF EXISTS "users can view own invoice payments" ON invoice_payments;
+CREATE POLICY "users can view own invoice payments"
   ON invoice_payments FOR SELECT
   USING (auth.uid()::text = user_id);
 
-CREATE OR REPLACE POLICY "users can insert own invoice payments"
+DROP POLICY IF EXISTS "users can insert own invoice payments" ON invoice_payments;
+CREATE POLICY "users can insert own invoice payments"
   ON invoice_payments FOR INSERT
   WITH CHECK (auth.uid()::text = user_id);
 
@@ -634,59 +706,155 @@ ALTER TABLE admin_audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_invitations ENABLE ROW LEVEL SECURITY;
 
 -- Deny all SELECT for anon and authenticated roles
-CREATE OR REPLACE POLICY "admin deny select anon"       ON platform_roles     FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "admin deny select auth"       ON platform_roles     FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "admin deny insert anon"       ON platform_roles     FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "admin deny insert auth"       ON platform_roles     FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "admin deny update anon"       ON platform_roles     FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "admin deny update auth"       ON platform_roles     FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "admin deny delete anon"       ON platform_roles     FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "admin deny delete auth"       ON platform_roles     FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "admin deny select anon" ON platform_roles;
+CREATE POLICY "admin deny select anon"
+  ON platform_roles     FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "admin deny select auth" ON platform_roles;
+CREATE POLICY "admin deny select auth"
+  ON platform_roles     FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "admin deny insert anon" ON platform_roles;
+CREATE POLICY "admin deny insert anon"
+  ON platform_roles     FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "admin deny insert auth" ON platform_roles;
+CREATE POLICY "admin deny insert auth"
+  ON platform_roles     FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "admin deny update anon" ON platform_roles;
+CREATE POLICY "admin deny update anon"
+  ON platform_roles     FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "admin deny update auth" ON platform_roles;
+CREATE POLICY "admin deny update auth"
+  ON platform_roles     FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "admin deny delete anon" ON platform_roles;
+CREATE POLICY "admin deny delete anon"
+  ON platform_roles     FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "admin deny delete auth" ON platform_roles;
+CREATE POLICY "admin deny delete auth"
+  ON platform_roles     FOR DELETE TO authenticated  USING (false);
 
-CREATE OR REPLACE POLICY "devices deny select anon"     ON admin_devices      FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "devices deny select auth"     ON admin_devices      FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "devices deny insert anon"     ON admin_devices      FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "devices deny insert auth"     ON admin_devices      FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "devices deny update anon"     ON admin_devices      FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "devices deny update auth"     ON admin_devices      FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "devices deny delete anon"     ON admin_devices      FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "devices deny delete auth"     ON admin_devices      FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "devices deny select anon" ON admin_devices;
+CREATE POLICY "devices deny select anon"
+  ON admin_devices      FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "devices deny select auth" ON admin_devices;
+CREATE POLICY "devices deny select auth"
+  ON admin_devices      FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "devices deny insert anon" ON admin_devices;
+CREATE POLICY "devices deny insert anon"
+  ON admin_devices      FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "devices deny insert auth" ON admin_devices;
+CREATE POLICY "devices deny insert auth"
+  ON admin_devices      FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "devices deny update anon" ON admin_devices;
+CREATE POLICY "devices deny update anon"
+  ON admin_devices      FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "devices deny update auth" ON admin_devices;
+CREATE POLICY "devices deny update auth"
+  ON admin_devices      FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "devices deny delete anon" ON admin_devices;
+CREATE POLICY "devices deny delete anon"
+  ON admin_devices      FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "devices deny delete auth" ON admin_devices;
+CREATE POLICY "devices deny delete auth"
+  ON admin_devices      FOR DELETE TO authenticated  USING (false);
 
-CREATE OR REPLACE POLICY "challenges deny select anon"  ON admin_challenges   FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "challenges deny select auth"  ON admin_challenges   FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "challenges deny insert anon"  ON admin_challenges   FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "challenges deny insert auth"  ON admin_challenges   FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "challenges deny update anon"  ON admin_challenges   FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "challenges deny update auth"  ON admin_challenges   FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "challenges deny delete anon"  ON admin_challenges   FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "challenges deny delete auth"  ON admin_challenges   FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "challenges deny select anon" ON admin_challenges;
+CREATE POLICY "challenges deny select anon"
+  ON admin_challenges   FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "challenges deny select auth" ON admin_challenges;
+CREATE POLICY "challenges deny select auth"
+  ON admin_challenges   FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "challenges deny insert anon" ON admin_challenges;
+CREATE POLICY "challenges deny insert anon"
+  ON admin_challenges   FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "challenges deny insert auth" ON admin_challenges;
+CREATE POLICY "challenges deny insert auth"
+  ON admin_challenges   FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "challenges deny update anon" ON admin_challenges;
+CREATE POLICY "challenges deny update anon"
+  ON admin_challenges   FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "challenges deny update auth" ON admin_challenges;
+CREATE POLICY "challenges deny update auth"
+  ON admin_challenges   FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "challenges deny delete anon" ON admin_challenges;
+CREATE POLICY "challenges deny delete anon"
+  ON admin_challenges   FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "challenges deny delete auth" ON admin_challenges;
+CREATE POLICY "challenges deny delete auth"
+  ON admin_challenges   FOR DELETE TO authenticated  USING (false);
 
-CREATE OR REPLACE POLICY "sessions deny select anon"    ON admin_sessions     FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "sessions deny select auth"    ON admin_sessions     FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "sessions deny insert anon"    ON admin_sessions     FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "sessions deny insert auth"    ON admin_sessions     FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "sessions deny update anon"    ON admin_sessions     FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "sessions deny update auth"    ON admin_sessions     FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "sessions deny delete anon"    ON admin_sessions     FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "sessions deny delete auth"    ON admin_sessions     FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "sessions deny select anon" ON admin_sessions;
+CREATE POLICY "sessions deny select anon"
+  ON admin_sessions     FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "sessions deny select auth" ON admin_sessions;
+CREATE POLICY "sessions deny select auth"
+  ON admin_sessions     FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "sessions deny insert anon" ON admin_sessions;
+CREATE POLICY "sessions deny insert anon"
+  ON admin_sessions     FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "sessions deny insert auth" ON admin_sessions;
+CREATE POLICY "sessions deny insert auth"
+  ON admin_sessions     FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "sessions deny update anon" ON admin_sessions;
+CREATE POLICY "sessions deny update anon"
+  ON admin_sessions     FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "sessions deny update auth" ON admin_sessions;
+CREATE POLICY "sessions deny update auth"
+  ON admin_sessions     FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "sessions deny delete anon" ON admin_sessions;
+CREATE POLICY "sessions deny delete anon"
+  ON admin_sessions     FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "sessions deny delete auth" ON admin_sessions;
+CREATE POLICY "sessions deny delete auth"
+  ON admin_sessions     FOR DELETE TO authenticated  USING (false);
 
-CREATE OR REPLACE POLICY "audit deny select anon"       ON admin_audit_events FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "audit deny select auth"       ON admin_audit_events FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "audit deny insert anon"       ON admin_audit_events FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "audit deny insert auth"       ON admin_audit_events FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "audit deny update anon"       ON admin_audit_events FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "audit deny update auth"       ON admin_audit_events FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "audit deny delete anon"       ON admin_audit_events FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "audit deny delete auth"       ON admin_audit_events FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "audit deny select anon" ON admin_audit_events;
+CREATE POLICY "audit deny select anon"
+  ON admin_audit_events FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "audit deny select auth" ON admin_audit_events;
+CREATE POLICY "audit deny select auth"
+  ON admin_audit_events FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "audit deny insert anon" ON admin_audit_events;
+CREATE POLICY "audit deny insert anon"
+  ON admin_audit_events FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "audit deny insert auth" ON admin_audit_events;
+CREATE POLICY "audit deny insert auth"
+  ON admin_audit_events FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "audit deny update anon" ON admin_audit_events;
+CREATE POLICY "audit deny update anon"
+  ON admin_audit_events FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "audit deny update auth" ON admin_audit_events;
+CREATE POLICY "audit deny update auth"
+  ON admin_audit_events FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "audit deny delete anon" ON admin_audit_events;
+CREATE POLICY "audit deny delete anon"
+  ON admin_audit_events FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "audit deny delete auth" ON admin_audit_events;
+CREATE POLICY "audit deny delete auth"
+  ON admin_audit_events FOR DELETE TO authenticated  USING (false);
 
-CREATE OR REPLACE POLICY "invites deny select anon"     ON staff_invitations  FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "invites deny select auth"     ON staff_invitations  FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "invites deny insert anon"     ON staff_invitations  FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "invites deny insert auth"     ON staff_invitations  FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "invites deny update anon"     ON staff_invitations  FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "invites deny update auth"     ON staff_invitations  FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "invites deny delete anon"     ON staff_invitations  FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "invites deny delete auth"     ON staff_invitations  FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "invites deny select anon" ON staff_invitations;
+CREATE POLICY "invites deny select anon"
+  ON staff_invitations  FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "invites deny select auth" ON staff_invitations;
+CREATE POLICY "invites deny select auth"
+  ON staff_invitations  FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "invites deny insert anon" ON staff_invitations;
+CREATE POLICY "invites deny insert anon"
+  ON staff_invitations  FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "invites deny insert auth" ON staff_invitations;
+CREATE POLICY "invites deny insert auth"
+  ON staff_invitations  FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "invites deny update anon" ON staff_invitations;
+CREATE POLICY "invites deny update anon"
+  ON staff_invitations  FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "invites deny update auth" ON staff_invitations;
+CREATE POLICY "invites deny update auth"
+  ON staff_invitations  FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "invites deny delete anon" ON staff_invitations;
+CREATE POLICY "invites deny delete anon"
+  ON staff_invitations  FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "invites deny delete auth" ON staff_invitations;
+CREATE POLICY "invites deny delete auth"
+  ON staff_invitations  FOR DELETE TO authenticated  USING (false);
 
 -- ---------------------------------------------------------------------------
 -- Audit Retention Logs (archival tracking)
@@ -694,14 +862,30 @@ CREATE OR REPLACE POLICY "invites deny delete auth"     ON staff_invitations  FO
 -- ---------------------------------------------------------------------------
 ALTER TABLE audit_retention_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "retention deny select anon"   ON audit_retention_logs FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "retention deny select auth"   ON audit_retention_logs FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "retention deny insert anon"   ON audit_retention_logs FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "retention deny insert auth"   ON audit_retention_logs FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "retention deny update anon"   ON audit_retention_logs FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "retention deny update auth"   ON audit_retention_logs FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "retention deny delete anon"   ON audit_retention_logs FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "retention deny delete auth"   ON audit_retention_logs FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "retention deny select anon" ON audit_retention_logs;
+CREATE POLICY "retention deny select anon"
+  ON audit_retention_logs FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "retention deny select auth" ON audit_retention_logs;
+CREATE POLICY "retention deny select auth"
+  ON audit_retention_logs FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "retention deny insert anon" ON audit_retention_logs;
+CREATE POLICY "retention deny insert anon"
+  ON audit_retention_logs FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "retention deny insert auth" ON audit_retention_logs;
+CREATE POLICY "retention deny insert auth"
+  ON audit_retention_logs FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "retention deny update anon" ON audit_retention_logs;
+CREATE POLICY "retention deny update anon"
+  ON audit_retention_logs FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "retention deny update auth" ON audit_retention_logs;
+CREATE POLICY "retention deny update auth"
+  ON audit_retention_logs FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "retention deny delete anon" ON audit_retention_logs;
+CREATE POLICY "retention deny delete anon"
+  ON audit_retention_logs FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "retention deny delete auth" ON audit_retention_logs;
+CREATE POLICY "retention deny delete auth"
+  ON audit_retention_logs FOR DELETE TO authenticated  USING (false);
 
 -- ---------------------------------------------------------------------------
 -- Training Studio Tables (admin-authored platform content)
@@ -711,29 +895,77 @@ ALTER TABLE training_content ENABLE ROW LEVEL SECURITY;
 ALTER TABLE training_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE training_destination_usages ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "training content deny select anon"    ON training_content            FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "training content deny select auth"    ON training_content            FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "training content deny insert anon"    ON training_content            FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "training content deny insert auth"    ON training_content            FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "training content deny update anon"    ON training_content            FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "training content deny update auth"    ON training_content            FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "training content deny delete anon"    ON training_content            FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "training content deny delete auth"    ON training_content            FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training content deny select anon" ON training_content;
+CREATE POLICY "training content deny select anon"
+  ON training_content            FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "training content deny select auth" ON training_content;
+CREATE POLICY "training content deny select auth"
+  ON training_content            FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training content deny insert anon" ON training_content;
+CREATE POLICY "training content deny insert anon"
+  ON training_content            FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "training content deny insert auth" ON training_content;
+CREATE POLICY "training content deny insert auth"
+  ON training_content            FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "training content deny update anon" ON training_content;
+CREATE POLICY "training content deny update anon"
+  ON training_content            FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "training content deny update auth" ON training_content;
+CREATE POLICY "training content deny update auth"
+  ON training_content            FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training content deny delete anon" ON training_content;
+CREATE POLICY "training content deny delete anon"
+  ON training_content            FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "training content deny delete auth" ON training_content;
+CREATE POLICY "training content deny delete auth"
+  ON training_content            FOR DELETE TO authenticated  USING (false);
 
-CREATE OR REPLACE POLICY "training revisions deny select anon"  ON training_revisions          FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "training revisions deny select auth"  ON training_revisions          FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "training revisions deny insert anon"  ON training_revisions          FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "training revisions deny insert auth"  ON training_revisions          FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "training revisions deny update anon"  ON training_revisions          FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "training revisions deny update auth"  ON training_revisions          FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "training revisions deny delete anon"  ON training_revisions          FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "training revisions deny delete auth"  ON training_revisions          FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training revisions deny select anon" ON training_revisions;
+CREATE POLICY "training revisions deny select anon"
+  ON training_revisions          FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "training revisions deny select auth" ON training_revisions;
+CREATE POLICY "training revisions deny select auth"
+  ON training_revisions          FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training revisions deny insert anon" ON training_revisions;
+CREATE POLICY "training revisions deny insert anon"
+  ON training_revisions          FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "training revisions deny insert auth" ON training_revisions;
+CREATE POLICY "training revisions deny insert auth"
+  ON training_revisions          FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "training revisions deny update anon" ON training_revisions;
+CREATE POLICY "training revisions deny update anon"
+  ON training_revisions          FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "training revisions deny update auth" ON training_revisions;
+CREATE POLICY "training revisions deny update auth"
+  ON training_revisions          FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training revisions deny delete anon" ON training_revisions;
+CREATE POLICY "training revisions deny delete anon"
+  ON training_revisions          FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "training revisions deny delete auth" ON training_revisions;
+CREATE POLICY "training revisions deny delete auth"
+  ON training_revisions          FOR DELETE TO authenticated  USING (false);
 
-CREATE OR REPLACE POLICY "training destinations deny select anon" ON training_destination_usages FOR SELECT TO anon          USING (false);
-CREATE OR REPLACE POLICY "training destinations deny select auth" ON training_destination_usages FOR SELECT TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "training destinations deny insert anon" ON training_destination_usages FOR INSERT TO anon           WITH CHECK (false);
-CREATE OR REPLACE POLICY "training destinations deny insert auth" ON training_destination_usages FOR INSERT TO authenticated  WITH CHECK (false);
-CREATE OR REPLACE POLICY "training destinations deny update anon" ON training_destination_usages FOR UPDATE TO anon           USING (false);
-CREATE OR REPLACE POLICY "training destinations deny update auth" ON training_destination_usages FOR UPDATE TO authenticated  USING (false);
-CREATE OR REPLACE POLICY "training destinations deny delete anon" ON training_destination_usages FOR DELETE TO anon           USING (false);
-CREATE OR REPLACE POLICY "training destinations deny delete auth" ON training_destination_usages FOR DELETE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training destinations deny select anon" ON training_destination_usages;
+CREATE POLICY "training destinations deny select anon"
+  ON training_destination_usages FOR SELECT TO anon          USING (false);
+DROP POLICY IF EXISTS "training destinations deny select auth" ON training_destination_usages;
+CREATE POLICY "training destinations deny select auth"
+  ON training_destination_usages FOR SELECT TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training destinations deny insert anon" ON training_destination_usages;
+CREATE POLICY "training destinations deny insert anon"
+  ON training_destination_usages FOR INSERT TO anon           WITH CHECK (false);
+DROP POLICY IF EXISTS "training destinations deny insert auth" ON training_destination_usages;
+CREATE POLICY "training destinations deny insert auth"
+  ON training_destination_usages FOR INSERT TO authenticated  WITH CHECK (false);
+DROP POLICY IF EXISTS "training destinations deny update anon" ON training_destination_usages;
+CREATE POLICY "training destinations deny update anon"
+  ON training_destination_usages FOR UPDATE TO anon           USING (false);
+DROP POLICY IF EXISTS "training destinations deny update auth" ON training_destination_usages;
+CREATE POLICY "training destinations deny update auth"
+  ON training_destination_usages FOR UPDATE TO authenticated  USING (false);
+DROP POLICY IF EXISTS "training destinations deny delete anon" ON training_destination_usages;
+CREATE POLICY "training destinations deny delete anon"
+  ON training_destination_usages FOR DELETE TO anon           USING (false);
+DROP POLICY IF EXISTS "training destinations deny delete auth" ON training_destination_usages;
+CREATE POLICY "training destinations deny delete auth"
+  ON training_destination_usages FOR DELETE TO authenticated  USING (false);
