@@ -64,9 +64,10 @@ For a brand-new production setup, work through the runbooks in this order:
 10. OpenAI — [openai.md](./openai.md) §1 (API key setup + DB migration for usage logs).
 11. Admin — [admin.md](./admin.md) — bootstrap the first platform owner, SSH key setup, and first login.
      Touch ID path: [admin-touchid.md](./admin-touchid.md).
-12. Verification — see the last section of [supabase.md](./supabase.md), [vercel.md](./vercel.md), [railway.md](./railway.md), and [supabase-environment-rollout-checklist.md](./supabase-environment-rollout-checklist.md).
-13. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
-14. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
+12. Support account — [support-account.md](./support-account.md) — seed the internal Syspac Pty Ltd owner/support account (full tier, no Stripe).
+13. Verification — see the last section of [supabase.md](./supabase.md), [vercel.md](./vercel.md), [railway.md](./railway.md), and [supabase-environment-rollout-checklist.md](./supabase-environment-rollout-checklist.md).
+14. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
+15. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
 
 For launch readiness review and final go/no-go criteria, use:
 
