@@ -36,6 +36,9 @@ model UserProfile {
   schedule                     Schedule?
   emailSettings                EmailSettings?
   trackedInvoices              TrackedInvoice[]
+  financialContacts            FinancialContact[]
+  financialInvoices            FinancialInvoice[]
+  financialPayments            FinancialPayment[]
   arrangements                 Arrangement[]
   customers                    Customer[]
   promiseEscalationPolicy      PromiseEscalationPolicy?
@@ -219,29 +222,111 @@ model EmailSettings {
 }
 
 // ---------------------------------------------------------------------------
-// Tracked Invoices
+// Canonical Financial Data (provider-neutral receivables layer)
+// Every ingestion path (Xero, MYOB, Stripe, CSV/XLSX) writes here; product
+// features read from here. See openspec/changes/canonical-financial-data-model.
+// ---------------------------------------------------------------------------
+
+model FinancialContact {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  sourceSystem           String    @map("source_system") // 'xero' | 'myob' | 'stripe' | 'csv'
+  sourceId               String    @map("source_id") // provider contact ID; synthetic "email:<lower>" for stripe/csv
+  sourceUpdatedAt        DateTime? @map("source_updated_at")
+  syncedAt               DateTime  @default(now()) @map("synced_at")
+  accountingConnectionId String?   @map("accounting_connection_id") // null for stripe/csv sources
+  name                   String
+  email                  String?
+  emailLower             String?   @map("email_lower") // lowercased email; Postgres unique constraints don't case-fold
+  rawSourceData          Json?     @map("raw_source_data")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile          UserProfile           @relation(fields: [userId], references: [userId])
+  accountingConnection AccountingConnection? @relation(fields: [accountingConnectionId], references: [id])
+  financialInvoices    FinancialInvoice[]
+  customers            Customer[]
+
+  @@unique([userId, sourceSystem, sourceId])
+  @@unique([userId, emailLower])
+  @@index([userId, sourceSystem])
+  @@map("financial_contacts")
+}
+
+model FinancialInvoice {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  sourceSystem           String    @map("source_system") // 'xero' | 'myob' | 'stripe' | 'csv'
+  sourceId               String    @map("source_id") // provider invoice ID / import-derived external ID
+  sourceUpdatedAt        DateTime? @map("source_updated_at")
+  syncedAt               DateTime  @default(now()) @map("synced_at")
+  accountingConnectionId String?   @map("accounting_connection_id") // null for stripe/csv sources
+  contactId              String?   @map("contact_id")
+  invoiceNumber          String?   @map("invoice_number")
+  amountDueCents         Int       @map("amount_due_cents") // the invoice's fixed original total in cents — NOT the current outstanding balance (see lib/invoices/payments.ts#computeOutstanding)
+  currency               String // ISO 4217, lowercase; ALWAYS from source — no default (design D3)
+  dueDate                DateTime  @map("due_date")
+  issueDate              DateTime? @map("issue_date")
+  paymentUrl             String?   @map("payment_url")
+  rawSourceData          Json?     @map("raw_source_data")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile          UserProfile           @relation(fields: [userId], references: [userId])
+  accountingConnection AccountingConnection? @relation(fields: [accountingConnectionId], references: [id])
+  contact              FinancialContact?     @relation(fields: [contactId], references: [id])
+  trackedInvoice       TrackedInvoice?
+  financialPayments    FinancialPayment[]
+
+  @@unique([userId, sourceSystem, sourceId])
+  @@index([userId, dueDate])
+  @@index([userId, contactId])
+  @@map("financial_invoices")
+}
+
+model FinancialPayment {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  sourceSystem           String    @map("source_system")
+  sourceId               String    @map("source_id")
+  sourceUpdatedAt        DateTime? @map("source_updated_at")
+  syncedAt               DateTime  @default(now()) @map("synced_at")
+  accountingConnectionId String?   @map("accounting_connection_id")
+  financialInvoiceId     String?   @map("financial_invoice_id")
+  amountCents            Int       @map("amount_cents")
+  currency               String // no default — always from source (design D3)
+  paidAt                 DateTime  @map("paid_at")
+  rawSourceData          Json?     @map("raw_source_data")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile          UserProfile           @relation(fields: [userId], references: [userId])
+  accountingConnection AccountingConnection? @relation(fields: [accountingConnectionId], references: [id])
+  financialInvoice     FinancialInvoice?     @relation(fields: [financialInvoiceId], references: [id])
+
+  @@unique([userId, sourceSystem, sourceId])
+  @@index([userId, paidAt])
+  @@map("financial_payments")
+}
+
+// ---------------------------------------------------------------------------
+// Tracked Invoices (chasing workflow state only — invoice facts live on the
+// linked FinancialInvoice)
 // ---------------------------------------------------------------------------
 
 model TrackedInvoice {
-  id                  String    @id @default(cuid())
-  userId              String
+  id                 String   @id @default(cuid())
+  userId             String
+  financialInvoiceId String   @unique @map("financial_invoice_id")
   invoiceConnectionId String
   customerId          String?
-  externalId          String // e.g. Stripe invoice ID
-  provider            String    @default("stripe")
-  clientEmail         String
-  clientName          String
-  amountDue           Int // in smallest currency unit (cents); the invoice's fixed original total — NOT the current outstanding balance, which is amountDue minus the sum of its InvoicePayment rows (lib/invoices/payments.ts#computeOutstanding)
-  currency            String    @default("usd")
-  dueDate             DateTime
-  paymentUrl          String?   @map("payment_url")
   status              String    @default("pending")
   // 'pending' | 'paid' | 'paused' | 'snoozed' | 'sequence_complete' | 'manually_resolved' | 'disputed'
   currentStage        Int       @default(0) // 0=not started, 1=email1 sent, 2=email2 sent, 3=email3 sent
   nextEmailAt         DateTime?
   snoozedUntil        DateTime?
   firstChasedAt       DateTime? @map("first_chased_at") // set once, when the first reminder is sent; consumes chase-volume allowance
-  providerMetadata    Json?     @map("provider_metadata") // provider-specific fields, not part of core model
+  providerMetadata    Json?     @map("provider_metadata") // chasing-scoped remnants; invoice facts live on FinancialInvoice.rawSourceData
   p2pToken            String?   @unique @map("p2p_token") // generated for Business+ users; client uses to submit a promise to pay
   disputeNote         String?   @map("dispute_note")
   disputeRaisedAt     DateTime? @map("dispute_raised_at")
@@ -249,17 +334,15 @@ model TrackedInvoice {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  userProfile            UserProfile                  @relation(fields: [userId], references: [userId])
-  invoiceConnection      InvoiceConnection            @relation(fields: [invoiceConnectionId], references: [id])
-  customer               Customer?                    @relation(fields: [customerId], references: [id])
-  emailLogs              EmailLog[]
-  providerInvoiceMapping ProviderInvoiceMapping?
-  promisesToPay          PromiseToPay[]
-  arrangementCoverages   ArrangementInvoiceCoverage[]
-  payments               InvoicePayment[]
+  userProfile          UserProfile                  @relation(fields: [userId], references: [userId])
+  financialInvoice     FinancialInvoice             @relation(fields: [financialInvoiceId], references: [id])
+  invoiceConnection    InvoiceConnection            @relation(fields: [invoiceConnectionId], references: [id])
+  customer             Customer?                    @relation(fields: [customerId], references: [id])
+  emailLogs            EmailLog[]
+  promisesToPay        PromiseToPay[]
+  arrangementCoverages ArrangementInvoiceCoverage[]
+  payments             InvoicePayment[]
 
-  @@unique([id, userId, clientEmail])
-  @@unique([externalId, provider, userId])
   @@index([userId, firstChasedAt])
   @@index([customerId])
   @@map("tracked_invoices")
@@ -292,22 +375,21 @@ model InvoicePayment {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id                String   @id @default(cuid())
-  userId            String
-  primaryEmail      String   @map("primary_email")
-  primaryEmailLower String   @map("primary_email_lower") // lowercased primaryEmail; Postgres unique constraints don't case-fold
-  displayName       String?  @map("display_name")
-  neverAutoChase    Boolean  @default(false) @map("never_auto_chase")
-  unsubscribed      Boolean  @default(false)
-  cadenceOverride   Json?    @map("cadence_override") // { email1DaysAfterDue, email2DaysAfterDue, email3DaysAfterDue }; overrides the tenant's Schedule when present
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(cuid())
+  userId             String
+  financialContactId String   @map("financial_contact_id") // debtor identity lives on the canonical contact; this row carries chasing preferences only
+  neverAutoChase     Boolean  @default(false) @map("never_auto_chase")
+  unsubscribed       Boolean  @default(false)
+  cadenceOverride    Json?    @map("cadence_override") // { email1DaysAfterDue, email2DaysAfterDue, email3DaysAfterDue }; overrides the tenant's Schedule when present
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  userProfile     UserProfile      @relation(fields: [userId], references: [userId])
-  trackedInvoices TrackedInvoice[]
-  arrangements    Arrangement[]
+  userProfile      UserProfile      @relation(fields: [userId], references: [userId])
+  financialContact FinancialContact @relation(fields: [financialContactId], references: [id])
+  trackedInvoices  TrackedInvoice[]
+  arrangements     Arrangement[]
 
-  @@unique([userId, primaryEmailLower])
+  @@unique([userId, financialContactId])
   @@map("customers")
 }
 
@@ -338,6 +420,7 @@ model Arrangement {
   customer    Customer?                    @relation(fields: [customerId], references: [id])
   coverages   ArrangementInvoiceCoverage[]
 
+  @@unique([id, userId])
   @@unique([id, userId, debtorEmail])
   @@index([userId, status])
   @@index([userId, debtorEmail])
@@ -350,15 +433,13 @@ model ArrangementInvoiceCoverage {
   arrangementId    String   @map("arrangement_id")
   trackedInvoiceId String   @map("tracked_invoice_id")
   userId           String   @map("user_id")
-  debtorEmail      String   @map("debtor_email")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  arrangement    Arrangement    @relation(fields: [arrangementId, userId, debtorEmail], references: [id, userId, debtorEmail])
-  trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId, userId, debtorEmail], references: [id, userId, clientEmail])
+  arrangement    Arrangement    @relation(fields: [arrangementId, userId], references: [id, userId])
+  trackedInvoice TrackedInvoice @relation(fields: [trackedInvoiceId], references: [id])
 
   @@unique([arrangementId, trackedInvoiceId])
   @@index([trackedInvoiceId])
-  @@index([userId, debtorEmail])
   @@map("arrangement_invoice_coverages")
 }
 
@@ -507,15 +588,16 @@ model AccountingConnection {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  userProfile              UserProfile               @relation(fields: [userId], references: [userId])
-  syncRuns                 AccountingSyncRun[]
-  providerInvoiceMappings  ProviderInvoiceMapping[]
-  providerContactMappings  ProviderContactMapping[]
-  importedBills            ImportedBill[]
-  importedBankTransactions ImportedBankTransaction[]
-  supplierProfiles         SupplierProfile[]
-  spendInsights            SpendInsight[]
-  cashForecastSnapshots    CashForecastSnapshot[]
+  userProfile               UserProfile               @relation(fields: [userId], references: [userId])
+  syncRuns                  AccountingSyncRun[]
+  financialContacts         FinancialContact[]
+  financialInvoices         FinancialInvoice[]
+  financialPayments         FinancialPayment[]
+  importedBills             ImportedBill[]
+  importedBankTransactions  ImportedBankTransaction[]
+  supplierProfiles          SupplierProfile[]
+  spendInsights             SpendInsight[]
+  cashForecastSnapshots     CashForecastSnapshot[]
 
   @@unique([userId, provider, organisationId])
   @@map("accounting_connections")
@@ -546,47 +628,6 @@ model AccountingSyncRun {
 }
 
 // ---------------------------------------------------------------------------
-// Provider Invoice Mappings
-// ---------------------------------------------------------------------------
-
-model ProviderInvoiceMapping {
-  id                     String    @id @default(cuid())
-  trackedInvoiceId       String    @unique @map("tracked_invoice_id")
-  accountingConnectionId String    @map("accounting_connection_id")
-  providerInvoiceId      String    @map("provider_invoice_id") // e.g. Xero InvoiceID or MYOB UID
-  providerUpdatedAt      DateTime? @map("provider_updated_at") // used for incremental sync
-  providerMetadata       Json?     @map("provider_metadata") // provider-specific fields
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
-
-  trackedInvoice       TrackedInvoice       @relation(fields: [trackedInvoiceId], references: [id])
-  accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
-
-  @@unique([providerInvoiceId, accountingConnectionId])
-  @@map("provider_invoice_mappings")
-}
-
-// ---------------------------------------------------------------------------
-// Provider Contact Mappings
-// ---------------------------------------------------------------------------
-
-model ProviderContactMapping {
-  id                     String   @id @default(cuid())
-  accountingConnectionId String   @map("accounting_connection_id")
-  providerContactId      String   @map("provider_contact_id") // e.g. Xero ContactID or MYOB Customer UID
-  contactName            String?  @map("contact_name")
-  contactEmail           String?  @map("contact_email")
-  providerMetadata       Json?    @map("provider_metadata")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
-
-  accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
-
-  @@unique([providerContactId, accountingConnectionId])
-  @@map("provider_contact_mappings")
-}
-
-// ---------------------------------------------------------------------------
 // OAuth States (CSRF nonce for accounting OAuth callbacks)
 // ---------------------------------------------------------------------------
 
@@ -611,8 +652,8 @@ model ImportedBill {
   id                     String    @id @default(cuid())
   userId                 String    @map("user_id")
   accountingConnectionId String    @map("accounting_connection_id")
-  providerBillId         String    @map("provider_bill_id")
-  providerContactId      String?   @map("provider_contact_id")
+  sourceId               String    @map("source_id") // provider bill ID
+  sourceContactId        String?   @map("source_contact_id")
   supplierName           String    @map("supplier_name")
   supplierReference      String?   @map("supplier_reference")
   documentNumber         String?   @map("document_number")
@@ -620,19 +661,20 @@ model ImportedBill {
   expenseAccountName     String?   @map("expense_account_name")
   amountCents            Int       @map("amount_cents")
   gstCents               Int?      @map("gst_cents")
-  currency               String    @default("usd")
+  currency               String // no default — always from source (design D3)
   dueDate                DateTime? @map("due_date")
   paidDate               DateTime? @map("paid_date")
   status                 String    @default("open")
-  providerUpdatedAt      DateTime? @map("provider_updated_at")
-  providerMetadata       Json?     @map("provider_metadata")
+  sourceUpdatedAt        DateTime? @map("source_updated_at")
+  syncedAt               DateTime  @default(now()) @map("synced_at")
+  rawSourceData          Json?     @map("raw_source_data")
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
 
-  @@unique([accountingConnectionId, providerBillId])
+  @@unique([accountingConnectionId, sourceId])
   @@index([userId, status, dueDate])
   @@index([userId, supplierName])
   @@map("imported_bills")
@@ -642,49 +684,52 @@ model ImportedBankTransaction {
   id                     String    @id @default(cuid())
   userId                 String    @map("user_id")
   accountingConnectionId String    @map("accounting_connection_id")
-  providerTransactionId  String    @map("provider_transaction_id")
-  providerContactId      String?   @map("provider_contact_id")
+  sourceId               String    @map("source_id") // provider transaction ID
+  sourceContactId        String?   @map("source_contact_id")
   accountName            String?   @map("account_name")
   accountCode            String?   @map("account_code")
   description            String
   reference              String?
   counterpartyName       String?   @map("counterparty_name")
   amountCents            Int       @map("amount_cents")
-  currency               String    @default("usd")
+  currency               String // no default — always from source (design D3)
   transactionDate        DateTime  @map("transaction_date")
-  providerUpdatedAt      DateTime? @map("provider_updated_at")
-  providerMetadata       Json?     @map("provider_metadata")
+  sourceUpdatedAt        DateTime? @map("source_updated_at")
+  syncedAt               DateTime  @default(now()) @map("synced_at")
+  rawSourceData          Json?     @map("raw_source_data")
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
 
-  @@unique([accountingConnectionId, providerTransactionId])
+  @@unique([accountingConnectionId, sourceId])
   @@index([userId, transactionDate])
   @@index([userId, counterpartyName])
   @@map("imported_bank_transactions")
 }
 
 model SupplierProfile {
-  id                     String   @id @default(cuid())
-  userId                 String   @map("user_id")
-  accountingConnectionId String   @map("accounting_connection_id")
-  providerSupplierId     String   @map("provider_supplier_id")
-  supplierName           String   @map("supplier_name")
-  supplierEmail          String?  @map("supplier_email")
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  accountingConnectionId String    @map("accounting_connection_id")
+  sourceId               String    @map("source_id") // provider supplier ID
+  supplierName           String    @map("supplier_name")
+  supplierEmail          String?   @map("supplier_email")
   abn                    String?
-  paymentTerms           String?  @map("payment_terms")
-  defaultAccountCode     String?  @map("default_account_code")
-  defaultAccountName     String?  @map("default_account_name")
-  providerMetadata       Json?    @map("provider_metadata")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  paymentTerms           String?   @map("payment_terms")
+  defaultAccountCode     String?   @map("default_account_code")
+  defaultAccountName     String?   @map("default_account_name")
+  sourceUpdatedAt        DateTime? @map("source_updated_at")
+  syncedAt               DateTime  @default(now()) @map("synced_at")
+  rawSourceData          Json?     @map("raw_source_data")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
 
-  @@unique([accountingConnectionId, providerSupplierId])
+  @@unique([accountingConnectionId, sourceId])
   @@index([userId, supplierName])
   @@map("supplier_profiles")
 }

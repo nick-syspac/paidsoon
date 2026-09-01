@@ -41,6 +41,10 @@
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
 import { findOrCreateCustomer } from "@/lib/db/customers"
+import {
+  upsertFinancialContact,
+  upsertFinancialInvoice,
+} from "@/lib/financial/ingest"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { isDemoOrganisationId } from "@/lib/providers/accounting/demoGuard"
 import {
@@ -411,40 +415,62 @@ async function upsertInvoice(params: {
   const contact = contactMap.get(inv.providerContactId)
   const clientEmail = contact?.email ?? inv.clientEmail
   const clientName = contact?.name ?? inv.clientName
+  const sourceSystem = connection.provider as "xero" | "myob"
 
   // Determine TrackedInvoice status from provider status
   const invoiceStatus = mapProviderStatusToTracked(inv.status)
 
-  // Idempotent upsert on (externalId, provider, userId)
-  const existing = await prismaAdmin.trackedInvoice.findUnique({
-    where: {
-      externalId_provider_userId: {
-        externalId: inv.providerInvoiceId,
-        provider: connection.provider,
-        userId: connection.userId,
-      },
-    },
-    select: { id: true, status: true, nextEmailAt: true },
+  // Upsert the canonical contact (provenance absorbs the old
+  // ProviderContactMapping), then the canonical invoice keyed by
+  // (userId, sourceSystem, sourceId).
+  let financialContactId: string | null = null
+  if (clientEmail || inv.providerContactId) {
+    const canonicalContact = await upsertFinancialContact(prismaAdmin, {
+      userId: connection.userId,
+      sourceSystem,
+      sourceId: inv.providerContactId || `email:${clientEmail.trim().toLowerCase()}`,
+      accountingConnectionId: connection.id,
+      sourceUpdatedAt: contact?.rawMetadata != null ? inv.providerUpdatedAt ?? null : null,
+      name: clientName || clientEmail || "Unknown contact",
+      email: clientEmail || null,
+      rawSourceData: contact?.rawMetadata ?? null,
+    })
+    financialContactId = canonicalContact.id
+  }
+
+  const { invoice: financialInvoice, created } = await upsertFinancialInvoice(prismaAdmin, {
+    userId: connection.userId,
+    sourceSystem,
+    sourceId: inv.providerInvoiceId,
+    accountingConnectionId: connection.id,
+    sourceUpdatedAt: inv.providerUpdatedAt ?? null,
+    contactId: financialContactId,
+    invoiceNumber: inv.invoiceNumber ?? null,
+    amountDueCents: toCents(inv.amountDue),
+    currency: inv.currency,
+    dueDate: inv.dueDate,
+    rawSourceData: inv.rawMetadata ?? null,
   })
 
-  if (!existing) {
-    // Create new TrackedInvoice
-    const customer = clientEmail
-      ? await findOrCreateCustomer(prismaAdmin, connection.userId, clientEmail, clientName)
-      : null
-
-    const created = await prismaAdmin.trackedInvoice.create({
-      data: {
-        userId: connection.userId,
-        invoiceConnectionId,
-        customerId: customer?.id,
-        externalId: inv.providerInvoiceId,
-        provider: connection.provider,
+  // Link chasing preferences (Customer) to the canonical contact.
+  const customer = clientEmail
+    ? await findOrCreateCustomer(
+        prismaAdmin,
+        connection.userId,
         clientEmail,
         clientName,
-        amountDue: toCents(inv.amountDue),
-        currency: inv.currency.toLowerCase(),
-        dueDate: inv.dueDate,
+        sourceSystem,
+        inv.providerContactId || undefined,
+      )
+    : null
+
+  if (created) {
+    await prismaAdmin.trackedInvoice.create({
+      data: {
+        userId: connection.userId,
+        financialInvoiceId: financialInvoice.id,
+        invoiceConnectionId,
+        customerId: customer?.id,
         status: invoiceStatus,
         currentStage: 0,
         // Only schedule reminders for open invoices
@@ -452,75 +478,42 @@ async function upsertInvoice(params: {
         providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
       },
     })
-
-    // Create ProviderInvoiceMapping
-    await prismaAdmin.providerInvoiceMapping.create({
-      data: {
-        trackedInvoiceId: created.id,
-        accountingConnectionId: connection.id,
-        providerInvoiceId: inv.providerInvoiceId,
-        providerUpdatedAt: inv.providerUpdatedAt ?? null,
-        providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
-      },
-    })
-
-    // Upsert ProviderContactMapping
-    if (inv.providerContactId) {
-      await prismaAdmin.providerContactMapping.upsert({
-        where: {
-          providerContactId_accountingConnectionId: {
-            providerContactId: inv.providerContactId,
-            accountingConnectionId: connection.id,
-          },
-        },
-        update: {
-          contactName: clientName || null,
-          contactEmail: clientEmail || null,
-          providerMetadata: contact?.rawMetadata != null ? (contact.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
-        },
-        create: {
-          accountingConnectionId: connection.id,
-          providerContactId: inv.providerContactId,
-          contactName: clientName || null,
-          contactEmail: clientEmail || null,
-          providerMetadata: contact?.rawMetadata != null ? (contact.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
-        },
-      })
-    }
-
     result.invoicesCreated++
   } else {
-    // Update existing TrackedInvoice
+    const existing = await prismaAdmin.trackedInvoice.findUnique({
+      where: { financialInvoiceId: financialInvoice.id },
+      select: { id: true, status: true },
+    })
+    if (!existing) {
+      // Canonical invoice existed but had no chasing record yet — enrol it.
+      await prismaAdmin.trackedInvoice.create({
+        data: {
+          userId: connection.userId,
+          financialInvoiceId: financialInvoice.id,
+          invoiceConnectionId,
+          customerId: customer?.id,
+          status: invoiceStatus,
+          currentStage: 0,
+          nextEmailAt: invoiceStatus === "pending" ? inv.dueDate : null,
+          providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
+        },
+      })
+      result.invoicesCreated++
+      return
+    }
+
+    // Update existing chasing record: invoice facts live on the canonical
+    // record (already upserted above); here we only advance workflow state.
     const wasOpen = existing.status === "pending"
     const nowClosed = invoiceStatus === "paid" || invoiceStatus === "manually_resolved"
-
-    const customer = clientEmail
-      ? await findOrCreateCustomer(prismaAdmin, connection.userId, clientEmail, clientName)
-      : null
 
     await prismaAdmin.trackedInvoice.update({
       where: { id: existing.id },
       data: {
-        clientEmail,
-        clientName,
         ...(customer ? { customerId: customer.id } : {}),
-        amountDue: toCents(inv.amountDue),
-        dueDate: inv.dueDate,
         status: invoiceStatus,
         // Cancel reminders when invoice transitions to paid/voided
         ...(wasOpen && nowClosed ? { nextEmailAt: null, currentStage: 0 } : {}),
-        providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
-      },
-    })
-
-    // Update mapping's providerUpdatedAt
-    await prismaAdmin.providerInvoiceMapping.updateMany({
-      where: {
-        trackedInvoiceId: existing.id,
-        accountingConnectionId: connection.id,
-      },
-      data: {
-        providerUpdatedAt: inv.providerUpdatedAt ?? null,
         providerMetadata: inv.rawMetadata != null ? (inv.rawMetadata as Prisma.InputJsonValue) : Prisma.DbNull,
       },
     })

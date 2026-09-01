@@ -26,6 +26,7 @@ export async function runPromiseAndArrangementBreachSweep() {
       trackedInvoice: {
         include: {
           userProfile: { select: { userId: true, displayName: true } },
+          financialInvoice: { include: { contact: true } },
         },
       },
     },
@@ -47,7 +48,11 @@ export async function runPromiseAndArrangementBreachSweep() {
       const brokenCount = await prisma.promiseToPay.count({
         where: {
           status: "broken",
-          trackedInvoice: { clientEmail: bp.trackedInvoice.clientEmail },
+          trackedInvoice: {
+            financialInvoice: {
+              contact: { emailLower: bp.trackedInvoice.financialInvoice.contact?.emailLower ?? "" },
+            },
+          },
         },
       })
 

@@ -3,7 +3,7 @@ import type { PrismaTx } from "@/lib/db/withUserContext"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
 import type { ArrangementCoverageWithArrangement } from "@/lib/dashboard/arrangements"
-import type { EmailLog, InvoicePayment, PromiseToPay, TrackedInvoice } from "@/lib/generated/prisma/client"
+import type { EmailLog, FinancialContact, FinancialInvoice, InvoicePayment, PromiseToPay, TrackedInvoice } from "@/lib/generated/prisma/client"
 
 /** 'pending' | 'paused' | 'snoozed' | 'sequence_complete' — invoices still in an active chase. */
 export const ACTIVE_INVOICE_STATUSES = ["pending", "paused", "snoozed", "sequence_complete"]
@@ -11,6 +11,19 @@ export const ACTIVE_INVOICE_STATUSES = ["pending", "paused", "snoozed", "sequenc
 export const RESOLVED_INVOICE_STATUSES = ["paid", "manually_resolved"]
 
 export type InvoiceWithRelations = TrackedInvoice & {
+  financialInvoice: FinancialInvoice & { contact: FinancialContact | null }
+  /** Flat invoice facts projected from the canonical record (legacy field names). */
+  clientEmail: string
+  clientName: string
+  /** Fixed original invoice total in cents (canonical amountDueCents). */
+  amountDue: number
+  currency: string
+  dueDate: Date
+  paymentUrl: string | null
+  /** Canonical sourceId (provider invoice id / import external id). */
+  externalId: string
+  /** Canonical sourceSystem ('stripe' | 'xero' | 'myob' | 'csv'). */
+  provider: string
   emailLogs: EmailLog[]
   promisesToPay: PromiseToPay[]
   arrangementCoverages: ArrangementCoverageWithArrangement[]
@@ -38,6 +51,7 @@ export async function loadDashboardInvoicesWithTx(
       userId,
       status: { in: statuses },
     },
+    include: { financialInvoice: { include: { contact: true } } },
     orderBy,
   })
   if (invoices.length === 0) return []
@@ -91,6 +105,16 @@ export async function loadDashboardInvoicesWithTx(
 
   return invoices.map((invoice) => ({
     ...invoice,
+    // Flat canonical invoice facts (legacy field names) so downstream libs read
+    // invoice.amountDue / clientEmail / dueDate without joining themselves.
+    clientEmail: invoice.financialInvoice.contact?.email ?? "",
+    clientName: invoice.financialInvoice.contact?.name ?? "",
+    amountDue: invoice.financialInvoice.amountDueCents,
+    currency: invoice.financialInvoice.currency,
+    dueDate: invoice.financialInvoice.dueDate,
+    paymentUrl: invoice.financialInvoice.paymentUrl,
+    externalId: invoice.financialInvoice.sourceId,
+    provider: invoice.financialInvoice.sourceSystem,
     emailLogs: emailLogsByInvoice.get(invoice.id) ?? [],
     promisesToPay: promisesByInvoice.get(invoice.id) ?? [],
     arrangementCoverages: (coveragesByInvoice.get(invoice.id) ?? []).flatMap((coverage) => {

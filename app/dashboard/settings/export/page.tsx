@@ -40,17 +40,21 @@ export default async function InvoiceExportSettingsPage() {
   const customers = await withUserContext(user.id, (tx) =>
     tx.customer.findMany({
       where: { userId: user.id },
-      select: { id: true, displayName: true, primaryEmail: true },
-      orderBy: { displayName: "asc" },
+      select: {
+        id: true,
+        financialContact: { select: { name: true, email: true } },
+      },
     }),
   )
 
   return (
     <InvoiceExportClient
-      customers={customers.map((customer) => ({
-        id: customer.id,
-        label: customer.displayName ?? customer.primaryEmail,
-      }))}
+      customers={customers
+        .map((customer) => ({
+          id: customer.id,
+          label: customer.financialContact.name || customer.financialContact.email || "Unknown",
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label))}
     />
   )
 }

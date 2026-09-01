@@ -32,6 +32,8 @@ const PROBE_SPEND_INSIGHT_A = "rls-verify-spend-insight-a"
 const PROBE_SPEND_INSIGHT_B = "rls-verify-spend-insight-b"
 const PROBE_CUSTOMER_EMAIL_A = "rls-verify-customer-a@example.com"
 const PROBE_CUSTOMER_EMAIL_B = "rls-verify-customer-b@example.com"
+const PROBE_CONTACT_EMAIL_A = "rls-verify-contact-a@example.com"
+const PROBE_CONTACT_EMAIL_B = "rls-verify-contact-b@example.com"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -57,30 +59,63 @@ async function seed() {
     data: { userId: USER_B, provider: "stripe", isActive: true },
   })
 
+  // Canonical contacts + invoices, each with a linked chasing-workflow record.
+  const contactA = await prismaAdmin.financialContact.create({
+    data: {
+      userId: USER_A,
+      sourceSystem: "stripe",
+      sourceId: `email:${PROBE_CONTACT_EMAIL_A}`,
+      name: "Client A",
+      email: PROBE_CONTACT_EMAIL_A,
+      emailLower: PROBE_CONTACT_EMAIL_A,
+    },
+  })
+  const contactB = await prismaAdmin.financialContact.create({
+    data: {
+      userId: USER_B,
+      sourceSystem: "stripe",
+      sourceId: `email:${PROBE_CONTACT_EMAIL_B}`,
+      name: "Client B",
+      email: PROBE_CONTACT_EMAIL_B,
+      emailLower: PROBE_CONTACT_EMAIL_B,
+    },
+  })
+
+  const finA = await prismaAdmin.financialInvoice.create({
+    data: {
+      userId: USER_A,
+      sourceSystem: "stripe",
+      sourceId: PROBE_EXTERNAL_A,
+      contactId: contactA.id,
+      amountDueCents: 10000,
+      currency: "usd",
+      dueDate: new Date("2026-01-01"),
+    },
+  })
+  const finB = await prismaAdmin.financialInvoice.create({
+    data: {
+      userId: USER_B,
+      sourceSystem: "stripe",
+      sourceId: PROBE_EXTERNAL_B,
+      contactId: contactB.id,
+      amountDueCents: 20000,
+      currency: "usd",
+      dueDate: new Date("2026-01-01"),
+    },
+  })
+
   await prismaAdmin.trackedInvoice.create({
     data: {
       userId: USER_A,
       invoiceConnectionId: connA.id,
-      externalId: PROBE_EXTERNAL_A,
-      provider: "stripe",
-      clientEmail: "client-a@example.com",
-      clientName: "Client A",
-      amountDue: 10000,
-      currency: "usd",
-      dueDate: new Date("2026-01-01"),
+      financialInvoiceId: finA.id,
     },
   })
   await prismaAdmin.trackedInvoice.create({
     data: {
       userId: USER_B,
       invoiceConnectionId: connB.id,
-      externalId: PROBE_EXTERNAL_B,
-      provider: "stripe",
-      clientEmail: "client-b@example.com",
-      clientName: "Client B",
-      amountDue: 20000,
-      currency: "usd",
-      dueDate: new Date("2026-01-01"),
+      financialInvoiceId: finB.id,
     },
   })
 
@@ -110,25 +145,39 @@ async function seed() {
     },
   })
 
-  await prismaAdmin.customer.create({
+  // Customer chasing-preference rows keyed to dedicated canonical contacts.
+  const custContactA = await prismaAdmin.financialContact.create({
     data: {
       userId: USER_A,
-      primaryEmail: PROBE_CUSTOMER_EMAIL_A,
-      primaryEmailLower: PROBE_CUSTOMER_EMAIL_A,
+      sourceSystem: "csv",
+      sourceId: `email:${PROBE_CUSTOMER_EMAIL_A}`,
+      name: "Customer A",
+      email: PROBE_CUSTOMER_EMAIL_A,
+      emailLower: PROBE_CUSTOMER_EMAIL_A,
+    },
+  })
+  const custContactB = await prismaAdmin.financialContact.create({
+    data: {
+      userId: USER_B,
+      sourceSystem: "csv",
+      sourceId: `email:${PROBE_CUSTOMER_EMAIL_B}`,
+      name: "Customer B",
+      email: PROBE_CUSTOMER_EMAIL_B,
+      emailLower: PROBE_CUSTOMER_EMAIL_B,
     },
   })
   await prismaAdmin.customer.create({
-    data: {
-      userId: USER_B,
-      primaryEmail: PROBE_CUSTOMER_EMAIL_B,
-      primaryEmailLower: PROBE_CUSTOMER_EMAIL_B,
-    },
+    data: { userId: USER_A, financialContactId: custContactA.id },
+  })
+  await prismaAdmin.customer.create({
+    data: { userId: USER_B, financialContactId: custContactB.id },
   })
 }
 
 async function cleanup() {
+  // Delete in FK-safe order: workflow + children first, then canonical records.
   await prismaAdmin.customer.deleteMany({
-    where: { primaryEmailLower: { in: [PROBE_CUSTOMER_EMAIL_A, PROBE_CUSTOMER_EMAIL_B] } },
+    where: { userId: { in: [USER_A, USER_B] } },
   })
   await prismaAdmin.spendInsight.deleteMany({
     where: { id: { in: [PROBE_SPEND_INSIGHT_A, PROBE_SPEND_INSIGHT_B] } },
@@ -137,7 +186,16 @@ async function cleanup() {
     where: { organisationId: { in: [PROBE_ACCOUNTING_ORG_A, PROBE_ACCOUNTING_ORG_B] } },
   })
   await prismaAdmin.trackedInvoice.deleteMany({
-    where: { externalId: { in: [PROBE_EXTERNAL_A, PROBE_EXTERNAL_B] } },
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.financialPayment.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.financialInvoice.deleteMany({
+    where: { sourceId: { in: [PROBE_EXTERNAL_A, PROBE_EXTERNAL_B] } },
+  })
+  await prismaAdmin.financialContact.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
   })
   await prismaAdmin.invoiceConnection.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
@@ -157,29 +215,56 @@ async function main() {
   await cleanup() // in case a previous run left rows
   await seed()
 
-  console.log("\nCheck 1: withUserContext(USER_A) sees only A's invoice")
+  console.log("\nCheck 1: withUserContext(USER_A) sees only A's canonical invoice")
   const aRows = await withUserContext(USER_A, (tx) =>
-    tx.trackedInvoice.findMany({
-      where: { externalId: { in: [PROBE_EXTERNAL_A, PROBE_EXTERNAL_B] } },
+    tx.financialInvoice.findMany({
+      where: { sourceId: { in: [PROBE_EXTERNAL_A, PROBE_EXTERNAL_B] } },
     }),
   )
-  if (aRows.length !== 1 || aRows[0].externalId !== PROBE_EXTERNAL_A) {
+  if (aRows.length !== 1 || aRows[0].sourceId !== PROBE_EXTERNAL_A) {
     await cleanup()
-    fail(`expected exactly A's row, got ${JSON.stringify(aRows.map((r) => r.externalId))}`)
+    fail(`expected exactly A's row, got ${JSON.stringify(aRows.map((r) => r.sourceId))}`)
   }
   console.log("  ✓ saw only A")
 
-  console.log("\nCheck 2: withUserContext(USER_B) sees only B's invoice")
+  console.log("\nCheck 2: withUserContext(USER_B) sees only B's canonical invoice")
   const bRows = await withUserContext(USER_B, (tx) =>
-    tx.trackedInvoice.findMany({
-      where: { externalId: { in: [PROBE_EXTERNAL_A, PROBE_EXTERNAL_B] } },
+    tx.financialInvoice.findMany({
+      where: { sourceId: { in: [PROBE_EXTERNAL_A, PROBE_EXTERNAL_B] } },
     }),
   )
-  if (bRows.length !== 1 || bRows[0].externalId !== PROBE_EXTERNAL_B) {
+  if (bRows.length !== 1 || bRows[0].sourceId !== PROBE_EXTERNAL_B) {
     await cleanup()
-    fail(`expected exactly B's row, got ${JSON.stringify(bRows.map((r) => r.externalId))}`)
+    fail(`expected exactly B's row, got ${JSON.stringify(bRows.map((r) => r.sourceId))}`)
   }
   console.log("  ✓ saw only B")
+
+  console.log("\nCheck 2b: withUserContext(USER_A) sees only A's canonical contact")
+  const aContacts = await withUserContext(USER_A, (tx) =>
+    tx.financialContact.findMany({
+      where: { emailLower: { in: [PROBE_CONTACT_EMAIL_A, PROBE_CONTACT_EMAIL_B] } },
+    }),
+  )
+  if (aContacts.length !== 1 || aContacts[0].emailLower !== PROBE_CONTACT_EMAIL_A) {
+    await cleanup()
+    fail(`expected exactly A's contact, got ${JSON.stringify(aContacts.map((r) => r.emailLower))}`)
+  }
+  console.log("  ✓ saw only A's contact")
+
+  console.log("\nCheck 2c: withUserContext(USER_A) sees only A's chasing record via canonical join")
+  const aTracked = await withUserContext(USER_A, (tx) =>
+    tx.trackedInvoice.findMany({
+      where: {
+        financialInvoice: { sourceId: { in: [PROBE_EXTERNAL_A, PROBE_EXTERNAL_B] } },
+      },
+      include: { financialInvoice: { select: { sourceId: true } } },
+    }),
+  )
+  if (aTracked.length !== 1 || aTracked[0].financialInvoice.sourceId !== PROBE_EXTERNAL_A) {
+    await cleanup()
+    fail("expected exactly A's chasing record joined to A's canonical invoice")
+  }
+  console.log("  ✓ chasing record joins to canonical invoice correctly")
 
   console.log("\nCheck 3: withUserContext(USER_A) can insert own accounting connection")
   const accountingA = await withUserContext(USER_A, (tx) =>
@@ -234,8 +319,8 @@ async function main() {
   // auth.uid() will be NULL, so no RLS policy on tracked_invoices will pass.
   const noContextRows = await prismaAdmin.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`)
-    return tx.$queryRawUnsafe<{ externalId: string }[]>(
-      `SELECT "externalId" FROM tracked_invoices WHERE "externalId" IN ($1, $2)`,
+    return tx.$queryRawUnsafe<{ source_id: string }[]>(
+      `SELECT source_id FROM financial_invoices WHERE source_id IN ($1, $2)`,
       PROBE_EXTERNAL_A,
       PROBE_EXTERNAL_B,
     )
@@ -286,15 +371,25 @@ async function main() {
   }
   console.log("  ✓ non-lifecycle update blocked")
 
-  console.log("\nCheck 8: withUserContext(USER_A) sees only A's customer")
+  console.log("\nCheck 8: withUserContext(USER_A) sees only A's customer (identity via canonical contact)")
   const customerRows = await withUserContext(USER_A, (tx) =>
     tx.customer.findMany({
-      where: { primaryEmailLower: { in: [PROBE_CUSTOMER_EMAIL_A, PROBE_CUSTOMER_EMAIL_B] } },
+      where: {
+        financialContact: {
+          emailLower: { in: [PROBE_CUSTOMER_EMAIL_A, PROBE_CUSTOMER_EMAIL_B] },
+        },
+      },
+      include: { financialContact: { select: { emailLower: true } } },
     }),
   )
-  if (customerRows.length !== 1 || customerRows[0].primaryEmailLower !== PROBE_CUSTOMER_EMAIL_A) {
+  if (
+    customerRows.length !== 1 ||
+    customerRows[0].financialContact.emailLower !== PROBE_CUSTOMER_EMAIL_A
+  ) {
     await cleanup()
-    fail(`expected exactly A's customer row, got ${JSON.stringify(customerRows.map((r) => r.primaryEmailLower))}`)
+    fail(
+      `expected exactly A's customer row, got ${JSON.stringify(customerRows.map((r) => r.financialContact.emailLower))}`,
+    )
   }
   console.log("  ✓ saw only A's customer")
 

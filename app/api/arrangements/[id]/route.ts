@@ -26,11 +26,14 @@ export async function GET(_request: Request, { params }: Params): Promise<NextRe
             trackedInvoice: {
               select: {
                 id: true,
-                clientName: true,
-                clientEmail: true,
-                amountDue: true,
-                currency: true,
                 status: true,
+                financialInvoice: {
+                  select: {
+                    amountDueCents: true,
+                    currency: true,
+                    contact: { select: { name: true, email: true } },
+                  },
+                },
               },
             },
           },
@@ -59,10 +62,10 @@ export async function GET(_request: Request, { params }: Params): Promise<NextRe
       createdAt: arrangement.createdAt,
       coverages: arrangement.coverages.map((coverage) => ({
         invoiceId: coverage.trackedInvoiceId,
-        clientName: coverage.trackedInvoice.clientName,
-        clientEmail: coverage.trackedInvoice.clientEmail,
-        amountDue: coverage.trackedInvoice.amountDue,
-        currency: coverage.trackedInvoice.currency,
+        clientName: coverage.trackedInvoice.financialInvoice.contact?.name ?? "",
+        clientEmail: coverage.trackedInvoice.financialInvoice.contact?.email ?? "",
+        amountDue: coverage.trackedInvoice.financialInvoice.amountDueCents,
+        currency: coverage.trackedInvoice.financialInvoice.currency,
         status: coverage.trackedInvoice.status,
       })),
     },

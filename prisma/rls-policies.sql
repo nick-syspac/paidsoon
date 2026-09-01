@@ -27,6 +27,9 @@ ALTER TABLE invoice_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracked_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE financial_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE financial_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE financial_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
@@ -123,6 +126,59 @@ DROP POLICY IF EXISTS "users can update own invoices" ON tracked_invoices;
 CREATE POLICY "users can update own invoices"
   ON tracked_invoices FOR UPDATE
   USING (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
+-- Canonical financial layer (financial_contacts / financial_invoices /
+-- financial_payments)
+-- Users can read their own records. Writes are performed by ingestion paths
+-- (accounting sync, Stripe webhook, CSV import) via prismaAdmin or a
+-- withUserContext transaction — the INSERT/UPDATE policies below support the
+-- withUserContext path.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own financial contacts" ON financial_contacts;
+CREATE POLICY "users can view own financial contacts"
+  ON financial_contacts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own financial contacts" ON financial_contacts;
+CREATE POLICY "users can insert own financial contacts"
+  ON financial_contacts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own financial contacts" ON financial_contacts;
+CREATE POLICY "users can update own financial contacts"
+  ON financial_contacts FOR UPDATE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own financial invoices" ON financial_invoices;
+CREATE POLICY "users can view own financial invoices"
+  ON financial_invoices FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own financial invoices" ON financial_invoices;
+CREATE POLICY "users can insert own financial invoices"
+  ON financial_invoices FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own financial invoices" ON financial_invoices;
+CREATE POLICY "users can update own financial invoices"
+  ON financial_invoices FOR UPDATE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own financial payments" ON financial_payments;
+CREATE POLICY "users can view own financial payments"
+  ON financial_payments FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own financial payments" ON financial_payments;
+CREATE POLICY "users can insert own financial payments"
+  ON financial_payments FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own financial payments" ON financial_payments;
+CREATE POLICY "users can update own financial payments"
+  ON financial_payments FOR UPDATE
+  USING (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- email_logs
@@ -233,42 +289,9 @@ CREATE POLICY "users can view own sync runs"
 
 -- ---------------------------------------------------------------------------
 -- provider_invoice_mappings
--- Accessed via trackedInvoice which belongs to userId. Users can read their
--- own mappings. Writes are performed by the sync orchestrator via prismaAdmin.
--- ---------------------------------------------------------------------------
-ALTER TABLE provider_invoice_mappings ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "users can view own provider invoice mappings" ON provider_invoice_mappings;
-CREATE POLICY "users can view own provider invoice mappings"
-  ON provider_invoice_mappings FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM tracked_invoices
-      WHERE tracked_invoices.id = provider_invoice_mappings."tracked_invoice_id"
-        AND tracked_invoices."userId" = auth.uid()::text
-    )
-  );
-
--- No user INSERT/UPDATE policy — sync orchestrator uses prismaAdmin (service role)
-
--- ---------------------------------------------------------------------------
--- provider_contact_mappings
--- Scoped via accounting_connections which belongs to userId.
--- ---------------------------------------------------------------------------
-ALTER TABLE provider_contact_mappings ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "users can view own provider contact mappings" ON provider_contact_mappings;
-CREATE POLICY "users can view own provider contact mappings"
-  ON provider_contact_mappings FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM accounting_connections
-      WHERE accounting_connections.id = provider_contact_mappings."accounting_connection_id"
-        AND accounting_connections."userId" = auth.uid()::text
-    )
-  );
-
--- No user INSERT/UPDATE policy — sync orchestrator uses prismaAdmin (service role)
+-- provider_invoice_mappings and provider_contact_mappings were retired by the
+-- canonical-financial-data-model change; their role is absorbed by provenance
+-- fields on the canonical financial tables.
 
 -- ---------------------------------------------------------------------------
 -- oauth_states

@@ -65,14 +65,18 @@ export default async function AdminCustomerDetailPage({
       select: {
         id: true,
         status: true,
-        amountDue: true,
-        currency: true,
-        dueDate: true,
-        clientName: true,
-        externalId: true,
-        provider: true,
+        financialInvoice: {
+          select: {
+            amountDueCents: true,
+            currency: true,
+            dueDate: true,
+            sourceId: true,
+            sourceSystem: true,
+            contact: { select: { name: true } },
+          },
+        },
       },
-      orderBy: { dueDate: "asc" },
+      orderBy: { financialInvoice: { dueDate: "asc" } },
     }),
     prismaAdmin.adminSession.findMany({
       where: { impersonatedUserId: userId },
@@ -123,7 +127,7 @@ export default async function AdminCustomerDetailPage({
 
   const activeInvoices = invoices.filter((inv) => inv.status !== "paid" && inv.status !== "cancelled")
   const overdueInvoices = activeInvoices.filter(
-    (inv) => inv.dueDate != null && inv.dueDate < new Date() && inv.status !== "paid"
+    (inv) => inv.financialInvoice.dueDate != null && inv.financialInvoice.dueDate < new Date() && inv.status !== "paid"
   )
 
   return (
@@ -221,10 +225,10 @@ export default async function AdminCustomerDetailPage({
               <tbody>
                 {activeInvoices.map((inv) => (
                   <tr key={inv.id} className="border-b border-gray-800 last:border-0">
-                    <td className="px-4 py-3 text-gray-200">{inv.clientName}</td>
-                    <td className="px-4 py-3 text-gray-200">{formatCurrency(inv.amountDue, inv.currency)}</td>
-                    <td className={`px-4 py-3 text-xs ${inv.dueDate && inv.dueDate < new Date() ? "text-yellow-400" : "text-gray-400"}`}>
-                      {formatDate(inv.dueDate)}
+                    <td className="px-4 py-3 text-gray-200">{inv.financialInvoice.contact?.name ?? ""}</td>
+                    <td className="px-4 py-3 text-gray-200">{formatCurrency(inv.financialInvoice.amountDueCents, inv.financialInvoice.currency)}</td>
+                    <td className={`px-4 py-3 text-xs ${inv.financialInvoice.dueDate && inv.financialInvoice.dueDate < new Date() ? "text-yellow-400" : "text-gray-400"}`}>
+                      {formatDate(inv.financialInvoice.dueDate)}
                     </td>
                     <td className="px-4 py-3 text-gray-300">{inv.status}</td>
                     <td className={`px-4 py-3 ${inv.status === "paused" ? "text-yellow-400" : "text-gray-600"}`}>
@@ -333,10 +337,10 @@ export default async function AdminCustomerDetailPage({
         }}
         invoices={activeInvoices.map((invoice) => ({
           id: invoice.id,
-          clientName: invoice.clientName,
+          clientName: invoice.financialInvoice.contact?.name ?? "",
           status: invoice.status,
-          amountDue: invoice.amountDue,
-          currency: invoice.currency,
+          amountDue: invoice.financialInvoice.amountDueCents,
+          currency: invoice.financialInvoice.currency,
         }))}
       />
     </div>

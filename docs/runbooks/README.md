@@ -69,6 +69,10 @@ For a brand-new production setup, work through the runbooks in this order:
 14. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
 15. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
 
+One-off / in-flight change runbooks (not part of the standard bring-up order):
+
+- [canonical-financial-data-model-migration.md](./canonical-financial-data-model-migration.md) — **destructive dev/preview-only** migration introducing the canonical financial layer. Contains a mandatory pre-flight step to re-point `.env.local` from production to the dev project.
+
 For launch readiness review and final go/no-go criteria, use:
 
 - [go-live-decision-matrix.md](./go-live-decision-matrix.md) — operator decision matrix with owner, ETA, and evidence fields.

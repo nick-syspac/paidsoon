@@ -49,21 +49,34 @@ export async function sendWeeklyDebtorSummary(userId: string): Promise<SummarySe
     return { status: "skipped", reason: "missing_recipient_email" }
   }
 
-  const invoices = await prisma.trackedInvoice.findMany({
+  const invoiceRows = await prisma.trackedInvoice.findMany({
     where: {
       userId,
       status: { in: ["pending", "paused", "snoozed", "sequence_complete"] },
     },
     select: {
-      clientEmail: true,
-      clientName: true,
-      amountDue: true,
-      currency: true,
-      dueDate: true,
       status: true,
+      financialInvoice: {
+        select: {
+          amountDueCents: true,
+          currency: true,
+          dueDate: true,
+          contact: { select: { name: true, email: true } },
+        },
+      },
       payments: { select: { amount: true } },
     },
   })
+
+  const invoices = invoiceRows.map((row) => ({
+    status: row.status,
+    clientEmail: row.financialInvoice.contact?.email ?? "",
+    clientName: row.financialInvoice.contact?.name ?? "",
+    amountDue: row.financialInvoice.amountDueCents,
+    currency: row.financialInvoice.currency,
+    dueDate: row.financialInvoice.dueDate,
+    payments: row.payments,
+  }))
 
   const payload = buildWeeklyDebtorSummaryPayload(invoices, new Date())
   const content = buildWeeklyDebtorSummaryEmail({

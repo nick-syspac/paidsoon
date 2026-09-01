@@ -26,6 +26,15 @@ import { computeOutstanding } from "@/lib/invoices/payments"
 import { STAGE_LABELS, STATUS_LABELS } from "@/lib/dashboard/invoiceStatusLabels"
 
 type InvoiceWithLogs = TrackedInvoice & {
+  // Canonical invoice facts projected by the dashboard loader (legacy names).
+  clientEmail: string
+  clientName: string
+  amountDue: number
+  currency: string
+  dueDate: Date
+  paymentUrl: string | null
+  externalId: string
+  provider: string
   emailLogs: EmailLog[]
   promisesToPay: PromiseToPay[]
   arrangementCoverages: ArrangementCoverageWithArrangement[]

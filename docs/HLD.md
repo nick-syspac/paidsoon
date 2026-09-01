@@ -248,6 +248,10 @@ erDiagram
     USER_PROFILE ||--o| SCHEDULE : has
     USER_PROFILE ||--o| EMAIL_SETTINGS : has
     USER_PROFILE ||--o{ TRACKED_INVOICE : owns
+    USER_PROFILE ||--o{ FINANCIAL_CONTACT : owns
+    USER_PROFILE ||--o{ FINANCIAL_INVOICE : owns
+    FINANCIAL_CONTACT ||--o{ FINANCIAL_INVOICE : bills
+    FINANCIAL_INVOICE ||--o| TRACKED_INVOICE : "chased by"
     INVOICE_CONNECTION ||--o{ TRACKED_INVOICE : sources
     TRACKED_INVOICE ||--o{ EMAIL_LOG : logs
 
@@ -260,6 +264,20 @@ erDiagram
         string subscriptionStatus
         string stripeCustomerId
     }
+    FINANCIAL_CONTACT {
+        string userId
+        string sourceSystem
+        string sourceId
+        string email
+    }
+    FINANCIAL_INVOICE {
+        string userId
+        string sourceSystem
+        string sourceId
+        int amountDueCents
+        string currency
+        datetime dueDate
+    }
     INVOICE_CONNECTION {
         string userId
         string provider
@@ -268,7 +286,7 @@ erDiagram
     }
     TRACKED_INVOICE {
         string userId
-        string externalId
+        string financialInvoiceId FK
         string status
         int currentStage
         datetime nextEmailAt
@@ -279,6 +297,15 @@ erDiagram
         string resendMessageId
     }
 ```
+
+**Canonical financial layer:** Receivables facts (contacts, invoices, payments) live in
+provider-neutral canonical tables (`financial_contacts`, `financial_invoices`,
+`financial_payments`) with provenance (`source_system`, `source_id`, `source_updated_at`,
+`synced_at`, `raw_source_data`). Every ingestion path (Xero, MYOB, Stripe, CSV/XLSX) writes the
+canonical layer via `lib/financial/ingest.ts`; `tracked_invoices` holds only chasing workflow
+state. This separates "what the source system says" from "what PaidSoon is doing about it" and is
+the foundation SpendLeak and future modules build on
+(openspec/changes/canonical-financial-data-model).
 
 ---
 

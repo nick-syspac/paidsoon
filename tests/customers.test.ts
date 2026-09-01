@@ -6,31 +6,62 @@ import { findOrCreateCustomer } from "@/lib/db/customers"
 type FakeCustomer = {
   id: string
   userId: string
-  primaryEmail: string
-  primaryEmailLower: string
-  displayName: string | null
+  financialContactId: string
 }
 
-/** Minimal in-memory stand-in for the `db.customer` delegate, keyed like the real `[userId, primaryEmailLower]` unique constraint. */
+type FakeContact = {
+  id: string
+  userId: string
+  email: string | null
+  emailLower: string | null
+  name: string
+}
+
+/**
+ * In-memory stand-in for the canonical flow: contacts keyed by
+ * (userId, emailLower), customers keyed by (userId, financialContactId).
+ */
 function createFakeDb() {
   const rows = new Map<string, FakeCustomer>()
+  const contacts = new Map<string, FakeContact>()
   let nextId = 1
 
   return {
     rows,
+    contacts,
+    financialContact: {
+      async findUnique({ where }: { where: { userId_emailLower: { userId: string; emailLower: string } } }) {
+        const key = `${where.userId_emailLower.userId}:${where.userId_emailLower.emailLower}`
+        return contacts.get(key) ?? null
+      },
+      async upsert({ create }: { where: unknown; update: unknown; create: { userId: string; name: string; email?: string | null } }) {
+        const emailLower = create.email?.toLowerCase() ?? null
+        const key = `${create.userId}:${emailLower}`
+        const existing = contacts.get(key)
+        if (existing) return existing
+        const row: FakeContact = {
+          id: `contact-${nextId++}`,
+          userId: create.userId,
+          email: create.email ?? null,
+          emailLower,
+          name: create.name,
+        }
+        contacts.set(key, row)
+        return row
+      },
+    },
     customer: {
       async upsert({
         where,
         create,
       }: {
-        where: { userId_primaryEmailLower: { userId: string; primaryEmailLower: string } }
+        where: { userId_financialContactId: { userId: string; financialContactId: string } }
         update: Record<string, never>
-        create: Omit<FakeCustomer, "id">
+        create: { userId: string; financialContactId: string }
       }) {
-        const key = `${where.userId_primaryEmailLower.userId}:${where.userId_primaryEmailLower.primaryEmailLower}`
+        const key = `${where.userId_financialContactId.userId}:${where.userId_financialContactId.financialContactId}`
         const existing = rows.get(key)
         if (existing) return existing
-
         const row: FakeCustomer = { id: `customer-${nextId++}`, ...create }
         rows.set(key, row)
         return row
@@ -39,14 +70,16 @@ function createFakeDb() {
   }
 }
 
-test("creates a new Customer row for a previously unseen email", async () => {
+test("creates a new Customer + canonical contact for a previously unseen email", async () => {
   const db = createFakeDb()
 
   const customer = await findOrCreateCustomer(db as never, "user-1", "Client@Example.com", "Client Name")
 
-  assert.equal(customer.primaryEmail, "Client@Example.com")
-  assert.equal(customer.primaryEmailLower, "client@example.com")
-  assert.equal(customer.displayName, "Client Name")
+  const contact = [...db.contacts.values()][0]
+  assert.equal(contact.email, "Client@Example.com")
+  assert.equal(contact.emailLower, "client@example.com")
+  assert.equal(contact.name, "Client Name")
+  assert.equal(customer.financialContactId, contact.id)
   assert.equal(db.rows.size, 1)
 })
 
