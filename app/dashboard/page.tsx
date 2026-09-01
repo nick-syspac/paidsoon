@@ -17,6 +17,10 @@ import { ReminderActivityFunnel } from "@/components/dashboard/ReminderActivityF
 import { PaymentTrendChart } from "@/components/dashboard/PaymentTrendChart"
 import { CurrencySummarySection } from "@/components/dashboard/CurrencySummarySection"
 import { buildCurrencyDashboardSummaries } from "@/lib/dashboard/currencySummary"
+import Link from "next/link"
+import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
+import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
+import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperationsSummary"
 import {
   createServerTraceContext,
   traceEvent,
@@ -92,6 +96,16 @@ export default async function DashboardOverviewPage({
     importAnomalyCount,
   } = await loadDashboardOverview(user.id, traceContext, COMPONENT)
 
+  const canViewSpendLeak = canAccessSpendLeak(profile?.subscriptionTier)
+  const spendLeakData = canViewSpendLeak ? await loadSpendLeakDashboard(user.id) : null
+  const financialSummary = buildFinancialOperationsSummary({
+    activeInvoiceCount: activeInvoices.length,
+    spendFindingCount: spendLeakData?.findings.length ?? 0,
+    hasSpendLeakAccess: canViewSpendLeak,
+    hasAccountingConnection: spendLeakData?.hasAccountingConnection ?? false,
+    latestSyncAt: spendLeakData?.latestSyncAt ?? null,
+  })
+
   const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
 
   const cards = buildOverviewCards({
@@ -148,6 +162,43 @@ export default async function DashboardOverviewPage({
         <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
         <OverviewCards cards={cards} />
       </div>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Financial operations summary</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Receivables momentum from PaidSoon plus spend-side signals from SpendLeak.
+            </p>
+          </div>
+          <Link
+            href={financialSummary.showUnlockCta ? "/dashboard/settings/subscription?intent=spendleak" : "/dashboard/spendleak"}
+            className="shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            {financialSummary.showUnlockCta ? "Unlock SpendLeak" : "Open SpendLeak"}
+          </Link>
+        </div>
+        {canViewSpendLeak && spendLeakData ? (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Cash in (active invoices)</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{financialSummary.activeInvoiceCount}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Cash out findings</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{financialSummary.spendFindingCount}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Spend sync status</p>
+              <p className="mt-1 text-sm font-medium text-gray-900">{financialSummary.spendStatusLabel}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">
+            Spend-side insights are not yet available on your current tier.
+          </p>
+        )}
+      </section>
 
       {currencySummaries.map((summary) => (
         <CurrencySummarySection
