@@ -1,15 +1,21 @@
 import assert from "node:assert/strict"
 import { describe, test } from "node:test"
-import { buildSpendLeakModuleSummaries, isSpendLeakDataStale } from "@/lib/dashboard/spendleakPresentation"
+import {
+  buildSpendLeakDashboardStatus,
+  buildSpendLeakEvidenceView,
+  buildSpendLeakModuleSummaries,
+  isSpendLeakDataStale,
+} from "@/lib/dashboard/spendleakPresentation"
 import type { SpendInsight } from "@/lib/generated/prisma/client"
 
 function makeInsight(overrides: Partial<SpendInsight> & { id: string; findingType: string }): SpendInsight {
+  const { id, findingType, ...rest } = overrides
   return {
-    id: overrides.id,
+    id,
     userId: "user-1",
     accountingConnectionId: null,
-    findingType: overrides.findingType,
-    subjectKey: `subject-${overrides.id}`,
+    findingType,
+    subjectKey: `subject-${id}`,
     severity: "low",
     summary: "summary",
     state: "open",
@@ -20,7 +26,7 @@ function makeInsight(overrides: Partial<SpendInsight> & { id: string; findingTyp
     resolvedAt: null,
     createdAt: new Date("2026-09-01T00:00:00.000Z"),
     updatedAt: new Date("2026-09-01T00:00:00.000Z"),
-    ...overrides,
+    ...rest,
   }
 }
 
@@ -53,5 +59,56 @@ describe("SpendLeak presentation", () => {
 
     assert.equal(isSpendLeakDataStale(fresh, now), false)
     assert.equal(isSpendLeakDataStale(stale, now), true)
+  })
+
+  test("classifies dashboard sync states explicitly", () => {
+    const initial = buildSpendLeakDashboardStatus({
+      findingsCount: 0,
+      hasAccountingConnection: true,
+      latestSyncAt: null,
+      sourceSyncCount: 0,
+    })
+
+    const partial = buildSpendLeakDashboardStatus({
+      findingsCount: 2,
+      hasAccountingConnection: true,
+      latestSyncAt: new Date("2026-09-02T00:00:00.000Z"),
+      sourceSyncCount: 1,
+    })
+
+    const empty = buildSpendLeakDashboardStatus({
+      findingsCount: 0,
+      hasAccountingConnection: true,
+      latestSyncAt: new Date("2026-09-02T00:00:00.000Z"),
+      sourceSyncCount: 3,
+    })
+
+    assert.equal(initial.state, "initial_sync")
+    assert.equal(partial.state, "partial_data")
+    assert.equal(empty.state, "empty")
+  })
+
+  test("renders duplicate spend evidence into readable sections", () => {
+    const view = buildSpendLeakEvidenceView(
+      makeInsight({
+        id: "4",
+        findingType: "duplicate_payment",
+        evidence: {
+          supplier: "metro saas systems",
+          billIds: ["coast-bill-metro-jan", "coast-bill-metro-feb"],
+          dayDifference: 30,
+          amountCents: 420000,
+        },
+        estimatedMonthlyCents: 420000,
+        estimatedAnnualCents: 5040000,
+      }),
+    )
+
+    const duplicateSection = view.sections.find((section) => section.title === "Duplicate comparison")
+
+    assert.ok(duplicateSection)
+    assert.equal(duplicateSection?.fields.find((field) => field.label === "Bill references")?.value, "coast-bill-metro-jan · coast-bill-metro-feb")
+    assert.equal(duplicateSection?.fields.find((field) => field.label === "Amount")?.value, "$4,200")
+    assert.equal(view.sourceSummary.find((field) => field.label === "Estimated annual impact")?.value, "$50,400")
   })
 })

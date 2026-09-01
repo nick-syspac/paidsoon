@@ -4,9 +4,10 @@ import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
-import { SPENDLEAK_STALE_COPY, type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
+import { type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
 import { SpendLeakModuleGrid } from "@/components/dashboard/spendleak/SpendLeakModuleGrid"
 import { SpendLeakFindingsTable } from "@/components/dashboard/spendleak/SpendLeakFindingsTable"
+import { SpendLeakStatusBanner } from "@/components/dashboard/spendleak/SpendLeakStatusBanner"
 
 const MODULE_IDS: ReadonlySet<SpendLeakModuleId> = new Set([
   "recurring_spend",
@@ -49,6 +50,7 @@ export default async function SpendLeakDashboardPage({
 
   const [{ module }, data] = await Promise.all([searchParams, loadSpendLeakDashboard(user.id)])
   const selectedModule = parseModuleFilter(module)
+  const showEmptyState = data.status.state === "empty"
 
   return (
     <div className="space-y-6">
@@ -57,22 +59,17 @@ export default async function SpendLeakDashboardPage({
         <p className="mt-1 text-sm text-gray-600">Spend-side risks and savings opportunities from your connected accounting data.</p>
       </div>
 
-      {!data.hasAccountingConnection && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-          {SPENDLEAK_STALE_COPY.noConnection}
+      {data.status.state !== "ready" && <SpendLeakStatusBanner status={data.status} />}
+
+      {data.status.state === "ready" && data.latestSyncAt && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+          Last synced {data.latestSyncAt.toLocaleString("en-AU")} · Data is fresh.
         </div>
       )}
 
-      {data.hasAccountingConnection && !data.latestSyncAt && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-          {SPENDLEAK_STALE_COPY.initialSync}
-        </div>
-      )}
-
-      {data.latestSyncAt && (
-        <div className={`rounded-lg border p-4 text-sm ${data.isStale ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
-          Last synced {data.latestSyncAt.toLocaleString("en-AU")}
-          {data.isStale ? ` · ${SPENDLEAK_STALE_COPY.stalePrefix} ${SPENDLEAK_STALE_COPY.staleSuffix}` : " · Data is fresh."}
+      {showEmptyState && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+          SpendLeak is fully synced, but there are no findings in the current data yet. When the next signal appears, it will show up here without needing a refresh.
         </div>
       )}
 

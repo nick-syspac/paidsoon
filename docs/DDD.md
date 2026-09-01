@@ -48,6 +48,7 @@ below maps logical areas to code modules (there are no Django apps).
 | Email identity | `app/api/settings/email/route.ts`, `lib/email/send.ts` | Custom verified sender | `EmailSettings` | `.../specs/email-settings`, `changes/rename-to-paidsoon` |
 | Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` |
+| SpendLeak brain | `lib/spendleak/**`, `lib/dashboard/loadSpendLeakDashboard.ts`, `app/api/spend-insights/[id]/route.ts`, `prisma/schema.prisma` | Read-only spend ingestion, deterministic detection, grounded summaries | `ImportedBill`, `ImportedBankTransaction`, `SupplierProfile`, `SpendInsight` | `changes/build-spendleak-brain` |
 | Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV-only invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/csv-only-invoice-import` |
 | Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export` |
 | Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
@@ -229,7 +230,28 @@ subsection documents a functional module.
   the cron's `where: { status: "pending" }` allowlist already excludes
   `disputed`.
 
-### 4.8 Settings (templates / AI / team)
+### 4.8 SpendLeak brain (`lib/spendleak/**`, `lib/dashboard/loadSpendLeakDashboard.ts`)
+
+- **Responsibility:** ingest normalized spend records, detect deterministic
+  insight families, and generate owner-facing summaries without inventing
+  unsupported claims.
+- **Core logic:** `normalizeSpendSyncInput()` deduplicates repeated provider rows;
+  `detectSpendFindings()` creates recurring-spend, duplicate-spend, renewal,
+  supplier-concentration, and cash-pressure findings from persisted spend data;
+  `buildGroundedSummary()` turns the accepted findings into a safe narrative that
+  falls back to an initial-sync or no-findings message when the evidence set is
+  empty or stale.
+- **Persistence model:** `ImportedBill`, `ImportedBankTransaction`, and
+  `SupplierProfile` retain provider provenance and timestamps; `SpendInsight`
+  stores the subject key, finding type, evidence payload, estimated impact, and
+  lifecycle state so the same issue updates in place rather than creating a duplicate row.
+- **UI integration:** `loadSpendLeakDashboard()` reads findings and the latest
+  spend sync timestamp and groups them into dashboard modules while surfacing
+  stale or initial-sync states without fabricating opportunities.
+- **Tests:** targeted unit checks cover normalization, detector coverage, and
+  grounded summary fallback behavior.
+
+### 4.9 Settings (templates / AI / team)
 
 - `settings/templates` — GET returns the saved or default template for a stage
   (gated by `basic_templates`); PUT is gated by `custom_reminder_templates` and
@@ -277,6 +299,8 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 | Trial checkout gateway | `app/billing/checkout/page.tsx` | Server component; reads `?plan` param (falls back to profile tier), POSTs to `/api/billing/checkout`, and redirects to the Stripe Checkout URL. Entry point for both the trial-expired gate and the TrialBanner "Add payment" CTA. Renders an error UI if checkout session creation fails. |
 | Dashboard shell | `app/dashboard/layout.tsx` | Nav with `UserMenu` dropdown (identity + sign-out); left-side vertical tab rail (`DashboardNavRail`) for Overview/Invoices/Resolved Invoices; redirects unauthenticated to `/sign-in` |
 | Dashboard Overview page | `app/dashboard/page.tsx` | Traffic-light summary cards (Overdue, Chase allowance, Broken promises, Held invoices), ungated for every tier; redirects legacy `?resolved=1` to `/dashboard/resolved` |
+| SpendLeak dashboard page | `app/dashboard/spendleak/page.tsx` | Spend-side module summaries plus freshness/empty/partial/stale state copy; tier-gated to eligible dashboard tiers; supports `?module=` filters |
+| SpendLeak finding detail page | `app/dashboard/spendleak/[id]/page.tsx` | Evidence-first drill-down for a single finding, with structured evidence cards, raw evidence disclosure, and lifecycle controls |
 | Dashboard Invoices page | `app/dashboard/invoices/page.tsx` | Active-invoice table; feature-gated module + upsell; supports `?filter=` from Overview card click-throughs |
 | Dashboard Resolved Invoices page | `app/dashboard/resolved/page.tsx` | Paid/manually-resolved invoice table; feature-gated module + upsell |
 | Settings pages | `app/dashboard/settings/{account,schedule,email,templates,team,stripe,subscription}/page.tsx` | Each pairs with a `*Client.tsx`; AI controls are embedded in the templates page |

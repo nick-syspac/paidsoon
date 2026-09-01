@@ -67,6 +67,12 @@ describe("SpendLeak dashboard page", () => {
           latestSyncAt: new Date("2026-09-01T00:00:00.000Z"),
           hasAccountingConnection: true,
           isStale: false,
+          sourceSyncCount: 3,
+          status: {
+            state: "ready",
+            title: "SpendLeak ready",
+            description: "Spend data is current and SpendLeak findings are available.",
+          },
         }),
       },
     })

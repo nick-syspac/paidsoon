@@ -17,12 +17,14 @@ let GET: any
 
 function makeInvoice(overrides: Record<string, unknown> & { id: string }) {
   const provider = (overrides.provider as string | undefined) ?? "stripe"
+  const { id, ...rest } = overrides
+  const invoiceId = `inv-${id}`
   return {
-    id: `inv-${overrides.id}`,
+    id: invoiceId,
     userId: "user-123",
     invoiceConnectionId: "conn-1",
     customerId: null,
-    financialInvoiceId: `finv-${overrides.id}`,
+    financialInvoiceId: `finv-${id}`,
     status: "pending",
     currentStage: 0,
     nextEmailAt: null,
@@ -36,19 +38,19 @@ function makeInvoice(overrides: Record<string, unknown> & { id: string }) {
     createdAt: new Date("2026-05-01"),
     updatedAt: new Date("2026-05-01"),
     financialInvoice: {
-      id: `finv-${overrides.id}`,
+      id: `finv-${id}`,
       amountDueCents: 10000,
       currency: "aud",
       dueDate: new Date("2026-06-01"),
       paymentUrl: null,
-      sourceId: `ext-${overrides.id}`,
+      sourceId: `ext-${id}`,
       sourceSystem: provider,
       contact: {
         email: "client@example.com",
         name: "Client Pty Ltd",
       },
     },
-    ...overrides,
+    ...rest,
   }
 }
 

@@ -1,6 +1,12 @@
 import { withUserContext } from "@/lib/db/withUserContext"
 import type { SpendInsight } from "@/lib/generated/prisma/client"
-import { buildSpendLeakModuleSummaries, isSpendLeakDataStale, type SpendLeakModuleSummary } from "@/lib/dashboard/spendleakPresentation"
+import {
+  buildSpendLeakDashboardStatus,
+  buildSpendLeakModuleSummaries,
+  isSpendLeakDataStale,
+  type SpendLeakDashboardStatus,
+  type SpendLeakModuleSummary,
+} from "@/lib/dashboard/spendleakPresentation"
 
 export interface SpendLeakDashboardData {
   findings: SpendInsight[]
@@ -8,6 +14,8 @@ export interface SpendLeakDashboardData {
   latestSyncAt: Date | null
   hasAccountingConnection: boolean
   isStale: boolean
+  sourceSyncCount: number
+  status: SpendLeakDashboardStatus
 }
 
 function latestDate(dates: Array<Date | null>): Date | null {
@@ -48,6 +56,9 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       latestTxn?.syncedAt ?? null,
       latestSupplier?.syncedAt ?? null,
     ])
+    const sourceSyncCount = [latestBill?.syncedAt, latestTxn?.syncedAt, latestSupplier?.syncedAt].filter(
+      (value): value is Date => value instanceof Date,
+    ).length
 
     return {
       findings,
@@ -55,6 +66,13 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       latestSyncAt,
       hasAccountingConnection: connectionCount > 0,
       isStale: isSpendLeakDataStale(latestSyncAt),
+      sourceSyncCount,
+      status: buildSpendLeakDashboardStatus({
+        findingsCount: findings.length,
+        hasAccountingConnection: connectionCount > 0,
+        latestSyncAt,
+        sourceSyncCount,
+      }),
     }
   })
 }

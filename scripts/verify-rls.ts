@@ -333,15 +333,18 @@ async function main() {
 
   console.log("\nCheck 6: withUserContext(USER_A) can update lifecycle spend insight fields")
   const resolvedAt = new Date("2026-01-02T00:00:00.000Z")
+  const updatedAt = new Date("2026-01-03T00:00:00.000Z")
   const lifecycleRows = await withUserContext(USER_A, (tx) =>
     tx.$queryRawUnsafe<{ id: string; state: string }[]>(
       `UPDATE spend_insights
        SET state = $1,
-           resolved_at = $2
-       WHERE id = $3
+           resolved_at = $2,
+           updated_at = $3
+       WHERE id = $4
        RETURNING id, state`,
       "resolved",
       resolvedAt,
+      updatedAt,
       PROBE_SPEND_INSIGHT_A,
     ),
   )

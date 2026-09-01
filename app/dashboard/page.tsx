@@ -21,6 +21,8 @@ import Link from "next/link"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperationsSummary"
+import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
+import type { SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
 import {
   createServerTraceContext,
   traceEvent,
@@ -98,6 +100,9 @@ export default async function DashboardOverviewPage({
 
   const canViewSpendLeak = canAccessSpendLeak(profile?.subscriptionTier)
   const spendLeakData = canViewSpendLeak ? await loadSpendLeakDashboard(user.id) : null
+  const topSpendLeakModule = spendLeakData?.modules
+    .filter((module) => module.findingCount > 0)
+    .sort((left, right) => right.estimatedAnnualCents - left.estimatedAnnualCents)[0]
   const financialSummary = buildFinancialOperationsSummary({
     activeInvoiceCount: activeInvoices.length,
     spendFindingCount: spendLeakData?.findings.length ?? 0,
@@ -172,7 +177,7 @@ export default async function DashboardOverviewPage({
             </p>
           </div>
           <Link
-            href={financialSummary.showUnlockCta ? "/dashboard/settings/subscription?intent=spendleak" : "/dashboard/spendleak"}
+            href={buildSpendLeakOverviewHref(financialSummary.showUnlockCta, topSpendLeakModule?.id ?? null)}
             className="shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
           >
             {financialSummary.showUnlockCta ? "Unlock SpendLeak" : "Open SpendLeak"}

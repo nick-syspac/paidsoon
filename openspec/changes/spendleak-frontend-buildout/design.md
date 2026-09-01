@@ -57,6 +57,26 @@ Current constraints:
 - Alternatives considered:
   - Replace current four overview cards: rejected due to behavioral coupling with existing tests/specs.
 
+### D6. Make drill-down evidence readable before making it raw
+- Decision: Render each finding detail as a structured evidence view, not a JSON dump.
+- Rationale: Users need labeled facts, not raw detector payloads, to decide whether to resolve, dismiss, or snooze a finding.
+- Layout proposal:
+  - Top bar with back link, finding type, short summary, severity chip, and estimated annual impact.
+  - Two-column body on desktop, single column on mobile.
+  - Left column: evidence cards with labeled fields such as supplier, source refs, dates, amount, and trigger reason.
+  - Right column: lifecycle panel with current state, action buttons, and a short state explanation.
+  - Bottom section: optional collapsed "Raw evidence" block for support/debug use.
+- Evidence presentation rules:
+  - Show every known field with a label.
+  - If a field is missing, show "Not available" instead of hiding the slot.
+  - Convert machine values into user-friendly dates, amounts, and counts.
+  - For duplicate spend, show both bill references side by side with the day gap and amount comparison.
+  - For recurring spend, show the latest cycle, observed cadence, and average monthly amount.
+  - For renewals, show the upcoming date, source record, and timing context.
+- Alternatives considered:
+  - JSON `<pre>` output: rejected because it obscures the reason the finding exists.
+  - Modal-only drill-down: rejected because evidence-heavy findings need room to breathe.
+
 ## Risks / Trade-offs
 
 - [Risk] Frontend ships before complete detector coverage, leading to sparse data states.
@@ -67,6 +87,49 @@ Current constraints:
   - Mitigation: action availability derived from backend-provided state/permissions and covered by route tests.
 - [Risk] Rendering cost increases on dashboard pages.
   - Mitigation: progressive loading boundaries and modular data requests per surface.
+
+## Concrete Detail View Proposal
+
+The detail page should read like an inspector view, not a developer console.
+
+### Page structure
+
+```text
+Back to SpendLeak
+Finding title
+Short explanation of the signal
+
+┌─────────────────────────────────────────────┬───────────────────────────┐
+│ Evidence                                     │ Lifecycle                 │
+│                                             │                           │
+│ Supplier                                     │ Current state            │
+│ Source references                            │ Action buttons           │
+│ Amount and date gap                          │ Small state helper text  │
+│ Why this was flagged                         │                           │
+└─────────────────────────────────────────────┴───────────────────────────┘
+
+Raw evidence (collapsed by default)
+```
+
+### Behaviour by finding type
+
+- Duplicate spend: show the two bill records as a comparison row with bill IDs, amounts, dates, and the computed gap.
+- Recurring spend: show a small cycle table with recent matches and the average monthly estimate.
+- Renewals: show the upcoming renewal date first, then the supporting source record.
+- Supplier concentration: show the supplier share of total spend and the spend total used in the calculation.
+- Cash pressure: show the aggregated outflow metrics and the threshold comparison that triggered the alert.
+
+### Empty and partial evidence states
+
+- No evidence present: show a short warning copy that the finding exists but the supporting payload is unavailable.
+- Partial evidence present: render whatever fields are available and mark missing items explicitly.
+- Unknown source refs: label them as "Source not available" rather than hiding them.
+
+### Interaction rules
+
+- The lifecycle panel should stay visible after state changes so users can verify the current status immediately.
+- The raw evidence block should be collapsed by default and only expanded on demand.
+- The page should preserve dashboard context through back navigation and not open a separate app shell.
 
 ## Migration Plan
 

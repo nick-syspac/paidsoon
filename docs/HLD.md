@@ -35,12 +35,12 @@ Stripe accounts, user seats, custom from-address, reminder templates, accounting
 integrations, AI rewrite, tone settings)
 (`lib/subscriptionPlans.ts`).
 
-**Planned product direction:** the public roadmap now introduces **SpendLeak** as a planned
-spend-side companion to PaidSoon. The intent is not to turn this repository into an accounting
-package, but to extend the platform over time into a broader financial-operations layer on top of
-Xero and MYOB: PaidSoon for cash collection, SpendLeak for spend efficiency and cash-out analysis.
-That direction is roadmap-only at the time of writing unless and until concrete implementation
-lands in code.
+**SpendLeak status:** the app now includes a deterministic spend-side intelligence layer built
+from normalized spend data, persisted findings, and grounded summaries. The implementation stays
+read-only against accounting providers and generates owner-facing recommendations from persisted
+findings and evidence, rather than from raw provider records or fabricated savings claims.
+PaidSoon remains the cash-collection product; SpendLeak adds a spend-efficiency view on top of
+Xero and MYOB data without becoming a bookkeeping replacement.
 
 **There is no multi-vertical platform.** PaidSoon is a single product, single
 tenant-type system (one freelancer = one tenant, keyed by Supabase

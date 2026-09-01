@@ -8,6 +8,7 @@ import "./_loadEnv"
 
 import { prismaAdmin } from "../lib/db/admin"
 import { getInvoiceLimitForTier, resolveAllowancePeriod } from "../lib/billing"
+import { buildSpendLeakModuleSummaries, isSpendLeakDataStale } from "../lib/dashboard/spendleakPresentation"
 import { isUndeliverableAddress } from "../lib/email/deliveryGuard"
 import { isDemoOrganisationId } from "../lib/providers/accounting/demoGuard"
 import { hasPlanFeature } from "../lib/subscriptionPlans"
@@ -29,6 +30,13 @@ const VALID_INVOICE_STATUSES = new Set([
 const VALID_PROMISE_STATUSES = new Set(["active", "kept", "broken", "superseded"])
 const VALID_ARRANGEMENT_STATUSES = new Set(["active", "broken", "fulfilled", "expired", "cancelled"])
 const VALID_ARRANGEMENT_TYPES = new Set(["full_payment", "partial_payment", "instalment_plan"])
+const EXPECTED_SPEND_FINDING_TYPES = new Set([
+  "recurring_spend",
+  "duplicate_spend",
+  "renewal",
+  "supplier_concentration",
+  "cash_pressure",
+])
 
 let passed = 0
 let failed = 0
@@ -247,6 +255,75 @@ async function main(): Promise<void> {
   check("A connection with a successful sync history exists", accountingConnections.some((c) => c.syncRuns.some((r) => r.status === "success")))
   check("Imported invoices are mapped to their source system", accountingConnections.reduce((n, c) => n + c.financialInvoices.length, 0) >= 6)
   check("Imported customers are mapped to their source system", accountingConnections.reduce((n, c) => n + c.financialContacts.length, 0) >= 6)
+
+  section("SpendLeak foundation data")
+  const spendBills = await prismaAdmin.importedBill.findMany({ where: { userId: { in: seedUserIds } } })
+  const spendBankTransactions = await prismaAdmin.importedBankTransaction.findMany({
+    where: { userId: { in: seedUserIds } },
+  })
+  const spendSuppliers = await prismaAdmin.supplierProfile.findMany({
+    where: { userId: { in: seedUserIds } },
+  })
+  const spendInsights = await prismaAdmin.spendInsight.findMany({
+    where: { userId: { in: seedUserIds } },
+    orderBy: { detectedAt: "desc" },
+  })
+  const cashSnapshots = await prismaAdmin.cashForecastSnapshot.findMany({
+    where: { userId: { in: seedUserIds } },
+  })
+
+  check("SpendLeak imported bills are present", spendBills.length >= 8, `found ${spendBills.length}`)
+  check(
+    "SpendLeak imported bank transactions are present",
+    spendBankTransactions.length >= 5,
+    `found ${spendBankTransactions.length}`,
+  )
+  check("SpendLeak supplier profiles are present", spendSuppliers.length >= 5, `found ${spendSuppliers.length}`)
+  check("SpendLeak findings are present", spendInsights.length >= 6, `found ${spendInsights.length}`)
+  check("SpendLeak cash snapshots are present", cashSnapshots.length >= 2, `found ${cashSnapshots.length}`)
+
+  check(
+    "SpendLeak imported bill currency is uppercase AUD",
+    spendBills.every((bill) => bill.currency === "AUD"),
+  )
+  check(
+    "SpendLeak finding severities are valid",
+    spendInsights.every((insight) => ["low", "medium", "high"].includes(insight.severity)),
+  )
+  check(
+    "SpendLeak finding states are valid",
+    spendInsights.every((insight) => ["open", "resolved", "dismissed", "snoozed"].includes(insight.state)),
+  )
+
+  const findingTypes = new Set(spendInsights.map((insight) => insight.findingType))
+  check(
+    "SpendLeak findings include all expected signal types",
+    [...EXPECTED_SPEND_FINDING_TYPES].every((type) => findingTypes.has(type)),
+    [...EXPECTED_SPEND_FINDING_TYPES].filter((type) => !findingTypes.has(type)).join(", "),
+  )
+
+  const moduleSummaries = buildSpendLeakModuleSummaries(spendInsights)
+  check("SpendLeak module summaries produce five dashboard modules", moduleSummaries.length === 5)
+  check(
+    "At least one SpendLeak dashboard module has red severity",
+    moduleSummaries.some((module) => module.severity === "red"),
+  )
+
+  const latestSyncByUser = new Map<string, Date>()
+  for (const bill of spendBills) {
+    const current = latestSyncByUser.get(bill.userId)
+    if (!current || bill.syncedAt > current) latestSyncByUser.set(bill.userId, bill.syncedAt)
+  }
+  const primarySpendSync = primaryUserId ? latestSyncByUser.get(primaryUserId) ?? null : null
+  const secondSpendSync = secondTenantUserId ? latestSyncByUser.get(secondTenantUserId) ?? null : null
+  check(
+    "Primary tenant SpendLeak data is fresh",
+    primarySpendSync instanceof Date && !isSpendLeakDataStale(primarySpendSync, now),
+  )
+  check(
+    "Second tenant SpendLeak data is stale",
+    secondSpendSync instanceof Date && isSpendLeakDataStale(secondSpendSync, now),
+  )
 
   section("Tenant isolation")
   const primaryInvoiceIds = new Set(invoiceFacts.filter((i) => i.userId === primaryUserId).map((i) => i.id))
