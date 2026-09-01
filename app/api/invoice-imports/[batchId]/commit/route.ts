@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server"
 import { Prisma } from "@/lib/generated/prisma/client"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { computeOutstanding, recordInvoicePayment } from "@/lib/invoices/payments"
+import { upsertFinancialInvoice } from "@/lib/financial/ingest"
 
 type Params = { params: Promise<{ batchId: string }> }
 
@@ -137,15 +138,20 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
         continue
       }
 
-      const existing = await tx.trackedInvoice.findUnique({
+      const existing = await tx.financialInvoice.findUnique({
         where: {
-          externalId_provider_userId: {
-            externalId,
-            provider: INVOICE_IMPORT_PROVIDER,
+          userId_sourceSystem_sourceId: {
             userId: user.id,
+            sourceSystem: "csv",
+            sourceId: externalId,
           },
         },
-        select: { id: true, status: true, amountDue: true, currency: true },
+        select: {
+          id: true,
+          amountDueCents: true,
+          currency: true,
+          trackedInvoice: { select: { id: true, status: true } },
+        },
       })
 
       const currency = (values.currency?.trim() || batch.defaultCurrency || "usd").toLowerCase()
@@ -153,7 +159,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       const clientEmail = values.customer_email?.trim() ?? ""
       const clientName = values.customer_name?.trim() ?? ""
       const customer = clientEmail
-        ? await findOrCreateCustomer(tx, user.id, clientEmail, clientName)
+        ? await findOrCreateCustomer(tx, user.id, clientEmail, clientName, "csv")
         : null
 
       if (!existing) {
@@ -163,19 +169,25 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
           schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 },
         )
 
+        const { invoice: financialInvoice } = await upsertFinancialInvoice(tx, {
+          userId: user.id,
+          sourceSystem: "csv",
+          sourceId: externalId,
+          contactId: customer?.financialContactId ?? null,
+          invoiceNumber: values.invoice_number?.trim() || null,
+          amountDueCents: toCents(outstandingAmount),
+          currency,
+          dueDate,
+          paymentUrl: values.payment_url?.trim() || null,
+          rawSourceData: providerMetadata as unknown as Record<string, unknown>,
+        })
+
         await tx.trackedInvoice.create({
           data: {
             userId: user.id,
+            financialInvoiceId: financialInvoice.id,
             invoiceConnectionId: invoiceConnection.id,
             customerId: customer?.id,
-            externalId,
-            provider: INVOICE_IMPORT_PROVIDER,
-            clientEmail,
-            clientName,
-            amountDue: toCents(outstandingAmount),
-            currency,
-            dueDate,
-            paymentUrl: values.payment_url?.trim() || null,
             status: "pending",
             currentStage: 0,
             nextEmailAt,
@@ -186,6 +198,12 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
         continue
       }
 
+      // From here `existing` is a canonical invoice that may or may not already
+      // have a chasing record. `existingTracked` is the chasing record (if any).
+      const existingTracked = existing.trackedInvoice
+        ? { id: existing.trackedInvoice.id, status: existing.trackedInvoice.status, amountDue: existing.amountDueCents }
+        : null
+
       if (duplicateMode === "skip_existing") {
         commitResult.invoicesSkipped += 1
         continue
@@ -194,23 +212,63 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       // update_eligible: never reopen a terminal invoice, and never touch
       // status/currentStage/nextEmailAt so reminder history, promises-to-pay,
       // and disputes on the existing record are preserved.
-      if (TERMINAL_TRACKED_INVOICE_STATUSES.has(existing.status)) {
+      if (existingTracked && TERMINAL_TRACKED_INVOICE_STATUSES.has(existingTracked.status)) {
         commitResult.invoicesSkipped += 1
         continue
       }
 
-      // `amountDue` is the invoice's fixed original total and is never
-      // overwritten here. Instead, the file's reported outstanding balance is
-      // compared against the ledger-derived current outstanding balance
-      // (lib/invoices/payments.ts#computeOutstanding), and the gap — if
+      // `amountDueCents` on the canonical invoice is the fixed original total
+      // and is never overwritten here. Instead, the file's reported outstanding
+      // balance is compared against the ledger-derived current outstanding
+      // balance (lib/invoices/payments.ts#computeOutstanding), and the gap — if
       // any — is reconciled as an InvoicePayment so payment history is never
       // silently destroyed on re-upload (design.md).
+      const reportedOutstanding = toCents(outstandingAmount)
+
+      // Update canonical invoice facts from the file.
+      await tx.financialInvoice.update({
+        where: { id: existing.id },
+        data: {
+          currency,
+          dueDate,
+          paymentUrl: values.payment_url?.trim() || null,
+          contactId: customer?.financialContactId ?? undefined,
+          syncedAt: new Date(),
+          rawSourceData: providerMetadata as unknown as Prisma.InputJsonValue,
+        },
+      })
+
+      if (!existingTracked) {
+        // Canonical invoice existed without a chasing record — enrol it now.
+        const nextEmailAt = computeNextEmailAt(
+          dueDate,
+          1,
+          schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 },
+        )
+        await tx.trackedInvoice.create({
+          data: {
+            userId: user.id,
+            financialInvoiceId: existing.id,
+            invoiceConnectionId: invoiceConnection.id,
+            customerId: customer?.id,
+            status: "pending",
+            currentStage: 0,
+            nextEmailAt,
+            providerMetadata,
+          },
+        })
+        commitResult.invoicesCreated += 1
+        continue
+      }
+
       const existingPayments = await tx.invoicePayment.findMany({
-        where: { trackedInvoiceId: existing.id },
+        where: { trackedInvoiceId: existingTracked.id },
         select: { amount: true },
       })
-      const currentOutstanding = computeOutstanding({ amountDue: existing.amountDue }, existingPayments)
-      const reportedOutstanding = toCents(outstandingAmount)
+      const currentOutstanding = computeOutstanding(
+        { amountDue: existing.amountDueCents },
+        existingPayments,
+      )
 
       if (reportedOutstanding > currentOutstanding) {
         // Anomaly: the file reports a *higher* outstanding balance than the
@@ -233,14 +291,9 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       }
 
       await tx.trackedInvoice.update({
-        where: { id: existing.id },
+        where: { id: existingTracked.id },
         data: {
-          clientEmail,
-          clientName,
           ...(customer ? { customerId: customer.id } : {}),
-          currency,
-          dueDate,
-          paymentUrl: values.payment_url?.trim() || null,
           providerMetadata,
         },
       })
@@ -248,7 +301,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       if (reportedOutstanding < currentOutstanding) {
         await recordInvoicePayment(
           tx,
-          { id: existing.id, userId: user.id, amountDue: existing.amountDue, status: existing.status },
+          { id: existingTracked.id, userId: user.id, amountDue: existing.amountDueCents, status: existingTracked.status },
           {
             amount: currentOutstanding - reportedOutstanding,
             currency,

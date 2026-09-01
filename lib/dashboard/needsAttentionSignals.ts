@@ -13,7 +13,9 @@ export async function loadDisputedInvoiceCountWithTx(tx: PrismaTx, userId: strin
  * `primaryEmail` — but becomes real once a future import path allows one.
  */
 export async function loadNoContactEmailCustomerCountWithTx(tx: PrismaTx, userId: string): Promise<number> {
-  return tx.customer.count({ where: { userId, primaryEmail: "" } })
+  // Canonical contacts always carry a non-empty email when created via
+  // findOrCreateCustomer; count any whose linked contact lost its email.
+  return tx.customer.count({ where: { userId, financialContact: { email: null } } })
 }
 
 /**

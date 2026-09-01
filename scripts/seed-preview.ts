@@ -47,6 +47,8 @@
 import "./_loadEnv"
 
 import { prismaAdmin } from "../lib/db/admin"
+import { findOrCreateCustomer } from "../lib/db/customers"
+import { upsertFinancialInvoice } from "../lib/financial/ingest"
 import { DEMO_ORGANISATION_ID_PREFIX } from "../lib/providers/accounting/demoGuard"
 import {
   createSeedClock,
@@ -957,16 +959,6 @@ async function cleanup(userIds: string[]): Promise<void> {
   }
   await prismaAdmin.promiseToPay.deleteMany({ where: { userId: { in: userIds } } })
 
-  if (invoiceIds.length > 0 || accountingConnectionIds.length > 0) {
-    await prismaAdmin.providerInvoiceMapping.deleteMany({
-      where: {
-        OR: [
-          { trackedInvoiceId: { in: invoiceIds } },
-          { accountingConnectionId: { in: accountingConnectionIds } },
-        ],
-      },
-    })
-  }
   if (invoiceIds.length > 0 || arrangementIds.length > 0) {
     await prismaAdmin.arrangementInvoiceCoverage.deleteMany({
       where: {
@@ -975,9 +967,6 @@ async function cleanup(userIds: string[]): Promise<void> {
     })
   }
   if (accountingConnectionIds.length > 0) {
-    await prismaAdmin.providerContactMapping.deleteMany({
-      where: { accountingConnectionId: { in: accountingConnectionIds } },
-    })
     await prismaAdmin.accountingSyncRun.deleteMany({
       where: { accountingConnectionId: { in: accountingConnectionIds } },
     })
@@ -986,6 +975,10 @@ async function cleanup(userIds: string[]): Promise<void> {
   if (invoiceIds.length > 0) {
     await prismaAdmin.trackedInvoice.deleteMany({ where: { id: { in: invoiceIds } } })
   }
+  await prismaAdmin.customer.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.financialPayment.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.financialInvoice.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.financialContact.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.emailSettings.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.schedule.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.emailTemplate.deleteMany({ where: { userId: { in: userIds } } })
@@ -1059,17 +1052,39 @@ async function createInvoices(
           ? `XERO-INV-${spec.slug.toUpperCase().replace(/[^A-Z0-9]/g, "")}`
           : `seed-${spec.slug}`
 
+    const customer = await findOrCreateCustomer(
+      prismaAdmin,
+      userId,
+      spec.clientEmail,
+      spec.clientName,
+      connectionKey,
+      externalId,
+    )
+
+    const { invoice: financialInvoice } = await upsertFinancialInvoice(prismaAdmin, {
+      userId,
+      sourceSystem: connectionKey,
+      sourceId: externalId,
+      contactId: customer.financialContactId,
+      amountDueCents: spec.amountDue,
+      currency: CURRENCY,
+      dueDate,
+      rawSourceData: {
+        seedScenario: spec.scenario,
+        timeZone: SEED_TIME_ZONE,
+        gst: gstBreakdown(spec.amountDue),
+        lineItems: lineItems(spec.lines),
+        paymentTerms: "Net 14 days from invoice date",
+        ...(spec.metadata ?? {}),
+      },
+    })
+
     const invoice = await prismaAdmin.trackedInvoice.create({
       data: {
         userId,
         invoiceConnectionId,
-        externalId,
-        provider: connectionKey,
-        clientEmail: spec.clientEmail,
-        clientName: spec.clientName,
-        amountDue: spec.amountDue,
-        currency: CURRENCY,
-        dueDate,
+        financialInvoiceId: financialInvoice.id,
+        customerId: customer.id,
         status: spec.status,
         currentStage: remindersSent,
         nextEmailAt:
@@ -1308,7 +1323,6 @@ async function seedCoastline(
       arrangementId: instalment.id,
       trackedInvoiceId: dandenong.id,
       userId,
-      debtorEmail: dandenong.clientEmail,
     },
   })
   counters.arrangements++
@@ -1333,7 +1347,6 @@ async function seedCoastline(
       arrangementId: brokenArrangement.id,
       trackedInvoiceId: broadmeadows.id,
       userId,
-      debtorEmail: broadmeadows.clientEmail,
     },
   })
   counters.arrangements++
@@ -1360,7 +1373,6 @@ async function seedCoastline(
       arrangementId: partial.id,
       trackedInvoiceId: yarraville2.id,
       userId,
-      debtorEmail: yarraville2.clientEmail,
     },
   })
   counters.arrangements++
@@ -1386,7 +1398,6 @@ async function seedCoastline(
       arrangementId: fulfilled.id,
       trackedInvoiceId: camberwell.id,
       userId,
-      debtorEmail: camberwell.clientEmail,
     },
   })
   counters.arrangements++
@@ -1460,25 +1471,26 @@ async function seedCoastline(
 
   for (const slug of ["dandenong-freight", "broadmeadows-panel", "bendigo-childcare"]) {
     const invoice = invoices.get(slug)!
-    await prismaAdmin.providerInvoiceMapping.create({
-      data: {
-        trackedInvoiceId: invoice.id,
-        accountingConnectionId: myobConnection.id,
-        providerInvoiceId: `demo-seed-myob-invoice-${slug}`,
-        providerUpdatedAt: clock.hoursAgo(9),
-        providerMetadata: { source: "seed", providerStatus: "Open" },
-      },
+    const existingContact = await findOrCreateCustomer(
+      prismaAdmin,
+      userId,
+      invoice.clientEmail,
+      invoice.clientName,
+      "myob",
+      `demo-seed-myob-invoice-${slug}`,
+    )
+    await upsertFinancialInvoice(prismaAdmin, {
+      userId,
+      sourceSystem: "myob",
+      sourceId: `demo-seed-myob-invoice-${slug}`,
+      accountingConnectionId: myobConnection.id,
+      contactId: existingContact.financialContactId,
+      amountDueCents: invoice.amountDue,
+      currency: CURRENCY,
+      dueDate: clock.daysFromNow(0),
+      rawSourceData: { source: "seed", providerStatus: "Open" },
     })
-    await prismaAdmin.providerContactMapping.create({
-      data: {
-        accountingConnectionId: myobConnection.id,
-        providerContactId: `demo-seed-myob-contact-${slug}`,
-        contactName: invoice.clientName,
-        contactEmail: invoice.clientEmail,
-        providerMetadata: { source: "seed", isCustomer: true },
-      },
-    })
-    counters.mappings += 2
+    counters.mappings += 1
   }
 
   // --- AI usage (Business tier ai_rewrite feature) --------------------------
@@ -1682,25 +1694,26 @@ async function seedYarraValley(
 
   for (const slug of ["yv-healesville", "yv-warburton", "yv-lilydale"]) {
     const invoice = invoices.get(slug)!
-    await prismaAdmin.providerInvoiceMapping.create({
-      data: {
-        trackedInvoiceId: invoice.id,
-        accountingConnectionId: xeroConnection.id,
-        providerInvoiceId: `demo-seed-xero-invoice-${slug}`,
-        providerUpdatedAt: clock.daysAgo(10),
-        providerMetadata: { source: "seed", providerStatus: "AUTHORISED" },
-      },
+    const existingContact = await findOrCreateCustomer(
+      prismaAdmin,
+      userId,
+      invoice.clientEmail,
+      invoice.clientName,
+      "xero",
+      `demo-seed-xero-invoice-${slug}`,
+    )
+    await upsertFinancialInvoice(prismaAdmin, {
+      userId,
+      sourceSystem: "xero",
+      sourceId: `demo-seed-xero-invoice-${slug}`,
+      accountingConnectionId: xeroConnection.id,
+      contactId: existingContact.financialContactId,
+      amountDueCents: invoice.amountDue,
+      currency: CURRENCY,
+      dueDate: clock.daysFromNow(0),
+      rawSourceData: { source: "seed", providerStatus: "AUTHORISED" },
     })
-    await prismaAdmin.providerContactMapping.create({
-      data: {
-        accountingConnectionId: xeroConnection.id,
-        providerContactId: `demo-seed-xero-contact-${slug}`,
-        contactName: invoice.clientName,
-        contactEmail: invoice.clientEmail,
-        providerMetadata: { source: "seed", isCustomer: true },
-      },
-    })
-    counters.mappings += 2
+    counters.mappings += 1
   }
 
   console.log(`  ✓ ${YARRA_VALLEY_INVOICES.length} invoices, 1 promise, Xero connection (error state)`)

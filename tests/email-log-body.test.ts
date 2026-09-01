@@ -64,12 +64,18 @@ describe("sendFollowUpEmail — EmailLog body persistence", () => {
     const invoice = {
       id: "inv-1",
       userId: "user-1",
-      clientEmail: "client@example.test", // reserved TLD — send is suppressed, never reaches Resend
-      clientName: "Client Co",
-      amountDue: 10_000,
-      currency: "usd",
-      dueDate: new Date("2026-01-01"),
       p2pToken: null,
+      financialInvoice: {
+        id: "finv-1",
+        amountDueCents: 10_000,
+        currency: "usd",
+        dueDate: new Date("2026-01-01"),
+        paymentUrl: null,
+        contact: {
+          email: "client@example.test", // reserved TLD — send is suppressed, never reaches Resend
+          name: "Client Co",
+        },
+      },
     }
 
     const messageId = await sendFollowUpEmail(invoice, 1, "freelancer@example.com", "Freelancer Name")
@@ -91,12 +97,18 @@ describe("sendFollowUpEmail — EmailLog body persistence", () => {
     const invoice = {
       id: "inv-2",
       userId: "user-1",
-      clientEmail: "client@example.invalid", // reserved TLD — send is suppressed, never reaches Resend
-      clientName: "Custom Template Client",
-      amountDue: 5_000,
-      currency: "usd",
-      dueDate: new Date("2026-01-01"),
       p2pToken: null,
+      financialInvoice: {
+        id: "finv-2",
+        amountDueCents: 5_000,
+        currency: "usd",
+        dueDate: new Date("2026-01-01"),
+        paymentUrl: null,
+        contact: {
+          email: "client@example.invalid", // reserved TLD — send is suppressed, never reaches Resend
+          name: "Custom Template Client",
+        },
+      },
     }
 
     const messageId = await sendFollowUpEmail(invoice, 2, "freelancer@example.com", "Freelancer Name")

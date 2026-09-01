@@ -30,13 +30,22 @@ export interface Organisation {
   countryCode?: string // ISO 3166-1 alpha-2 where available
 }
 
-/** PaidSoon's normalised invoice type as imported from an accounting provider. */
+/**
+ * PaidSoon's normalised invoice type as imported from an accounting provider.
+ *
+ * Canonical ingestion contract (openspec/changes/canonical-financial-data-model):
+ * adapters return these normalized shapes; the sync orchestrator maps them onto
+ * the canonical financial tables via `lib/financial/ingest.ts` using
+ * `providerInvoiceId`/`providerContactId` as the provenance `sourceId`. Adapters
+ * never write chasing state or feature-specific rows — provider variability stops
+ * at this boundary.
+ */
 export interface ProviderInvoice {
-  /** Unique identifier within the provider (e.g. Xero InvoiceID, MYOB UID). */
+  /** Unique identifier within the provider (e.g. Xero InvoiceID, MYOB UID). Becomes the canonical `sourceId`. */
   providerInvoiceId: string
   /** Provider's invoice number / reference shown to the customer. */
   invoiceNumber?: string
-  /** Provider contact/customer ID (used for ProviderContactMapping). */
+  /** Provider contact/customer ID — becomes the canonical contact's `sourceId`. */
   providerContactId: string
   /** Customer display name. */
   clientName: string
@@ -157,7 +166,7 @@ export interface AccountingProvider {
 
   /**
    * Fetch customer/contact details for a list of provider contact IDs.
-   * Used to enrich ProviderContactMapping after invoice sync.
+   * Used to enrich the canonical FinancialContact after invoice sync.
    */
   getContacts(params: {
     accessToken: string

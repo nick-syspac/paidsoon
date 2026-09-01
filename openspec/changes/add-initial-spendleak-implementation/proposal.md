@@ -40,6 +40,13 @@ partners.
 - **MODIFIED** public `/roadmap` content so SpendLeak appears as a planned product direction with a
   phased MVP-to-later breakdown
 
+> **Dependency (added 2026-08-31):** Sections 2–5 (sync expansion, detectors, surfaces) consume the
+> canonical financial layer introduced by `canonical-financial-data-model`. That change lands first;
+> the spend-side foundation tables (`imported_bills`, `imported_bank_transactions`,
+> `supplier_profiles`) are aligned to the shared provenance vocabulary (`source_system`, `source_id`,
+> `source_updated_at`, `synced_at`) as part of it. Receivables context for the unified cash view now
+> reads from the canonical `financial_invoices` rather than `tracked_invoices`.
+
 ## Capabilities
 
 ### New Capabilities

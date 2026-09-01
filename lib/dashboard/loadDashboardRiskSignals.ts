@@ -12,12 +12,14 @@ export async function loadBrokenPromiseCountsByDebtorWithTx(
   const rows = await tx.promiseToPay.findMany({
     where: { userId, status: "broken" },
     select: {
-      trackedInvoice: { select: { clientEmail: true } },
+      trackedInvoice: {
+        select: { financialInvoice: { select: { contact: { select: { email: true } } } } },
+      },
     },
   })
 
   return buildBrokenPromiseCountsByDebtor(
-    rows.map((row) => ({ clientEmail: row.trackedInvoice.clientEmail })),
+    rows.map((row) => ({ clientEmail: row.trackedInvoice.financialInvoice.contact?.email ?? "" })),
   )
 }
 

@@ -20,11 +20,17 @@ type MockStagingRow = {
 }
 
 type MockTrackedInvoice = { id: string; status: string; amountDue: number; currency: string }
+type MockFinancialInvoice = {
+  id: string
+  amountDueCents: number
+  currency: string
+  trackedInvoice: { id: string; status: string } | null
+}
 
 let mockUser: { id: string } | null = { id: "user-1" }
 let mockBatch: MockBatch
 let mockStagingRows: MockStagingRow[]
-let mockExistingInvoice: MockTrackedInvoice | null
+let mockExistingInvoice: MockFinancialInvoice | null
 let mockConnectionExists: boolean
 let mockExistingPayments: { amount: number }[]
 
@@ -74,15 +80,41 @@ describe("Invoice import commit route", () => {
               findFirst: async () => (mockConnectionExists ? { id: "conn-1" } : null),
               create: async () => ({ id: "conn-1" }),
             },
-            trackedInvoice: {
+            financialInvoice: {
               findUnique: async () => mockExistingInvoice,
+              create: async (args: unknown) => {
+                const data = (args as { data: Record<string, unknown> }).data
+                const created = {
+                  id: "fi-new",
+                  amountDueCents: Number(data.amountDueCents ?? 0),
+                  currency: String(data.currency ?? "aud"),
+                  trackedInvoice: null,
+                }
+                mockExistingInvoice = created
+                return { id: created.id }
+              },
+              update: async (args: unknown) => {
+                const data = (args as { data: Record<string, unknown> }).data
+                if (mockExistingInvoice) {
+                  mockExistingInvoice = {
+                    ...mockExistingInvoice,
+                    ...data,
+                    amountDueCents: Number((data.amountDueCents ?? mockExistingInvoice.amountDueCents) as number),
+                    currency: String(data.currency ?? mockExistingInvoice.currency),
+                  }
+                }
+                return { id: mockExistingInvoice?.id ?? "fi-existing" }
+              },
+            },
+            trackedInvoice: {
+              findUnique: async () => mockExistingInvoice?.trackedInvoice ?? null,
               create: async (args: unknown) => {
                 lastCreateArgs = args
                 return { id: "ti-new" }
               },
               update: async (args: unknown) => {
                 lastUpdateArgs = args
-                return { id: mockExistingInvoice?.id }
+                return { id: mockExistingInvoice?.trackedInvoice?.id }
               },
             },
             invoicePayment: {
@@ -99,6 +131,13 @@ describe("Invoice import commit route", () => {
               create: async (args: unknown) => {
                 lastImportErrorCreateArgs = args
                 return { id: "error-1" }
+              },
+            },
+            financialContact: {
+              findUnique: async () => null,
+              upsert: async (args: unknown) => {
+                const data = (args as { create: Record<string, unknown> }).create
+                return { id: "contact-1", ...data }
               },
             },
             customer: {
@@ -150,6 +189,15 @@ describe("Invoice import commit route", () => {
     stagingRowFindManyCalled = false
   })
 
+  function mockExistingFinancialInvoice(status: string, amountDueCents: number) {
+    return {
+      id: "fi-existing",
+      amountDueCents,
+      currency: "aud",
+      trackedInvoice: { id: "ti-existing", status },
+    } satisfies MockFinancialInvoice
+  }
+
   function postRequest() {
     return new Request("http://localhost/api/invoice-imports/batch-1/commit", { method: "POST" })
   }
@@ -179,7 +227,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("skip_existing mode leaves a matching invoice untouched", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
+    mockExistingInvoice = mockExistingFinancialInvoice("pending", 50_000)
     mockBatch.duplicateMode = "skip_existing"
 
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
@@ -190,7 +238,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("update_eligible mode protects terminal invoices from reopening", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "paid", amountDue: 50_000, currency: "aud" }
+    mockExistingInvoice = mockExistingFinancialInvoice("paid", 50_000)
     mockBatch.duplicateMode = "update_eligible"
 
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
@@ -201,7 +249,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("update_eligible mode updates a non-terminal existing invoice without touching reminder state", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
+    mockExistingInvoice = mockExistingFinancialInvoice("pending", 50_000)
     mockBatch.duplicateMode = "update_eligible"
 
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
@@ -220,7 +268,7 @@ describe("Invoice import commit route", () => {
   test("reconciliation: lower reported outstanding records a partial InvoicePayment", async () => {
     // amountDue 50000, no prior payments -> current outstanding = 50000.
     // File reports 500.00 (50000 - 50000 -> wait, staging row amount_outstanding is 500.00 = 50000 cents)
-    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 80_000, currency: "aud" }
+    mockExistingInvoice = mockExistingFinancialInvoice("pending", 80_000)
     mockBatch.duplicateMode = "update_eligible"
 
     const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
@@ -236,7 +284,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("reconciliation: reported outstanding reaching zero also marks the invoice paid", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
+    mockExistingInvoice = mockExistingFinancialInvoice("pending", 50_000)
     mockBatch.duplicateMode = "update_eligible"
     mockStagingRows[0].normalized.amount_outstanding = "0.00"
 
@@ -252,7 +300,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("reconciliation: unchanged reported outstanding updates fields but records no payment", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
+    mockExistingInvoice = mockExistingFinancialInvoice("pending", 50_000)
     mockBatch.duplicateMode = "update_eligible"
     // amount_outstanding "500.00" -> 50000 cents, matches amountDue with no prior payments.
 
@@ -267,7 +315,7 @@ describe("Invoice import commit route", () => {
   })
 
   test("reconciliation: higher reported outstanding is skipped as an anomaly, not applied", async () => {
-    mockExistingInvoice = { id: "ti-existing", status: "pending", amountDue: 50_000, currency: "aud" }
+    mockExistingInvoice = mockExistingFinancialInvoice("pending", 50_000)
     mockExistingPayments = [{ amount: 20_000 }] // current outstanding = 30000
     mockBatch.duplicateMode = "update_eligible"
     // amount_outstanding "500.00" -> 50000 cents, which is higher than current outstanding (30000).

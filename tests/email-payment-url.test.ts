@@ -51,13 +51,18 @@ describe("sendFollowUpEmail — paymentUrl passthrough", () => {
     const invoice = {
       id: "inv-pay-1",
       userId: "user-1",
-      clientEmail: "client@example.test", // reserved TLD — suppressed, never reaches Resend
-      clientName: "Pay Link Client",
-      amountDue: 10_000,
-      currency: "usd",
-      dueDate: new Date("2026-01-01"),
-      paymentUrl: "https://invoice.stripe.com/i/acct_123/test_abc",
       p2pToken: null,
+      financialInvoice: {
+        id: "finv-pay-1",
+        amountDueCents: 10_000,
+        currency: "usd",
+        dueDate: new Date("2026-01-01"),
+        paymentUrl: "https://invoice.stripe.com/i/acct_123/test_abc",
+        contact: {
+          email: "client@example.test", // reserved TLD — suppressed, never reaches Resend
+          name: "Pay Link Client",
+        },
+      },
     }
 
     const messageId = await sendFollowUpEmail(invoice, 1, "freelancer@example.com", "Freelancer")
@@ -73,13 +78,18 @@ describe("sendFollowUpEmail — paymentUrl passthrough", () => {
     const invoice = {
       id: "inv-pay-2",
       userId: "user-1",
-      clientEmail: "client@example.test",
-      clientName: "No Link Client",
-      amountDue: 5_000,
-      currency: "usd",
-      dueDate: new Date("2026-01-01"),
-      paymentUrl: null,
       p2pToken: null,
+      financialInvoice: {
+        id: "finv-pay-2",
+        amountDueCents: 5_000,
+        currency: "usd",
+        dueDate: new Date("2026-01-01"),
+        paymentUrl: null,
+        contact: {
+          email: "client@example.test",
+          name: "No Link Client",
+        },
+      },
     }
 
     const messageId = await sendFollowUpEmail(invoice, 1, "freelancer@example.com", "Freelancer")

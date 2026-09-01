@@ -31,6 +31,7 @@ export default async function PromisePage({
         orderBy: { createdAt: "desc" },
         take: 1,
       },
+      financialInvoice: { include: { contact: true } },
     },
   })
 
@@ -66,8 +67,8 @@ export default async function PromisePage({
   }
 
   const activePromise = invoice.promisesToPay[0] ?? null
-  const amountFormatted = formatCurrency(invoice.amountDue, invoice.currency)
-  const dueDateFormatted = formatDate(invoice.dueDate)
+  const amountFormatted = formatCurrency(invoice.financialInvoice.amountDueCents, invoice.financialInvoice.currency)
+  const dueDateFormatted = formatDate(invoice.financialInvoice.dueDate)
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -77,7 +78,7 @@ export default async function PromisePage({
             Payment commitment
           </p>
           <h1 className="text-xl font-semibold text-gray-900">
-            {invoice.clientName}
+            {invoice.financialInvoice.contact?.name ?? ""}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             {amountFormatted} &middot; due {dueDateFormatted}

@@ -16,8 +16,12 @@ import {
   type ContactEnquiryType,
 } from "./contactEnquiryRouting"
 import { isUndeliverableAddress } from "./deliveryGuard"
-import type { TrackedInvoice, PromiseToPay } from "@/lib/generated/prisma/client"
+import type { PromiseToPay } from "@/lib/generated/prisma/client"
 import { Prisma } from "@/lib/generated/prisma/client"
+import {
+  flattenCanonicalInvoice,
+  type TrackedInvoiceWithCanonical,
+} from "@/lib/invoices/canonical"
 
 /**
  * Resolve the display name to use as {{yourName}} in reminder emails.
@@ -232,37 +236,42 @@ export async function resolveFromAddress(userId: string): Promise<{
  * Logs the send to email_logs. Returns the Resend message ID on success.
  */
 export async function sendFollowUpEmail(
-  invoice: TrackedInvoice,
+  invoiceWithCanonical: TrackedInvoiceWithCanonical,
   stage: 1 | 2 | 3,
   freelancerEmail: string,
   freelancerName: string
 ): Promise<string | null> {
+  const invoice = flattenCanonicalInvoice(invoiceWithCanonical)
+  const trackedInvoiceId = invoiceWithCanonical.id
+  const invoiceUserId = invoiceWithCanonical.userId
+  const existingP2PToken = invoiceWithCanonical.p2pToken
+
   // Fast-path dedup check: skip the send entirely if this stage was already
   // logged. The @@unique([trackedInvoiceId, stage]) constraint is the durable
   // backstop for the race this check can't fully close on its own.
   const existingLog = await prisma.emailLog.findFirst({
-    where: { trackedInvoiceId: invoice.id, stage },
+    where: { trackedInvoiceId, stage },
     select: { id: true },
   })
   if (existingLog) {
     return ALREADY_SENT_MESSAGE_ID
   }
 
-  const { from, replyTo } = await resolveFromAddress(invoice.userId)
+  const { from, replyTo } = await resolveFromAddress(invoiceUserId)
 
   // Resolve p2pLink for tiers that include promise-to-pay tracking. Generate
   // and persist the token if the invoice doesn't have one yet.
   let p2pLink: string | undefined
   const profile = await prisma.userProfile.findUnique({
-    where: { userId: invoice.userId },
+    where: { userId: invoiceUserId },
     select: { subscriptionTier: true },
   })
   if (hasPlanFeature(profile?.subscriptionTier, "promise_to_pay_tracking")) {
-    let token = invoice.p2pToken
+    let token = existingP2PToken
     if (!token) {
       token = generateP2PToken()
       await prisma.trackedInvoice.update({
-        where: { id: invoice.id },
+        where: { id: trackedInvoiceId },
         data: { p2pToken: token },
       })
     }
@@ -283,7 +292,7 @@ export async function sendFollowUpEmail(
   // Check for a custom template saved by this user for this stage.
   // prismaAdmin is used here: send path runs in cron context (RLS bypassed by design).
   const customTemplate = await prisma.emailTemplate.findUnique({
-    where: { userId_stage: { userId: invoice.userId, stage } },
+    where: { userId_stage: { userId: invoiceUserId, stage } },
   })
 
   let subject: string
@@ -312,7 +321,7 @@ export async function sendFollowUpEmail(
       try {
         await prisma.emailLog.create({
           data: {
-            trackedInvoiceId: invoice.id,
+            trackedInvoiceId,
             stage,
             resendMessageId: null,
             fromAddress: from,
@@ -342,7 +351,7 @@ export async function sendFollowUpEmail(
     try {
       await prisma.emailLog.create({
         data: {
-          trackedInvoiceId: invoice.id,
+          trackedInvoiceId,
           stage,
           resendMessageId: messageId,
           fromAddress: from,
@@ -362,7 +371,7 @@ export async function sendFollowUpEmail(
 
     return messageId
   } catch (err) {
-    console.error(`Failed to send email for invoice ${invoice.id} stage ${stage}:`, err)
+    console.error(`Failed to send email for invoice ${trackedInvoiceId} stage ${stage}:`, err)
     return null
   }
 }
@@ -393,12 +402,14 @@ function formatDate(date: Date): string {
  */
 export async function sendP2PNotification(
   type: "promise_received" | "promise_broken",
-  invoice: TrackedInvoice,
+  invoiceWithCanonical: TrackedInvoiceWithCanonical,
   promise: PromiseToPay,
   freelancerEmail: string,
   freelancerName: string,
   brokenCount?: number,
 ): Promise<void> {
+  const invoice = flattenCanonicalInvoice(invoiceWithCanonical)
+  const trackedInvoiceId = invoiceWithCanonical.id
   const from = `${process.env.RESEND_FROM_NAME!} <${process.env.RESEND_FROM_EMAIL!}>`
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL ?? ""
   const dashboardLink = `${appUrl}/dashboard`
@@ -460,6 +471,6 @@ PaidSoon`
 
     await getResend().emails.send({ from, to: freelancerEmail, subject, html, text })
   } catch (err) {
-    console.error(`Failed to send P2P notification (${type}) for invoice ${invoice.id}:`, err)
+    console.error(`Failed to send P2P notification (${type}) for invoice ${trackedInvoiceId}:`, err)
   }
 }

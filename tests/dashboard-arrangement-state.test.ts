@@ -13,7 +13,6 @@ function makeCoverage(status: "active" | "broken" | "fulfilled", coverageCount: 
     arrangementId: `arr-${status}`,
     trackedInvoiceId: "inv-1",
     userId: "user-1",
-    debtorEmail: "client@example.com",
     createdAt: new Date(),
     arrangement: {
       id: `arr-${status}`,
