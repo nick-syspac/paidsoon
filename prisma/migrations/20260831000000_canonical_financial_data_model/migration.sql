@@ -115,19 +115,21 @@ ALTER TABLE "tracked_invoices"
 
 -- Backfill is intentionally omitted (destructive pre-launch refactor): any
 -- pre-existing rows are discarded with their data columns below.
+DELETE FROM "tracked_invoices";
+
 -- Enforce NOT NULL only on the now-empty table.
 ALTER TABLE "tracked_invoices"
     ALTER COLUMN "financial_invoice_id" SET NOT NULL;
 
 ALTER TABLE "tracked_invoices"
-    DROP COLUMN "external_id",
-    DROP COLUMN "provider",
-    DROP COLUMN "client_email",
-    DROP COLUMN "client_name",
-    DROP COLUMN "amount_due",
-    DROP COLUMN "currency",
-    DROP COLUMN "due_date",
-    DROP COLUMN "payment_url";
+    DROP COLUMN IF EXISTS "external_id",
+    DROP COLUMN IF EXISTS "provider",
+    DROP COLUMN IF EXISTS "client_email",
+    DROP COLUMN IF EXISTS "client_name",
+    DROP COLUMN IF EXISTS "amount_due",
+    DROP COLUMN IF EXISTS "currency",
+    DROP COLUMN IF EXISTS "due_date",
+    DROP COLUMN IF EXISTS "payment_url";
 
 CREATE UNIQUE INDEX "tracked_invoices_financial_invoice_id_key"
     ON "tracked_invoices"("financial_invoice_id");
@@ -153,8 +155,8 @@ ALTER TABLE "customers"
     DROP COLUMN "primary_email_lower",
     DROP COLUMN "display_name";
 
-CREATE UNIQUE INDEX "customers_user_id_financial_contact_id_key"
-    ON "customers"("user_id", "financial_contact_id");
+CREATE UNIQUE INDEX "customers_userId_financial_contact_id_key"
+    ON "customers"("userId", "financial_contact_id");
 
 ALTER TABLE "customers"
     ADD CONSTRAINT "customers_financial_contact_id_fkey"
@@ -212,12 +214,15 @@ ALTER TABLE "arrangement_invoice_coverages"
     DROP CONSTRAINT IF EXISTS "arrangement_invoice_coverages_tracked_invoice_id_user_id_debtor_email_fkey",
     DROP CONSTRAINT IF EXISTS "arrangement_invoice_coverages_arrangement_id_user_id_debtor_email_fkey";
 
+CREATE UNIQUE INDEX IF NOT EXISTS "arrangements_id_user_id_key"
+    ON "arrangements"("id", "user_id");
+
 ALTER TABLE "arrangement_invoice_coverages"
     DROP COLUMN "debtor_email";
 
 ALTER TABLE "arrangement_invoice_coverages"
     ADD CONSTRAINT "arrangement_invoice_coverages_arrangement_id_user_id_fkey"
-    FOREIGN KEY ("arrangement_id", "user_id") REFERENCES "arrangements"("id", "userId")
+    FOREIGN KEY ("arrangement_id", "user_id") REFERENCES "arrangements"("id", "user_id")
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- ---------------------------------------------------------------------------
@@ -260,5 +265,5 @@ ALTER TABLE "financial_payments"
     ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Arrangement compound unique supporting the coverage FK above.
-CREATE UNIQUE INDEX IF NOT EXISTS "arrangements_id_userId_key"
-    ON "arrangements"("id", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "arrangements_id_user_id_key"
+    ON "arrangements"("id", "user_id");
