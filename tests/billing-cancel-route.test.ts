@@ -101,6 +101,8 @@ describe("POST /api/billing/cancel", () => {
   test("creates a subscription_cancel portal flow for an active subscription found from the customer record", async () => {
     mockProfile = {
       userId: "user_123",
+      subscriptionStatus: "active",
+      subscriptionTier: "starter",
       stripeCustomerId: "cus_123",
       stripeSubscriptionId: null,
       subscriptionCurrentPeriodEnd: null,
