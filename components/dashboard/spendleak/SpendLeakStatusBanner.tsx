@@ -1,4 +1,5 @@
 import type { SpendLeakDashboardStatus } from "@/lib/dashboard/spendleakPresentation"
+import type { ReactElement } from "react"
 
 function toneClasses(state: SpendLeakDashboardStatus["state"]): string {
   if (state === "no_connection" || state === "initial_sync") return "border-amber-200 bg-amber-50 text-amber-900"
@@ -8,7 +9,7 @@ function toneClasses(state: SpendLeakDashboardStatus["state"]): string {
   return "border-gray-200 bg-gray-50 text-gray-900"
 }
 
-export function SpendLeakStatusBanner({ status }: { status: SpendLeakDashboardStatus }): JSX.Element {
+export function SpendLeakStatusBanner({ status }: { status: SpendLeakDashboardStatus }): ReactElement {
   return (
     <div className={`rounded-xl border p-4 ${toneClasses(status.state)}`}>
       <h2 className="text-sm font-semibold">{status.title}</h2>

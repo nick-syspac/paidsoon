@@ -1,7 +1,8 @@
 import type { SpendInsight } from "@/lib/generated/prisma/client"
+import type { ReactElement } from "react"
 import { buildSpendLeakEvidenceView, formatAudCents } from "@/lib/dashboard/spendleakPresentation"
 
-export function SpendLeakEvidenceDetails({ finding }: { finding: SpendInsight }): JSX.Element {
+export function SpendLeakEvidenceDetails({ finding }: { finding: SpendInsight }): ReactElement {
   const view = buildSpendLeakEvidenceView(finding)
 
   return (
