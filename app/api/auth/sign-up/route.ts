@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { createUserProfile } from "@/lib/actions/auth"
+import { isSupabaseAuthServiceMisconfigured } from "@/lib/auth/supabaseAuthErrors"
 
 const signUpSchema = z.object({
   email: z.string().email(),
@@ -36,7 +37,10 @@ export async function POST(request: Request) {
   })
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json(
+      { error: isSupabaseAuthServiceMisconfigured(error) ? "Authentication service unavailable" : error.message },
+      { status: isSupabaseAuthServiceMisconfigured(error) ? 503 : 400 },
+    )
   }
 
   // Session is live (email confirmation disabled or auto-confirmed) — no

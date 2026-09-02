@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { createUserProfile } from "@/lib/actions/auth"
+import { isSupabaseAuthServiceMisconfigured } from "@/lib/auth/supabaseAuthErrors"
 import {
   applyTraceResponseHeaders,
   createServerTraceContext,
@@ -16,10 +17,6 @@ const signInSchema = z.object({
   password: z.string().min(1),
   cfToken: z.string().min(1),
 })
-
-function isInvalidSupabaseApiKey(error: unknown): boolean {
-  return error instanceof Error && error.message === "Invalid API key"
-}
 
 export async function POST(request: Request) {
   const traceContext = createServerTraceContext({
@@ -130,7 +127,7 @@ export async function POST(request: Request) {
     {
       success: (result) => {
         const status = result.error
-          ? isInvalidSupabaseApiKey(result.error)
+          ? isSupabaseAuthServiceMisconfigured(result.error)
             ? 503
             : 401
           : 200
@@ -146,10 +143,10 @@ export async function POST(request: Request) {
   )
 
   if (error) {
-    const invalidApiKey = isInvalidSupabaseApiKey(error)
+    const serviceMisconfigured = isSupabaseAuthServiceMisconfigured(error)
     const response = NextResponse.json(
-      { error: invalidApiKey ? "Authentication service unavailable" : "Invalid email or password" },
-      { status: invalidApiKey ? 503 : 401 },
+      { error: serviceMisconfigured ? "Authentication service unavailable" : "Invalid email or password" },
+      { status: serviceMisconfigured ? 503 : 401 },
     )
     applyTraceResponseHeaders(response, traceContext, secureTraceCookie)
     return response
