@@ -16,6 +16,7 @@ import { AttentionRequired } from "@/components/dashboard/AttentionRequired"
 import { ReminderActivityFunnel } from "@/components/dashboard/ReminderActivityFunnel"
 import { PaymentTrendChart } from "@/components/dashboard/PaymentTrendChart"
 import { CurrencySummarySection } from "@/components/dashboard/CurrencySummarySection"
+import { AiSummaryCard } from "@/components/dashboard/AiSummaryCard"
 import { buildCurrencyDashboardSummaries } from "@/lib/dashboard/currencySummary"
 import Link from "next/link"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
@@ -172,6 +173,10 @@ export default async function DashboardOverviewPage({
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-gray-900">Overview</h1>
 
+      {currencySummaries[0]?.aiSummaryLines?.length ? (
+        <AiSummaryCard lines={currencySummaries[0].aiSummaryLines} />
+      ) : null}
+
       <div>
         <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
         <OverviewCards cards={cards} />
@@ -263,6 +268,7 @@ export default async function DashboardOverviewPage({
           key={summary.currency}
           summary={summary}
           showCurrencyHeading={showCurrencyHeadings}
+          showAiSummary={false}
         />
       ))}
 
