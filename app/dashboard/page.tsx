@@ -22,7 +22,7 @@ import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperationsSummary"
 import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
-import type { SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
+import { formatAudCents, type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
 import {
   createServerTraceContext,
   traceEvent,
@@ -130,6 +130,15 @@ export default async function DashboardOverviewPage({
     brokenPromiseCountsByDebtor,
     paidCountAllTime,
     manuallyResolvedCountAllTime,
+    spendLeak: {
+      hasAccess: canViewSpendLeak,
+      hasAccountingConnection: spendLeakData?.hasAccountingConnection ?? false,
+      findingCount: spendLeakData?.findings.length ?? 0,
+      statusTitle: spendLeakData?.status.title ?? "SpendLeak locked",
+      topModuleTitle: topSpendLeakModule?.title ?? null,
+      topModuleFindingCount: topSpendLeakModule?.findingCount ?? 0,
+      topModuleAnnualCents: topSpendLeakModule?.estimatedAnnualCents ?? 0,
+    },
     now,
   })
   const needsAttention = buildNeedsAttentionSummary({
@@ -166,6 +175,37 @@ export default async function DashboardOverviewPage({
       <div>
         <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
         <OverviewCards cards={cards} />
+        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">SpendLeak health</p>
+              <p className="mt-1 text-sm font-semibold text-gray-900">
+                {canViewSpendLeak && spendLeakData
+                  ? `${spendLeakData.status.title} · ${spendLeakData.findings.length} finding${spendLeakData.findings.length === 1 ? "" : "s"}`
+                  : "Locked on current tier"}
+              </p>
+              {canViewSpendLeak && spendLeakData ? (
+                <p className="mt-1 text-xs text-gray-600">{spendLeakData.status.description}</p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-600">Upgrade to include spend-side leakage signals in account health.</p>
+              )}
+            </div>
+            <Link
+              href={buildSpendLeakOverviewHref(financialSummary.showUnlockCta, topSpendLeakModule?.id ?? null)}
+              className="shrink-0 rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {financialSummary.showUnlockCta ? "Upgrade" : "Open"}
+            </Link>
+          </div>
+          {canViewSpendLeak && spendLeakData && topSpendLeakModule ? (
+            <p className="mt-2 text-xs text-gray-600">
+              Top module: <span className="font-medium text-gray-900">{topSpendLeakModule.title}</span> with {topSpendLeakModule.findingCount} finding{topSpendLeakModule.findingCount === 1 ? "" : "s"}
+              {topSpendLeakModule.estimatedAnnualCents > 0
+                ? ` (${formatAudCents(topSpendLeakModule.estimatedAnnualCents)} potential annual impact).`
+                : "."}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -184,7 +224,7 @@ export default async function DashboardOverviewPage({
           </Link>
         </div>
         {canViewSpendLeak && spendLeakData ? (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-gray-200 p-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">Cash in (active invoices)</p>
               <p className="mt-1 text-lg font-semibold text-gray-900">{financialSummary.activeInvoiceCount}</p>
@@ -196,6 +236,19 @@ export default async function DashboardOverviewPage({
             <div className="rounded-lg border border-gray-200 p-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">Spend sync status</p>
               <p className="mt-1 text-sm font-medium text-gray-900">{financialSummary.spendStatusLabel}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Top spend signal</p>
+              <p className="mt-1 text-sm font-medium text-gray-900">
+                {topSpendLeakModule
+                  ? `${topSpendLeakModule.title} (${topSpendLeakModule.findingCount})`
+                  : "No findings yet"}
+              </p>
+              {topSpendLeakModule && topSpendLeakModule.estimatedAnnualCents > 0 ? (
+                <p className="mt-1 text-xs text-gray-600">
+                  Estimated annual impact {formatAudCents(topSpendLeakModule.estimatedAnnualCents)}
+                </p>
+              ) : null}
             </div>
           </div>
         ) : (

@@ -1,5 +1,9 @@
 import { buildAgeingBuckets, buildCashWaitingSummary, type AgeingBucket, type CashWaitingSummary } from "@/lib/dashboard/ageing"
-import { buildAiSummary, type AiSummaryLine } from "@/lib/dashboard/aiSummary"
+import {
+  buildAiSummary,
+  type AiSpendLeakSummaryInput,
+  type AiSummaryLine,
+} from "@/lib/dashboard/aiSummary"
 import { buildBiggestDebtors, type DebtorSummary } from "@/lib/dashboard/biggestDebtors"
 import { buildCollectionPerformance, type CollectionPerformance } from "@/lib/dashboard/collectionMetrics"
 import { groupDashboardItemsByCurrency } from "@/lib/dashboard/currencyGrouping"
@@ -24,12 +28,13 @@ export function buildCurrencyDashboardSummaries(input: {
   brokenPromiseCountsByDebtor: Record<string, number>
   paidCountAllTime: number
   manuallyResolvedCountAllTime: number
+  spendLeak?: AiSpendLeakSummaryInput
   now?: Date
 }): CurrencyDashboardSummary[] {
   const now = input.now ?? new Date()
   const groupedInvoices = groupDashboardItemsByCurrency(input.activeInvoices, input.paidInvoices)
 
-  return groupedInvoices.map(({ currency, activeItems, paidItems }) => {
+  return groupedInvoices.map(({ currency, activeItems, paidItems }, index) => {
     const ageingBuckets = buildAgeingBuckets(activeItems, now)
 
     return {
@@ -55,6 +60,7 @@ export function buildCurrencyDashboardSummaries(input: {
         activeInvoices: activeItems,
         paidInvoices: paidItems,
         brokenPromiseCountsByDebtor: input.brokenPromiseCountsByDebtor,
+        spendLeak: index === 0 ? input.spendLeak : undefined,
         now,
       }),
     }

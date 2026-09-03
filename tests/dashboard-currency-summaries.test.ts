@@ -105,6 +105,15 @@ test("buildCurrencyDashboardSummaries keeps mixed-currency totals separate", () 
     brokenPromiseCountsByDebtor: {},
     paidCountAllTime: 2,
     manuallyResolvedCountAllTime: 1,
+    spendLeak: {
+      hasAccess: true,
+      hasAccountingConnection: true,
+      findingCount: 3,
+      statusTitle: "SpendLeak ready",
+      topModuleTitle: "Recurring spend",
+      topModuleFindingCount: 2,
+      topModuleAnnualCents: 120000,
+    },
     now: new Date("2026-08-06T00:00:00Z"),
   })
 
@@ -120,6 +129,8 @@ test("buildCurrencyDashboardSummaries keeps mixed-currency totals separate", () 
   assert.equal(aud.biggestDebtors[0]?.amountOwed, 4500)
   assert.equal(usd.cashWaitingSummary.outstanding, 5000)
   assert.equal(usd.biggestDebtors[0]?.amountOwed, 5000)
+  assert.match(aud.aiSummaryLines.map((line) => line.text).join(" "), /SpendLeak flagged 3 findings/)
+  assert.doesNotMatch(usd.aiSummaryLines.map((line) => line.text).join(" "), /SpendLeak flagged 3 findings/)
   assert.match(usd.aiSummaryLines[1]?.text ?? "", /worth \$50\./)
 })
 
@@ -131,10 +142,23 @@ test("buildCurrencyDashboardSummaries preserves single-currency output shape", (
     brokenPromiseCountsByDebtor: {},
     paidCountAllTime: 1,
     manuallyResolvedCountAllTime: 0,
+    spendLeak: {
+      hasAccess: false,
+      hasAccountingConnection: false,
+      findingCount: 0,
+      statusTitle: "SpendLeak locked",
+      topModuleTitle: null,
+      topModuleFindingCount: 0,
+      topModuleAnnualCents: 0,
+    },
     now: new Date("2026-08-06T00:00:00Z"),
   })
 
   assert.equal(summaries.length, 1)
   assert.equal(summaries[0]?.currency, "usd")
   assert.equal(summaries[0]?.cashWaitingSummary.outstanding, 1250)
+  assert.match(
+    summaries[0]?.aiSummaryLines.map((line) => line.text).join(" ") ?? "",
+    /SpendLeak is locked on your current tier/,
+  )
 })

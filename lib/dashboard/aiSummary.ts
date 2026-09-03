@@ -1,11 +1,22 @@
 import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices"
 import type { PaidInvoiceSummary } from "@/lib/dashboard/loadDashboardMetrics"
 import { daysBetween, formatCents, startOfUtcDay } from "@/lib/dashboard/format"
+import { formatAudCents } from "@/lib/dashboard/spendleakPresentation"
 import { computeOutstanding } from "@/lib/invoices/payments"
 
 export interface AiSummaryLine {
   id: string
   text: string
+}
+
+export interface AiSpendLeakSummaryInput {
+  hasAccess: boolean
+  hasAccountingConnection: boolean
+  findingCount: number
+  statusTitle: string
+  topModuleTitle: string | null
+  topModuleFindingCount: number
+  topModuleAnnualCents: number
 }
 
 /**
@@ -21,6 +32,7 @@ export function buildAiSummary(input: {
   activeInvoices: InvoiceWithRelations[]
   paidInvoices: Pick<PaidInvoiceSummary, "amountDue" | "currency" | "updatedAt">[]
   brokenPromiseCountsByDebtor: Record<string, number>
+  spendLeak?: AiSpendLeakSummaryInput
   now?: Date
 }): AiSummaryLine[] {
   const now = input.now ?? new Date()
@@ -109,6 +121,34 @@ export function buildAiSummary(input: {
       id: "likely_to_pay",
       text: `Based on payment history, ${likelyToPayDebtors.size} customer${likelyToPayDebtors.size === 1 ? "" : "s"} ${likelyToPayDebtors.size === 1 ? "is" : "are"} likely to pay this week without further reminders.`,
     })
+  }
+
+  if (input.spendLeak) {
+    const spendLeak = input.spendLeak
+    if (!spendLeak.hasAccess) {
+      lines.push({
+        id: "spendleak_locked",
+        text: "SpendLeak is locked on your current tier, so this summary includes receivables only.",
+      })
+    } else if (!spendLeak.hasAccountingConnection) {
+      lines.push({
+        id: "spendleak_connect",
+        text: "Connect Xero or MYOB to activate SpendLeak signals in this summary.",
+      })
+    } else if (spendLeak.findingCount === 0) {
+      lines.push({
+        id: "spendleak_empty",
+        text: `${spendLeak.statusTitle}: no spend findings are currently flagged.`,
+      })
+    } else if (spendLeak.topModuleTitle) {
+      lines.push({
+        id: "spendleak_top_module",
+        text:
+          spendLeak.topModuleAnnualCents > 0
+            ? `SpendLeak flagged ${spendLeak.findingCount} finding${spendLeak.findingCount === 1 ? "" : "s"}; strongest signal is ${spendLeak.topModuleTitle} (${spendLeak.topModuleFindingCount}) with up to ${formatAudCents(spendLeak.topModuleAnnualCents)} annual impact.`
+            : `SpendLeak flagged ${spendLeak.findingCount} finding${spendLeak.findingCount === 1 ? "" : "s"}; strongest signal is ${spendLeak.topModuleTitle} (${spendLeak.topModuleFindingCount}).`,
+      })
+    }
   }
 
   return lines
