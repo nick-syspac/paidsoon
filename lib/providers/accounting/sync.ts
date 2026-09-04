@@ -41,6 +41,7 @@
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
 import { findOrCreateCustomer } from "@/lib/db/customers"
+import { detectSpendFindings } from "@/lib/spendleak/engine"
 import {
   upsertFinancialContact,
   upsertFinancialInvoice,
@@ -52,6 +53,10 @@ import {
   type AccountingProviderErrorKind,
   type ProviderInvoice,
   type ProviderContact,
+  type ProviderSpendBill,
+  type ProviderSpendBankTransaction,
+  type ProviderSpendSupplier,
+  type ProviderSpendExpenseAccount,
 } from "@/lib/providers/accounting/types"
 import { encryptToken, decryptToken } from "@/lib/providers/accounting/crypto"
 
@@ -62,12 +67,358 @@ export interface SyncResult {
   invoicesCreated: number
   invoicesUpdated: number
   invoicesSkipped: number
+  spendBillsUpserted: number
+  spendTransactionsUpserted: number
+  spendSuppliersUpserted: number
   errorMessage?: string
 }
 
 /** Pad amountDue from decimal provider amount to integer cents */
 function toCents(amount: number): number {
   return Math.round(amount * 100)
+}
+
+function asJsonOrDbNull(value: Record<string, unknown> | undefined): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
+  return value != null ? (value as Prisma.InputJsonValue) : Prisma.DbNull
+}
+
+function mapExpenseAccountsByCode(accounts: ProviderSpendExpenseAccount[]): Map<string, ProviderSpendExpenseAccount> {
+  const byCode = new Map<string, ProviderSpendExpenseAccount>()
+  for (const account of accounts) {
+    if (!account.accountCode) continue
+    byCode.set(account.accountCode.trim().toLowerCase(), account)
+  }
+  return byCode
+}
+
+async function upsertImportedSpendBill(params: {
+  userId: string
+  accountingConnectionId: string
+  bill: ProviderSpendBill
+  expenseAccountsByCode: Map<string, ProviderSpendExpenseAccount>
+  syncedAt: Date
+}): Promise<void> {
+  const { userId, accountingConnectionId, bill, expenseAccountsByCode, syncedAt } = params
+  const accountFromBill = bill.expenseAccountCode?.trim().toLowerCase()
+  const matchedAccount = accountFromBill ? expenseAccountsByCode.get(accountFromBill) : undefined
+
+  await prismaAdmin.importedBill.upsert({
+    where: {
+      accountingConnectionId_sourceId: {
+        accountingConnectionId,
+        sourceId: bill.providerBillId,
+      },
+    },
+    create: {
+      userId,
+      accountingConnectionId,
+      sourceId: bill.providerBillId,
+      sourceContactId: bill.providerSupplierId ?? null,
+      supplierName: bill.supplierName,
+      supplierReference: bill.supplierReference ?? null,
+      documentNumber: bill.documentNumber ?? null,
+      expenseAccountCode: bill.expenseAccountCode ?? matchedAccount?.accountCode ?? null,
+      expenseAccountName: bill.expenseAccountName ?? matchedAccount?.accountName ?? null,
+      amountCents: Math.abs(toCents(bill.amountTotal)),
+      gstCents: bill.gstAmount == null ? null : Math.abs(toCents(bill.gstAmount)),
+      currency: bill.currency,
+      dueDate: bill.dueDate ?? null,
+      paidDate: bill.paidDate ?? null,
+      status: bill.status,
+      sourceUpdatedAt: bill.providerUpdatedAt ?? null,
+      syncedAt,
+      rawSourceData: asJsonOrDbNull(bill.rawMetadata),
+    },
+    update: {
+      sourceContactId: bill.providerSupplierId ?? null,
+      supplierName: bill.supplierName,
+      supplierReference: bill.supplierReference ?? null,
+      documentNumber: bill.documentNumber ?? null,
+      expenseAccountCode: bill.expenseAccountCode ?? matchedAccount?.accountCode ?? null,
+      expenseAccountName: bill.expenseAccountName ?? matchedAccount?.accountName ?? null,
+      amountCents: Math.abs(toCents(bill.amountTotal)),
+      gstCents: bill.gstAmount == null ? null : Math.abs(toCents(bill.gstAmount)),
+      currency: bill.currency,
+      dueDate: bill.dueDate ?? null,
+      paidDate: bill.paidDate ?? null,
+      status: bill.status,
+      sourceUpdatedAt: bill.providerUpdatedAt ?? null,
+      syncedAt,
+      rawSourceData: asJsonOrDbNull(bill.rawMetadata),
+    },
+  })
+}
+
+async function upsertImportedSpendBankTransaction(params: {
+  userId: string
+  accountingConnectionId: string
+  transaction: ProviderSpendBankTransaction
+  syncedAt: Date
+}): Promise<void> {
+  const { userId, accountingConnectionId, transaction, syncedAt } = params
+
+  await prismaAdmin.importedBankTransaction.upsert({
+    where: {
+      accountingConnectionId_sourceId: {
+        accountingConnectionId,
+        sourceId: transaction.providerTransactionId,
+      },
+    },
+    create: {
+      userId,
+      accountingConnectionId,
+      sourceId: transaction.providerTransactionId,
+      sourceContactId: transaction.providerSupplierId ?? null,
+      accountName: transaction.accountName ?? null,
+      accountCode: transaction.accountCode ?? null,
+      description: transaction.description,
+      reference: transaction.reference ?? null,
+      counterpartyName: transaction.counterpartyName ?? null,
+      amountCents: toCents(transaction.amount),
+      currency: transaction.currency,
+      transactionDate: transaction.transactionDate,
+      sourceUpdatedAt: transaction.providerUpdatedAt ?? null,
+      syncedAt,
+      rawSourceData: asJsonOrDbNull(transaction.rawMetadata),
+    },
+    update: {
+      sourceContactId: transaction.providerSupplierId ?? null,
+      accountName: transaction.accountName ?? null,
+      accountCode: transaction.accountCode ?? null,
+      description: transaction.description,
+      reference: transaction.reference ?? null,
+      counterpartyName: transaction.counterpartyName ?? null,
+      amountCents: toCents(transaction.amount),
+      currency: transaction.currency,
+      transactionDate: transaction.transactionDate,
+      sourceUpdatedAt: transaction.providerUpdatedAt ?? null,
+      syncedAt,
+      rawSourceData: asJsonOrDbNull(transaction.rawMetadata),
+    },
+  })
+}
+
+async function upsertImportedSpendSupplier(params: {
+  userId: string
+  accountingConnectionId: string
+  supplier: ProviderSpendSupplier
+  syncedAt: Date
+}): Promise<void> {
+  const { userId, accountingConnectionId, supplier, syncedAt } = params
+
+  await prismaAdmin.supplierProfile.upsert({
+    where: {
+      accountingConnectionId_sourceId: {
+        accountingConnectionId,
+        sourceId: supplier.providerSupplierId,
+      },
+    },
+    create: {
+      userId,
+      accountingConnectionId,
+      sourceId: supplier.providerSupplierId,
+      supplierName: supplier.supplierName,
+      supplierEmail: supplier.supplierEmail ?? null,
+      abn: supplier.abn ?? null,
+      paymentTerms: supplier.paymentTerms ?? null,
+      defaultAccountCode: supplier.defaultAccountCode ?? null,
+      defaultAccountName: supplier.defaultAccountName ?? null,
+      sourceUpdatedAt: supplier.providerUpdatedAt ?? null,
+      syncedAt,
+      rawSourceData: asJsonOrDbNull(supplier.rawMetadata),
+    },
+    update: {
+      supplierName: supplier.supplierName,
+      supplierEmail: supplier.supplierEmail ?? null,
+      abn: supplier.abn ?? null,
+      paymentTerms: supplier.paymentTerms ?? null,
+      defaultAccountCode: supplier.defaultAccountCode ?? null,
+      defaultAccountName: supplier.defaultAccountName ?? null,
+      sourceUpdatedAt: supplier.providerUpdatedAt ?? null,
+      syncedAt,
+      rawSourceData: asJsonOrDbNull(supplier.rawMetadata),
+    },
+  })
+}
+
+async function syncSpendSideData(params: {
+  connection: {
+    id: string
+    userId: string
+    organisationId: string
+  }
+  accessToken: string
+  modifiedAfter?: Date
+  provider: ReturnType<typeof getAccountingProvider>
+}): Promise<{
+  billsUpserted: number
+  transactionsUpserted: number
+  suppliersUpserted: number
+  spendBills: ProviderSpendBill[]
+  spendTransactions: ProviderSpendBankTransaction[]
+  spendSuppliers: ProviderSpendSupplier[]
+  failures: string[]
+}> {
+  const { connection, accessToken, modifiedAfter, provider } = params
+  const syncedAt = new Date()
+  const failures: string[] = []
+
+  let spendBills: ProviderSpendBill[] = []
+  let spendTransactions: ProviderSpendBankTransaction[] = []
+  let spendSuppliers: ProviderSpendSupplier[] = []
+  let expenseAccounts: ProviderSpendExpenseAccount[] = []
+
+  try {
+    spendBills = await withRetry(() =>
+      provider.getSpendBills({
+        accessToken,
+        organisationId: connection.organisationId,
+        modifiedAfter,
+      }),
+    )
+  } catch (err) {
+    failures.push(`bills:${err instanceof Error ? err.message : "unknown error"}`)
+  }
+
+  try {
+    spendTransactions = await withRetry(() =>
+      provider.getSpendBankTransactions({
+        accessToken,
+        organisationId: connection.organisationId,
+        modifiedAfter,
+      }),
+    )
+  } catch (err) {
+    failures.push(`bank-transactions:${err instanceof Error ? err.message : "unknown error"}`)
+  }
+
+  try {
+    expenseAccounts = await withRetry(() =>
+      provider.getSpendExpenseAccounts({
+        accessToken,
+        organisationId: connection.organisationId,
+      }),
+    )
+  } catch (err) {
+    failures.push(`expense-accounts:${err instanceof Error ? err.message : "unknown error"}`)
+  }
+
+  try {
+    const supplierIds = [
+      ...new Set(
+        [...spendBills, ...spendTransactions]
+          .map((row) => row.providerSupplierId)
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
+      ),
+    ]
+    spendSuppliers = await withRetry(() =>
+      provider.getSpendSuppliers({
+        accessToken,
+        organisationId: connection.organisationId,
+        supplierIds: supplierIds.length > 0 ? supplierIds : undefined,
+      }),
+    )
+  } catch (err) {
+    failures.push(`suppliers:${err instanceof Error ? err.message : "unknown error"}`)
+  }
+
+  const expenseAccountsByCode = mapExpenseAccountsByCode(expenseAccounts)
+
+  for (const bill of spendBills) {
+    try {
+      await upsertImportedSpendBill({
+        userId: connection.userId,
+        accountingConnectionId: connection.id,
+        bill,
+        expenseAccountsByCode,
+        syncedAt,
+      })
+    } catch (err) {
+      failures.push(`bill-upsert:${err instanceof Error ? err.message : "unknown error"}`)
+    }
+  }
+
+  for (const transaction of spendTransactions) {
+    try {
+      await upsertImportedSpendBankTransaction({
+        userId: connection.userId,
+        accountingConnectionId: connection.id,
+        transaction,
+        syncedAt,
+      })
+    } catch (err) {
+      failures.push(`bank-transaction-upsert:${err instanceof Error ? err.message : "unknown error"}`)
+    }
+  }
+
+  for (const supplier of spendSuppliers) {
+    try {
+      await upsertImportedSpendSupplier({
+        userId: connection.userId,
+        accountingConnectionId: connection.id,
+        supplier,
+        syncedAt,
+      })
+    } catch (err) {
+      failures.push(`supplier-upsert:${err instanceof Error ? err.message : "unknown error"}`)
+    }
+  }
+
+  return {
+    billsUpserted: spendBills.length,
+    transactionsUpserted: spendTransactions.length,
+    suppliersUpserted: spendSuppliers.length,
+    spendBills,
+    spendTransactions,
+    spendSuppliers,
+    failures,
+  }
+}
+
+async function persistSpendFindings(params: {
+  userId: string
+  accountingConnectionId: string
+  findings: ReturnType<typeof detectSpendFindings>
+}): Promise<number> {
+  const { userId, accountingConnectionId, findings } = params
+  let upserted = 0
+
+  for (const finding of findings) {
+    await prismaAdmin.spendInsight.upsert({
+      where: {
+        userId_findingType_subjectKey: {
+          userId,
+          findingType: finding.findingType,
+          subjectKey: finding.subjectKey,
+        },
+      },
+      create: {
+        userId,
+        accountingConnectionId,
+        findingType: finding.findingType,
+        subjectKey: finding.subjectKey,
+        severity: finding.severity,
+        summary: finding.summary,
+        state: "open",
+        estimatedMonthlyCents: finding.estimatedMonthlyCents ?? null,
+        estimatedAnnualCents: finding.estimatedAnnualCents ?? null,
+        evidence: finding.evidence as Prisma.InputJsonValue,
+        detectedAt: finding.detectedAt,
+      },
+      update: {
+        accountingConnectionId,
+        severity: finding.severity,
+        summary: finding.summary,
+        estimatedMonthlyCents: finding.estimatedMonthlyCents ?? null,
+        estimatedAnnualCents: finding.estimatedAnnualCents ?? null,
+        evidence: finding.evidence as Prisma.InputJsonValue,
+        detectedAt: finding.detectedAt,
+      },
+    })
+    upserted += 1
+  }
+
+  return upserted
 }
 
 /** Check if access token should be refreshed before a sync run.
@@ -193,6 +544,9 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     invoicesCreated: 0,
     invoicesUpdated: 0,
     invoicesSkipped: 0,
+    spendBillsUpserted: 0,
+    spendTransactionsUpserted: 0,
+    spendSuppliersUpserted: 0,
   }
 
   // Guard: skip if another sync is already running for this connection
@@ -350,6 +704,76 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
         )
         result.invoicesSkipped++
       }
+    }
+
+    // SpendLeak spend-side sync runs in the same cadence and connection scope
+    // as receivables sync so freshness stays aligned for dashboard summaries.
+    const spendSync = await syncSpendSideData({
+      connection,
+      accessToken,
+      modifiedAfter,
+      provider,
+    })
+    result.spendBillsUpserted = spendSync.billsUpserted
+    result.spendTransactionsUpserted = spendSync.transactionsUpserted
+    result.spendSuppliersUpserted = spendSync.suppliersUpserted
+
+    const latestCashSnapshot = await prismaAdmin.cashForecastSnapshot.findFirst({
+      where: { userId: connection.userId },
+      orderBy: { snapshotAt: "desc" },
+      select: { currentCashCents: true },
+    })
+
+    const openReceivables = await prismaAdmin.financialInvoice.aggregate({
+      where: {
+        userId: connection.userId,
+        amountDueCents: { gt: 0 },
+      },
+      _sum: { amountDueCents: true },
+    })
+
+    const detectedFindings = detectSpendFindings({
+      bills: spendSync.spendBills.map((bill) => ({
+        sourceId: bill.providerBillId,
+        supplierName: bill.supplierName,
+        amountCents: Math.abs(toCents(bill.amountTotal)),
+        dueDate: bill.dueDate ?? null,
+        paidDate: bill.paidDate ?? null,
+        status: bill.status,
+        sourceUpdatedAt: bill.providerUpdatedAt ?? null,
+      })),
+      bankTransactions: spendSync.spendTransactions.map((tx) => ({
+        sourceId: tx.providerTransactionId,
+        description: tx.description,
+        amountCents: toCents(tx.amount),
+        transactionDate: tx.transactionDate,
+        counterpartyName: tx.counterpartyName ?? null,
+      })),
+      suppliers: spendSync.spendSuppliers.map((supplier) => ({
+        sourceId: supplier.providerSupplierId,
+        supplierName: supplier.supplierName,
+      })),
+      currentCashCents: latestCashSnapshot?.currentCashCents,
+      openReceivablesCents: openReceivables._sum.amountDueCents ?? 0,
+      now: syncStartedAt,
+    })
+
+    try {
+      await persistSpendFindings({
+        userId: connection.userId,
+        accountingConnectionId: connection.id,
+        findings: detectedFindings,
+      })
+    } catch (err) {
+      result.invoicesSkipped += 1
+      const failureSummary = `spend-findings:${err instanceof Error ? err.message : "unknown error"}`
+      result.errorMessage = result.errorMessage ? `${result.errorMessage}; ${failureSummary}` : failureSummary
+    }
+
+    if (spendSync.failures.length > 0) {
+      const failureSummary = `Spend sync partial: ${spendSync.failures.slice(0, 3).join(" | ")}`
+      result.errorMessage = result.errorMessage ? `${result.errorMessage}; ${failureSummary}` : failureSummary
+      result.invoicesSkipped += spendSync.failures.length
     }
 
     result.status = result.invoicesSkipped > 0 ? "partial" : "success"

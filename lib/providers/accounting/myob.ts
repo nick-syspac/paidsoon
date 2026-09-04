@@ -36,6 +36,11 @@ import {
   ProviderContact,
   ProviderInvoice,
   ProviderInvoiceStatus,
+  ProviderSpendBankTransaction,
+  ProviderSpendBill,
+  ProviderSpendBillStatus,
+  ProviderSpendExpenseAccount,
+  ProviderSpendSupplier,
   TokenSet,
 } from "./types"
 
@@ -55,6 +60,14 @@ const PAGE_SIZE = 400
 const MYOB_SCOPES = ["sme-sales", "sme-contacts-customer", "sme-company-file"].join(" ")
 
 const MYOB_INVOICE_TYPES = [
+  "Service",
+  "Item",
+  "Professional",
+  "TimeBilling",
+  "Miscellaneous",
+] as const
+
+const MYOB_BILL_TYPES = [
   "Service",
   "Item",
   "Professional",
@@ -123,6 +136,23 @@ function normaliseMYOBStatus(status: string): ProviderInvoiceStatus {
       return "open"
     case "Closed":
       return "paid"
+    default:
+      return "unknown"
+  }
+}
+
+function normaliseMYOBSpendBillStatus(status: string): ProviderSpendBillStatus {
+  switch (status) {
+    case "Open":
+    case "CreditNote":
+      return "open"
+    case "Closed":
+      return "paid"
+    case "Deleted":
+    case "Void":
+      return "voided"
+    case "Draft":
+      return "draft"
     default:
       return "unknown"
   }
@@ -439,5 +469,273 @@ export class MyobProvider implements AccountingProvider {
     }
 
     return results
+  }
+
+  async getSpendBills(params: {
+    accessToken: string
+    organisationId: string
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBill[]> {
+    const allBills: ProviderSpendBill[] = []
+    const cfUri = params.organisationId
+
+    for (const billType of MYOB_BILL_TYPES) {
+      const typeBills = await this._fetchSpendBillType({
+        accessToken: params.accessToken,
+        cfUri,
+        billType,
+        modifiedAfter: params.modifiedAfter,
+      })
+      allBills.push(...typeBills)
+    }
+
+    return allBills
+  }
+
+  private async _fetchSpendBillType(params: {
+    accessToken: string
+    cfUri: string
+    billType: typeof MYOB_BILL_TYPES[number]
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBill[]> {
+    const results: ProviderSpendBill[] = []
+    let skip = 0
+
+    while (true) {
+      const url = new URL(`${params.cfUri}/Purchase/Bill/${params.billType}`)
+      url.searchParams.set("$top", String(PAGE_SIZE))
+      url.searchParams.set("$skip", String(skip))
+
+      if (params.modifiedAfter) {
+        const iso = params.modifiedAfter.toISOString().replace("Z", "").split(".")[0]
+        url.searchParams.set("$filter", `LastModified gt datetime'${iso}'`)
+      }
+
+      const { clientId } = getConfig()
+      const res = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${params.accessToken}`,
+          "x-myobapi-cftoken": "",
+          "x-myobapi-key": clientId,
+          "x-myobapi-version": "v2",
+          Accept: "application/json",
+        },
+      })
+
+      const data = (await handleProviderResponse(res)) as {
+        Items?: Array<{
+          UID: string
+          Number?: string
+          Status?: string
+          BalanceDue?: number
+          TotalAmount?: number
+          TotalTax?: number
+          Supplier?: { UID?: string; Name?: string; Addresses?: Array<{ Email?: string }> }
+          Terms?: { DueDate?: string }
+          Date?: string
+          LastModified?: string
+          CurrencyCode?: string
+          JournalMemo?: string
+          Category?: { UID?: string; DisplayID?: string; Name?: string }
+        }>
+      }
+
+      const items = data.Items ?? []
+      for (const bill of items) {
+        results.push({
+          providerBillId: bill.UID,
+          providerSupplierId: bill.Supplier?.UID,
+          supplierName: bill.Supplier?.Name ?? "Unknown supplier",
+          supplierReference: bill.JournalMemo,
+          documentNumber: bill.Number,
+          expenseAccountCode: bill.Category?.DisplayID,
+          expenseAccountName: bill.Category?.Name,
+          amountTotal: bill.TotalAmount ?? bill.BalanceDue ?? 0,
+          gstAmount: bill.TotalTax,
+          currency: bill.CurrencyCode ?? "AUD",
+          dueDate: parseMYOBDate(bill.Terms?.DueDate),
+          paidDate: (bill.Status ?? "") === "Closed" ? parseMYOBDate(bill.Date) : undefined,
+          status: normaliseMYOBSpendBillStatus(bill.Status ?? ""),
+          providerUpdatedAt: parseMYOBDate(bill.LastModified),
+          rawMetadata: bill as unknown as Record<string, unknown>,
+        })
+      }
+
+      if (items.length < PAGE_SIZE) break
+      skip += PAGE_SIZE
+    }
+
+    return results
+  }
+
+  async getSpendBankTransactions(params: {
+    accessToken: string
+    organisationId: string
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBankTransaction[]> {
+    const results: ProviderSpendBankTransaction[] = []
+    let skip = 0
+
+    while (true) {
+      const url = new URL(`${params.organisationId}/Banking/Transaction`)
+      url.searchParams.set("$top", String(PAGE_SIZE))
+      url.searchParams.set("$skip", String(skip))
+
+      if (params.modifiedAfter) {
+        const iso = params.modifiedAfter.toISOString().replace("Z", "").split(".")[0]
+        url.searchParams.set("$filter", `LastModified gt datetime'${iso}'`)
+      }
+
+      const { clientId } = getConfig()
+      const res = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${params.accessToken}`,
+          "x-myobapi-cftoken": "",
+          "x-myobapi-key": clientId,
+          "x-myobapi-version": "v2",
+          Accept: "application/json",
+        },
+      })
+
+      const data = (await handleProviderResponse(res)) as {
+        Items?: Array<{
+          UID: string
+          Date?: string
+          LastModified?: string
+          Amount?: number
+          Memo?: string
+          ReferenceNumber?: string
+          Account?: { Name?: string; DisplayID?: string }
+          Contact?: { UID?: string; Name?: string }
+          CurrencyCode?: string
+        }>
+      }
+
+      const items = data.Items ?? []
+      for (const tx of items) {
+        results.push({
+          providerTransactionId: tx.UID,
+          providerSupplierId: tx.Contact?.UID,
+          accountName: tx.Account?.Name,
+          accountCode: tx.Account?.DisplayID,
+          description: tx.Memo ?? tx.ReferenceNumber ?? "Spend transaction",
+          reference: tx.ReferenceNumber,
+          counterpartyName: tx.Contact?.Name,
+          amount: tx.Amount ?? 0,
+          currency: tx.CurrencyCode ?? "AUD",
+          transactionDate: parseMYOBDate(tx.Date) ?? new Date(),
+          providerUpdatedAt: parseMYOBDate(tx.LastModified),
+          rawMetadata: tx as unknown as Record<string, unknown>,
+        })
+      }
+
+      if (items.length < PAGE_SIZE) break
+      skip += PAGE_SIZE
+    }
+
+    return results
+  }
+
+  async getSpendSuppliers(params: {
+    accessToken: string
+    organisationId: string
+    supplierIds?: string[]
+  }): Promise<ProviderSpendSupplier[]> {
+    const results: ProviderSpendSupplier[] = []
+    let skip = 0
+
+    while (true) {
+      const url = new URL(`${params.organisationId}/Contact/Supplier`)
+      url.searchParams.set("$top", String(PAGE_SIZE))
+      url.searchParams.set("$skip", String(skip))
+
+      if (params.supplierIds && params.supplierIds.length > 0) {
+        const filterExpr = params.supplierIds.map((id) => `UID eq guid'${id}'`).join(" or ")
+        url.searchParams.set("$filter", filterExpr)
+      }
+
+      const { clientId } = getConfig()
+      const res = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${params.accessToken}`,
+          "x-myobapi-cftoken": "",
+          "x-myobapi-key": clientId,
+          "x-myobapi-version": "v2",
+          Accept: "application/json",
+        },
+      })
+
+      const data = (await handleProviderResponse(res)) as {
+        Items?: Array<{
+          UID: string
+          CompanyName?: string
+          DisplayName?: string
+          ABN?: string
+          PaymentTerms?: { Note?: string }
+          SellingDetails?: { TaxCode?: { Code?: string; Name?: string } }
+          Addresses?: Array<{ Email?: string }>
+          LastModified?: string
+        }>
+      }
+
+      const items = data.Items ?? []
+      for (const supplier of items) {
+        results.push({
+          providerSupplierId: supplier.UID,
+          supplierName: supplier.CompanyName ?? supplier.DisplayName ?? "Unknown supplier",
+          supplierEmail: supplier.Addresses?.[0]?.Email,
+          abn: supplier.ABN,
+          paymentTerms: supplier.PaymentTerms?.Note,
+          defaultAccountCode: supplier.SellingDetails?.TaxCode?.Code,
+          defaultAccountName: supplier.SellingDetails?.TaxCode?.Name,
+          providerUpdatedAt: parseMYOBDate(supplier.LastModified),
+          rawMetadata: supplier as unknown as Record<string, unknown>,
+        })
+      }
+
+      if (items.length < PAGE_SIZE || (params.supplierIds && params.supplierIds.length > 0)) break
+      skip += PAGE_SIZE
+    }
+
+    return results
+  }
+
+  async getSpendExpenseAccounts(params: {
+    accessToken: string
+    organisationId: string
+  }): Promise<ProviderSpendExpenseAccount[]> {
+    const url = new URL(`${params.organisationId}/GeneralLedger/Account`)
+    url.searchParams.set("$top", String(PAGE_SIZE))
+    url.searchParams.set("$filter", "Classification eq 'Expense'")
+
+    const { clientId } = getConfig()
+    const res = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        "x-myobapi-cftoken": "",
+        "x-myobapi-key": clientId,
+        "x-myobapi-version": "v2",
+        Accept: "application/json",
+      },
+    })
+
+    const data = (await handleProviderResponse(res)) as {
+      Items?: Array<{
+        UID: string
+        DisplayID?: string
+        Name?: string
+        Classification?: string
+        LastModified?: string
+      }>
+    }
+
+    return (data.Items ?? []).map((account) => ({
+      providerAccountId: account.UID,
+      accountCode: account.DisplayID,
+      accountName: account.Name ?? "Unnamed account",
+      classification: account.Classification,
+      providerUpdatedAt: parseMYOBDate(account.LastModified),
+      rawMetadata: account as unknown as Record<string, unknown>,
+    }))
   }
 }

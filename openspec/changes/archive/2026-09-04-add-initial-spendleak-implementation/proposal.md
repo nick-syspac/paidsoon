@@ -35,6 +35,10 @@ partners.
   SpendLeak payables and savings signals in one business-health view
 - **NEW** AI-generated savings summary layer that explains findings and estimated impact using the
   deterministic insight output as evidence
+- **NEW** Finding-confidence model and owner review workflow that separates detection from decision,
+  supports suppression of legitimate spend, and tracks outcomes from potential to verified savings
+- **NEW** Monthly SpendLeak reporting and owner-digest inclusion so savings work is visible,
+  measurable, and action-oriented over time
 - **MODIFIED** accounting sync architecture so Xero and MYOB imports can collect spend-side data in
   addition to receivables data while remaining read-only against the source systems
 - **MODIFIED** public `/roadmap` content so SpendLeak appears as a planned product direction with a
@@ -47,6 +51,78 @@ partners.
 > `source_updated_at`, `synced_at`) as part of it. Receivables context for the unified cash view now
 > reads from the canonical `financial_invoices` rather than `tracked_invoices`.
 
+## MVP Focus (Release 1)
+
+The first release of this change is intentionally constrained to the smallest scope that can produce
+immediate, measurable value for owners:
+
+1. CSV/XLSX expense import
+2. Xero and MYOB expense synchronization
+3. Recurring-payment detection
+4. Duplicate-payment detection
+5. Supplier price-increase detection
+6. Basic owner workflow actions: keep, cancel, renegotiate, ignore
+
+The target launch message is an evidence-backed outcome statement such as:
+
+> "SpendLeak reviewed A$14,800 of recurring annual expenditure and identified A$2,350 worth reviewing."
+
+## Core Findings and Workflow Model
+
+This proposal extends SpendLeak beyond detector output by defining the minimum operational model
+required for owners to take action reliably.
+
+- Finding confidence levels:
+  - confirmed leak
+  - likely leak
+  - review recommended
+  - normal expense
+- Review actions:
+  - keep
+  - cancel
+  - renegotiate
+  - downgrade
+  - investigate
+  - ignore
+  - assign to someone
+- Finding operations:
+  - allow notes, attachments, and supplier contact details
+  - set review dates and reminders
+  - suppress legitimate expenses to reduce repeated noise
+  - learn from prior owner decisions for future prioritization
+- Savings realization stages:
+  - potential savings
+  - approved savings
+  - implemented savings
+  - verified savings
+
+## Later Features (Explicitly Out of Scope for MVP)
+
+These remain planned follow-on scope and are intentionally excluded from the first release:
+
+- Supplier renewal calendar
+- Contract document analysis
+- AI-generated cancellation and negotiation emails
+- Industry spending benchmarks
+- Multi-business accountant dashboard
+- Employee expense monitoring
+- Supplier consolidation recommendations
+- CashPlan forecasting of savings
+- CostGuard budget-policy integration
+- "What happens if we remove this expense?" scenario simulation
+
+## Product Boundaries
+
+This proposal clarifies role boundaries across financial-operations modules:
+
+- PaidSoon primary role: get outstanding invoices paid
+- SpendLeak primary role: find money unnecessarily leaving the business and recover savings
+- CostGuard primary role: prevent and control future overspending through policy/limits
+- CashPlan primary role: forecast future cash position and decision outcomes
+
+SpendLeak SHALL remain an analysis-and-action layer on top of accounting source data. It SHALL NOT
+attempt to replace Xero or MYOB as systems of record.
+
 ## Capabilities
 
 ### New Capabilities
@@ -55,10 +131,14 @@ partners.
   read-only SpendLeak model without turning PaidSoon into an accounting package
 - `spendleak-insights`: Generate explainable savings and risk findings from imported spend data,
   each with supporting evidence and an estimated impact where possible
+- `spendleak-review-workflow`: Let owners classify findings, schedule follow-up, suppress legitimate
+  expenses, and track outcomes through verified savings
 - `financial-operations-dashboard`: Present cash coming in, cash going out, and highlighted action
   items in a single operator view
 - `spendleak-ai-summary`: Summarize deterministic findings into owner-friendly daily guidance such
   as "where am I wasting money?" or "what should I act on next?"
+- `spendleak-reporting`: Produce monthly SpendLeak reporting and include spend findings/actions in
+  the owner digest
 - `spendleak-roadmap-positioning`: Publicly describe SpendLeak on `/roadmap` as the spend-side
   companion to PaidSoon with clear "planned next" and "later" boundaries
 
@@ -81,6 +161,10 @@ partners.
   view
 - **UI**: New dashboard cards, supplier tables, insight panels, and AI summary surfaces; roadmap
   page content update at `/roadmap`
+- **Workflow**: New review lifecycle surfaces for confidence labeling, action assignment, reminders,
+  suppression controls, and savings-stage progression
+- **Reporting**: Monthly SpendLeak report outputs and digest integration for action tracking and
+  verified savings visibility
 - **Documentation**: Update `docs/HLD.md`, `docs/DDD.md`, and roadmap-facing marketing copy once
   implementation ships
 - **Positioning**: Clarify that accounting systems remain the source of truth and SpendLeak is an

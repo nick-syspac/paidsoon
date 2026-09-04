@@ -31,6 +31,8 @@ export interface SpendSyncInput {
   bills: SpendBillInput[]
   bankTransactions: SpendBankTransactionInput[]
   suppliers: SpendSupplierInput[]
+  currentCashCents?: number
+  openReceivablesCents?: number
   now?: Date
 }
 
@@ -117,6 +119,20 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length
 }
 
+function labelMonth(value: Date): string {
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}`
+}
+
+function monthDistance(from: Date, to: Date): number {
+  return (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + (to.getUTCMonth() - from.getUTCMonth())
+}
+
+function confidenceFromSignal(signal: "confirmed" | "likely" | "review"): "confirmed leak" | "likely leak" | "review recommended" {
+  if (signal === "confirmed") return "confirmed leak"
+  if (signal === "likely") return "likely leak"
+  return "review recommended"
+}
+
 export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
   const { bills, bankTransactions, suppliers } = normalizeSpendSyncInput(input)
   const now = input.now ?? new Date()
@@ -151,6 +167,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
           supplier: supplierName,
           billCount: ordered.length,
           averageAmountCents: Math.round(avgAmount),
+          confidence: confidenceFromSignal("likely"),
         },
         detectedAt: now,
       })
@@ -176,6 +193,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
               billIds: [current.id ?? current.sourceId ?? "unknown", next.id ?? next.sourceId ?? "unknown"],
               dayDifference,
               amountCents: Math.abs(current.amountCents),
+              confidence: confidenceFromSignal("confirmed"),
             },
             detectedAt: now,
           })
@@ -203,9 +221,124 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
               supplier: supplierName,
               renewalDate: upcomingDate.toISOString(),
               measuredBills: ordered.length,
+              confidence: confidenceFromSignal("review"),
             },
             detectedAt: now,
           })
+        }
+      }
+
+      if (ordered.length >= 3) {
+        const midpoint = Math.floor(ordered.length / 2)
+        const earlyAmounts = ordered.slice(0, midpoint).map((bill) => Math.abs(bill.amountCents))
+        const recentAmounts = ordered.slice(midpoint).map((bill) => Math.abs(bill.amountCents))
+        const earlyAverage = average(earlyAmounts)
+        const recentAverage = average(recentAmounts)
+        const increaseRatio = earlyAverage > 0 ? (recentAverage - earlyAverage) / earlyAverage : 0
+
+        if (increaseRatio >= 0.12 && recentAverage - earlyAverage >= 5000) {
+          findings.push({
+            id: `price-increase-${supplierName}`,
+            findingType: "price_increase",
+            subjectKey: supplierName,
+            severity: increaseRatio >= 0.25 ? "high" : "medium",
+            summary: `${supplierName} shows a supplier price increase trend versus earlier recurring charges.`,
+            state: "open",
+            estimatedMonthlyCents: Math.round(Math.max(recentAverage - earlyAverage, 0)),
+            estimatedAnnualCents: Math.round(Math.max(recentAverage - earlyAverage, 0) * 12),
+            evidence: {
+              supplier: supplierName,
+              baselineAverageCents: Math.round(earlyAverage),
+              currentAverageCents: Math.round(recentAverage),
+              increaseRatio: Number(increaseRatio.toFixed(4)),
+              confidence: confidenceFromSignal("likely"),
+            },
+            detectedAt: now,
+          })
+        }
+      }
+
+      if (ordered.length >= 3) {
+        const datedAmounts = ordered
+          .map((bill) => ({
+            date: asDate(bill.dueDate) ?? asDate(bill.paidDate),
+            amount: Math.abs(bill.amountCents),
+          }))
+          .filter((row): row is { date: Date; amount: number } => row.date instanceof Date)
+          .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+        if (datedAmounts.length >= 3) {
+          const first = datedAmounts[0]
+          const last = datedAmounts[datedAmounts.length - 1]
+          const months = Math.max(monthDistance(first.date, last.date), 1)
+          const monthlySlopeCents = Math.round((last.amount - first.amount) / months)
+          const growthRatio = first.amount > 0 ? (last.amount - first.amount) / first.amount : 0
+          if (monthlySlopeCents > 0 && growthRatio >= 0.1) {
+            findings.push({
+              id: `supplier-spend-trend-${supplierName}`,
+              findingType: "supplier_spend_trend",
+              subjectKey: supplierName,
+              severity: growthRatio >= 0.25 ? "high" : "medium",
+              summary: `${supplierName} shows a gradual upward spend trend that may indicate price creep.`,
+              state: "open",
+              estimatedMonthlyCents: monthlySlopeCents,
+              estimatedAnnualCents: monthlySlopeCents * 12,
+              evidence: {
+                supplier: supplierName,
+                firstAmountCents: first.amount,
+                latestAmountCents: last.amount,
+                monthsObserved: months,
+                monthlySlopeCents,
+                growthRatio: Number(growthRatio.toFixed(4)),
+                confidence: confidenceFromSignal("review"),
+              },
+              detectedAt: now,
+            })
+          }
+        }
+      }
+    }
+  }
+
+  if (bankTransactions.length >= 2) {
+    const byCounterpartyAndAmount = new Map<string, SpendBankTransactionInput[]>()
+    for (const tx of bankTransactions) {
+      const counterparty = normalizeKey(tx.counterpartyName ?? tx.description)
+      const key = `${counterparty}:${Math.abs(tx.amountCents)}`
+      const group = byCounterpartyAndAmount.get(key) ?? []
+      group.push(tx)
+      byCounterpartyAndAmount.set(key, group)
+    }
+
+    for (const [groupKey, group] of byCounterpartyAndAmount.entries()) {
+      if (group.length < 2) continue
+      const ordered = [...group].sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime())
+      for (let i = 0; i < ordered.length - 1; i += 1) {
+        const current = ordered[i]
+        const next = ordered[i + 1]
+        const dayDifference = Math.abs(next.transactionDate.getTime() - current.transactionDate.getTime()) / (1000 * 60 * 60 * 24)
+        if (dayDifference <= 7) {
+          const counterparty = current.counterpartyName ?? current.description
+          const amount = Math.abs(current.amountCents)
+          findings.push({
+            id: `duplicate-payment-${groupKey}-${i}`,
+            findingType: "duplicate_payment",
+            subjectKey: `${groupKey}:${i}`,
+            severity: amount >= 500000 ? "high" : "medium",
+            summary: `Possible duplicate payment detected for ${counterparty} within a short timeframe.`,
+            state: "open",
+            estimatedMonthlyCents: amount,
+            estimatedAnnualCents: amount * 12,
+            evidence: {
+              counterparty,
+              transactionIds: [current.id ?? current.sourceId ?? "unknown", next.id ?? next.sourceId ?? "unknown"],
+              dayDifference,
+              amountCents: amount,
+              confidence: confidenceFromSignal("confirmed"),
+            },
+            detectedAt: now,
+          })
+          break
         }
       }
     }
@@ -226,6 +359,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
         supplier: topSupplier[0],
         share: Number((topSupplier[1] / totalSpend).toFixed(4)),
         spendCents: topSupplier[1],
+        confidence: confidenceFromSignal("review"),
       },
       detectedAt: now,
     })
@@ -245,9 +379,38 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
         negativeBankTransactionCents: Math.abs(totalOutflow),
         spendCents: totalSpend,
         transactionCount: bankTransactions.length,
+        confidence: confidenceFromSignal("review"),
       },
       detectedAt: now,
     })
+  }
+
+  if ((input.currentCashCents ?? 0) > 0) {
+    const monthlyOutflow = Math.max(Math.abs(totalOutflow), Math.round(totalSpend))
+    if (monthlyOutflow > 0) {
+      const netBuffer = (input.currentCashCents ?? 0) + (input.openReceivablesCents ?? 0)
+      const runwayDays = Math.max(Math.floor((netBuffer / monthlyOutflow) * 30), 0)
+      if (runwayDays <= 120) {
+        findings.push({
+          id: "cash-runway",
+          findingType: "cash_runway",
+          subjectKey: "cash-runway",
+          severity: runwayDays <= 45 ? "high" : "medium",
+          summary: `Estimated cash runway is about ${runwayDays} days using current cash, open receivables, and spend outflow trends.`,
+          state: "open",
+          estimatedMonthlyCents: monthlyOutflow,
+          estimatedAnnualCents: monthlyOutflow * 12,
+          evidence: {
+            currentCashCents: input.currentCashCents ?? 0,
+            openReceivablesCents: input.openReceivablesCents ?? 0,
+            modeledMonthlyOutflowCents: monthlyOutflow,
+            runwayDays,
+            confidence: confidenceFromSignal("review"),
+          },
+          detectedAt: now,
+        })
+      }
+    }
   }
 
   if (suppliers.length === 0 && bills.length === 0 && bankTransactions.length === 0) {
@@ -270,7 +433,19 @@ export function buildGroundedSummary({ findings, syncState }: { findings: Array<
     return "No spend findings were detected from the latest persisted spend data. This summary stays grounded in the current findings only."
   }
 
+  const supportedTypes = new Set([
+    "recurring_spend",
+    "price_increase",
+    "duplicate_spend",
+    "duplicate_payment",
+    "renewal",
+    "supplier_concentration",
+    "supplier_spend_trend",
+    "cash_pressure",
+    "cash_runway",
+  ])
   const labels = [...new Set(findings.map((finding) => finding.findingType))]
+  const summaryLabels = labels.filter((label) => supportedTypes.has(label))
   const strongest = findings.reduce((winner, current) => {
     const currentScore = current.estimatedAnnualCents ?? 0
     return currentScore > (winner.estimatedAnnualCents ?? 0) ? current : winner
@@ -279,8 +454,11 @@ export function buildGroundedSummary({ findings, syncState }: { findings: Array<
   const lead = strongest.subjectKey || "your spend profile"
   const freshnessNote = syncState.status === "stale" ? "The latest sync is stale, so this summary should be treated as a cautious view of the data currently on file." : "The latest spend data is recent enough to keep the recommendations grounded in the current findings."
 
-  const labelText = labels.length === 1 ? labels[0].replace(/_/g, " ") : `${labels.slice(0, -1).map((label) => label.replace(/_/g, " ")).join(", ")}, and ${labels.at(-1)?.replace(/_/g, " ")}`
+  const normalizedLabels = summaryLabels.length > 0 ? summaryLabels : ["supported"]
+  const labelText = normalizedLabels.length === 1
+    ? normalizedLabels[0].replace(/_/g, " ")
+    : `${normalizedLabels.slice(0, -1).map((label) => label.replace(/_/g, " ")).join(", ")}, and ${normalizedLabels.at(-1)?.replace(/_/g, " ")}`
   const recurringSignal = labels.includes("recurring spend") || labels.includes("recurring_spend") ? " showing a repeat monthly charge pattern" : ""
 
-  return `${lead} is the strongest signal in the current SpendLeak view. The latest analysis is grounded in ${labelText} findings${recurringSignal} and suggests a review of the spend pattern behind this signal. ${freshnessNote}`
+  return `${lead} is the strongest signal in the current SpendLeak view. The latest analysis is grounded in ${labelText} findings${recurringSignal} and suggests a review of the spend pattern behind this signal. Any savings figures are potential estimates, not confirmed outcomes, and should be validated during review. ${freshnessNote}`
 }

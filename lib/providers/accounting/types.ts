@@ -93,6 +93,66 @@ export interface ProviderContact {
 }
 
 // ---------------------------------------------------------------------------
+// Spend-side normalized value types
+// ---------------------------------------------------------------------------
+
+export type ProviderSpendBillStatus = "open" | "paid" | "voided" | "draft" | "unknown"
+
+export interface ProviderSpendBill {
+  providerBillId: string
+  providerSupplierId?: string
+  supplierName: string
+  supplierReference?: string
+  documentNumber?: string
+  expenseAccountCode?: string
+  expenseAccountName?: string
+  amountTotal: number
+  gstAmount?: number
+  currency: string
+  dueDate?: Date
+  paidDate?: Date
+  status: ProviderSpendBillStatus
+  providerUpdatedAt?: Date
+  rawMetadata?: Record<string, unknown>
+}
+
+export interface ProviderSpendBankTransaction {
+  providerTransactionId: string
+  providerSupplierId?: string
+  accountName?: string
+  accountCode?: string
+  description: string
+  reference?: string
+  counterpartyName?: string
+  amount: number
+  currency: string
+  transactionDate: Date
+  providerUpdatedAt?: Date
+  rawMetadata?: Record<string, unknown>
+}
+
+export interface ProviderSpendSupplier {
+  providerSupplierId: string
+  supplierName: string
+  supplierEmail?: string
+  abn?: string
+  paymentTerms?: string
+  defaultAccountCode?: string
+  defaultAccountName?: string
+  providerUpdatedAt?: Date
+  rawMetadata?: Record<string, unknown>
+}
+
+export interface ProviderSpendExpenseAccount {
+  providerAccountId: string
+  accountCode?: string
+  accountName: string
+  classification?: string
+  providerUpdatedAt?: Date
+  rawMetadata?: Record<string, unknown>
+}
+
+// ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------
 
@@ -173,4 +233,41 @@ export interface AccountingProvider {
     organisationId: string
     contactIds: string[]
   }): Promise<ProviderContact[]>
+
+  /**
+   * Fetch spend-side bills/accounts-payable data for SpendLeak analysis.
+   * Implementations must paginate internally and return normalized records.
+   */
+  getSpendBills(params: {
+    accessToken: string
+    organisationId: string
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBill[]>
+
+  /**
+   * Fetch spend-side bank transaction rows needed for initial SpendLeak analysis.
+   * Implementations must paginate internally and return normalized records.
+   */
+  getSpendBankTransactions(params: {
+    accessToken: string
+    organisationId: string
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBankTransaction[]>
+
+  /**
+   * Fetch supplier/contact records used to enrich spend-side bill and findings data.
+   */
+  getSpendSuppliers(params: {
+    accessToken: string
+    organisationId: string
+    supplierIds?: string[]
+  }): Promise<ProviderSpendSupplier[]>
+
+  /**
+   * Fetch expense account metadata to support initial category/account analysis.
+   */
+  getSpendExpenseAccounts(params: {
+    accessToken: string
+    organisationId: string
+  }): Promise<ProviderSpendExpenseAccount[]>
 }

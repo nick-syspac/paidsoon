@@ -94,6 +94,69 @@ describe("SpendLeak engine", () => {
     assert.ok(findings.some((finding) => finding.findingType === "cash_pressure"))
   })
 
+  test("detects price increases, duplicate payments, spend trend, and cash runway from deterministic inputs", () => {
+    const now = new Date("2026-09-01T00:00:00.000Z")
+    const findings = detectSpendFindings({
+      bills: [
+        {
+          id: "bill-a1",
+          sourceId: "bill-a1",
+          supplierName: "Rising SaaS",
+          amountCents: 100000,
+          dueDate: new Date("2026-04-01T00:00:00.000Z"),
+        },
+        {
+          id: "bill-a2",
+          sourceId: "bill-a2",
+          supplierName: "Rising SaaS",
+          amountCents: 118000,
+          dueDate: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: "bill-a3",
+          sourceId: "bill-a3",
+          supplierName: "Rising SaaS",
+          amountCents: 136000,
+          dueDate: new Date("2026-06-01T00:00:00.000Z"),
+        },
+        {
+          id: "bill-a4",
+          sourceId: "bill-a4",
+          supplierName: "Rising SaaS",
+          amountCents: 154000,
+          dueDate: new Date("2026-07-01T00:00:00.000Z"),
+        },
+      ],
+      bankTransactions: [
+        {
+          id: "txn-d1",
+          sourceId: "txn-d1",
+          description: "Rising SaaS",
+          counterpartyName: "Rising SaaS",
+          amountCents: -154000,
+          transactionDate: new Date("2026-07-03T00:00:00.000Z"),
+        },
+        {
+          id: "txn-d2",
+          sourceId: "txn-d2",
+          description: "Rising SaaS",
+          counterpartyName: "Rising SaaS",
+          amountCents: -154000,
+          transactionDate: new Date("2026-07-06T00:00:00.000Z"),
+        },
+      ],
+      suppliers: [{ id: "supplier-rs", supplierName: "Rising SaaS" }],
+      currentCashCents: 600000,
+      openReceivablesCents: 300000,
+      now,
+    })
+
+    assert.ok(findings.some((finding) => finding.findingType === "price_increase"))
+    assert.ok(findings.some((finding) => finding.findingType === "supplier_spend_trend"))
+    assert.ok(findings.some((finding) => finding.findingType === "duplicate_payment"))
+    assert.ok(findings.some((finding) => finding.findingType === "cash_runway"))
+  })
+
   test("builds grounded summary and safe fallbacks without inventing unsupported claims", () => {
     const summary = buildGroundedSummary({
       findings: [
@@ -109,6 +172,7 @@ describe("SpendLeak engine", () => {
 
     assert.match(summary, /Acme Cloud/)
     assert.match(summary, /monthly charge|customer/i)
+    assert.match(summary, /potential estimates/i)
 
     const fallback = buildGroundedSummary({
       findings: [],
@@ -116,5 +180,22 @@ describe("SpendLeak engine", () => {
     })
 
     assert.match(fallback, /no spend findings|initial sync/i)
+  })
+
+  test("keeps unsupported categories from becoming fabricated summary claims", () => {
+    const summary = buildGroundedSummary({
+      findings: [
+        {
+          findingType: "unmapped_future_detector",
+          subjectKey: "subject-1",
+          summary: "Future detector output",
+          estimatedAnnualCents: 123000,
+        },
+      ],
+      syncState: { status: "fresh", latestSyncAt: new Date("2026-08-31T00:00:00.000Z") },
+    })
+
+    assert.match(summary, /supported findings/i)
+    assert.doesNotMatch(summary, /unmapped_future_detector/i)
   })
 })

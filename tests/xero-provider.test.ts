@@ -250,4 +250,144 @@ describe("XeroProvider", () => {
       assert.equal(contacts[0].email, "acme@example.com")
     })
   })
+
+  describe("getSpendBills", () => {
+    test("maps Xero ACCPAY invoices into normalized spend bills", async () => {
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            Invoices: [
+              {
+                InvoiceID: "bill-1",
+                InvoiceNumber: "BILL-001",
+                Contact: { ContactID: "sup-1", Name: "Cloud Vendor" },
+                Reference: "Monthly subscription",
+                Total: 199.0,
+                TotalTax: 19.9,
+                CurrencyCode: "AUD",
+                DueDate: "/Date(1735689600000)/",
+                FullyPaidOnDate: "/Date(1735776000000)/",
+                Status: "PAID",
+                UpdatedDateUTC: "/Date(1735776000000)/",
+              },
+            ],
+          },
+        },
+      ])
+
+      const bills = await provider.getSpendBills({
+        accessToken: "at123",
+        organisationId: "tid-1",
+      })
+
+      assert.equal(bills.length, 1)
+      assert.equal(bills[0].providerBillId, "bill-1")
+      assert.equal(bills[0].providerSupplierId, "sup-1")
+      assert.equal(bills[0].supplierName, "Cloud Vendor")
+      assert.equal(bills[0].amountTotal, 199)
+      assert.equal(bills[0].status, "paid")
+    })
+  })
+
+  describe("getSpendBankTransactions", () => {
+    test("maps Xero spend bank transactions into normalized rows", async () => {
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            BankTransactions: [
+              {
+                BankTransactionID: "txn-1",
+                Contact: { ContactID: "sup-1", Name: "Cloud Vendor" },
+                BankAccount: { Name: "Business Account", Code: "090" },
+                Reference: "May subscription",
+                Total: 199.0,
+                CurrencyCode: "AUD",
+                Date: "/Date(1735689600000)/",
+                UpdatedDateUTC: "/Date(1735776000000)/",
+              },
+            ],
+          },
+        },
+      ])
+
+      const rows = await provider.getSpendBankTransactions({
+        accessToken: "at123",
+        organisationId: "tid-1",
+      })
+
+      assert.equal(rows.length, 1)
+      assert.equal(rows[0].providerTransactionId, "txn-1")
+      assert.equal(rows[0].providerSupplierId, "sup-1")
+      assert.equal(rows[0].accountName, "Business Account")
+      assert.equal(rows[0].amount, 199)
+      assert.equal(rows[0].currency, "AUD")
+    })
+  })
+
+  describe("getSpendSuppliers", () => {
+    test("maps Xero suppliers into normalized supplier profiles", async () => {
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            Contacts: [
+              {
+                ContactID: "sup-1",
+                Name: "Cloud Vendor",
+                EmailAddress: "billing@vendor.test",
+                TaxNumber: "51824753556",
+                DefaultAccountCode: "623",
+                UpdatedDateUTC: "/Date(1735776000000)/",
+              },
+            ],
+          },
+        },
+      ])
+
+      const suppliers = await provider.getSpendSuppliers({
+        accessToken: "at123",
+        organisationId: "tid-1",
+      })
+
+      assert.equal(suppliers.length, 1)
+      assert.equal(suppliers[0].providerSupplierId, "sup-1")
+      assert.equal(suppliers[0].supplierName, "Cloud Vendor")
+      assert.equal(suppliers[0].supplierEmail, "billing@vendor.test")
+      assert.equal(suppliers[0].defaultAccountCode, "623")
+    })
+  })
+
+  describe("getSpendExpenseAccounts", () => {
+    test("maps Xero expense accounts into normalized account rows", async () => {
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            Accounts: [
+              {
+                AccountID: "acc-1",
+                Code: "623",
+                Name: "Software subscriptions",
+                Class: "EXPENSE",
+                UpdatedDateUTC: "/Date(1735776000000)/",
+              },
+            ],
+          },
+        },
+      ])
+
+      const accounts = await provider.getSpendExpenseAccounts({
+        accessToken: "at123",
+        organisationId: "tid-1",
+      })
+
+      assert.equal(accounts.length, 1)
+      assert.equal(accounts[0].providerAccountId, "acc-1")
+      assert.equal(accounts[0].accountCode, "623")
+      assert.equal(accounts[0].accountName, "Software subscriptions")
+      assert.equal(accounts[0].classification, "EXPENSE")
+    })
+  })
 })

@@ -62,11 +62,14 @@ describe("SpendLeak presentation", () => {
   })
 
   test("classifies dashboard sync states explicitly", () => {
+    const now = new Date("2026-09-02T12:00:00.000Z")
+
     const initial = buildSpendLeakDashboardStatus({
       findingsCount: 0,
       hasAccountingConnection: true,
       latestSyncAt: null,
       sourceSyncCount: 0,
+      now,
     })
 
     const partial = buildSpendLeakDashboardStatus({
@@ -74,6 +77,7 @@ describe("SpendLeak presentation", () => {
       hasAccountingConnection: true,
       latestSyncAt: new Date("2026-09-02T00:00:00.000Z"),
       sourceSyncCount: 1,
+      now,
     })
 
     const empty = buildSpendLeakDashboardStatus({
@@ -81,6 +85,7 @@ describe("SpendLeak presentation", () => {
       hasAccountingConnection: true,
       latestSyncAt: new Date("2026-09-02T00:00:00.000Z"),
       sourceSyncCount: 3,
+      now,
     })
 
     assert.equal(initial.state, "initial_sync")
