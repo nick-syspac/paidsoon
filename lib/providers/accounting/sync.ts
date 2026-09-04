@@ -996,6 +996,9 @@ export async function syncAllActiveConnections(): Promise<SyncResult[]> {
         invoicesCreated: 0,
         invoicesUpdated: 0,
         invoicesSkipped: 0,
+        spendBillsUpserted: 0,
+        spendTransactionsUpserted: 0,
+        spendSuppliersUpserted: 0,
         errorMessage: "Unexpected error",
       })
     }
