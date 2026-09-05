@@ -328,6 +328,17 @@ CREATE POLICY "users can view own imported bills"
   ON imported_bills FOR SELECT
   USING (auth.uid()::text = user_id);
 
+DROP POLICY IF EXISTS "users can insert own imported bills" ON imported_bills;
+CREATE POLICY "users can insert own imported bills"
+  ON imported_bills FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own imported bills" ON imported_bills;
+CREATE POLICY "users can update own imported bills"
+  ON imported_bills FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
 -- ---------------------------------------------------------------------------
 -- imported_bank_transactions
 -- Users can read their own imported bank transactions. Writes are performed by
@@ -340,6 +351,17 @@ CREATE POLICY "users can view own imported bank transactions"
   ON imported_bank_transactions FOR SELECT
   USING (auth.uid()::text = user_id);
 
+DROP POLICY IF EXISTS "users can insert own imported bank transactions" ON imported_bank_transactions;
+CREATE POLICY "users can insert own imported bank transactions"
+  ON imported_bank_transactions FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own imported bank transactions" ON imported_bank_transactions;
+CREATE POLICY "users can update own imported bank transactions"
+  ON imported_bank_transactions FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
 -- ---------------------------------------------------------------------------
 -- supplier_profiles
 -- Users can read their own supplier profiles. Writes are performed by sync
@@ -351,6 +373,17 @@ DROP POLICY IF EXISTS "users can view own supplier profiles" ON supplier_profile
 CREATE POLICY "users can view own supplier profiles"
   ON supplier_profiles FOR SELECT
   USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own supplier profiles" ON supplier_profiles;
+CREATE POLICY "users can insert own supplier profiles"
+  ON supplier_profiles FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own supplier profiles" ON supplier_profiles;
+CREATE POLICY "users can update own supplier profiles"
+  ON supplier_profiles FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- spend_insights
@@ -372,8 +405,13 @@ CREATE POLICY "users can update own spend insights"
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 
+DROP POLICY IF EXISTS "users can insert own spend insights" ON spend_insights;
+CREATE POLICY "users can insert own spend insights"
+  ON spend_insights FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
 REVOKE UPDATE ON TABLE spend_insights FROM authenticated;
-GRANT UPDATE (state, resolved_at, updated_at) ON TABLE spend_insights TO authenticated;
+GRANT UPDATE (state, review_action, review_action_at, review_action_by, review_note, evidence_fingerprint, resolved_at, updated_at) ON TABLE spend_insights TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- cash_forecast_snapshots
@@ -698,6 +736,156 @@ DROP POLICY IF EXISTS "users can delete own invoice import mapping profiles" ON 
 CREATE POLICY "users can delete own invoice import mapping profiles"
   ON invoice_import_mapping_profiles FOR DELETE
   USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- spend_import_batches
+-- Users can create and manage their own SpendLeak expense import batches.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_import_batches ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own spend import batches" ON spend_import_batches;
+CREATE POLICY "users can view own spend import batches"
+  ON spend_import_batches FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own spend import batches" ON spend_import_batches;
+CREATE POLICY "users can insert own spend import batches"
+  ON spend_import_batches FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own spend import batches" ON spend_import_batches;
+CREATE POLICY "users can update own spend import batches"
+  ON spend_import_batches FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- spend_import_column_mappings
+-- Scoped via batch_id which belongs to the owning user's batch.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_import_column_mappings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own spend import mappings" ON spend_import_column_mappings;
+CREATE POLICY "users can view own spend import mappings"
+  ON spend_import_column_mappings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_column_mappings.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can insert own spend import mappings" ON spend_import_column_mappings;
+CREATE POLICY "users can insert own spend import mappings"
+  ON spend_import_column_mappings FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_column_mappings.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can update own spend import mappings" ON spend_import_column_mappings;
+CREATE POLICY "users can update own spend import mappings"
+  ON spend_import_column_mappings FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_column_mappings.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can delete own spend import mappings" ON spend_import_column_mappings;
+CREATE POLICY "users can delete own spend import mappings"
+  ON spend_import_column_mappings FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_column_mappings.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- spend_import_staging_rows
+-- Scoped via batch_id which belongs to the owning user's batch.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_import_staging_rows ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own spend import staging rows" ON spend_import_staging_rows;
+CREATE POLICY "users can view own spend import staging rows"
+  ON spend_import_staging_rows FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_staging_rows.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can insert own spend import staging rows" ON spend_import_staging_rows;
+CREATE POLICY "users can insert own spend import staging rows"
+  ON spend_import_staging_rows FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_staging_rows.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can update own spend import staging rows" ON spend_import_staging_rows;
+CREATE POLICY "users can update own spend import staging rows"
+  ON spend_import_staging_rows FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_staging_rows.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- spend_import_errors
+-- Scoped via batch_id which belongs to the owning user's batch.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_import_errors ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own spend import errors" ON spend_import_errors;
+CREATE POLICY "users can view own spend import errors"
+  ON spend_import_errors FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_errors.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can insert own spend import errors" ON spend_import_errors;
+CREATE POLICY "users can insert own spend import errors"
+  ON spend_import_errors FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_errors.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can delete own spend import errors" ON spend_import_errors;
+CREATE POLICY "users can delete own spend import errors"
+  ON spend_import_errors FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_errors.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- invoice_payments

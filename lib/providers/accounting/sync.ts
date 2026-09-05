@@ -42,6 +42,7 @@ import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
 import { findOrCreateCustomer } from "@/lib/db/customers"
 import { detectSpendFindings } from "@/lib/spendleak/engine"
+import { upsertSpendFindings } from "@/lib/spendleak/persist"
 import {
   upsertFinancialContact,
   upsertFinancialInvoice,
@@ -373,52 +374,6 @@ async function syncSpendSideData(params: {
     spendSuppliers,
     failures,
   }
-}
-
-async function persistSpendFindings(params: {
-  userId: string
-  accountingConnectionId: string
-  findings: ReturnType<typeof detectSpendFindings>
-}): Promise<number> {
-  const { userId, accountingConnectionId, findings } = params
-  let upserted = 0
-
-  for (const finding of findings) {
-    await prismaAdmin.spendInsight.upsert({
-      where: {
-        userId_findingType_subjectKey: {
-          userId,
-          findingType: finding.findingType,
-          subjectKey: finding.subjectKey,
-        },
-      },
-      create: {
-        userId,
-        accountingConnectionId,
-        findingType: finding.findingType,
-        subjectKey: finding.subjectKey,
-        severity: finding.severity,
-        summary: finding.summary,
-        state: "open",
-        estimatedMonthlyCents: finding.estimatedMonthlyCents ?? null,
-        estimatedAnnualCents: finding.estimatedAnnualCents ?? null,
-        evidence: finding.evidence as Prisma.InputJsonValue,
-        detectedAt: finding.detectedAt,
-      },
-      update: {
-        accountingConnectionId,
-        severity: finding.severity,
-        summary: finding.summary,
-        estimatedMonthlyCents: finding.estimatedMonthlyCents ?? null,
-        estimatedAnnualCents: finding.estimatedAnnualCents ?? null,
-        evidence: finding.evidence as Prisma.InputJsonValue,
-        detectedAt: finding.detectedAt,
-      },
-    })
-    upserted += 1
-  }
-
-  return upserted
 }
 
 /** Check if access token should be refreshed before a sync run.
@@ -759,7 +714,7 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     })
 
     try {
-      await persistSpendFindings({
+      await upsertSpendFindings({
         userId: connection.userId,
         accountingConnectionId: connection.id,
         findings: detectedFindings,

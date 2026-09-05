@@ -4,18 +4,19 @@ import { useState } from "react"
 
 type SpendInsightState = "open" | "resolved" | "dismissed" | "snoozed"
 
-type ActionName = "resolve" | "dismiss" | "snooze" | "reopen"
+type ActionName = "keep" | "cancel" | "renegotiate" | "ignore" | "reopen"
 
 function actionsForState(state: SpendInsightState): ActionName[] {
-  if (state === "open") return ["resolve", "dismiss", "snooze"]
-  if (state === "snoozed") return ["reopen", "resolve", "dismiss"]
+  if (state === "open") return ["cancel", "renegotiate", "keep", "ignore"]
+  if (state === "snoozed") return ["reopen", "cancel", "renegotiate", "keep", "ignore"]
   return ["reopen"]
 }
 
 function labelForAction(action: ActionName): string {
-  if (action === "resolve") return "Mark resolved"
-  if (action === "dismiss") return "Dismiss"
-  if (action === "snooze") return "Snooze"
+  if (action === "keep") return "Keep as-is"
+  if (action === "cancel") return "Cancel spend"
+  if (action === "renegotiate") return "Renegotiate"
+  if (action === "ignore") return "Ignore alert"
   return "Reopen"
 }
 
@@ -30,6 +31,7 @@ export function FindingActionButtons({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [note, setNote] = useState("")
 
   const runAction = async (action: ActionName) => {
     setIsSubmitting(true)
@@ -37,16 +39,15 @@ export function FindingActionButtons({
     setNotice(null)
 
     const previous = state
-    if (action === "resolve") setState("resolved")
-    if (action === "dismiss") setState("dismissed")
-    if (action === "snooze") setState("snoozed")
+    if (action === "cancel" || action === "renegotiate") setState("resolved")
+    if (action === "keep" || action === "ignore") setState("dismissed")
     if (action === "reopen") setState("open")
 
     try {
       const res = await fetch(`/api/spend-insights/${findingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, note: note.trim() || undefined }),
       })
 
       if (!res.ok) {
@@ -56,6 +57,7 @@ export function FindingActionButtons({
 
       const body = (await res.json()) as { finding: { state: SpendInsightState } }
       setState(body.finding.state)
+      if (action !== "reopen") setNote("")
       setNotice(`Updated: ${body.finding.state}`)
     } catch (err) {
       setState(previous)
@@ -68,6 +70,16 @@ export function FindingActionButtons({
   return (
     <div className="space-y-2">
       <p className="text-sm text-gray-600">Current state: <span className="font-medium text-gray-900">{state}</span></p>
+      {state === "open" ? (
+        <textarea
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          rows={2}
+          maxLength={500}
+          placeholder="Optional decision note"
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
+        />
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {actionsForState(state).map((action) => (
           <button

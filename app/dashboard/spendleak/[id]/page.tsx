@@ -56,10 +56,20 @@ export default async function SpendLeakFindingPage({ params }: Params) {
           <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700">
             {state}
           </div>
+          {finding.reviewAction ? (
+            <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-800">
+              Decision: {finding.reviewAction}
+            </div>
+          ) : null}
           <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700">
             {impactLabel} / yr
           </div>
         </div>
+        {finding.reviewNote ? (
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            {finding.reviewNote}
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">

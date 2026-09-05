@@ -52,6 +52,7 @@ model UserProfile {
   cashForecastSnapshots        CashForecastSnapshot[]
   invoiceImportBatches         InvoiceImportBatch[]
   invoiceImportMappingProfiles InvoiceImportMappingProfile[]
+  spendImportBatches           SpendImportBatch[]
 
   @@map("user_profiles")
 }
@@ -743,6 +744,11 @@ model SpendInsight {
   severity               String    @default("medium")
   summary                String
   state                  String    @default("open")
+  reviewAction           String?   @map("review_action")
+  reviewActionAt         DateTime? @map("review_action_at")
+  reviewActionBy         String?   @map("review_action_by")
+  reviewNote             String?   @map("review_note")
+  evidenceFingerprint    String?   @map("evidence_fingerprint")
   estimatedMonthlyCents  Int?      @map("estimated_monthly_cents")
   estimatedAnnualCents   Int?      @map("estimated_annual_cents")
   evidence               Json
@@ -758,6 +764,96 @@ model SpendInsight {
   @@index([userId, state, severity])
   @@index([userId, detectedAt])
   @@map("spend_insights")
+}
+
+// ---------------------------------------------------------------------------
+// SpendLeak Expense Import Models
+// ---------------------------------------------------------------------------
+
+model SpendImportBatch {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  fileName        String    @map("file_name")
+  fileType        String    @map("file_type")
+  fileSizeBytes   Int       @map("file_size_bytes")
+  contentHash     String    @map("content_hash")
+  schemaVersion   String    @map("schema_version")
+  worksheetName   String?   @map("worksheet_name")
+  defaultCurrency String?   @map("default_currency")
+  duplicateMode   String    @default("update_existing") @map("duplicate_mode")
+  mapping         Json?     @map("mapping")
+  status          String    @default("uploaded")
+  failureReason   String?   @map("failure_reason")
+  rowsTotal       Int       @default(0) @map("rows_total")
+  rowsValid       Int       @default(0) @map("rows_valid")
+  rowsWarning     Int       @default(0) @map("rows_warning")
+  rowsSkipped     Int       @default(0) @map("rows_skipped")
+  rowsFailed      Int       @default(0) @map("rows_failed")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  validatedAt     DateTime? @map("validated_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile                @relation(fields: [userId], references: [userId])
+  mappings    SpendImportColumnMapping[]
+  stagingRows SpendImportStagingRow[]
+  errors      SpendImportError[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@index([status, updatedAt])
+  @@map("spend_import_batches")
+}
+
+model SpendImportColumnMapping {
+  id           String   @id @default(cuid())
+  batchId      String   @map("batch_id")
+  sourceColumn String   @map("source_column")
+  targetField  String   @map("target_field")
+  suggested    Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  batch SpendImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, sourceColumn])
+  @@index([batchId, targetField])
+  @@map("spend_import_column_mappings")
+}
+
+model SpendImportStagingRow {
+  id               String   @id @default(cuid())
+  batchId          String   @map("batch_id")
+  rowNumber        Int      @map("row_number")
+  raw              Json
+  normalized       Json?
+  status           String   @default("pending")
+  validationErrors Json?    @map("validation_errors")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  batch SpendImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, status])
+  @@index([batchId, rowNumber])
+  @@map("spend_import_staging_rows")
+}
+
+model SpendImportError {
+  id          String   @id @default(cuid())
+  batchId     String   @map("batch_id")
+  rowNumber   Int?     @map("row_number")
+  fieldName   String?  @map("field_name")
+  errorCode   String   @map("error_code")
+  message     String
+  severity    String   @default("error")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  batch SpendImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, severity])
+  @@index([batchId, errorCode])
+  @@map("spend_import_errors")
 }
 
 model CashForecastSnapshot {

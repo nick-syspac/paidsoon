@@ -7,12 +7,16 @@ interface MockFinding {
   id: string
   state: string
   summary: string
+  reviewAction: string | null
+  reviewNote: string | null
 }
 
 let finding: MockFinding | null = {
   id: "finding-1",
   state: "open",
   summary: "Duplicate spend candidate",
+  reviewAction: null,
+  reviewNote: null,
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,17 +47,30 @@ describe("/api/spend-insights/[id]", () => {
                   summary: finding.summary,
                   severity: "high",
                   state: finding.state,
+                  reviewAction: finding.reviewAction,
+                  reviewActionAt: null,
+                  reviewActionBy: null,
+                  reviewNote: finding.reviewNote,
                   evidence: { source: "xero" },
                   detectedAt: new Date("2026-09-01T00:00:00.000Z"),
                   resolvedAt: finding.state === "resolved" ? new Date("2026-09-02T00:00:00.000Z") : null,
                 }
               },
-              update: async ({ data }: { data: { state: string } }) => {
+              update: async ({ data }: { data: { state: string; reviewAction?: string | null; reviewNote?: string | null } }) => {
                 if (!finding) throw new Error("not found")
-                finding = { ...finding, state: data.state }
+                finding = {
+                  ...finding,
+                  state: data.state,
+                  reviewAction: data.reviewAction ?? null,
+                  reviewNote: data.reviewNote ?? null,
+                }
                 return {
                   id: finding.id,
                   state: finding.state,
+                  reviewAction: finding.reviewAction,
+                  reviewActionAt: finding.reviewAction ? new Date("2026-09-02T00:00:00.000Z") : null,
+                  reviewActionBy: finding.reviewAction ? "user-1" : null,
+                  reviewNote: finding.reviewNote,
                   resolvedAt: finding.state === "resolved" ? new Date("2026-09-02T00:00:00.000Z") : null,
                 }
               },
@@ -69,7 +86,13 @@ describe("/api/spend-insights/[id]", () => {
 
   beforeEach(() => {
     mockUser = { id: "user-1" }
-    finding = { id: "finding-1", state: "open", summary: "Duplicate spend candidate" }
+    finding = {
+      id: "finding-1",
+      state: "open",
+      summary: "Duplicate spend candidate",
+      reviewAction: null,
+      reviewNote: null,
+    }
   })
 
   test("returns 401 when unauthenticated", async () => {
@@ -88,12 +111,12 @@ describe("/api/spend-insights/[id]", () => {
     assert.equal(res.status, 404)
   })
 
-  test("updates state on valid lifecycle action", async () => {
+  test("updates state on valid owner action", async () => {
     const res = await PATCH(
       new Request("http://localhost/api/spend-insights/finding-1", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "resolve" }),
+        body: JSON.stringify({ action: "cancel", note: "Duplicate subscription" }),
       }),
       { params: Promise.resolve({ id: "finding-1" }) },
     )
@@ -101,15 +124,22 @@ describe("/api/spend-insights/[id]", () => {
     assert.equal(res.status, 200)
     const body = await res.json()
     assert.equal(body.finding.state, "resolved")
+    assert.equal(body.finding.reviewAction, "cancel")
   })
 
   test("rejects invalid transition", async () => {
-    finding = { id: "finding-1", state: "resolved", summary: "Done" }
+    finding = {
+      id: "finding-1",
+      state: "resolved",
+      summary: "Done",
+      reviewAction: "cancel",
+      reviewNote: null,
+    }
     const res = await PATCH(
       new Request("http://localhost/api/spend-insights/finding-1", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dismiss" }),
+        body: JSON.stringify({ action: "cancel" }),
       }),
       { params: Promise.resolve({ id: "finding-1" }) },
     )
