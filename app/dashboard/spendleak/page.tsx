@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
@@ -13,6 +14,7 @@ import {
 import { SpendLeakModuleGrid } from "@/components/dashboard/spendleak/SpendLeakModuleGrid"
 import { SpendLeakFindingsTable } from "@/components/dashboard/spendleak/SpendLeakFindingsTable"
 import { SpendLeakStatusBanner } from "@/components/dashboard/spendleak/SpendLeakStatusBanner"
+import { SpendLeakExportButton } from "@/components/dashboard/spendleak/SpendLeakExportButton"
 
 const MODULE_IDS: ReadonlySet<SpendLeakModuleId> = new Set([
   "recurring_spend",
@@ -55,6 +57,7 @@ export default async function SpendLeakDashboardPage({
 
   const [{ module }, data] = await Promise.all([searchParams, loadSpendLeakDashboard(user.id)])
   const selectedModule = parseModuleFilter(module)
+  const canExportSpendLeakReport = hasPlanFeature(profile?.subscriptionTier, "csv_export")
   const showEmptyState = data.status.state === "empty"
   const reviewedFindings = data.findings.filter((finding) => Boolean(finding.reviewAction))
   const reviewOutcomeSummary = reviewedFindings.reduce<Record<string, number>>((summary, finding) => {
@@ -76,9 +79,12 @@ export default async function SpendLeakDashboardPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">SpendLeak</h1>
-        <p className="mt-1 text-sm text-gray-600">Spend-side risks and savings opportunities from your connected accounting data.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">SpendLeak</h1>
+          <p className="mt-1 text-sm text-gray-600">Spend-side risks and savings opportunities from your connected accounting data.</p>
+        </div>
+        {canExportSpendLeakReport ? <SpendLeakExportButton selectedModule={selectedModule} /> : null}
       </div>
 
       {data.status.state !== "ready" && <SpendLeakStatusBanner status={data.status} />}
