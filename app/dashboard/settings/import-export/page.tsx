@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import type { ReactElement } from "react"
 
 import { ImportExportSettingsView } from "@/components/settings/ImportExportSettingsView"
 import { withUserContext } from "@/lib/db/withUserContext"
@@ -77,7 +78,7 @@ async function loadExportCustomers(userId: string): Promise<ExportCustomer[]> {
     .sort((left, right) => left.label.localeCompare(right.label))
 }
 
-export default async function ImportExportSettingsPage(): Promise<JSX.Element> {
+export default async function ImportExportSettingsPage(): Promise<ReactElement> {
   const {
     data: { user },
   } = await getAuthenticatedUser()

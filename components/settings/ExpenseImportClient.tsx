@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import type { ReactElement } from "react"
 
 import { Spinner } from "@/components/ui/Spinner"
 import { SPEND_IMPORT_CANONICAL_FIELDS } from "@/lib/spendImport/template"
@@ -46,7 +47,7 @@ function humanizeField(field: string): string {
   return field.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-function StatusBadge({ status }: { status: string }): JSX.Element {
+function StatusBadge({ status }: { status: string }): ReactElement {
   const cls = STATUS_BADGES[status] ?? "bg-gray-100 text-gray-600"
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${cls}`}>
@@ -55,7 +56,7 @@ function StatusBadge({ status }: { status: string }): JSX.Element {
   )
 }
 
-function SummaryTile({ label, value, tone }: { label: string; value: number; tone?: string }): JSX.Element {
+function SummaryTile({ label, value, tone }: { label: string; value: number; tone?: string }): ReactElement {
   return (
     <div className="border border-gray-200 rounded-lg p-3">
       <p className="text-xs text-gray-500">{label}</p>
@@ -64,7 +65,7 @@ function SummaryTile({ label, value, tone }: { label: string; value: number; ton
   )
 }
 
-export function ExpenseImportClient(): JSX.Element {
+export function ExpenseImportClient(): ReactElement {
   const router = useRouter()
   const [step, setStep] = useState<WizardStep>("idle")
   const [uploading, setUploading] = useState(false)
@@ -250,7 +251,7 @@ function UploadStep({
   uploading: boolean
   error: string | null
   onFileSelected: (file: File) => void
-}): JSX.Element {
+}): ReactElement {
   return (
     <div className="space-y-4">
       <div className="border border-gray-200 rounded-lg p-4 space-y-3">
@@ -304,7 +305,7 @@ function MappingStep({
   saving: boolean
   onCancel: () => void
   onContinue: () => void
-}): JSX.Element {
+}): ReactElement {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -390,7 +391,7 @@ function ValidationStep({
   committing: boolean
   onBack: () => void
   onCommit: () => void
-}): JSX.Element {
+}): ReactElement {
   const canCommit = validation.rowsFailed === 0 && validation.rowsTotal > 0
 
   return (
@@ -471,7 +472,7 @@ function ConfirmationStep({
 }: {
   result: CommitSummary
   onStartAnother: () => void
-}): JSX.Element {
+}): ReactElement {
   return (
     <div className="space-y-4 border border-green-200 bg-green-50 rounded-lg p-4">
       <div>

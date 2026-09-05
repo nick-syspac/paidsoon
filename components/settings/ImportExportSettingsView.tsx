@@ -1,6 +1,7 @@
 import { InvoiceExportClient } from "@/components/settings/InvoiceExportClient"
 import { InvoiceImportClient } from "@/components/settings/InvoiceImportClient"
 import { ExpenseImportClient } from "@/components/settings/ExpenseImportClient"
+import type { ReactElement } from "react"
 
 type InvoiceImportBatchSummary = {
   id: string
@@ -30,7 +31,7 @@ export function ImportExportSettingsView({
   initialBatches,
   canExport,
   exportCustomers,
-}: ImportExportSettingsViewProps): JSX.Element {
+}: ImportExportSettingsViewProps): ReactElement {
   return (
     <div className="space-y-8">
       <section id="invoice-import" className="scroll-mt-24 space-y-3">
