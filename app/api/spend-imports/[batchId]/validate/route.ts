@@ -81,8 +81,8 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       await tx.spendImportStagingRow.update({
         where: { id: stagingRow.id },
         data: {
-          normalized: values,
-          validationErrors: issues.length > 0 ? issues : Prisma.JsonNull,
+          normalized: values as Prisma.InputJsonValue,
+          validationErrors: issues.length > 0 ? (issues as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
           status,
         },
       })
