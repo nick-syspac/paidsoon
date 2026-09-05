@@ -54,6 +54,8 @@ export interface SpendLeakEvidenceView {
   rawEvidence: SpendLeakEvidenceField[]
 }
 
+export type SpendLeakEvidenceSource = "expense_import" | "xero" | "myob" | "unknown"
+
 const MODULE_METADATA: Record<SpendLeakModuleId, { title: string; description: string }> = {
   recurring_spend: {
     title: "Recurring spend",
@@ -180,6 +182,33 @@ function toEvidenceObject(value: unknown): Record<string, unknown> {
   return { value }
 }
 
+export function getSpendLeakEvidenceSource(finding: Pick<SpendInsight, "evidence">): SpendLeakEvidenceSource {
+  const evidence = toEvidenceObject(finding.evidence)
+  const rawSource = evidence.source
+  if (typeof rawSource !== "string") return "unknown"
+  const normalized = rawSource.trim().toLowerCase()
+  if (normalized === "expense_import") return "expense_import"
+  if (normalized === "xero") return "xero"
+  if (normalized === "myob") return "myob"
+  return "unknown"
+}
+
+export function formatSpendLeakEvidenceSource(source: SpendLeakEvidenceSource): string {
+  if (source === "expense_import") return "Expense import"
+  if (source === "xero") return "Xero sync"
+  if (source === "myob") return "MYOB sync"
+  return "Unspecified source"
+}
+
+export function formatSpendLeakReviewAction(action: string | null | undefined): string {
+  if (!action) return "Not reviewed"
+  if (action === "keep") return "Keep"
+  if (action === "cancel") return "Cancel"
+  if (action === "renegotiate") return "Renegotiate"
+  if (action === "ignore") return "Ignore"
+  return action
+}
+
 function buildRawEvidenceFields(evidence: unknown): SpendLeakEvidenceField[] {
   const objectEvidence = toEvidenceObject(evidence)
   const entries = Object.entries(objectEvidence)
@@ -262,15 +291,29 @@ export function buildSpendLeakDashboardStatus({
   }
 }
 
-export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingType" | "subjectKey" | "summary" | "evidence" | "detectedAt" | "createdAt" | "updatedAt" | "estimatedMonthlyCents" | "estimatedAnnualCents">): SpendLeakEvidenceView {
+export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingType" | "subjectKey" | "summary" | "evidence" | "detectedAt" | "createdAt" | "updatedAt" | "estimatedMonthlyCents" | "estimatedAnnualCents" | "reviewAction" | "reviewActionAt" | "reviewNote">): SpendLeakEvidenceView {
   const evidence = toEvidenceObject(finding.evidence)
+  const source = getSpendLeakEvidenceSource(finding)
   const sourceSummary: SpendLeakEvidenceField[] = [
     { label: "Finding type", value: findingTypeLabel(finding.findingType) },
+    { label: "Evidence source", value: formatSpendLeakEvidenceSource(source) },
     { label: "Subject", value: finding.subjectKey || "Not available" },
     { label: "Detected", value: formatDateLabel(finding.detectedAt) },
     { label: "Created", value: formatDateLabel(finding.createdAt) },
     { label: "Updated", value: formatDateLabel(finding.updatedAt) },
   ]
+
+  if (finding.reviewAction) {
+    sourceSummary.push({ label: "Review outcome", value: formatSpendLeakReviewAction(finding.reviewAction) })
+  }
+
+  if (finding.reviewActionAt) {
+    sourceSummary.push({ label: "Reviewed", value: formatDateLabel(finding.reviewActionAt) })
+  }
+
+  if (finding.reviewNote) {
+    sourceSummary.push({ label: "Decision note", value: finding.reviewNote })
+  }
 
   if (finding.estimatedMonthlyCents !== null && finding.estimatedMonthlyCents !== undefined) {
     sourceSummary.push({ label: "Estimated monthly impact", value: formatAudCurrency(finding.estimatedMonthlyCents) })

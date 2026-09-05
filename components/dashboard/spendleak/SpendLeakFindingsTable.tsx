@@ -1,6 +1,12 @@
 import Link from "next/link"
 import type { SpendInsight } from "@/lib/generated/prisma/client"
-import { moduleFromFindingType, type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
+import {
+  formatSpendLeakEvidenceSource,
+  formatSpendLeakReviewAction,
+  getSpendLeakEvidenceSource,
+  moduleFromFindingType,
+  type SpendLeakModuleId,
+} from "@/lib/dashboard/spendleakPresentation"
 
 interface SpendLeakFindingsTableProps {
   findings: SpendInsight[]
@@ -29,6 +35,8 @@ export function SpendLeakFindingsTable({ findings, selectedModule }: SpendLeakFi
             <th className="px-4 py-2 text-left font-medium text-gray-600">Summary</th>
             <th className="px-4 py-2 text-left font-medium text-gray-600">Severity</th>
             <th className="px-4 py-2 text-left font-medium text-gray-600">State</th>
+            <th className="px-4 py-2 text-left font-medium text-gray-600">Review outcome</th>
+            <th className="px-4 py-2 text-left font-medium text-gray-600">Source</th>
             <th className="px-4 py-2 text-left font-medium text-gray-600">Detected</th>
           </tr>
         </thead>
@@ -43,6 +51,10 @@ export function SpendLeakFindingsTable({ findings, selectedModule }: SpendLeakFi
               </td>
               <td className="whitespace-nowrap px-4 py-2 text-gray-700">{finding.severity}</td>
               <td className="whitespace-nowrap px-4 py-2 text-gray-700">{finding.state}</td>
+              <td className="whitespace-nowrap px-4 py-2 text-gray-700">{formatSpendLeakReviewAction(finding.reviewAction)}</td>
+              <td className="whitespace-nowrap px-4 py-2 text-gray-700">
+                {formatSpendLeakEvidenceSource(getSpendLeakEvidenceSource(finding))}
+              </td>
               <td className="whitespace-nowrap px-4 py-2 text-gray-700">
                 {finding.detectedAt.toLocaleDateString("en-AU")}
               </td>

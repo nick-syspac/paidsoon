@@ -23,7 +23,7 @@ import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperationsSummary"
 import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
-import { formatAudCents, type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
+import { formatAudCents, getSpendLeakEvidenceSource, type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
 import {
   createServerTraceContext,
   traceEvent,
@@ -104,6 +104,17 @@ export default async function DashboardOverviewPage({
   const topSpendLeakModule = spendLeakData?.modules
     .filter((module) => module.findingCount > 0)
     .sort((left, right) => right.estimatedAnnualCents - left.estimatedAnnualCents)[0]
+  const spendLeakSourceBreakdown = (spendLeakData?.findings ?? []).reduce(
+    (summary, finding) => {
+      if (getSpendLeakEvidenceSource(finding) === "expense_import") {
+        summary.expenseImportFindings += 1
+      } else {
+        summary.providerSyncFindings += 1
+      }
+      return summary
+    },
+    { providerSyncFindings: 0, expenseImportFindings: 0 },
+  )
   const financialSummary = buildFinancialOperationsSummary({
     activeInvoiceCount: activeInvoices.length,
     spendFindingCount: spendLeakData?.findings.length ?? 0,
@@ -139,6 +150,7 @@ export default async function DashboardOverviewPage({
       topModuleTitle: topSpendLeakModule?.title ?? null,
       topModuleFindingCount: topSpendLeakModule?.findingCount ?? 0,
       topModuleAnnualCents: topSpendLeakModule?.estimatedAnnualCents ?? 0,
+      sourceBreakdown: spendLeakSourceBreakdown,
     },
     now,
   })

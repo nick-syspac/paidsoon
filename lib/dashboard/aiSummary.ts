@@ -17,6 +17,10 @@ export interface AiSpendLeakSummaryInput {
   topModuleTitle: string | null
   topModuleFindingCount: number
   topModuleAnnualCents: number
+  sourceBreakdown?: {
+    providerSyncFindings: number
+    expenseImportFindings: number
+  }
 }
 
 /**
@@ -141,12 +145,16 @@ export function buildAiSummary(input: {
         text: `${spendLeak.statusTitle}: no spend findings are currently flagged.`,
       })
     } else if (spendLeak.topModuleTitle) {
+      const sourceBreakdownText = spendLeak.sourceBreakdown
+        ? ` Evidence sources: ${spendLeak.sourceBreakdown.providerSyncFindings} provider-synced and ${spendLeak.sourceBreakdown.expenseImportFindings} import-sourced findings.`
+        : ""
+
       lines.push({
         id: "spendleak_top_module",
         text:
           spendLeak.topModuleAnnualCents > 0
-            ? `SpendLeak flagged ${spendLeak.findingCount} finding${spendLeak.findingCount === 1 ? "" : "s"}; strongest signal is ${spendLeak.topModuleTitle} (${spendLeak.topModuleFindingCount}) with up to ${formatAudCents(spendLeak.topModuleAnnualCents)} annual impact.`
-            : `SpendLeak flagged ${spendLeak.findingCount} finding${spendLeak.findingCount === 1 ? "" : "s"}; strongest signal is ${spendLeak.topModuleTitle} (${spendLeak.topModuleFindingCount}).`,
+            ? `SpendLeak flagged ${spendLeak.findingCount} finding${spendLeak.findingCount === 1 ? "" : "s"}; strongest signal is ${spendLeak.topModuleTitle} (${spendLeak.topModuleFindingCount}) with up to ${formatAudCents(spendLeak.topModuleAnnualCents)} annual impact.${sourceBreakdownText}`
+            : `SpendLeak flagged ${spendLeak.findingCount} finding${spendLeak.findingCount === 1 ? "" : "s"}; strongest signal is ${spendLeak.topModuleTitle} (${spendLeak.topModuleFindingCount}).${sourceBreakdownText}`,
       })
     }
   }

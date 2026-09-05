@@ -5,6 +5,7 @@ let mockUser: { id: string } | null = { id: "user-1" }
 
 interface MockFinding {
   id: string
+  userId: string
   state: string
   summary: string
   reviewAction: string | null
@@ -13,6 +14,7 @@ interface MockFinding {
 
 let finding: MockFinding | null = {
   id: "finding-1",
+  userId: "user-1",
   state: "open",
   summary: "Duplicate spend candidate",
   reviewAction: null,
@@ -39,8 +41,9 @@ describe("/api/spend-insights/[id]", () => {
         withUserContext: async (_userId: string, fn: (tx: unknown) => unknown) => {
           const tx = {
             spendInsight: {
-              findFirst: async () => {
+              findFirst: async ({ where }: { where: { id: string; userId: string } }) => {
                 if (!finding) return null
+                if (where.id !== finding.id || where.userId !== finding.userId) return null
                 return {
                   id: finding.id,
                   findingType: "duplicate_payment",
@@ -88,6 +91,7 @@ describe("/api/spend-insights/[id]", () => {
     mockUser = { id: "user-1" }
     finding = {
       id: "finding-1",
+      userId: "user-1",
       state: "open",
       summary: "Duplicate spend candidate",
       reviewAction: null,
@@ -130,6 +134,7 @@ describe("/api/spend-insights/[id]", () => {
   test("rejects invalid transition", async () => {
     finding = {
       id: "finding-1",
+      userId: "user-1",
       state: "resolved",
       summary: "Done",
       reviewAction: "cancel",
@@ -145,5 +150,46 @@ describe("/api/spend-insights/[id]", () => {
     )
 
     assert.equal(res.status, 422)
+  })
+
+  test("reopen clears persisted review metadata", async () => {
+    finding = {
+      id: "finding-1",
+      userId: "user-1",
+      state: "dismissed",
+      summary: "Already reviewed",
+      reviewAction: "keep",
+      reviewNote: "Known fixed spend",
+    }
+
+    const res = await PATCH(
+      new Request("http://localhost/api/spend-insights/finding-1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reopen" }),
+      }),
+      { params: Promise.resolve({ id: "finding-1" }) },
+    )
+
+    assert.equal(res.status, 200)
+    const body = await res.json()
+    assert.equal(body.finding.state, "open")
+    assert.equal(body.finding.reviewAction, null)
+    assert.equal(body.finding.reviewNote, null)
+  })
+
+  test("denies cross-tenant decision update", async () => {
+    mockUser = { id: "user-2" }
+
+    const res = await PATCH(
+      new Request("http://localhost/api/spend-insights/finding-1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel" }),
+      }),
+      { params: Promise.resolve({ id: "finding-1" }) },
+    )
+
+    assert.equal(res.status, 404)
   })
 })

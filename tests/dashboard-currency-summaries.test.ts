@@ -113,6 +113,10 @@ test("buildCurrencyDashboardSummaries keeps mixed-currency totals separate", () 
       topModuleTitle: "Recurring spend",
       topModuleFindingCount: 2,
       topModuleAnnualCents: 120000,
+      sourceBreakdown: {
+        providerSyncFindings: 2,
+        expenseImportFindings: 1,
+      },
     },
     now: new Date("2026-08-06T00:00:00Z"),
   })
@@ -130,6 +134,7 @@ test("buildCurrencyDashboardSummaries keeps mixed-currency totals separate", () 
   assert.equal(usd.cashWaitingSummary.outstanding, 5000)
   assert.equal(usd.biggestDebtors[0]?.amountOwed, 5000)
   assert.match(aud.aiSummaryLines.map((line) => line.text).join(" "), /SpendLeak flagged 3 findings/)
+  assert.match(aud.aiSummaryLines.map((line) => line.text).join(" "), /Evidence sources: 2 provider-synced and 1 import-sourced findings/)
   assert.doesNotMatch(usd.aiSummaryLines.map((line) => line.text).join(" "), /SpendLeak flagged 3 findings/)
   assert.match(usd.aiSummaryLines[1]?.text ?? "", /worth \$50\./)
 })

@@ -711,7 +711,13 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       currentCashCents: latestCashSnapshot?.currentCashCents,
       openReceivablesCents: openReceivables._sum.amountDueCents ?? 0,
       now: syncStartedAt,
-    })
+    }).map((finding) => ({
+      ...finding,
+      evidence: {
+        ...finding.evidence,
+        source: connection.provider,
+      },
+    }))
 
     try {
       await upsertSpendFindings({

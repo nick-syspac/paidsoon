@@ -98,8 +98,12 @@ describe("SpendLeak presentation", () => {
       makeInsight({
         id: "4",
         findingType: "duplicate_payment",
+        reviewAction: "cancel",
+        reviewActionAt: new Date("2026-09-03T00:00:00.000Z"),
+        reviewNote: "Duplicate confirmed",
         evidence: {
           supplier: "metro saas systems",
+          source: "expense_import",
           billIds: ["coast-bill-metro-jan", "coast-bill-metro-feb"],
           dayDifference: 30,
           amountCents: 420000,
@@ -114,6 +118,8 @@ describe("SpendLeak presentation", () => {
     assert.ok(duplicateSection)
     assert.equal(duplicateSection?.fields.find((field) => field.label === "Bill references")?.value, "coast-bill-metro-jan · coast-bill-metro-feb")
     assert.equal(duplicateSection?.fields.find((field) => field.label === "Amount")?.value, "$4,200")
+    assert.equal(view.sourceSummary.find((field) => field.label === "Evidence source")?.value, "Expense import")
+    assert.equal(view.sourceSummary.find((field) => field.label === "Review outcome")?.value, "Cancel")
     assert.equal(view.sourceSummary.find((field) => field.label === "Estimated annual impact")?.value, "$50,400")
   })
 })

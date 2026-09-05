@@ -79,9 +79,14 @@ describe("SpendLeak finding detail page", () => {
                   severity: "high",
                   summary: "Possible duplicate",
                   state: "open",
+                  reviewAction: "cancel",
+                  reviewActionAt: new Date("2026-09-02T00:00:00.000Z"),
+                  reviewActionBy: "user-1",
+                  reviewNote: "Cancelled duplicate service",
                   estimatedMonthlyCents: 420000,
                   estimatedAnnualCents: 5040000,
                   evidence: {
+                    source: "expense_import",
                     supplier: "metro saas systems",
                     billIds: ["coast-bill-metro-jan", "coast-bill-metro-feb"],
                     dayDifference: 30,
@@ -158,11 +163,14 @@ describe("SpendLeak finding detail page", () => {
     assert.ok(evidenceDetails)
     assert.equal(evidenceProps?.finding?.findingType, "duplicate_payment")
     assert.deepEqual(evidenceProps?.finding?.evidence, {
+      source: "expense_import",
       supplier: "metro saas systems",
       billIds: ["coast-bill-metro-jan", "coast-bill-metro-feb"],
       dayDifference: 30,
       amountCents: 420000,
     })
+    assert.match(collectText(element), /Decision:\s*cancel/)
+    assert.match(collectText(element), /Cancelled duplicate service/)
   })
 
   test("does not reveal another tenant's finding", async () => {

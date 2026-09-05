@@ -9,6 +9,21 @@ let moduleGridModulesLength = 0
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let SpendLeakDashboardPage: any
 
+function collectText(node: unknown): string {
+  if (typeof node === "string") return node
+  if (!node || typeof node !== "object") return ""
+
+  const element = node as { props?: { children?: unknown } }
+  const children = element.props?.children
+  if (Array.isArray(children)) {
+    return children.map((child) => collectText(child)).join(" ")
+  }
+  if (children !== undefined) {
+    return collectText(children)
+  }
+  return ""
+}
+
 describe("SpendLeak dashboard page", () => {
   before(async () => {
     await mock.module("next/navigation", {
@@ -45,9 +60,13 @@ describe("SpendLeak dashboard page", () => {
               severity: "high",
               summary: "Possible duplicate",
               state: "open",
+              reviewAction: "cancel",
+              reviewActionAt: new Date("2026-09-01T12:00:00.000Z"),
+              reviewActionBy: "user-1",
+              reviewNote: "Cancelled duplicate subscription",
               estimatedMonthlyCents: null,
               estimatedAnnualCents: 30000,
-              evidence: {},
+              evidence: { source: "expense_import" },
               detectedAt: new Date("2026-09-01T00:00:00.000Z"),
               resolvedAt: null,
               createdAt: new Date("2026-09-01T00:00:00.000Z"),
@@ -121,5 +140,8 @@ describe("SpendLeak dashboard page", () => {
     const element = await SpendLeakDashboardPage({ searchParams: Promise.resolve({}) })
     assert.ok(element)
     assert.equal(redirectedTo, null)
+    const text = collectText(element)
+    assert.match(text, /1 Expense import/)
+    assert.match(text, /1 Cancel/)
   })
 })
