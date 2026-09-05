@@ -49,8 +49,9 @@ below maps logical areas to code modules (there are no Django apps).
 | Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` |
 | SpendLeak brain | `lib/spendleak/**`, `lib/dashboard/loadSpendLeakDashboard.ts`, `app/api/spend-insights/[id]/route.ts`, `prisma/schema.prisma` | Read-only spend ingestion, deterministic detection, grounded summaries | `ImportedBill`, `ImportedBankTransaction`, `SupplierProfile`, `SpendInsight` | `changes/build-spendleak-brain` |
-| Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV-only invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/csv-only-invoice-import` |
-| Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export` |
+| Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV-only invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/csv-only-invoice-import`, `changes/combine-settings-import-export` |
+| Settings import/export shell | `app/dashboard/settings/layout.tsx`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `app/dashboard/settings/export/**`, `components/settings/ExpenseImportClient.tsx` | Combined Settings page for invoice import, expense import, and invoice export, with legacy route aliases | Reuses existing import/export models and SpendLeak import workflow | `changes/combine-settings-import-export` |
+| Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export`, `changes/combine-settings-import-export` |
 | Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
 
 ## 4. Backend Application Design
@@ -886,8 +887,9 @@ The factory function `getAccountingProvider(providerName)` from `lib/providers/a
   bucket/overview card, explicit statuses, customer, accounting source, and an
   inclusive `due_date`/`created_date` range. Entry points: the `/dashboard/invoices`
   toolbar (`components/dashboard/InvoiceExportButton.tsx`, quick export using the
-  page's current filter) and the Settings "Invoice exports" tab
-  (`app/dashboard/settings/export/page.tsx`, `components/settings/InvoiceExportClient.tsx`,
+  page's current filter) and the Settings "Import / Export" tab
+  (`app/dashboard/settings/import-export/page.tsx`, legacy aliases at
+  `app/dashboard/settings/export/page.tsx`, `components/settings/InvoiceExportClient.tsx`,
   advanced filters). Shared services: `lib/invoices/exportQuery.ts`
   (`loadInvoicesForExport` — tenant-scoped via `withUserContext`) and
   `lib/invoices/export.ts` (`generateExportCsv`/`generateExportXlsx`). A
