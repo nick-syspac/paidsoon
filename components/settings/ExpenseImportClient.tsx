@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import type { ReactElement } from "react"
@@ -253,9 +254,25 @@ function UploadStep({
   onFileSelected: (file: File) => void
 }): ReactElement {
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 md:grid-cols-2">
       <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-        <p className="text-sm font-medium text-gray-900">1. Upload your file</p>
+        <p className="text-sm font-medium text-gray-900">1. Download a template</p>
+        <p className="text-sm text-gray-500">
+          Start from our template so your columns match up automatically. Sample rows use
+          fictional data &mdash; delete them before adding your own.
+        </p>
+        <div className="flex gap-2">
+          <Link
+            href="/api/spend-imports/template?format=csv"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+          >
+            Download CSV template
+          </Link>
+        </div>
+      </div>
+
+      <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+        <p className="text-sm font-medium text-gray-900">2. Upload your file</p>
         <p className="text-sm text-gray-500">CSV or XLSX only, up to 5MB.</p>
         <input
           type="file"
