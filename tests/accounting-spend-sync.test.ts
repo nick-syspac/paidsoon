@@ -133,9 +133,17 @@ describe("accounting spend sync orchestration", () => {
             },
           },
           spendInsight: {
-            upsert: async (args: { where: { userId_findingType_subjectKey: { userId: string; findingType: string; subjectKey: string } } }) => {
-              const key = args.where.userId_findingType_subjectKey
+            findUnique: async () => null,
+            create: async (args: { data: { userId: string; findingType: string; subjectKey: string } }) => {
+              const key = args.data
               upsertFindingKeys.add(`${key.userId}:${key.findingType}:${key.subjectKey}`)
+              return null
+            },
+            update: async (args: { where: { id: string }; data: { userId?: string; findingType?: string; subjectKey?: string } }) => {
+              const key = args.data
+              if (key.userId && key.findingType && key.subjectKey) {
+                upsertFindingKeys.add(`${key.userId}:${key.findingType}:${key.subjectKey}`)
+              }
               return null
             },
           },
