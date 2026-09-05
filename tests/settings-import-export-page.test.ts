@@ -26,6 +26,24 @@ const initialBatches = [
   },
 ]
 
+const initialSpendBatches = [
+  {
+    id: "spend-batch-1",
+    fileName: "expenses.csv",
+    fileType: "csv",
+    status: "completed",
+    duplicateMode: "skip_existing",
+    rowsTotal: 1,
+    rowsValid: 1,
+    rowsWarning: 0,
+    rowsFailed: 0,
+    rowsSkipped: 0,
+    createdAt: "2026-09-01T00:00:00.000Z",
+    validatedAt: "2026-09-01T00:05:00.000Z",
+    completedAt: "2026-09-01T00:10:00.000Z",
+  },
+]
+
 const exportCustomers = [{ id: "customer-1", label: "Acme Pty Ltd" }]
 
 describe("combined settings import/export surface", () => {
@@ -36,7 +54,12 @@ describe("combined settings import/export surface", () => {
   })
 
   test("renders invoice import, expense import, and export sections on one page", () => {
-    const element = ImportExportSettingsView({ initialBatches, canExport: true, exportCustomers })
+    const element = ImportExportSettingsView({
+      initialBatches,
+      initialSpendBatches,
+      canExport: true,
+      exportCustomers,
+    })
     assert.equal(element.props.className, "space-y-8")
 
     const children = Array.isArray(element.props.children) ? element.props.children : [element.props.children]
@@ -51,7 +74,12 @@ describe("combined settings import/export surface", () => {
   })
 
   test("locks export section when the user lacks csv export entitlement", () => {
-    const element = ImportExportSettingsView({ initialBatches, canExport: false, exportCustomers: [] })
+    const element = ImportExportSettingsView({
+      initialBatches,
+      initialSpendBatches,
+      canExport: false,
+      exportCustomers: [],
+    })
     const children = Array.isArray(element.props.children) ? element.props.children : [element.props.children]
     const exportSection = children.find((child: { props?: { id?: string } }) => child?.props?.id === "invoice-export")
     assert.ok(exportSection)

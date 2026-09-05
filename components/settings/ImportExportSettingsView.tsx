@@ -19,16 +19,34 @@ type InvoiceImportBatchSummary = {
   completedAt: string | null
 }
 
+type SpendImportBatchSummary = {
+  id: string
+  fileName: string
+  fileType: string
+  status: string
+  duplicateMode: string
+  rowsTotal: number
+  rowsValid: number
+  rowsWarning: number
+  rowsFailed: number
+  rowsSkipped: number
+  createdAt: string
+  validatedAt: string | null
+  completedAt: string | null
+}
+
 type ExportCustomer = { id: string; label: string }
 
 interface ImportExportSettingsViewProps {
   initialBatches: InvoiceImportBatchSummary[]
+  initialSpendBatches: SpendImportBatchSummary[]
   canExport: boolean
   exportCustomers: ExportCustomer[]
 }
 
 export function ImportExportSettingsView({
   initialBatches,
+  initialSpendBatches,
   canExport,
   exportCustomers,
 }: ImportExportSettingsViewProps): ReactElement {
@@ -39,7 +57,7 @@ export function ImportExportSettingsView({
       </section>
 
       <section id="expense-import" className="scroll-mt-24 space-y-3">
-        <ExpenseImportClient />
+        <ExpenseImportClient initialBatches={initialSpendBatches} />
       </section>
 
       <section id="invoice-export" className="scroll-mt-24 space-y-3">

@@ -26,6 +26,22 @@ type ValidationSummary = {
   previewRows: PreviewRow[]
 }
 
+type ImportBatchSummary = {
+  id: string
+  fileName: string
+  fileType: string
+  status: string
+  duplicateMode: string
+  rowsTotal: number
+  rowsValid: number
+  rowsWarning: number
+  rowsFailed: number
+  rowsSkipped: number
+  createdAt: string
+  validatedAt: string | null
+  completedAt: string | null
+}
+
 type CommitSummary = { recordsUpserted: number; findingsUpserted: number; recordsSkipped: number }
 
 type DuplicateMode = "skip_existing" | "update_existing"
@@ -66,8 +82,9 @@ function SummaryTile({ label, value, tone }: { label: string; value: number; ton
   )
 }
 
-export function ExpenseImportClient(): ReactElement {
+export function ExpenseImportClient({ initialBatches }: { initialBatches: ImportBatchSummary[] }): ReactElement {
   const router = useRouter()
+  const [batches, setBatches] = useState(initialBatches)
   const [step, setStep] = useState<WizardStep>("idle")
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -81,6 +98,14 @@ export function ExpenseImportClient(): ReactElement {
   const [validation, setValidation] = useState<ValidationSummary | null>(null)
   const [committing, setCommitting] = useState(false)
   const [commitResult, setCommitResult] = useState<CommitSummary | null>(null)
+
+  async function refreshHistory(): Promise<void> {
+    const res = await fetch("/api/spend-imports")
+    if (res.ok) {
+      const data: { batches: ImportBatchSummary[] } = await res.json()
+      setBatches(data.batches)
+    }
+  }
 
   function resetWizard(): void {
     setStep("idle")
@@ -196,6 +221,7 @@ export function ExpenseImportClient(): ReactElement {
         recordsSkipped: data.recordsSkipped,
       })
       setStep("confirmed")
+      await refreshHistory()
       router.refresh()
     } finally {
       setCommitting(false)
@@ -240,6 +266,8 @@ export function ExpenseImportClient(): ReactElement {
       )}
 
       {step === "confirmed" && commitResult && <ConfirmationStep result={commitResult} onStartAnother={resetWizard} />}
+
+      <ImportHistory batches={batches} onRefresh={refreshHistory} />
     </div>
   )
 }
@@ -505,6 +533,48 @@ function ConfirmationStep({
       >
         Start another import
       </button>
+    </div>
+  )
+}
+
+function ImportHistory({
+  batches,
+  onRefresh,
+}: {
+  batches: ImportBatchSummary[]
+  onRefresh: () => void
+}): ReactElement {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-gray-900">Import history</p>
+        <button onClick={onRefresh} className="text-xs text-gray-500 hover:text-gray-700">
+          Refresh
+        </button>
+      </div>
+
+      {batches.length === 0 ? (
+        <p className="text-sm text-gray-400">No imports yet.</p>
+      ) : (
+        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+          {batches.map((batch) => (
+            <div key={batch.id} className="flex items-center justify-between px-4 py-3 gap-4">
+              <div className="min-w-0">
+                <p className="text-sm text-gray-900 truncate">{batch.fileName}</p>
+                <p className="text-xs text-gray-500">
+                  {new Date(batch.createdAt).toLocaleString()} · {batch.rowsTotal} row
+                  {batch.rowsTotal === 1 ? "" : "s"}
+                  {batch.status === "completed" &&
+                    ` · ${batch.rowsValid + batch.rowsWarning} imported, ${batch.rowsSkipped} skipped`}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <StatusBadge status={batch.status} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

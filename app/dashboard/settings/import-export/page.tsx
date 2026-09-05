@@ -22,6 +22,22 @@ type InvoiceImportBatchSummary = {
   completedAt: string | null
 }
 
+type SpendImportBatchSummary = {
+  id: string
+  fileName: string
+  fileType: string
+  status: string
+  duplicateMode: string
+  rowsTotal: number
+  rowsValid: number
+  rowsWarning: number
+  rowsFailed: number
+  rowsSkipped: number
+  createdAt: string
+  validatedAt: string | null
+  completedAt: string | null
+}
+
 type ExportCustomer = { id: string; label: string }
 
 type AuthenticatedUser = {
@@ -31,6 +47,37 @@ type AuthenticatedUser = {
 async function loadInvoiceImportBatches(userId: string): Promise<InvoiceImportBatchSummary[]> {
   const batches = await withUserContext(userId, (tx) =>
     tx.invoiceImportBatch.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        fileName: true,
+        fileType: true,
+        status: true,
+        duplicateMode: true,
+        rowsTotal: true,
+        rowsValid: true,
+        rowsWarning: true,
+        rowsFailed: true,
+        rowsSkipped: true,
+        createdAt: true,
+        validatedAt: true,
+        completedAt: true,
+      },
+    }),
+  )
+
+  return batches.map((batch) => ({
+    ...batch,
+    createdAt: batch.createdAt.toISOString(),
+    validatedAt: batch.validatedAt?.toISOString() ?? null,
+    completedAt: batch.completedAt?.toISOString() ?? null,
+  }))
+}
+
+async function loadSpendImportBatches(userId: string): Promise<SpendImportBatchSummary[]> {
+  const batches = await withUserContext(userId, (tx) =>
+    tx.spendImportBatch.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
       select: {
@@ -85,8 +132,9 @@ export default async function ImportExportSettingsPage(): Promise<ReactElement> 
   if (!user) redirect("/sign-in")
 
   const authenticatedUser = user as AuthenticatedUser
-  const [initialBatches, profile] = await Promise.all([
+  const [initialBatches, initialSpendBatches, profile] = await Promise.all([
     loadInvoiceImportBatches(authenticatedUser.id),
+    loadSpendImportBatches(authenticatedUser.id),
     withUserContext(authenticatedUser.id, (tx) =>
       tx.userProfile.findUnique({
         where: { userId: authenticatedUser.id },
@@ -99,5 +147,12 @@ export default async function ImportExportSettingsPage(): Promise<ReactElement> 
   const canExport = hasPlanFeature(tier, "csv_export")
   const exportCustomers = canExport ? await loadExportCustomers(authenticatedUser.id) : []
 
-  return <ImportExportSettingsView initialBatches={initialBatches} canExport={canExport} exportCustomers={exportCustomers} />
+  return (
+    <ImportExportSettingsView
+      initialBatches={initialBatches}
+      initialSpendBatches={initialSpendBatches}
+      canExport={canExport}
+      exportCustomers={exportCustomers}
+    />
+  )
 }
