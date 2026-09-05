@@ -26,7 +26,6 @@ export default async function SubscriptionCancellationPage() {
   const subscriptionCancelAt = profile?.subscriptionCancelAt ?? null
   const canCancelSubscription =
     (status === "active" || status === "past_due") && Boolean(profile?.stripeSubscriptionId || currentPeriodEnd)
-  const isTrialOnly = status === "trialing" && !profile?.stripeSubscriptionId
 
   const pageState = getSubscriptionCancellationPageState({
     status,

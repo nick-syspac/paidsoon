@@ -149,8 +149,8 @@ describe("accounting spend sync orchestration", () => {
       },
     })
 
-    const module = await import("@/lib/providers/accounting/sync")
-    syncConnection = module.syncConnection
+    const syncModule = await import("@/lib/providers/accounting/sync")
+    syncConnection = syncModule.syncConnection
   })
 
   beforeEach(() => {

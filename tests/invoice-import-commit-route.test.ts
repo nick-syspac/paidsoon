@@ -19,7 +19,6 @@ type MockStagingRow = {
   status: string
 }
 
-type MockTrackedInvoice = { id: string; status: string; amountDue: number; currency: string }
 type MockFinancialInvoice = {
   id: string
   amountDueCents: number

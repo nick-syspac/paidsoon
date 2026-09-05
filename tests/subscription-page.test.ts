@@ -10,7 +10,7 @@ let mockProfile: {
   pendingDowngradeTier: string | null
   stripeSubscriptionId: string | null
 } | null = null
-let redirectedTo: string | null = null
+let _redirectedTo: string | null = null
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let SubscriptionPage: any
@@ -20,7 +20,7 @@ describe("Subscription settings page", () => {
     await mock.module("next/navigation", {
       namedExports: {
         redirect: (url: string) => {
-          redirectedTo = url
+          _redirectedTo = url
           throw new Error("NEXT_REDIRECT")
         },
       },
@@ -65,7 +65,7 @@ describe("Subscription settings page", () => {
       pendingDowngradeTier: null,
       stripeSubscriptionId: "sub_123",
     }
-    redirectedTo = null
+    _redirectedTo = null
   })
 
   test("passes scheduled cancellation data and success copy to SubscriptionClient", async () => {

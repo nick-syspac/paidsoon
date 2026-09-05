@@ -23,7 +23,7 @@ import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperationsSummary"
 import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
-import { formatAudCents, getSpendLeakEvidenceSource, type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
+import { formatAudCents, getSpendLeakEvidenceSource } from "@/lib/dashboard/spendleakPresentation"
 import {
   createServerTraceContext,
   traceEvent,
