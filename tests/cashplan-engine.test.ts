@@ -13,6 +13,7 @@ import {
   buildCashPlanRecommendations,
   buildCashPlanAlert,
   buildCashPlanDigest,
+  buildCashPlanSummaryResponse,
   defaultCashPlanSettings,
   evaluateCashPlanRecalculationTriggers,
 } from "@/lib/cashplan/engine"
@@ -268,5 +269,25 @@ describe("CashPlan forecast engine", () => {
     assert.equal(alert.dedupeKey, "buffer_risk:200000:120000")
     assert.ok(digest.summary.length > 0)
     assert.ok(digest.actions.length > 0)
+  })
+
+  test("builds a summary payload used by the CashPlan API surface", () => {
+    const forecast = buildCashPlanForecast({
+      openingCashCents: 700_000,
+      inflows: [{ id: "receipt-1", kind: "inflow", amountCents: 180_000, weekIndex: 4 }],
+      outflows: [{ id: "tax", kind: "outflow", amountCents: 160_000, weekIndex: 3 }],
+      bufferTargetCents: 200_000,
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const summary = buildCashPlanSummaryResponse({
+      forecast,
+      title: "Base plan",
+    })
+
+    assert.equal(summary.title, "Base plan")
+    assert.ok(summary.overview.confidence >= 0)
+    assert.ok(summary.workspace.weeks.length >= 1)
+    assert.ok(summary.recommendations.length >= 1)
   })
 })

@@ -154,6 +154,15 @@ export interface CashPlanDigest {
   actions: string[]
 }
 
+export interface CashPlanSummaryResponse {
+  title: string
+  overview: CashPlanOverviewSummary
+  workspace: CashPlanPlanWorkspace
+  recommendations: CashPlanRecommendation[]
+  alerts: CashPlanAlert[]
+  digest: CashPlanDigest
+}
+
 export interface CashPlanSourceLineage {
   sourceSystem: string
   sourceId: string
@@ -480,6 +489,80 @@ export function buildCashPlanDigest(input: {
   return {
     summary,
     actions,
+  }
+}
+
+export function buildCashPlanSummaryResponse(input: {
+  forecast: CashPlanForecast
+  title?: string
+  recommendations?: CashPlanRecommendation[]
+  alerts?: CashPlanAlert[]
+  digest?: CashPlanDigest
+}): CashPlanSummaryResponse {
+  const title = input.title ?? "Base plan"
+  const overview = buildCashPlanOverviewSummary({
+    forecast: input.forecast,
+    title,
+  })
+  const workspace = buildCashPlanPlanWorkspace({
+    forecast: input.forecast,
+    title,
+  })
+
+  const baseRecommendations = input.recommendations && input.recommendations.length > 0
+    ? input.recommendations
+    : buildCashPlanRecommendations({ forecast: input.forecast })
+
+  const fallbackRecommendation: CashPlanRecommendation = {
+    id: "monitor-plan",
+    title: "Keep monitoring the lowest cash week",
+    summary: "The plan is stable, but a weekly review is still recommended to catch any late payment shifts early.",
+    priority: "low",
+    estimatedImpactCents: Math.abs(input.forecast.bufferGapCents),
+  }
+
+  const recommendations = baseRecommendations.length > 0 ? baseRecommendations : [fallbackRecommendation]
+
+  const alertSeed: CashPlanAlert[] = input.alerts && input.alerts.length > 0
+    ? input.alerts
+    : (input.forecast.dataQualityIssues.length > 0
+      ? input.forecast.dataQualityIssues.slice(0, 2).map((issue, index) =>
+          buildCashPlanAlert({
+            id: `quality-${index}`,
+            kind: issue.type === "stale_source" ? "stale_source" : "manual_review",
+            title: issue.type === "stale_source" ? "Source refresh needed" : "Cash data needs review",
+            message: issue.message,
+            severity: issue.severity === "high" ? "high" : issue.severity === "medium" ? "medium" : "low",
+            thresholdCents: Math.max(0, issue.weekIndex != null ? issue.weekIndex * 10_000 : 0),
+            currentCents: Math.abs(input.forecast.bufferGapCents),
+          }),
+        )
+      : [
+          buildCashPlanAlert({
+            id: "buffer-watch",
+            kind: "buffer_risk",
+            title: "Review the buffer plan",
+            message: "Monitor the lowest cash week and preserve the target buffer before the next payment cycle.",
+            severity: "medium",
+            thresholdCents: Math.max(0, input.forecast.bufferGapCents),
+            currentCents: Math.abs(input.forecast.bufferGapCents),
+          }),
+        ])
+
+  const alerts = alertSeed.length > 0 ? alertSeed : []
+  const digest = input.digest ?? buildCashPlanDigest({
+    forecast: input.forecast,
+    recommendations,
+    alerts,
+  })
+
+  return {
+    title,
+    overview,
+    workspace,
+    recommendations,
+    alerts,
+    digest,
   }
 }
 
