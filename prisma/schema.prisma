@@ -50,6 +50,12 @@ model UserProfile {
   supplierProfiles             SupplierProfile[]
   spendInsights                SpendInsight[]
   cashForecastSnapshots        CashForecastSnapshot[]
+  costGuardSettings            CostGuardSetting[]
+  costGuardRules               CostGuardRule[]
+  costGuardBaselines           CostGuardBaseline[]
+  costGuardAlerts              CostGuardAlert[]
+  costGuardAlertEvents         CostGuardAlertEvent[]
+  costGuardForecasts           CostGuardForecast[]
   invoiceImportBatches         InvoiceImportBatch[]
   invoiceImportMappingProfiles InvoiceImportMappingProfile[]
   spendImportBatches           SpendImportBatch[]
@@ -874,6 +880,136 @@ model CashForecastSnapshot {
 
   @@index([userId, snapshotAt])
   @@map("cash_forecast_snapshots")
+}
+
+// ---------------------------------------------------------------------------
+// Cost Guard Foundation
+// ---------------------------------------------------------------------------
+
+model CostGuardSetting {
+  id                  String   @id @default(cuid())
+  userId              String   @map("user_id")
+  defaultLookbackDays Int      @default(180) @map("default_lookback_days")
+  materialityPercent  Float    @default(20) @map("materiality_percent")
+  materialityCents    Int      @default(10000) @map("materiality_cents")
+  alertDigestMode     String   @default("daily") @map("alert_digest_mode")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("cost_guard_settings")
+}
+
+model CostGuardRule {
+  id                       String   @id @default(cuid())
+  userId                   String   @map("user_id")
+  name                     String
+  ruleType                 String   @map("rule_type")
+  supplierId               String?  @map("supplier_id")
+  categoryId               String?  @map("category_id")
+  percentageThreshold      Float    @default(20) @map("percentage_threshold")
+  absoluteThresholdCents   Int      @default(10000) @map("absolute_threshold_cents")
+  severity                 String   @default("warning")
+  enabled                  Boolean  @default(true)
+  createdBy                String?  @map("created_by")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, ruleType])
+  @@map("cost_guard_rules")
+}
+
+model CostGuardBaseline {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  baselineType       String   @map("baseline_type")
+  supplierId         String?  @map("supplier_id")
+  categoryId         String?  @map("category_id")
+  periodMonths       Int      @map("period_months")
+  averageAmountCents Int      @map("average_amount_cents")
+  medianAmountCents  Int      @map("median_amount_cents")
+  minAmountCents     Int      @map("min_amount_cents")
+  maxAmountCents     Int      @map("max_amount_cents")
+  sampleCount        Int      @default(0) @map("sample_count")
+  confidence         Float    @default(0)
+  calculatedAt       DateTime @default(now()) @map("calculated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, baselineType, supplierId])
+  @@index([userId, baselineType, categoryId])
+  @@map("cost_guard_baselines")
+}
+
+model CostGuardAlert {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  alertType              String    @map("alert_type")
+  supplierId             String?   @map("supplier_id")
+  categoryId             String?   @map("category_id")
+  transactionId          String?   @map("transaction_id")
+  severity               String    @default("warning")
+  score                  Int       @default(0)
+  confidence             Float     @default(0)
+  title                  String
+  description            String
+  baselineAmountCents    Int      @map("baseline_amount_cents")
+  actualAmountCents      Int      @map("actual_amount_cents")
+  varianceAmountCents    Int      @map("variance_amount_cents")
+  variancePercent        Float    @map("variance_percent")
+  status                 String    @default("new")
+  detectedAt             DateTime  @default(now()) @map("detected_at")
+  acknowledgedAt         DateTime? @map("acknowledged_at")
+  resolvedAt             DateTime? @map("resolved_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  alertEvents CostGuardAlertEvent[]
+
+  @@index([userId, status, detectedAt])
+  @@map("cost_guard_alerts")
+}
+
+model CostGuardAlertEvent {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  alertId      String   @map("alert_id")
+  eventType    String   @map("event_type")
+  actorId      String?  @map("actor_id")
+  reason       String?
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  alert       CostGuardAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([alertId, createdAt])
+  @@map("cost_guard_alert_events")
+}
+
+model CostGuardForecast {
+  id                          String   @id @default(cuid())
+  userId                      String   @map("user_id")
+  forecastMonth               DateTime @map("forecast_month")
+  actualSpendCents            Int      @map("actual_spend_cents")
+  recurringCommitmentsCents   Int      @map("recurring_commitments_cents")
+  expectedVariableSpendCents  Int      @map("expected_variable_spend_cents")
+  projectedMonthEndCents      Int      @map("projected_month_end_cents")
+  varianceAmountCents         Int      @map("variance_amount_cents")
+  variancePercent             Float    @map("variance_percent")
+  confidence                 Float    @default(0)
+  assumptions                Json?
+  createdAt                  DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, forecastMonth])
+  @@map("cost_guard_forecasts")
 }
 
 // ---------------------------------------------------------------------------

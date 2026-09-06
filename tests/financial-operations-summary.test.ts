@@ -43,3 +43,26 @@ test("initial-sync state when connection exists but no sync timestamp", () => {
 
   assert.equal(model.spendStatusLabel, "Initial sync pending")
 })
+
+test("forecast status is surfaced in the summary model for dashboard cards", () => {
+  const model = buildFinancialOperationsSummary({
+    activeInvoiceCount: 5,
+    spendFindingCount: 3,
+    hasSpendLeakAccess: true,
+    hasAccountingConnection: true,
+    latestSyncAt: new Date("2026-09-01T00:00:00.000Z"),
+    costGuardForecast: {
+      actualSpendCents: 150000,
+      recurringCommitmentsCents: 40000,
+      expectedVariableSpendCents: 30000,
+      projectedMonthEndCents: 220000,
+      varianceAmountCents: 40000,
+      variancePercent: 22.22,
+      confidence: 71,
+    },
+  })
+
+  assert.equal(model.costGuardForecastStatus, "over_target")
+  assert.equal(model.costGuardStatusLabel, "Over target")
+  assert.match(model.costGuardForecastMessage ?? "", /above the expected baseline/i)
+})

@@ -426,6 +426,114 @@ CREATE POLICY "users can view own cash forecast snapshots"
   USING (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
+-- cost_guard_settings
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard settings" ON cost_guard_settings;
+CREATE POLICY "users can view own cost guard settings"
+  ON cost_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard settings" ON cost_guard_settings;
+CREATE POLICY "users can insert own cost guard settings"
+  ON cost_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own cost guard settings" ON cost_guard_settings;
+CREATE POLICY "users can update own cost guard settings"
+  ON cost_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_rules
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_rules ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard rules" ON cost_guard_rules;
+CREATE POLICY "users can view own cost guard rules"
+  ON cost_guard_rules FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard rules" ON cost_guard_rules;
+CREATE POLICY "users can insert own cost guard rules"
+  ON cost_guard_rules FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own cost guard rules" ON cost_guard_rules;
+CREATE POLICY "users can update own cost guard rules"
+  ON cost_guard_rules FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_baselines
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_baselines ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard baselines" ON cost_guard_baselines;
+CREATE POLICY "users can view own cost guard baselines"
+  ON cost_guard_baselines FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard baselines" ON cost_guard_baselines;
+CREATE POLICY "users can insert own cost guard baselines"
+  ON cost_guard_baselines FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_alerts
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_alerts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard alerts" ON cost_guard_alerts;
+CREATE POLICY "users can view own cost guard alerts"
+  ON cost_guard_alerts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard alerts" ON cost_guard_alerts;
+CREATE POLICY "users can insert own cost guard alerts"
+  ON cost_guard_alerts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own cost guard alerts" ON cost_guard_alerts;
+CREATE POLICY "users can update own cost guard alerts"
+  ON cost_guard_alerts FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_alert_events
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_alert_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard alert events" ON cost_guard_alert_events;
+CREATE POLICY "users can view own cost guard alert events"
+  ON cost_guard_alert_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard alert events" ON cost_guard_alert_events;
+CREATE POLICY "users can insert own cost guard alert events"
+  ON cost_guard_alert_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_forecasts
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_forecasts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard forecasts" ON cost_guard_forecasts;
+CREATE POLICY "users can view own cost guard forecasts"
+  ON cost_guard_forecasts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard forecasts" ON cost_guard_forecasts;
+CREATE POLICY "users can insert own cost guard forecasts"
+  ON cost_guard_forecasts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
 -- scheduled_task_claims / dispatcher_heartbeats
 -- Internal Railway Celery orchestration state. No end-user-facing route reads
 -- or writes these — the Celery worker connects with a trusted/admin role

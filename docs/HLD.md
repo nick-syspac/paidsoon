@@ -42,6 +42,12 @@ findings and evidence, rather than from raw provider records or fabricated savin
 PaidSoon remains the cash-collection product; SpendLeak adds a spend-efficiency view on top of
 Xero and MYOB data without becoming a bookkeeping replacement.
 
+**Cost Guard foundation status:** the repository now includes the shared Cost Guard baseline
+objects needed to support the next phase of work: per-user settings, default rules, historical
+baselines, alert records, event audit trail, and forecast snapshots. The foundation remains
+read-only by design and is intentionally anchored to the shared financial layer rather than a
+parallel cost ledger.
+
 **There is no multi-vertical platform.** PaidSoon is a single product, single
 tenant-type system (one freelancer = one tenant, keyed by Supabase
 `auth.users.id`). There are no organisations, workspaces, teams, RBAC roles,
