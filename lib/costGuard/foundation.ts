@@ -324,6 +324,106 @@ export function buildCostGuardAlertRecord(input: CostGuardAlertRecordInput) {
   }
 }
 
+export async function upsertCostGuardAlertRecord({
+  tx,
+  input,
+}: {
+  tx: {
+    costGuardAlert: {
+      findFirst?: (args: Record<string, unknown>) => Promise<Record<string, unknown> | null>
+      findMany?: (args: Record<string, unknown>) => Promise<Array<Record<string, unknown>>>
+      create: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
+      update: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
+    }
+  }
+  input: CostGuardAlertRecordInput
+}): Promise<Record<string, unknown>> {
+  const record = buildCostGuardAlertRecord(input)
+  const dedupeKey = createCostGuardAlertDeduplicationKey({
+    userId: record.userId,
+    alertType: record.alertType,
+    supplierId: record.supplierId,
+    categoryId: record.categoryId,
+    transactionId: record.transactionId,
+    amountCents: record.actualAmountCents,
+  })
+
+  const existing = await (async () => {
+    if (typeof tx.costGuardAlert.findMany === "function") {
+      return tx.costGuardAlert.findMany({
+        where: {
+          userId: record.userId,
+          alertType: record.alertType,
+        },
+        select: {
+          id: true,
+          userId: true,
+          alertType: true,
+          supplierId: true,
+          categoryId: true,
+          transactionId: true,
+          actualAmountCents: true,
+          varianceAmountCents: true,
+          status: true,
+        },
+      })
+    }
+
+    if (typeof tx.costGuardAlert.findFirst === "function") {
+      const candidate = await tx.costGuardAlert.findFirst({
+        where: {
+          userId: record.userId,
+          alertType: record.alertType,
+        },
+        select: {
+          id: true,
+          userId: true,
+          alertType: true,
+          supplierId: true,
+          categoryId: true,
+          transactionId: true,
+          actualAmountCents: true,
+          varianceAmountCents: true,
+          status: true,
+        },
+      })
+      return candidate ? [candidate] : []
+    }
+
+    return []
+  })()
+
+  const match = existing.find((row) => {
+    const candidate = createCostGuardAlertDeduplicationKey({
+      userId: String(row.userId),
+      alertType: String(row.alertType),
+      supplierId: row.supplierId as string | null | undefined,
+      categoryId: row.categoryId as string | null | undefined,
+      transactionId: row.transactionId as string | null | undefined,
+      amountCents: Number(row.actualAmountCents ?? row.varianceAmountCents ?? 0),
+    })
+    return candidate === dedupeKey
+  })
+
+  if (match) {
+    const currentStatus = normalizeCostGuardAlertStatus(String((match as Record<string, unknown>).status ?? "new"))
+    if (currentStatus !== record.status) {
+      const updated = await tx.costGuardAlert.update({
+        where: { id: String(match.id) },
+        data: { status: record.status },
+      })
+      return updated
+    }
+    return match
+  }
+
+  const created = await tx.costGuardAlert.create({
+    data: record,
+  })
+
+  return created
+}
+
 export function buildCostGuardAlertEventRecord(input: CostGuardAlertEventRecordInput) {
   return {
     userId: input.userId,
@@ -332,6 +432,186 @@ export function buildCostGuardAlertEventRecord(input: CostGuardAlertEventRecordI
     actorId: input.actorId ?? null,
     reason: input.reason ?? null,
     metadata: input.metadata ?? null,
+  }
+}
+
+export interface CostGuardRuleChangeEventRecordInput {
+  userId: string
+  ruleId: string
+  action: "create" | "update"
+  actorId?: string | null
+  reason?: string | null
+  previous?: Record<string, unknown> | null
+  next?: Record<string, unknown> | null
+}
+
+export interface CostGuardNotificationPlan {
+  immediate: Array<{ id: string; severity: "critical" | "warning" | "watch" | "info"; title: string; description: string }>
+  daily: Array<{ id: string; severity: "critical" | "warning" | "watch" | "info"; title: string; description: string }>
+  weekly: Array<{ id: string; severity: "critical" | "warning" | "watch" | "info"; title: string; description: string }>
+}
+
+export interface RecurringSpendBaselineSummary {
+  recurringFindingCount: number
+  currentMonthlyCents: number
+  averageMonthlyCents: number
+  annualizedCents: number
+  sourceNotes: string[]
+}
+
+export interface CostGuardDigestSummaryInput {
+  alerts: Array<{
+    id: string
+    title: string
+    description: string
+    severity: "critical" | "warning" | "watch" | "info"
+    status: string
+  }>
+  period: "daily" | "weekly"
+  userName?: string
+}
+
+export interface CostGuardDigestSummary {
+  period: "daily" | "weekly"
+  count: number
+  headline: string
+  items: Array<{ id: string; title: string; description: string; severity: string }>
+}
+
+export function buildCostGuardRuleChangeEventRecord(input: CostGuardRuleChangeEventRecordInput) {
+  const previous = input.previous ?? null
+  const next = input.next ?? null
+  const metadata = {
+    ruleId: input.ruleId,
+    action: input.action,
+    before: previous,
+    after: next,
+  }
+
+  return {
+    userId: input.userId,
+    alertId: input.ruleId,
+    eventType: COST_GUARD_ALERT_EVENT_TYPES.RULE_CHANGED,
+    actorId: input.actorId ?? null,
+    reason: input.reason ?? `Cost Guard rule ${input.action}d`,
+    metadata,
+  }
+}
+
+export function buildCostGuardNotificationPlan(
+  alerts: Array<{
+    id: string
+    severity: "critical" | "warning" | "watch" | "info"
+    status: string
+    title: string
+    description: string
+  }>,
+): CostGuardNotificationPlan {
+  const filtered = alerts.filter((alert) => {
+    const status = normalizeCostGuardAlertStatus(alert.status)
+    return status !== "acknowledged" && status !== "snoozed" && status !== "resolved" && status !== "ignored"
+  })
+
+  const immediate = filtered.filter((alert) => alert.severity === "critical")
+  const daily = filtered.filter((alert) => alert.severity === "warning")
+  const weekly = filtered.filter((alert) => alert.severity === "watch" || alert.severity === "info")
+
+  return {
+    immediate: immediate.map((alert) => ({
+      id: alert.id,
+      severity: alert.severity,
+      title: alert.title,
+      description: alert.description,
+    })),
+    daily: daily.map((alert) => ({
+      id: alert.id,
+      severity: alert.severity,
+      title: alert.title,
+      description: alert.description,
+    })),
+    weekly: weekly.map((alert) => ({
+      id: alert.id,
+      severity: alert.severity,
+      title: alert.title,
+      description: alert.description,
+    })),
+  }
+}
+
+export function buildCostGuardDigestSummary(input: CostGuardDigestSummaryInput): CostGuardDigestSummary {
+  const actionable = input.alerts.filter((alert) => {
+    const status = normalizeCostGuardAlertStatus(alert.status)
+    return status !== "acknowledged" && status !== "snoozed" && status !== "resolved" && status !== "ignored"
+  })
+  const count = actionable.length
+  const label = input.userName ? `${input.userName}'s` : "Your"
+  const headline = `${label} ${input.period} summary: ${count} ${count === 1 ? "item needs attention" : "items need attention"}.`
+
+  return {
+    period: input.period,
+    count,
+    headline,
+    items: actionable.map((alert) => ({
+      id: alert.id,
+      title: alert.title,
+      description: alert.description,
+      severity: alert.severity,
+    })),
+  }
+}
+
+export function buildRecurringSpendBaselineFromSpendInsights(
+  insights: Array<{
+    findingType?: string | null
+    estimatedMonthlyCents?: number | null
+    estimatedAnnualCents?: number | null
+    state?: string | null
+  }>,
+): RecurringSpendBaselineSummary {
+  const recurring = insights.filter((insight) => {
+    const status = (insight.state ?? "open").toLowerCase()
+    return (insight.findingType ?? "") === "recurring_spend" && status !== "resolved" && status !== "dismissed" && status !== "snoozed"
+  })
+
+  const monthlyValues = recurring
+    .map((insight) => Number(insight.estimatedMonthlyCents ?? 0))
+    .filter((value) => Number.isFinite(value) && value > 0)
+
+  const currentMonthlyCents = monthlyValues.reduce((sum, value) => sum + value, 0)
+  const averageMonthlyCents = monthlyValues.length > 0 ? Math.round(currentMonthlyCents / monthlyValues.length) : 0
+  const annualizedCents = currentMonthlyCents * 12
+
+  return {
+    recurringFindingCount: recurring.length,
+    currentMonthlyCents,
+    averageMonthlyCents,
+    annualizedCents,
+    sourceNotes: recurring.map((insight) => insight.findingType ?? "recurring_spend"),
+  }
+}
+
+export function buildRecurringCostBaselineInput({
+  actualRecurringCents,
+  spendInsights,
+  percentageThreshold,
+  absoluteThresholdCents,
+}: {
+  actualRecurringCents: number
+  spendInsights: Array<{
+    findingType?: string | null
+    estimatedMonthlyCents?: number | null
+    estimatedAnnualCents?: number | null
+    state?: string | null
+  }>
+  percentageThreshold: number
+  absoluteThresholdCents: number
+}): RecurringCostInput {
+  const baseline = buildRecurringSpendBaselineFromSpendInsights(spendInsights)
+  return {
+    currentRecurringCents: actualRecurringCents,
+    baselineRecurringCents: baseline.currentMonthlyCents,
+    percentageThreshold,
+    absoluteThresholdCents,
   }
 }
 
@@ -575,6 +855,55 @@ export function buildCostGuardForecastSummary(forecast: ForecastSummary): CostGu
     status,
     message,
   }
+}
+
+export function shouldApplyCostGuardRule(
+  rule: Pick<CostGuardRuleDefinition, "enabled" | "supplierId" | "categoryId" | "ruleType"> & {
+    supplierId?: string | null
+    categoryId?: string | null
+  },
+  context: { supplierId?: string | null; categoryId?: string | null } = {},
+): boolean {
+  if (!rule.enabled) {
+    return false
+  }
+
+  if (rule.supplierId && context.supplierId && rule.supplierId !== context.supplierId) {
+    return false
+  }
+
+  if (rule.categoryId && context.categoryId && rule.categoryId !== context.categoryId) {
+    return false
+  }
+
+  return true
+}
+
+export function getCostGuardRulePriority(
+  rule: Pick<
+    CostGuardRuleDefinition,
+    "enabled" | "severity" | "supplierId" | "categoryId" | "percentageThreshold" | "absoluteThresholdCents"
+  >,
+): number {
+  const severityWeight = { info: 1, watch: 2, warning: 3, critical: 4 }
+  const specificityWeight = Number(Boolean(rule.supplierId)) + Number(Boolean(rule.categoryId))
+  const thresholdWeight = Math.min(20, Math.round((rule.percentageThreshold ?? 0) / 2) + Math.round((rule.absoluteThresholdCents ?? 0) / 20000))
+
+  return (rule.enabled ? 100 : 0) + (severityWeight[rule.severity] ?? 0) * 10 + specificityWeight * 10 + thresholdWeight
+}
+
+export function resolveCostGuardRuleConflict<T extends Pick<
+  CostGuardRuleDefinition,
+  "enabled" | "severity" | "supplierId" | "categoryId" | "percentageThreshold" | "absoluteThresholdCents"
+>>(rules: T[], context: { supplierId?: string | null; categoryId?: string | null } = {}): T | null {
+  const applicable = rules.filter((rule) => shouldApplyCostGuardRule(rule as any, context))
+  if (applicable.length === 0) {
+    return null
+  }
+
+  return applicable.reduce((winner, candidate) => {
+    return getCostGuardRulePriority(candidate) > getCostGuardRulePriority(winner) ? candidate : winner
+  }, applicable[0])
 }
 
 export function buildDefaultCostGuardRules(): CostGuardRuleDefinition[] {

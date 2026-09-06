@@ -66,3 +66,34 @@ test("forecast status is surfaced in the summary model for dashboard cards", () 
   assert.equal(model.costGuardStatusLabel, "Over target")
   assert.match(model.costGuardForecastMessage ?? "", /above the expected baseline/i)
 })
+
+test("financial operations summary includes concrete cards for spend, forecast variance, cost risk, and protected value", () => {
+  const model = buildFinancialOperationsSummary({
+    activeInvoiceCount: 5,
+    spendFindingCount: 3,
+    hasSpendLeakAccess: true,
+    hasAccountingConnection: true,
+    latestSyncAt: new Date("2026-09-01T00:00:00.000Z"),
+    costGuardForecast: {
+      actualSpendCents: 150000,
+      recurringCommitmentsCents: 40000,
+      expectedVariableSpendCents: 30000,
+      projectedMonthEndCents: 220000,
+      varianceAmountCents: 40000,
+      variancePercent: 22.22,
+      confidence: 71,
+    },
+  })
+
+  assert.equal(model.monthSpendCents, 150000)
+  assert.equal(model.forecastVarianceCents, 40000)
+  assert.equal(model.costRiskCount, 3)
+  assert.equal(model.protectedValueCents, 40000)
+  assert.equal(model.financialOperationCards.length, 4)
+  assert.deepEqual(model.financialOperationCards.map((card) => card.id), [
+    "month_spend",
+    "forecast_variance",
+    "cost_risks",
+    "protected_value",
+  ])
+})

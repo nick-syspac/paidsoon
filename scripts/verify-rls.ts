@@ -30,6 +30,8 @@ const PROBE_ACCOUNTING_ORG_A = "rls-verify-accounting-org-a"
 const PROBE_ACCOUNTING_ORG_B = "rls-verify-accounting-org-b"
 const PROBE_SPEND_INSIGHT_A = "rls-verify-spend-insight-a"
 const PROBE_SPEND_INSIGHT_B = "rls-verify-spend-insight-b"
+const PROBE_COST_GUARD_RULE_A = "rls-verify-cost-guard-rule-a"
+const PROBE_COST_GUARD_RULE_B = "rls-verify-cost-guard-rule-b"
 const PROBE_CUSTOMER_EMAIL_A = "rls-verify-customer-a@example.com"
 const PROBE_CUSTOMER_EMAIL_B = "rls-verify-customer-b@example.com"
 const PROBE_CONTACT_EMAIL_A = "rls-verify-contact-a@example.com"
@@ -145,6 +147,60 @@ async function seed() {
     },
   })
 
+  await prismaAdmin.costGuardRule.create({
+    data: {
+      userId: USER_A,
+      name: "RLS Verify A",
+      ruleType: "supplier_increase",
+      percentageThreshold: 20,
+      absoluteThresholdCents: 15000,
+      severity: "warning",
+      enabled: true,
+    },
+  })
+
+  await prismaAdmin.costGuardRule.create({
+    data: {
+      userId: USER_B,
+      name: "RLS Verify B",
+      ruleType: "category_increase",
+      percentageThreshold: 25,
+      absoluteThresholdCents: 20000,
+      severity: "critical",
+      enabled: true,
+    },
+  })
+
+  await prismaAdmin.costGuardForecast.create({
+    data: {
+      userId: USER_A,
+      forecastMonth: new Date("2026-01-01T00:00:00.000Z"),
+      actualSpendCents: 120000,
+      recurringCommitmentsCents: 80000,
+      expectedVariableSpendCents: 30000,
+      projectedMonthEndCents: 230000,
+      varianceAmountCents: 30000,
+      variancePercent: 15,
+      confidence: 77,
+      assumptions: { source: "verify-rls", sample: "A" },
+    },
+  })
+
+  await prismaAdmin.costGuardForecast.create({
+    data: {
+      userId: USER_B,
+      forecastMonth: new Date("2026-01-01T00:00:00.000Z"),
+      actualSpendCents: 150000,
+      recurringCommitmentsCents: 90000,
+      expectedVariableSpendCents: 35000,
+      projectedMonthEndCents: 275000,
+      varianceAmountCents: 25000,
+      variancePercent: 10,
+      confidence: 70,
+      assumptions: { source: "verify-rls", sample: "B" },
+    },
+  })
+
   // Customer chasing-preference rows keyed to dedicated canonical contacts.
   const custContactA = await prismaAdmin.financialContact.create({
     data: {
@@ -181,6 +237,24 @@ async function cleanup() {
   })
   await prismaAdmin.spendInsight.deleteMany({
     where: { id: { in: [PROBE_SPEND_INSIGHT_A, PROBE_SPEND_INSIGHT_B] } },
+  })
+  await prismaAdmin.costGuardAlertEvent.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.costGuardAlert.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.costGuardForecast.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.costGuardRule.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.costGuardBaseline.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.costGuardSetting.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
   })
   await prismaAdmin.accountingConnection.deleteMany({
     where: { organisationId: { in: [PROBE_ACCOUNTING_ORG_A, PROBE_ACCOUNTING_ORG_B] } },
@@ -374,7 +448,38 @@ async function main() {
   }
   console.log("  ✓ non-lifecycle update blocked")
 
-  console.log("\nCheck 8: withUserContext(USER_A) sees only A's customer (identity via canonical contact)")
+  console.log("\nCheck 8: withUserContext(USER_A) sees only A's Cost Guard rule")
+  const guardRuleRows = await withUserContext(USER_A, (tx) =>
+    tx.costGuardRule.findMany({
+      where: {
+        name: { in: ["RLS Verify A", "RLS Verify B"] },
+      },
+    }),
+  )
+  if (guardRuleRows.length !== 1 || guardRuleRows[0].name !== "RLS Verify A") {
+    await cleanup()
+    fail(`expected exactly A's cost guard rule, got ${JSON.stringify(guardRuleRows.map((r) => r.name))}`)
+  }
+  console.log("  ✓ saw only A's cost guard rule")
+
+  console.log("\nCheck 9: withUserContext(USER_A) sees only A's Cost Guard forecast")
+  const forecastRows = await withUserContext(USER_A, (tx) =>
+    tx.costGuardForecast.findMany({
+      where: {
+        assumptions: {
+          path: ["source"],
+          string_contains: "verify-rls",
+        },
+      },
+    }),
+  )
+  if (forecastRows.length !== 1 || forecastRows[0].assumptions?.source !== "verify-rls") {
+    await cleanup()
+    fail(`expected exactly A's cost guard forecast, got ${JSON.stringify(forecastRows.map((r) => r.userId))}`)
+  }
+  console.log("  ✓ saw only A's cost guard forecast")
+
+  console.log("\nCheck 10: withUserContext(USER_A) sees only A's customer (identity via canonical contact)")
   const customerRows = await withUserContext(USER_A, (tx) =>
     tx.customer.findMany({
       where: {

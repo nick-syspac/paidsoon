@@ -241,43 +241,14 @@ export default async function DashboardOverviewPage({
           </Link>
         </div>
         {canViewSpendLeak && spendLeakData ? (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-lg border border-gray-200 p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Cash in (active invoices)</p>
-              <p className="mt-1 text-lg font-semibold text-gray-900">{financialSummary.activeInvoiceCount}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Cash out findings</p>
-              <p className="mt-1 text-lg font-semibold text-gray-900">{financialSummary.spendFindingCount}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Spend sync status</p>
-              <p className="mt-1 text-sm font-medium text-gray-900">{financialSummary.spendStatusLabel}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Top spend signal</p>
-              <p className="mt-1 text-sm font-medium text-gray-900">
-                {topSpendLeakModule
-                  ? `${topSpendLeakModule.title} (${topSpendLeakModule.findingCount})`
-                  : "No findings yet"}
-              </p>
-              {topSpendLeakModule && topSpendLeakModule.estimatedAnnualCents > 0 ? (
-                <p className="mt-1 text-xs text-gray-600">
-                  Estimated annual impact {formatAudCents(topSpendLeakModule.estimatedAnnualCents)}
-                </p>
-              ) : null}
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Cost Guard</p>
-              <p className="mt-1 text-sm font-medium text-gray-900">
-                {financialSummary.costGuardStatusLabel ?? "Not configured"}
-              </p>
-              {financialSummary.costGuardForecastMessage ? (
-                <p className="mt-1 text-xs text-gray-600">{financialSummary.costGuardForecastMessage}</p>
-              ) : (
-                <p className="mt-1 text-xs text-gray-600">Add forecast baselines to start monitoring cost drift.</p>
-              )}
-            </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {financialSummary.financialOperationCards.map((card) => (
+              <div key={card.id} className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">{card.label}</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">{card.value}</p>
+                <p className="mt-1 text-xs text-gray-600">{card.description}</p>
+              </div>
+            ))}
           </div>
         ) : (
           <p className="mt-4 text-sm text-gray-500">
