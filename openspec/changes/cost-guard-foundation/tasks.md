@@ -21,9 +21,9 @@
 
 ## 3. Detection Engine
 
-- [ ] 3.1 Implement supplier increase detector
-- [ ] 3.2 Implement category increase detector
-- [ ] 3.3 Implement spend velocity detector
+- [x] 3.1 Implement supplier increase detector
+- [x] 3.2 Implement category increase detector
+- [x] 3.3 Implement spend velocity detector
 - [ ] 3.4 Implement possible duplicate invoice or duplicate transaction detection
 - [ ] 3.5 Implement large-unusual invoice detection
 - [ ] 3.6 Implement new supplier detection with configurable amount threshold

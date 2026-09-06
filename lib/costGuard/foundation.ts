@@ -28,6 +28,55 @@ export interface MaterialityEvaluation {
   passes: boolean
 }
 
+export interface DriftDetectionInput {
+  actualCents: number
+  baselineCents: number
+  percentageThreshold: number
+  absoluteThresholdCents: number
+}
+
+export interface DriftDetectionResult {
+  triggered: boolean
+  varianceAmountCents: number
+  variancePercent: number
+  confidence: number
+  reason: string
+}
+
+export interface SpendVelocityInput {
+  currentMonthToDateCents: number
+  baselineMonthToDateCents: number
+  percentageThreshold: number
+  absoluteThresholdCents: number
+}
+
+export interface DuplicateSpendInput {
+  currentAmountCents: number
+  baselineCents: number
+  thresholdCents: number
+  duplicateReferenceCount: number
+}
+
+export interface UnusualInvoiceInput {
+  actualCents: number
+  baselineCents: number
+  percentageThreshold: number
+  absoluteThresholdCents: number
+}
+
+export interface NewSupplierInput {
+  actualCents: number
+  historicalCents: number
+  thresholdCents: number
+}
+
+export interface RecurringCostInput {
+  currentRecurringCents: number
+  baselineRecurringCents: number
+  percentageThreshold: number
+  absoluteThresholdCents: number
+}
+
 export interface ForecastInput {
   actualSpendCents: number
   recurringCommitmentsCents: number
@@ -115,6 +164,128 @@ export function evaluateMateriality({
     varianceAmountCents,
     variancePercent,
     passes,
+  }
+}
+
+export function detectSupplierIncrease(input: DriftDetectionInput): DriftDetectionResult {
+  const evaluation = evaluateMateriality(input)
+  const confidence = Math.min(
+    100,
+    Math.max(50, Math.round(Math.abs(evaluation.variancePercent) * 1.2 + Math.abs(evaluation.varianceAmountCents) / 1000)),
+  )
+
+  return {
+    triggered: evaluation.passes,
+    varianceAmountCents: evaluation.varianceAmountCents,
+    variancePercent: evaluation.variancePercent,
+    confidence,
+    reason: evaluation.passes
+      ? `material supplier increase detected: ${Math.abs(evaluation.variancePercent).toFixed(1)}% above baseline and ${Math.abs(evaluation.varianceAmountCents) / 100} AUD beyond the normal range.`
+      : "Supplier spend is below the materiality threshold for an alert.",
+  }
+}
+
+export function detectCategoryIncrease(input: DriftDetectionInput): DriftDetectionResult {
+  const evaluation = evaluateMateriality(input)
+  const confidence = Math.min(
+    100,
+    Math.max(50, Math.round(Math.abs(evaluation.variancePercent) * 1.1 + Math.abs(evaluation.varianceAmountCents) / 1200)),
+  )
+
+  return {
+    triggered: evaluation.passes,
+    varianceAmountCents: evaluation.varianceAmountCents,
+    variancePercent: evaluation.variancePercent,
+    confidence,
+    reason: evaluation.passes
+      ? `material category increase detected: ${Math.abs(evaluation.variancePercent).toFixed(1)}% above baseline and ${Math.abs(evaluation.varianceAmountCents) / 100} AUD beyond the expected category spend.`
+      : "Category spend remains within the configured materiality threshold.",
+  }
+}
+
+export function detectSpendVelocity(input: SpendVelocityInput): DriftDetectionResult {
+  const evaluation = evaluateMateriality({
+    actualCents: input.currentMonthToDateCents,
+    baselineCents: input.baselineMonthToDateCents,
+    percentageThreshold: input.percentageThreshold,
+    absoluteThresholdCents: input.absoluteThresholdCents,
+  })
+  const confidence = Math.min(
+    100,
+    Math.max(55, Math.round(Math.abs(evaluation.variancePercent) * 1.25 + Math.abs(evaluation.varianceAmountCents) / 1500)),
+  )
+
+  return {
+    triggered: evaluation.passes,
+    varianceAmountCents: evaluation.varianceAmountCents,
+    variancePercent: evaluation.variancePercent,
+    confidence,
+    reason: evaluation.passes
+      ? `material spend velocity above the normal month-to-date pace: ${Math.abs(evaluation.variancePercent).toFixed(1)}% higher and ${Math.abs(evaluation.varianceAmountCents) / 100} AUD above the expected run rate.`
+      : "Spend velocity remains in line with the expected monthly pattern.",
+  }
+}
+
+export function detectDuplicateSpend(input: DuplicateSpendInput): DriftDetectionResult {
+  const varianceAmountCents = input.currentAmountCents - input.baselineCents
+  const triggered = input.duplicateReferenceCount > 1 && Math.abs(varianceAmountCents) >= input.thresholdCents
+
+  return {
+    triggered,
+    varianceAmountCents,
+    variancePercent: input.baselineCents === 0 ? 0 : (varianceAmountCents / input.baselineCents) * 100,
+    confidence: triggered ? 90 : 0,
+    reason: triggered
+      ? `duplicate spend detected across ${input.duplicateReferenceCount} matching references with ${Math.abs(varianceAmountCents) / 100} AUD variance.`
+      : "No duplicate spend signal crossed the configured threshold.",
+  }
+}
+
+export function detectLargeUnusualInvoice(input: UnusualInvoiceInput): DriftDetectionResult {
+  const evaluation = evaluateMateriality(input)
+
+  return {
+    triggered: evaluation.passes,
+    varianceAmountCents: evaluation.varianceAmountCents,
+    variancePercent: evaluation.variancePercent,
+    confidence: evaluation.passes ? 88 : 0,
+    reason: evaluation.passes
+      ? `unusual invoice detected: ${Math.abs(evaluation.variancePercent).toFixed(1)}% above the supplier's normal range and ${Math.abs(evaluation.varianceAmountCents) / 100} AUD above expectation.`
+      : "Invoice size remains within the unusual-invoice threshold.",
+  }
+}
+
+export function detectNewSupplier(input: NewSupplierInput): DriftDetectionResult {
+  const varianceAmountCents = input.actualCents - input.historicalCents
+  const triggered = input.actualCents >= input.thresholdCents && input.historicalCents === 0
+
+  return {
+    triggered,
+    varianceAmountCents,
+    variancePercent: input.historicalCents === 0 && input.actualCents > 0 ? 100 : 0,
+    confidence: triggered ? 80 : 0,
+    reason: triggered
+      ? `new supplier created a material spend event at ${Math.round(input.actualCents / 100)} AUD with no historical baseline.`
+      : "New supplier activity remains below the configured threshold.",
+  }
+}
+
+export function detectRecurringCostIncrease(input: RecurringCostInput): DriftDetectionResult {
+  const evaluation = evaluateMateriality({
+    actualCents: input.currentRecurringCents,
+    baselineCents: input.baselineRecurringCents,
+    percentageThreshold: input.percentageThreshold,
+    absoluteThresholdCents: input.absoluteThresholdCents,
+  })
+
+  return {
+    triggered: evaluation.passes,
+    varianceAmountCents: evaluation.varianceAmountCents,
+    variancePercent: evaluation.variancePercent,
+    confidence: evaluation.passes ? 87 : 0,
+    reason: evaluation.passes
+      ? `recurring cost increase detected: ${Math.abs(evaluation.variancePercent).toFixed(1)}% above baseline and ${Math.abs(evaluation.varianceAmountCents) / 100} AUD over the recurring spend expectation.`
+      : "Recurring commitments remain within the expected change threshold.",
   }
 }
 

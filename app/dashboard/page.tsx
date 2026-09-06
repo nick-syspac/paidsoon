@@ -241,7 +241,7 @@ export default async function DashboardOverviewPage({
           </Link>
         </div>
         {canViewSpendLeak && spendLeakData ? (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-lg border border-gray-200 p-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">Cash in (active invoices)</p>
               <p className="mt-1 text-lg font-semibold text-gray-900">{financialSummary.activeInvoiceCount}</p>
@@ -267,12 +267,62 @@ export default async function DashboardOverviewPage({
                 </p>
               ) : null}
             </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Cost Guard</p>
+              <p className="mt-1 text-sm font-medium text-gray-900">
+                {financialSummary.costGuardStatusLabel ?? "Not configured"}
+              </p>
+              {financialSummary.costGuardForecastMessage ? (
+                <p className="mt-1 text-xs text-gray-600">{financialSummary.costGuardForecastMessage}</p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-600">Add forecast baselines to start monitoring cost drift.</p>
+              )}
+            </div>
           </div>
         ) : (
           <p className="mt-4 text-sm text-gray-500">
             Spend-side insights are not yet available on your current tier.
           </p>
         )}
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Cost Guard</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Baseline and forecast monitoring for unusual spending and month-end drift.
+            </p>
+          </div>
+          <span
+            className={[
+              "rounded-full px-2.5 py-1 text-xs font-medium",
+              financialSummary.costGuardForecastStatus === "over_target"
+                ? "bg-red-50 text-red-700"
+                : financialSummary.costGuardForecastStatus === "watch"
+                  ? "bg-amber-50 text-amber-700"
+                  : "bg-emerald-50 text-emerald-700",
+            ].join(" ")}
+          >
+            {financialSummary.costGuardStatusLabel ?? "Not configured"}
+          </span>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3">
+          {financialSummary.costGuardForecastMessage ? (
+            <>
+              <p className="text-sm font-medium text-gray-900">{financialSummary.costGuardStatusLabel ?? "Cost Guard status"}</p>
+              <p className="mt-1 text-sm text-gray-600">{financialSummary.costGuardForecastMessage}</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-gray-900">Monitoring is ready</p>
+              <p className="mt-1 text-sm text-gray-600">
+                Set up your baseline windows and forecast inputs to start tracking supplier drift, category overrun, and month-end cost risk.
+              </p>
+            </>
+          )}
+        </div>
       </section>
 
       {currencySummaries.map((summary) => (
