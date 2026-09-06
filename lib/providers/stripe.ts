@@ -13,6 +13,7 @@ function getStripe(): Stripe {
 
 function normalizeStripeInvoice(invoice: Stripe.Invoice): NormalizedInvoice {
   const customer = invoice.customer as Stripe.Customer | null
+  const normalizedPaymentUrl = invoice.hosted_invoice_url?.trim() || undefined
   return {
     externalId: invoice.id!,
     provider: "stripe",
@@ -25,7 +26,7 @@ function normalizeStripeInvoice(invoice: Stripe.Invoice): NormalizedInvoice {
     amountDue: invoice.amount_due,
     currency: invoice.currency,
     dueDate: new Date((invoice.due_date ?? invoice.created) * 1000),
-    paymentUrl: invoice.hosted_invoice_url ?? undefined,
+    paymentUrl: normalizedPaymentUrl,
     invoiceNumber: invoice.number ?? undefined,
   }
 }

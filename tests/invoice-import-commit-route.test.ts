@@ -36,6 +36,8 @@ let mockExistingPayments: { amount: number }[]
 let lastBatchUpdateArgs: unknown = null
 let lastCreateArgs: unknown = null
 let lastUpdateArgs: unknown = null
+let lastFinancialInvoiceCreateArgs: unknown = null
+let lastFinancialInvoiceUpdateArgs: unknown = null
 let lastPaymentCreateArgs: unknown = null
 let lastImportErrorCreateArgs: unknown = null
 let stagingRowFindManyCalled = false
@@ -82,6 +84,7 @@ describe("Invoice import commit route", () => {
             financialInvoice: {
               findUnique: async () => mockExistingInvoice,
               create: async (args: unknown) => {
+                lastFinancialInvoiceCreateArgs = args
                 const data = (args as { data: Record<string, unknown> }).data
                 const created = {
                   id: "fi-new",
@@ -93,6 +96,7 @@ describe("Invoice import commit route", () => {
                 return { id: created.id }
               },
               update: async (args: unknown) => {
+                lastFinancialInvoiceUpdateArgs = args
                 const data = (args as { data: Record<string, unknown> }).data
                 if (mockExistingInvoice) {
                   mockExistingInvoice = {
@@ -183,6 +187,8 @@ describe("Invoice import commit route", () => {
     lastBatchUpdateArgs = null
     lastCreateArgs = null
     lastUpdateArgs = null
+    lastFinancialInvoiceCreateArgs = null
+    lastFinancialInvoiceUpdateArgs = null
     lastPaymentCreateArgs = null
     lastImportErrorCreateArgs = null
     stagingRowFindManyCalled = false
@@ -223,6 +229,38 @@ describe("Invoice import commit route", () => {
     assert.equal(createData.status, "pending")
     assert.equal(createData.currentStage, 0)
     assert.ok(createData.nextEmailAt)
+  })
+
+  test("maps CSV payment_url to canonical paymentUrl with trimming", async () => {
+    mockStagingRows[0].normalized.payment_url = "  https://pay.example.com/inv-1001  "
+
+    const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
+
+    assert.equal(res.status, 200)
+    const createData = (lastFinancialInvoiceCreateArgs as { data: Record<string, unknown> }).data
+    assert.equal(createData.paymentUrl, "https://pay.example.com/inv-1001")
+  })
+
+  test("maps whitespace-only CSV payment_url to null in canonical invoice", async () => {
+    mockStagingRows[0].normalized.payment_url = "    "
+
+    const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
+
+    assert.equal(res.status, 200)
+    const createData = (lastFinancialInvoiceCreateArgs as { data: Record<string, unknown> }).data
+    assert.equal(createData.paymentUrl, null)
+  })
+
+  test("update_eligible preserves payment_url mapping when updating canonical invoice", async () => {
+    mockExistingInvoice = mockExistingFinancialInvoice("pending", 50_000)
+    mockBatch.duplicateMode = "update_eligible"
+    mockStagingRows[0].normalized.payment_url = "  https://pay.example.com/inv-updated  "
+
+    const res = await commitRoute(postRequest(), { params: Promise.resolve({ batchId: "batch-1" }) })
+
+    assert.equal(res.status, 200)
+    const updateData = (lastFinancialInvoiceUpdateArgs as { data: Record<string, unknown> }).data
+    assert.equal(updateData.paymentUrl, "https://pay.example.com/inv-updated")
   })
 
   test("skip_existing mode leaves a matching invoice untouched", async () => {

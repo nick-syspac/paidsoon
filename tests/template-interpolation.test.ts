@@ -74,6 +74,18 @@ describe("resolveVars — paymentLink", () => {
     assert.equal(vars.paymentLinkText, "https://pay.example.com/inv")
   })
 
+  test("trims whitespace around paymentUrl before rendering", () => {
+    const vars = resolveVars(1, { ...baseVars, paymentUrl: "  https://pay.example.com/inv  " })
+    assert.equal(vars.paymentLink, '<a href="https://pay.example.com/inv">Pay invoice →</a>')
+    assert.equal(vars.paymentLinkText, "https://pay.example.com/inv")
+  })
+
+  test("treats a whitespace-only paymentUrl as absent", () => {
+    const vars = resolveVars(1, { ...baseVars, paymentUrl: "    " })
+    assert.equal(vars.paymentLink, "")
+    assert.equal(vars.paymentLinkText, "")
+  })
+
   test("resolves to empty string when paymentUrl is absent", () => {
     const vars = resolveVars(1, { ...baseVars })
     assert.equal(vars.paymentLink, "")
