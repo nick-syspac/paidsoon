@@ -17,24 +17,24 @@
 - [x] 2.3 Add confidence scoring for baseline calculations based on sample size and consistency
 - [x] 2.4 Implement forecast calculation based on actual spend to date + recurring commitments + expected variable spend remaining
 - [x] 2.5 Persist month-end forecast snapshots for comparison and auditability
-- [ ] 2.6 Expose baseline and forecast outputs to the dashboard summary layer
+- [x] 2.6 Expose baseline and forecast outputs to the dashboard summary layer
 
 ## 3. Detection Engine
 
 - [x] 3.1 Implement supplier increase detector
 - [x] 3.2 Implement category increase detector
 - [x] 3.3 Implement spend velocity detector
-- [ ] 3.4 Implement possible duplicate invoice or duplicate transaction detection
-- [ ] 3.5 Implement large-unusual invoice detection
-- [ ] 3.6 Implement new supplier detection with configurable amount threshold
-- [ ] 3.7 Implement recurring cost increase detection from SpendLeak recurring commitments
-- [ ] 3.8 Add materiality thresholds based on both percentage deviation and absolute dollar impact
-- [ ] 3.9 Add confidence scoring per detection result
-- [ ] 3.10 Ensure all detections are deterministic, explainable, and idempotent
+- [x] 3.4 Implement possible duplicate invoice or duplicate transaction detection
+- [x] 3.5 Implement large-unusual invoice detection
+- [x] 3.6 Implement new supplier detection with configurable amount threshold
+- [x] 3.7 Implement recurring cost increase detection from SpendLeak recurring commitments
+- [x] 3.8 Add materiality thresholds based on both percentage deviation and absolute dollar impact
+- [x] 3.9 Add confidence scoring per detection result
+- [x] 3.10 Ensure all detections are deterministic, explainable, and idempotent
 
 ## 4. Rules Engine
 
-- [ ] 4.1 Add default rules for supplier increase, category increase, large unusual spend, duplicate spend, new supplier, recurring increase, and forecast overspend
+- [x] 4.1 Add default rules for supplier increase, category increase, large unusual spend, duplicate spend, new supplier, recurring increase, and forecast overspend
 - [ ] 4.2 Implement user-configurable rules for supplier limits, category limits, percentage thresholds, and dollar thresholds
 - [ ] 4.3 Allow rule exclusions for known noisy or seasonal suppliers
 - [ ] 4.4 Validate rule precedence and conflict-handling behavior

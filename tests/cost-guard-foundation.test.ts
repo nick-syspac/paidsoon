@@ -3,10 +3,18 @@ import assert from "node:assert/strict"
 
 import {
   BASELINE_WINDOWS,
+  COST_GUARD_ALERT_EVENT_TYPES,
+  buildCostGuardAlertEventRecord,
+  buildCostGuardAlertEventTypeForStatus,
+  buildCostGuardAlertLifecycleSummary,
+  buildCostGuardAlertRecord,
+  buildCostGuardAlertSummary,
   buildCostGuardForecastSummary,
   buildDefaultCostGuardRules,
   calculateBaseline,
   calculateForecast,
+  canTransitionCostGuardAlertStatus,
+  createCostGuardAlertDeduplicationKey,
   detectCategoryIncrease,
   detectDuplicateSpend,
   detectLargeUnusualInvoice,
@@ -15,6 +23,7 @@ import {
   detectSpendVelocity,
   detectSupplierIncrease,
   evaluateMateriality,
+  normalizeCostGuardAlertStatus,
 } from "@/lib/costGuard/foundation"
 
 test("baseline calculation stores both average and median values", () => {
@@ -138,11 +147,98 @@ test("remaining signal detectors catch duplicate, unusual, new supplier, and rec
   assert.ok(unusual.reason.toLowerCase().includes("unusual"))
 })
 
-test("default Cost Guard rules cover the critical detection categories", () => {
-  const rules = buildDefaultCostGuardRules()
+test("cost guard lifecycle and deduplication stay stable across repeated syncs", () => {
+  assert.equal(normalizeCostGuardAlertStatus("ACKNOWLEDGED"), "acknowledged")
+  assert.equal(canTransitionCostGuardAlertStatus("new", "acknowledged"), true)
+  assert.equal(canTransitionCostGuardAlertStatus("new", "resolved"), false)
 
+  const dedupeA = createCostGuardAlertDeduplicationKey({
+    userId: "user-123",
+    alertType: "supplier_increase",
+    supplierId: "supplier-1",
+    transactionId: "txn-1",
+  })
+  const dedupeB = createCostGuardAlertDeduplicationKey({
+    userId: "user-123",
+    alertType: "supplier_increase",
+    supplierId: "supplier-1",
+    transactionId: "txn-1",
+  })
+
+  assert.equal(dedupeA, dedupeB)
+  assert.ok(dedupeA.includes("supplier_increase"))
+})
+
+test("alert lifecycle events and default rules cover the required guardrail states", () => {
+  const rules = buildDefaultCostGuardRules()
+  const summary = buildCostGuardAlertLifecycleSummary("ACKNOWLEDGED")
+
+  assert.equal(buildCostGuardAlertEventTypeForStatus("new"), COST_GUARD_ALERT_EVENT_TYPES.CREATED)
+  assert.equal(buildCostGuardAlertEventTypeForStatus("acknowledged"), COST_GUARD_ALERT_EVENT_TYPES.ACKNOWLEDGED)
+  assert.equal(buildCostGuardAlertEventTypeForStatus("resolved"), COST_GUARD_ALERT_EVENT_TYPES.RESOLVED)
+  assert.equal(summary.status, "acknowledged")
+  assert.equal(summary.label, "Acknowledged")
+  assert.equal(summary.isTerminal, false)
   assert.deepEqual(BASELINE_WINDOWS, [3, 6, 12])
   assert.ok(rules.some((rule) => rule.ruleType === "supplier_increase"))
   assert.ok(rules.some((rule) => rule.ruleType === "category_increase"))
   assert.ok(rules.some((rule) => rule.ruleType === "forecast_overrun"))
+  assert.ok(rules.length >= 7)
+})
+test("alert records and event records use the schema contract for persistence", () => {
+  const alert = buildCostGuardAlertRecord({
+    userId: "user-123",
+    alertType: "supplier_increase",
+    supplierId: "supplier-4",
+    categoryId: "category-2",
+    transactionId: "txn-9",
+    severity: "warning",
+    title: "Supplier cost up materially",
+    description: "Supplier spend exceeded the baseline range.",
+    baselineAmountCents: 120000,
+    actualAmountCents: 180000,
+    varianceAmountCents: 60000,
+    variancePercent: 50,
+    confidence: 83,
+    status: "new",
+  })
+
+  const event = buildCostGuardAlertEventRecord({
+    userId: "user-123",
+    alertId: "alert-1",
+    status: "acknowledged",
+    actorId: "owner-1",
+    reason: "Owner reviewed the supplier drift.",
+    metadata: { supplierId: "supplier-4" },
+  })
+
+  assert.equal(alert.alertType, "supplier_increase")
+  assert.equal(alert.status, "new")
+  assert.equal(alert.confidence, 83)
+  assert.equal(event.eventType, COST_GUARD_ALERT_EVENT_TYPES.ACKNOWLEDGED)
+  assert.equal(event.reason, "Owner reviewed the supplier drift.")
+})
+
+test("alert summaries expose a safe API contract for list and detail views", () => {
+  const summary = buildCostGuardAlertSummary({
+    id: "alert-7",
+    userId: "user-123",
+    alertType: "supplier_increase",
+    severity: "warning",
+    title: "Supplier cost moved materially",
+    description: "Supplier spend exceeded the expected range.",
+    baselineAmountCents: 120000,
+    actualAmountCents: 180000,
+    varianceAmountCents: 60000,
+    variancePercent: 50,
+    confidence: 82,
+    status: "acknowledged",
+    detectedAt: "2026-09-01T00:00:00.000Z",
+  })
+
+  assert.equal(summary.id, "alert-7")
+  assert.equal(summary.status, "acknowledged")
+  assert.equal(summary.lifecycle.label, "Acknowledged")
+  assert.equal(summary.variancePercent, 50)
+  assert.ok(summary.message.includes("Supplier cost moved materially"))
 })

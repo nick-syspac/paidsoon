@@ -103,6 +103,38 @@ export interface CostGuardForecastSummary {
   message: string
 }
 
+export const COST_GUARD_ALERT_EVENT_TYPES = {
+  CREATED: "COST_GUARD_ALERT_CREATED",
+  ACKNOWLEDGED: "COST_GUARD_ALERT_ACKNOWLEDGED",
+  EXPECTED: "COST_GUARD_ALERT_EXPECTED",
+  SNOOZED: "COST_GUARD_ALERT_SNOOZED",
+  RESOLVED: "COST_GUARD_ALERT_RESOLVED",
+  RULE_CHANGED: "COST_GUARD_RULE_CHANGED",
+} as const
+
+export type CostGuardAlertStatus =
+  | "new"
+  | "acknowledged"
+  | "expected"
+  | "snoozed"
+  | "investigating"
+  | "resolved"
+  | "ignored"
+
+export interface CostGuardAlertLifecycleTransition {
+  currentStatus: CostGuardAlertStatus
+  nextStatus: CostGuardAlertStatus
+}
+
+export interface CostGuardAlertDeduplicationInput {
+  userId: string
+  alertType: string
+  supplierId?: string | null
+  categoryId?: string | null
+  transactionId?: string | null
+  amountCents?: number | null
+}
+
 export interface CostGuardRuleDefinition {
   id: string
   name: string
@@ -119,6 +151,211 @@ export interface CostGuardRuleDefinition {
   defaultAbsoluteThresholdCents: number
   enabled: boolean
   description: string
+}
+
+export function normalizeCostGuardAlertStatus(status: string | null | undefined): CostGuardAlertStatus {
+  const normalized = (status ?? "new").trim().toLowerCase().replace(/[^a-z_]/g, "")
+
+  if (normalized === "acknowledged") return "acknowledged"
+  if (normalized === "expected") return "expected"
+  if (normalized === "snoozed") return "snoozed"
+  if (normalized === "investigating") return "investigating"
+  if (normalized === "resolved") return "resolved"
+  if (normalized === "ignored") return "ignored"
+  return "new"
+}
+
+export function canTransitionCostGuardAlertStatus(
+  currentStatus: string | null | undefined,
+  nextStatus: string | null | undefined,
+): boolean {
+  const current = normalizeCostGuardAlertStatus(currentStatus)
+  const next = normalizeCostGuardAlertStatus(nextStatus)
+
+  const transitions: Record<CostGuardAlertStatus, CostGuardAlertStatus[]> = {
+    new: ["acknowledged", "expected", "snoozed", "investigating", "ignored"],
+    acknowledged: ["expected", "snoozed", "investigating", "resolved", "ignored"],
+    expected: ["acknowledged", "snoozed", "investigating", "resolved", "ignored"],
+    snoozed: ["acknowledged", "expected", "investigating", "resolved", "ignored"],
+    investigating: ["acknowledged", "expected", "snoozed", "resolved", "ignored"],
+    resolved: ["ignored"],
+    ignored: ["acknowledged", "expected", "investigating", "resolved"],
+  }
+
+  return transitions[current]?.includes(next) ?? false
+}
+
+export function createCostGuardAlertDeduplicationKey(input: CostGuardAlertDeduplicationInput): string {
+  const userId = (input.userId ?? "").trim()
+  const alertType = (input.alertType ?? "").trim()
+  const supplierId = (input.supplierId ?? "").trim()
+  const categoryId = (input.categoryId ?? "").trim()
+  const transactionId = (input.transactionId ?? "").trim()
+  const amountCents = input.amountCents ?? 0
+
+  const signature = [userId, alertType, supplierId || "supplier:none", categoryId || "category:none", transactionId || "txn:none", String(amountCents)]
+  return `cost-guard:${signature.join("|")}`
+}
+
+export function buildCostGuardAlertEventTypeForStatus(status: string | null | undefined): string {
+  switch (normalizeCostGuardAlertStatus(status)) {
+    case "new":
+      return COST_GUARD_ALERT_EVENT_TYPES.CREATED
+    case "acknowledged":
+      return COST_GUARD_ALERT_EVENT_TYPES.ACKNOWLEDGED
+    case "expected":
+      return COST_GUARD_ALERT_EVENT_TYPES.EXPECTED
+    case "snoozed":
+      return COST_GUARD_ALERT_EVENT_TYPES.SNOOZED
+    case "resolved":
+      return COST_GUARD_ALERT_EVENT_TYPES.RESOLVED
+    default:
+      return COST_GUARD_ALERT_EVENT_TYPES.CREATED
+  }
+}
+
+export interface CostGuardAlertLifecycleSummary {
+  status: CostGuardAlertStatus
+  label: string
+  isTerminal: boolean
+  eventType: string
+}
+
+export interface CostGuardAlertRecordInput {
+  userId: string
+  alertType: string
+  supplierId?: string | null
+  categoryId?: string | null
+  transactionId?: string | null
+  severity?: "info" | "watch" | "warning" | "critical"
+  title: string
+  description: string
+  baselineAmountCents: number
+  actualAmountCents: number
+  varianceAmountCents: number
+  variancePercent: number
+  confidence?: number
+  status?: string
+}
+
+export interface CostGuardAlertEventRecordInput {
+  userId: string
+  alertId: string
+  status: string
+  actorId?: string | null
+  reason?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+export interface CostGuardAlertSummaryInput {
+  id: string
+  userId: string
+  alertType: string
+  severity: "info" | "watch" | "warning" | "critical"
+  title: string
+  description: string
+  baselineAmountCents: number
+  actualAmountCents: number
+  varianceAmountCents: number
+  variancePercent: number
+  confidence: number
+  status: string
+  detectedAt: string | Date
+  supplierId?: string | null
+  categoryId?: string | null
+  transactionId?: string | null
+}
+
+export interface CostGuardAlertSummary {
+  id: string
+  userId: string
+  alertType: string
+  severity: "info" | "watch" | "warning" | "critical"
+  title: string
+  description: string
+  baselineAmountCents: number
+  actualAmountCents: number
+  varianceAmountCents: number
+  variancePercent: number
+  confidence: number
+  status: CostGuardAlertStatus
+  detectedAt: string
+  lifecycle: CostGuardAlertLifecycleSummary
+  message: string
+}
+
+export function buildCostGuardAlertLifecycleSummary(status: string | null | undefined): CostGuardAlertLifecycleSummary {
+  const normalized = normalizeCostGuardAlertStatus(status)
+
+  const labels: Record<CostGuardAlertStatus, string> = {
+    new: "New",
+    acknowledged: "Acknowledged",
+    expected: "Expected",
+    snoozed: "Snoozed",
+    investigating: "Investigating",
+    resolved: "Resolved",
+    ignored: "Ignored",
+  }
+
+  return {
+    status: normalized,
+    label: labels[normalized] ?? "New",
+    isTerminal: normalized === "resolved" || normalized === "ignored",
+    eventType: buildCostGuardAlertEventTypeForStatus(normalized),
+  }
+}
+
+export function buildCostGuardAlertRecord(input: CostGuardAlertRecordInput) {
+  return {
+    userId: input.userId,
+    alertType: input.alertType,
+    supplierId: input.supplierId ?? null,
+    categoryId: input.categoryId ?? null,
+    transactionId: input.transactionId ?? null,
+    severity: input.severity ?? "warning",
+    title: input.title,
+    description: input.description,
+    baselineAmountCents: input.baselineAmountCents,
+    actualAmountCents: input.actualAmountCents,
+    varianceAmountCents: input.varianceAmountCents,
+    variancePercent: input.variancePercent,
+    confidence: Math.max(0, Math.min(100, input.confidence ?? 0)),
+    status: normalizeCostGuardAlertStatus(input.status ?? "new"),
+  }
+}
+
+export function buildCostGuardAlertEventRecord(input: CostGuardAlertEventRecordInput) {
+  return {
+    userId: input.userId,
+    alertId: input.alertId,
+    eventType: buildCostGuardAlertEventTypeForStatus(input.status),
+    actorId: input.actorId ?? null,
+    reason: input.reason ?? null,
+    metadata: input.metadata ?? null,
+  }
+}
+
+export function buildCostGuardAlertSummary(input: CostGuardAlertSummaryInput): CostGuardAlertSummary {
+  const lifecycle = buildCostGuardAlertLifecycleSummary(input.status)
+  const detectedAt = input.detectedAt instanceof Date ? input.detectedAt.toISOString() : input.detectedAt
+
+  return {
+    id: input.id,
+    userId: input.userId,
+    alertType: input.alertType,
+    severity: input.severity,
+    title: input.title,
+    description: input.description,
+    baselineAmountCents: input.baselineAmountCents,
+    actualAmountCents: input.actualAmountCents,
+    varianceAmountCents: input.varianceAmountCents,
+    variancePercent: input.variancePercent,
+    confidence: Math.max(0, Math.min(100, input.confidence)),
+    status: lifecycle.status,
+    detectedAt,
+    lifecycle,
+    message: `${input.title} — ${input.description}`,
+  }
 }
 
 export function calculateBaseline(values: number[]): BaselineCalculation {
