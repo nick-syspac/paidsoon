@@ -24,12 +24,14 @@ import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperationsSummary"
 import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
 import { formatAudCents, getSpendLeakEvidenceSource } from "@/lib/dashboard/spendleakPresentation"
+import { buildCostGuardNotificationPlan } from "@/lib/costGuard/foundation"
 import {
   createServerTraceContext,
   traceEvent,
   warnIfProductionDebugEnabled,
 } from "@/lib/diagnostics/server"
 import { summariseAuthForTrace } from "@/lib/diagnostics/shared"
+import { withUserContext } from "@/lib/db/withUserContext"
 
 const COMPONENT = "app/dashboard/page.tsx"
 
@@ -124,6 +126,28 @@ export default async function DashboardOverviewPage({
   })
 
   const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
+
+  const costGuardAlerts = await withUserContext(user.id, async (tx) =>
+    tx.costGuardAlert.findMany({
+      where: { userId: user.id },
+      orderBy: { detectedAt: "desc" },
+      take: 5,
+    }),
+  )
+  const costGuardNotifications = buildCostGuardNotificationPlan(
+    costGuardAlerts.map((alert) => ({
+      id: alert.id,
+      severity: alert.severity as "critical" | "warning" | "watch" | "info",
+      status: alert.status,
+      title: alert.title,
+      description: alert.description,
+    })),
+  )
+  const dashboardNotifications = [
+    ...costGuardNotifications.immediate,
+    ...costGuardNotifications.daily,
+    ...costGuardNotifications.weekly,
+  ].slice(0, 3)
 
   const cards = buildOverviewCards({
     activeInvoices,
@@ -258,25 +282,21 @@ export default async function DashboardOverviewPage({
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Cost Guard</h2>
             <p className="mt-1 text-sm text-gray-600">
               Baseline and forecast monitoring for unusual spending and month-end drift.
             </p>
           </div>
-          <span
-            className={[
-              "rounded-full px-2.5 py-1 text-xs font-medium",
-              financialSummary.costGuardForecastStatus === "over_target"
-                ? "bg-red-50 text-red-700"
-                : financialSummary.costGuardForecastStatus === "watch"
-                  ? "bg-amber-50 text-amber-700"
-                  : "bg-emerald-50 text-emerald-700",
-            ].join(" ")}
-          >
-            {financialSummary.costGuardStatusLabel ?? "Not configured"}
-          </span>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/cost-guard" className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+              Overview
+            </Link>
+            <Link href="/dashboard/cost-guard/alerts" className="rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+              Alerts
+            </Link>
+          </div>
         </div>
 
         <div className="mt-4 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3">
@@ -294,6 +314,34 @@ export default async function DashboardOverviewPage({
             </>
           )}
         </div>
+
+        {dashboardNotifications.length > 0 ? (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Notifications</p>
+            {dashboardNotifications.map((notification) => (
+              <div key={notification.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white p-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                  <p className="mt-1 text-xs text-gray-600">{notification.description}</p>
+                </div>
+                <span className={[
+                  "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                  notification.severity === "critical"
+                    ? "bg-red-100 text-red-700"
+                    : notification.severity === "warning"
+                      ? "bg-amber-100 text-amber-700"
+                      : notification.severity === "watch"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-blue-100 text-blue-700",
+                ].join(" ")}>{notification.severity}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+            No active Cost Guard notifications. Everything is tracking within the configured thresholds.
+          </div>
+        )}
       </section>
 
       {currencySummaries.map((summary) => (

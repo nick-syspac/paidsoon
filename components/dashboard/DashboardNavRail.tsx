@@ -7,6 +7,7 @@ const TABS = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/invoices", label: "Invoices" },
   { href: "/dashboard/resolved", label: "Resolved Invoices" },
+  { href: "/dashboard/cost-guard", label: "Cost Guard" },
 ]
 
 export function DashboardNavRail({ canViewSpendLeak }: { canViewSpendLeak: boolean }) {

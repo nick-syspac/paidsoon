@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { DashboardNavRail } from "./DashboardNavRail"
 
 // Invoices/Resolved tables need more room to avoid horizontal scroll; other pages stay narrower.
-const WIDE_ROUTES = ["/dashboard/invoices", "/dashboard/resolved", "/dashboard/spendleak"]
+const WIDE_ROUTES = ["/dashboard/invoices", "/dashboard/resolved", "/dashboard/spendleak", "/dashboard/cost-guard"]
 
 export function DashboardMain({
   children,
