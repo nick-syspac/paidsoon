@@ -2,7 +2,7 @@
 
 ## Context
 
-See proposal.md for motivation. The repository already has a shared accounting integration stack for Xero and MYOB Business: `AccountingConnection`, `AccountingSyncRun`, provider invoice/contact mappings, encrypted token helpers, accounting sync cron orchestration, provider-specific connect/callback/disconnect/sync routes, and a Connections settings UI. QuickBooks should extend those shared primitives rather than introducing a parallel integration model.
+See proposal.md for motivation. The repository already has a shared accounting integration stack for Xero and MYOB Business: `AccountingConnection`, `AccountingSyncRun`, canonical financial ingestion (`FinancialInvoice`/`FinancialContact`/`FinancialPayment`), encrypted token helpers, accounting sync cron orchestration, provider-specific connect/callback/disconnect/sync routes, and a Connections settings UI. QuickBooks should extend those shared primitives rather than introducing a parallel integration model.
 
 The user-provided outline assumes a dedicated `quickbooks_integration` table and standalone CRUD routes. In this codebase, the equivalent behavior belongs in the existing shared accounting data model and route conventions. The main missing pieces are QuickBooks-specific provider support, webhook delivery persistence, and the user/admin surfaces needed to operate the new provider.
 
@@ -27,7 +27,7 @@ The user-provided outline assumes a dedicated `quickbooks_integration` table and
 
 ### D1. Extend the shared accounting connection model instead of adding `quickbooks_integration`
 
-**Decision:** Store QuickBooks companies in the existing `accounting_connections` table with `provider = 'quickbooks'`, reusing `AccountingSyncRun`, `ProviderInvoiceMapping`, `ProviderContactMapping`, and `OauthState`.
+**Decision:** Store QuickBooks companies in the existing `accounting_connections` table with `provider = 'quickbooks'`, reusing `AccountingSyncRun`, canonical financial ingestion helpers, and `OauthState`.
 
 **Rationale:** The current data model already captures the lifecycle QuickBooks needs: user ownership, provider-scoped organisation/company identity, encrypted access and refresh tokens, last successful sync state, and per-connection sync history. A dedicated QuickBooks table would duplicate logic, fragment admin and settings surfaces, and force future provider support into one-off models.
 

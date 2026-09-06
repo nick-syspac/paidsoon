@@ -11,9 +11,9 @@
 > engine, compliance/control library, RAG/vector AI) are explicitly marked
 > **Not applicable to this repository** rather than invented.
 >
-> Source-of-truth order used: (1) current code, (2) `openspec/changes/**`
-> (there is no `openspec/specs/**` directory — specs live inside change
-> folders), (3) `docs/runbooks/**`, (4) `README.md`.
+> Source-of-truth order used: (1) current code, (2) OpenSpec capability
+> baselines in `openspec/specs/**` plus active deltas in `openspec/changes/**`,
+> (3) `docs/runbooks/**`, (4) `README.md`.
 
 ---
 
@@ -181,7 +181,7 @@ no `apps/*` or `packages/*` workspaces.
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation policies (applied manually in Supabase) | Postgres | Not run by `prisma migrate` |
 | Generated Prisma client | `lib/generated/prisma/**` | Generated at `prisma generate` (build step) | In-process | Git-ignored output |
 | Runbooks | `docs/runbooks/**` | Operator setup (Supabase, Stripe, Resend, Vercel) | Docs | Canonical env-var matrix |
-| OpenSpec | `openspec/changes/**` | Change proposals + delta specs | Docs | No `specs/` baseline dir |
+| OpenSpec | `openspec/specs/**`, `openspec/changes/**` | Capability baselines + change deltas | Docs | Baselines and deltas coexist |
 | Scripts | `scripts/**` | `verify-rls.ts`, `_loadEnv.ts` | Node (tsx) | RLS verification |
 | Tests | `tests/**` | `node --test` unit tests (pure logic) | Node (tsx) | No integration/E2E in repo |
 

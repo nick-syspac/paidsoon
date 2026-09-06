@@ -27,7 +27,7 @@ PaidSoon already supports pull-based accounting integrations for Xero and MYOB B
 ### New Capabilities
 
 - `quickbooks-connection-lifecycle`: Authorise, persist, refresh, revoke, and manage QuickBooks Online connections through PaidSoon's existing accounting integration flow.
-- `quickbooks-sync`: Import QuickBooks invoices and customers into PaidSoon's internal invoice-tracking model, support manual and scheduled sync, and keep reminder eligibility aligned with provider-side payment state.
+- `quickbooks-sync`: Import QuickBooks invoices and customers into PaidSoon's canonical financial layer (`FinancialInvoice`, `FinancialContact`, `FinancialPayment`), support manual and scheduled sync, and keep reminder eligibility aligned with provider-side payment state.
 - `quickbooks-webhook-ingestion`: Accept signed QuickBooks event deliveries, persist them for audit and retry handling, and reconcile affected PaidSoon records idempotently.
 
 ### Modified Capabilities

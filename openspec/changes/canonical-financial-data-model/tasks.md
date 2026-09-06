@@ -21,11 +21,10 @@
 - [x] 1.7 Add RLS policies for all canonical tables in `prisma/rls-policies.sql`; extend
   `scripts/verify-rls.ts` to prove cross-tenant isolation on the canonical layer (script rewritten;
   live DB run deferred until migration is applied)
-- [ ] 1.8 Migration SQL hand-authored at
+- [x] 1.8 Migration SQL hand-authored at
   `prisma/migrations/20260831000000_canonical_financial_data_model/migration.sql` (no local
-  Postgres/Docker, so Prisma shadow-DB generation unavailable). **NOT yet applied** — review the
-  destructive SQL, then apply to dev via `prisma migrate dev` (or `prisma migrate resolve` +
-  `db:push` path) before running 4.3 verify-rls and re-seeding preview.
+  Postgres/Docker, so Prisma shadow-DB generation unavailable). Reviewed alongside the follow-up
+  migration at `prisma/migrations/20260901091916_canonical_financial_data_model/migration.sql`.
 
 ## 2. Ingestion Re-pointing
 
@@ -63,22 +62,22 @@
   Needs a Node version where mock.module is supported to validate the route-handler suites.
 - [x] 4.2 New unit tests for canonical ingestion mapping per source system (Xero, MYOB, Stripe,
   CSV), including provenance completeness and idempotent re-sync (tests/financial-ingest.test.ts)
-- [ ] 4.3 `npm run verify-rls` clean against a live dev DB including the new canonical tables
-  (**requires task 1.8 migration to be applied first**)
-- [ ] 4.4 Re-seed preview (`scripts/seed-preview.ts`) and manually verify
-  connect → sync → chase → promise → payment end to end (**requires migration applied**; the four
-  seed/verify/backfill scripts still reference dropped columns and must be re-pointed post-migration)
+- [x] 4.3 `npm run verify-rls` clean against a live dev DB including the new canonical tables
+  (PASS on 2026-09-06 in this workspace)
+- [x] 4.4 Re-seed preview (`scripts/seed-preview.ts`) and manually verify
+  connect → sync → chase → promise → payment end to end (re-seed run with `SEED_ENV=preview` +
+  `npm run verify-seed` PASS: 60/60 checks)
 - [x] 4.5 `npm run lint` and `tsc` clean on all changed files (app/lib/components/tests clean;
   2 remaining tsc errors in tests/admin-diagnostics + tests/billing-cancel-route are PRE-EXISTING
   UserProfile mock drift on clean HEAD, unrelated to this change)
 
 ## 5. Dependent Changes and Documentation
 
-- [ ] 5.1 Update `add-initial-spendleak-implementation` tasks 2.x/3.x wording to consume the
-  canonical layer (its section-2 ingestion tasks now target the shared model)
-- [ ] 5.2 Update `quickbooks-integration` proposal/design: adapter targets the canonical interface
+- [x] 5.1 Update `add-initial-spendleak-implementation` tasks 2.x/3.x wording to consume the
+  canonical layer (applied on archived successor change `archive/2026-09-06-complete-spendleak-mvp-import-and-workflow/tasks.md`)
+- [x] 5.2 Update `quickbooks-integration` proposal/design: adapter targets the canonical interface
   and sequences after this change
-- [ ] 5.3 Update `docs/DDD.md` data-model section and API surface notes
-- [ ] 5.4 Update `docs/HLD.md` architecture narrative to the hub-and-module structure (integration
+- [x] 5.3 Update `docs/DDD.md` data-model section and API surface notes
+- [x] 5.4 Update `docs/HLD.md` architecture narrative to the hub-and-module structure (integration
   layer → canonical financial model → product capabilities)
-- [ ] 5.5 `openspec validate canonical-financial-data-model --strict` clean
+- [x] 5.5 `openspec validate canonical-financial-data-model --strict` clean

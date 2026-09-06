@@ -28,7 +28,7 @@ present in the repository (it is documented as absent, not designed).
 | Initial migration | `prisma/migrations/20260531101711_init/migration.sql` | Tables, indexes, FKs | Single migration |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation | Applied manually in Supabase |
 | Supabase config | `lib/config/supabaseEnvironment.ts`, `prisma.config.ts` | Canonical inputs and lifecycle-derived URLs | transaction `6543` vs session `5432` |
-| OpenSpec changes | `openspec/changes/**` | Spec intent + status | No `specs/` baseline dir |
+| OpenSpec changes | `openspec/changes/**` | Spec intent + status | Change deltas; baseline capabilities live in `openspec/specs/**` |
 | Runbooks | `docs/runbooks/**` | Env vars, deployment | Canonical env matrix |
 | Tests | `tests/**` | Pure-logic unit tests | `node --test` + `tsx` |
 | Scripts | `scripts/verify-rls.ts` | RLS verification | Proves isolation |
@@ -49,7 +49,7 @@ below maps logical areas to code modules (there are no Django apps).
 | Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` |
 | SpendLeak brain | `lib/spendleak/**`, `lib/dashboard/loadSpendLeakDashboard.ts`, `app/api/spend-insights/[id]/route.ts`, `app/api/spendleak/export/route.ts`, `prisma/schema.prisma` | Read-only spend ingestion, deterministic detection, grounded summaries, and analysis-only CSV/XLSX report export | `ImportedBill`, `ImportedBankTransaction`, `SupplierProfile`, `SpendInsight`; `SPENDLEAK_EXPORT_FIELDS`, `loadSpendLeakFindingsForExport`, `generateSpendLeakExportCsv`, `generateSpendLeakExportXlsx` | `changes/build-spendleak-brain`, `changes/export-spendleak-report` |
-| Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV-only invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/csv-only-invoice-import`, `changes/combine-settings-import-export` |
+| Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV/XLSX invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/csv-only-invoice-import`, `changes/combine-settings-import-export`, `changes/canonical-financial-data-model` |
 | Settings import/export shell | `app/dashboard/settings/layout.tsx`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `app/dashboard/settings/export/**`, `components/settings/ExpenseImportClient.tsx` | Combined Settings page for invoice import, expense import, and invoice export, with legacy route aliases | Reuses existing import/export models and SpendLeak import workflow | `changes/combine-settings-import-export` |
 | Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export`, `changes/combine-settings-import-export` |
 | Live-mode gating | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | Pre-launch lockout | — | `changes/live-mode-auth-gate-banner` |
@@ -110,8 +110,8 @@ subsection documents a functional module.
      never gated by allowance) and `invoice.paid` (mark paid).
   2. **Catch-up scan** (`runCatchUpScan`): cron-time poll across all active
      Stripe connections, creating missing tracked invoices.
-- **Idempotency:** unique key `(externalId, provider, userId)` +
-  pre-insert `findFirst` checks.
+- **Idempotency:** canonical unique key `(userId, sourceSystem, sourceId)` on
+  `financial_invoices` + upsert-based ingestion paths (`lib/financial/ingest.ts`).
 - **Chase-volume allowance is not enforced at ingest.** Every synced invoice
   (Stripe Connect, catch-up scan, and accounting sync — `lib/providers/accounting/sync.ts`)
   is created and stays visible on the dashboard regardless of the account's
