@@ -1,3 +1,5 @@
+import type { Prisma } from "@/lib/generated/prisma/client"
+
 export const BASELINE_WINDOWS = [3, 6, 12] as const
 
 export type BaselineWindow = (typeof BASELINE_WINDOWS)[number]
@@ -244,7 +246,7 @@ export interface CostGuardAlertEventRecordInput {
   status: string
   actorId?: string | null
   reason?: string | null
-  metadata?: Record<string, unknown> | null
+  metadata?: Prisma.InputJsonValue | null
 }
 
 export interface CostGuardAlertSummaryInput {
@@ -431,7 +433,7 @@ export function buildCostGuardAlertEventRecord(input: CostGuardAlertEventRecordI
     eventType: buildCostGuardAlertEventTypeForStatus(input.status),
     actorId: input.actorId ?? null,
     reason: input.reason ?? null,
-    metadata: input.metadata ?? null,
+    metadata: (input.metadata ?? null) as Prisma.InputJsonValue | null,
   }
 }
 
@@ -441,8 +443,8 @@ export interface CostGuardRuleChangeEventRecordInput {
   action: "create" | "update"
   actorId?: string | null
   reason?: string | null
-  previous?: Record<string, unknown> | null
-  next?: Record<string, unknown> | null
+  previous?: Prisma.InputJsonValue | null
+  next?: Prisma.InputJsonValue | null
 }
 
 export interface CostGuardNotificationPlan {
@@ -481,11 +483,11 @@ export interface CostGuardDigestSummary {
 export function buildCostGuardRuleChangeEventRecord(input: CostGuardRuleChangeEventRecordInput) {
   const previous = input.previous ?? null
   const next = input.next ?? null
-  const metadata = {
+  const metadata: Prisma.InputJsonValue = {
     ruleId: input.ruleId,
     action: input.action,
-    before: previous,
-    after: next,
+    before: previous as Prisma.InputJsonValue | null,
+    after: next as Prisma.InputJsonValue | null,
   }
 
   return {
@@ -858,9 +860,11 @@ export function buildCostGuardForecastSummary(forecast: ForecastSummary): CostGu
 }
 
 export function shouldApplyCostGuardRule(
-  rule: Pick<CostGuardRuleDefinition, "enabled" | "supplierId" | "categoryId" | "ruleType"> & {
+  rule: {
+    enabled: boolean
     supplierId?: string | null
     categoryId?: string | null
+    ruleType?: string
   },
   context: { supplierId?: string | null; categoryId?: string | null } = {},
 ): boolean {
@@ -880,22 +884,33 @@ export function shouldApplyCostGuardRule(
 }
 
 export function getCostGuardRulePriority(
-  rule: Pick<
-    CostGuardRuleDefinition,
-    "enabled" | "severity" | "supplierId" | "categoryId" | "percentageThreshold" | "absoluteThresholdCents"
-  >,
+  rule: {
+    enabled: boolean
+    severity?: "info" | "watch" | "warning" | "critical"
+    supplierId?: string | null
+    categoryId?: string | null
+    percentageThreshold?: number
+    absoluteThresholdCents?: number
+  },
 ): number {
-  const severityWeight = { info: 1, watch: 2, warning: 3, critical: 4 }
+  const severityWeight = { info: 1, watch: 2, warning: 3, critical: 4 } as const
+  const severity = rule.severity ?? "info"
   const specificityWeight = Number(Boolean(rule.supplierId)) + Number(Boolean(rule.categoryId))
   const thresholdWeight = Math.min(20, Math.round((rule.percentageThreshold ?? 0) / 2) + Math.round((rule.absoluteThresholdCents ?? 0) / 20000))
 
-  return (rule.enabled ? 100 : 0) + (severityWeight[rule.severity] ?? 0) * 10 + specificityWeight * 10 + thresholdWeight
+  return (rule.enabled ? 100 : 0) + (severityWeight[severity] ?? 0) * 10 + specificityWeight * 10 + thresholdWeight
 }
 
-export function resolveCostGuardRuleConflict<T extends Pick<
-  CostGuardRuleDefinition,
-  "enabled" | "severity" | "supplierId" | "categoryId" | "percentageThreshold" | "absoluteThresholdCents"
->>(rules: T[], context: { supplierId?: string | null; categoryId?: string | null } = {}): T | null {
+export function resolveCostGuardRuleConflict<
+  T extends {
+    enabled: boolean
+    severity?: "info" | "watch" | "warning" | "critical"
+    supplierId?: string | null
+    categoryId?: string | null
+    percentageThreshold?: number
+    absoluteThresholdCents?: number
+  },
+>(rules: T[], context: { supplierId?: string | null; categoryId?: string | null } = {}): T | null {
   const applicable = rules.filter((rule) => shouldApplyCostGuardRule(rule as any, context))
   if (applicable.length === 0) {
     return null

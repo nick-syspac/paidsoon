@@ -473,7 +473,8 @@ async function main() {
       },
     }),
   )
-  if (forecastRows.length !== 1 || forecastRows[0].assumptions?.source !== "verify-rls") {
+  const forecastAssumptions = forecastRows[0]?.assumptions as Record<string, unknown> | null | undefined
+  if (forecastRows.length !== 1 || forecastAssumptions?.source !== "verify-rls") {
     await cleanup()
     fail(`expected exactly A's cost guard forecast, got ${JSON.stringify(forecastRows.map((r) => r.userId))}`)
   }

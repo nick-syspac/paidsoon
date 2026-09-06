@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
+import { Prisma } from "@/lib/generated/prisma/client"
 import {
   buildCostGuardForecastSummary,
   buildRecurringSpendBaselineFromSpendInsights,
@@ -150,7 +151,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     recurringCommitmentsCents: z.number().int().nonnegative(),
     expectedVariableSpendCents: z.number().int().nonnegative(),
     baselineSpendCents: z.number().int().nonnegative().optional(),
-    assumptions: z.record(z.unknown()).optional(),
+    assumptions: z.record(z.string(), z.unknown()).optional(),
   })
 
   const parsed = schema.safeParse(await request.json().catch(() => null))
@@ -177,7 +178,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         varianceAmountCents: forecast.varianceAmountCents,
         variancePercent: forecast.variancePercent,
         confidence: forecast.confidence,
-        assumptions: parsed.data.assumptions ?? null,
+        assumptions:
+          parsed.data.assumptions != null
+            ? (parsed.data.assumptions as Prisma.InputJsonValue)
+            : undefined,
       },
       select: {
         id: true,
