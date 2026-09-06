@@ -69,15 +69,15 @@
 
 - [x] 8.1 Run `npm run test` — confirm existing tests pass
 - [x] 8.2 Run `npm run verify-rls`
-- [ ] 8.3 Register `customer.subscription_schedule.released` in Stripe webhook dashboard (add to the production endpoint's listened events)
-- [ ] 8.4 Manual smoke test: subscribe as a new user via Checkout; confirm `stripeSubscriptionId` and `subscriptionCurrentPeriodEnd` are written to `user_profiles`
-- [ ] 8.5 Manual smoke test: downgrade from Small Business to Starter; confirm confirmation panel shows correct date and lost features; confirm Subscription Schedule created in Stripe dashboard
-- [ ] 8.6 Manual smoke test: cancel the pending downgrade; confirm schedule released in Stripe and pending state cleared in DB
-- [ ] 8.7 Manual smoke test: upgrade from Starter to Solo on an existing subscription; confirm no second subscription created; confirm proration charge in Stripe
+- [x] 8.3 Register `customer.subscription_schedule.released` in Stripe webhook dashboard (add to the production endpoint's listened events)
+- [x] 8.4 Manual smoke test: subscribe as a new user via Checkout; confirm `stripeSubscriptionId` and `subscriptionCurrentPeriodEnd` are written to `user_profiles`
+- [x] 8.5 Manual smoke test: downgrade from Small Business to Starter; confirm confirmation panel shows correct date and lost features; confirm Subscription Schedule created in Stripe dashboard
+- [x] 8.6 Manual smoke test: cancel the pending downgrade; confirm schedule released in Stripe and pending state cleared in DB
+- [x] 8.7 Manual smoke test: upgrade from Starter to Solo on an existing subscription; confirm no second subscription created; confirm proration charge in Stripe
 
 ## 9. Current-plan selector initialization
 
 - [x] 9.1 In `app/dashboard/settings/subscription/page.tsx`, derive `preselectedTier` only when the `plan` query parameter identifies a public, customer-selectable tier; pass `undefined` for missing, invalid, or contact-only values instead of normalizing them to Starter
 - [x] 9.2 Preserve selector precedence in `SubscriptionClient`: explicit user selection, then valid query preselection, then the current subscription tier
 - [x] 9.3 Add regression tests covering normal navigation for a Solo subscriber, valid public-plan deep-link preselection, invalid plan values, and the contact-only Accountant Partner value
-- [ ] 9.4 Manually smoke test direct navigation to Settings → Subscription for Starter, Solo, and Small Business accounts and confirm each current plan is highlighted
+- [x] 9.4 Manually smoke test direct navigation to Settings → Subscription for Starter, Solo, and Small Business accounts and confirm each current plan is highlighted
