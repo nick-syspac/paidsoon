@@ -249,6 +249,15 @@ export interface CostGuardAlertEventRecordInput {
   metadata?: Prisma.InputJsonValue | null
 }
 
+export interface CostGuardAlertEventRecord {
+  userId: string
+  alertId: string
+  eventType: string
+  actorId: string | null
+  reason: string | null
+  metadata: Prisma.InputJsonValue | null
+}
+
 export interface CostGuardAlertSummaryInput {
   id: string
   userId: string
@@ -426,7 +435,7 @@ export async function upsertCostGuardAlertRecord({
   return created
 }
 
-export function buildCostGuardAlertEventRecord(input: CostGuardAlertEventRecordInput) {
+export function buildCostGuardAlertEventRecord(input: CostGuardAlertEventRecordInput): CostGuardAlertEventRecord {
   return {
     userId: input.userId,
     alertId: input.alertId,
