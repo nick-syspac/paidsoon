@@ -492,6 +492,82 @@ export function buildCashPlanDigest(input: {
   }
 }
 
+export function evaluateCashPlanAlerts(forecast: CashPlanForecast): CashPlanAlert[] {
+  const alerts: CashPlanAlert[] = []
+
+  if (forecast.bufferGapCents < 0) {
+    alerts.push(
+      buildCashPlanAlert({
+        id: "cashplan-buffer-risk",
+        kind: "buffer_risk",
+        title: "Buffer below target",
+        message: `The forecast buffer gap is ${Math.abs(forecast.bufferGapCents)} cents before the lowest cash week.`,
+        severity: forecast.bufferGapCents < -100_000 ? "high" : "medium",
+        thresholdCents: Math.max(0, Math.abs(forecast.bufferGapCents)),
+        currentCents: Math.abs(forecast.bufferGapCents),
+      }),
+    )
+  }
+
+  for (const issue of forecast.dataQualityIssues) {
+    const alertKind = issue.type === "stale_source" ? "stale_source" : "manual_review"
+    alerts.push(
+      buildCashPlanAlert({
+        id: `cashplan-${issue.type}-${issue.weekIndex ?? "all"}`,
+        kind: alertKind,
+        title: issue.type === "stale_source" ? "Source refresh needed" : "Cash data needs review",
+        message: issue.message,
+        severity: issue.severity === "high" ? "high" : issue.severity === "medium" ? "medium" : "low",
+        thresholdCents: Math.max(0, issue.weekIndex != null ? issue.weekIndex * 10_000 : 0),
+        currentCents: Math.abs(forecast.bufferGapCents),
+      }),
+    )
+  }
+
+  if (alerts.length === 0) {
+    alerts.push(
+      buildCashPlanAlert({
+        id: "cashplan-buffer-watch",
+        kind: "buffer_risk",
+        title: "Review the buffer plan",
+        message: "Monitor the lowest cash week and preserve the target buffer before the next payment cycle.",
+        severity: "medium",
+        thresholdCents: Math.max(0, forecast.bufferGapCents),
+        currentCents: Math.abs(forecast.bufferGapCents),
+      }),
+    )
+  }
+
+  const deduped = new Map<string, CashPlanAlert>()
+  for (const alert of alerts) {
+    deduped.set(alert.dedupeKey, alert)
+  }
+
+  return [...deduped.values()].sort((left, right) => {
+    const severityWeight = { high: 3, medium: 2, low: 1 }
+    return severityWeight[right.severity] - severityWeight[left.severity]
+  })
+}
+
+export function expireCashPlanOverrides(
+  overrides: Array<{ id: string; expiresAt: Date | null }>,
+  now = new Date(),
+): string[] {
+  return overrides
+    .filter((override) => override.expiresAt && override.expiresAt.getTime() <= now.getTime())
+    .map((override) => override.id)
+}
+
+export function rebuildCashPlanProjection(input: {
+  forecast: CashPlanForecast
+  title?: string
+}): CashPlanSummaryResponse {
+  return buildCashPlanSummaryResponse({
+    forecast: input.forecast,
+    title: input.title ?? "Base plan",
+  })
+}
+
 export function buildCashPlanSummaryResponse(input: {
   forecast: CashPlanForecast
   title?: string

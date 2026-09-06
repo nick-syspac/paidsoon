@@ -16,6 +16,9 @@ import {
   buildCashPlanSummaryResponse,
   defaultCashPlanSettings,
   evaluateCashPlanRecalculationTriggers,
+  evaluateCashPlanAlerts,
+  expireCashPlanOverrides,
+  rebuildCashPlanProjection,
 } from "@/lib/cashplan/engine"
 
 describe("CashPlan forecast engine", () => {
@@ -314,5 +317,30 @@ describe("CashPlan forecast engine", () => {
     assert.ok(recommendations.length > 0)
     assert.ok(recommendations[0].estimatedImpactCents >= recommendations.at(-1)!.estimatedImpactCents)
     assert.equal(alert.dedupeKey, "buffer_risk:100000:80000")
+  })
+
+  test("evaluates worker job outputs for alerts, expiry, and projection rebuilds", () => {
+    const forecast = buildCashPlanForecast({
+      openingCashCents: 900_000,
+      inflows: [{ id: "invoice-1", kind: "inflow", amountCents: 220_000, weekIndex: 4 }],
+      outflows: [{ id: "payroll", kind: "outflow", amountCents: 180_000, weekIndex: 5 }],
+      bufferTargetCents: 150_000,
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const alerts = evaluateCashPlanAlerts(forecast)
+    const projection = rebuildCashPlanProjection({
+      forecast,
+      title: "Base plan",
+    })
+    const expired = expireCashPlanOverrides([
+      { id: "override-1", expiresAt: new Date("2026-09-06T00:00:00.000Z") },
+      { id: "override-2", expiresAt: new Date("2026-09-08T00:00:00.000Z") },
+      { id: "override-3", expiresAt: null },
+    ])
+
+    assert.ok(alerts.length >= 1)
+    assert.equal(projection.title, "Base plan")
+    assert.deepEqual(expired, ["override-1"])
   })
 })
