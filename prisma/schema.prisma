@@ -59,6 +59,10 @@ model UserProfile {
   invoiceImportBatches         InvoiceImportBatch[]
   invoiceImportMappingProfiles InvoiceImportMappingProfile[]
   spendImportBatches           SpendImportBatch[]
+  cashPlans                    CashPlan[]
+  cashPlanSettings             CashPlanSetting[]
+  cashPlanAlerts               CashPlanAlert[]
+  cashPlanDataQualityIssues    CashPlanDataQualityIssue[]
 
   @@map("user_profiles")
 }
@@ -880,6 +884,169 @@ model CashForecastSnapshot {
 
   @@index([userId, snapshotAt])
   @@map("cash_forecast_snapshots")
+}
+
+model CashPlan {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  name              String   @default("Base plan")
+  currency          String   @default("aud")
+  timezone          String   @default("Australia/Sydney")
+  horizonWeeks      Int      @default(13) @map("horizon_weeks")
+  bufferTargetCents Int      @default(0) @map("buffer_target_cents")
+  status            String   @default("preliminary") // preliminary | active | stale
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  settings             CashPlanSetting[]
+  assumptionSets       CashPlanAssumptionSet[]
+  snapshots            CashPlanSnapshot[]
+  overrides            CashPlanOverride[]
+  scenarios            CashPlanScenario[]
+  alerts               CashPlanAlert[]
+  dataQualityIssues    CashPlanDataQualityIssue[]
+
+  @@index([userId, status])
+  @@map("cash_plans")
+}
+
+model CashPlanSetting {
+  id                    String   @id @default(cuid())
+  userId                String   @map("user_id")
+  planId                String?  @map("plan_id")
+  currency              String   @default("aud")
+  timezone              String   @default("Australia/Sydney")
+  horizonWeeks          Int      @default(13) @map("horizon_weeks")
+  bufferTargetCents     Int      @default(0) @map("buffer_target_cents")
+  alertThresholdCents   Int      @default(0) @map("alert_threshold_cents")
+  reviewRole            String   @default("owner") @map("review_role")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  plan        CashPlan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, planId])
+  @@map("cash_plan_settings")
+}
+
+model CashPlanAssumptionSet {
+  id          String   @id @default(cuid())
+  planId      String   @map("plan_id")
+  version     Int      @default(1)
+  name        String   @default("default")
+  assumptions Json
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  plan CashPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, version])
+  @@map("cash_plan_assumption_sets")
+}
+
+model CashPlanScenario {
+  id         String   @id @default(cuid())
+  planId     String   @map("plan_id")
+  name       String
+  kind       String   @default("custom") // base | optimistic | conservative | custom
+  delta      Json?    @map("delta")
+  isActive   Boolean  @default(false) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  plan     CashPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  snapshots CashPlanSnapshot[]
+
+  @@index([planId, kind])
+  @@map("cash_plan_scenarios")
+}
+
+model CashPlanSnapshot {
+  id                     String   @id @default(cuid())
+  planId                 String   @map("plan_id")
+  scenarioId             String?  @map("scenario_id")
+  inputHash              String   @map("input_hash")
+  engineVersion          String   @map("engine_version")
+  confidence             Int      @default(100)
+  status                 String   @default("preliminary")
+  lowestClosingCashCents Int      @default(0) @map("lowest_closing_cash_cents")
+  bufferGapCents         Int      @default(0) @map("buffer_gap_cents")
+  weeks                  Json
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  plan     CashPlan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  scenario CashPlanScenario? @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+
+  @@index([planId, createdAt])
+  @@map("cash_plan_snapshots")
+}
+
+model CashPlanOverride {
+  id             String    @id @default(cuid())
+  planId         String    @map("plan_id")
+  entityType     String    @map("entity_type") // inflow | outflow | assumption
+  entityId       String    @map("entity_id")
+  amountCents    Int?      @map("amount_cents")
+  reason         String
+  owner          String?
+  effectiveFrom  DateTime? @map("effective_from")
+  expiresAt      DateTime? @map("expires_at")
+  sourceType     String    @default("manual") @map("source_type")
+  sourceId       String?   @map("source_id")
+  createdBy      String?   @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  plan CashPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, entityType, entityId])
+  @@map("cash_plan_overrides")
+}
+
+model CashPlanAlert {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  planId        String    @map("plan_id")
+  alertType     String    @map("alert_type")
+  severity      String    @default("medium")
+  title         String
+  description   String
+  status        String    @default("open")
+  materialityCents Int     @default(0) @map("materiality_cents")
+  metadata      Json?
+  triggeredAt   DateTime  @default(now()) @map("triggered_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  resolvedAt    DateTime? @map("resolved_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  plan        CashPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, status, severity])
+  @@map("cash_plan_alerts")
+}
+
+model CashPlanDataQualityIssue {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  planId      String   @map("plan_id")
+  issueType   String   @map("issue_type")
+  severity    String   @default("medium")
+  message     String
+  status      String   @default("open")
+  weekIndex   Int?     @map("week_index")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  plan        CashPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, status, severity])
+  @@map("cash_plan_data_quality_issues")
 }
 
 // ---------------------------------------------------------------------------
