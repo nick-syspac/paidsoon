@@ -666,6 +666,91 @@ export function normalizeCashPlanFacts(
   }
 }
 
+export interface CashPlanSourceFailure {
+  sourceSystem: string
+  sourceId: string
+  reason: string
+  at?: Date | null
+}
+
+export interface CashPlanCanonicalFactBundle {
+  inflows: CashPlanLineItemInput[]
+  outflows: CashPlanLineItemInput[]
+  failedSources: CashPlanSourceFailure[]
+  sourceHash: string
+}
+
+export function buildCashPlanCanonicalFactBundle(input: {
+  inflows: Array<CashPlanLineItemInput & {
+    sourceSystem?: string
+    sourceId?: string
+    sourceUpdatedAt?: Date | null
+    sourceHash?: string
+  }>
+  outflows: Array<CashPlanLineItemInput & {
+    sourceSystem?: string
+    sourceId?: string
+    sourceUpdatedAt?: Date | null
+    sourceHash?: string
+  }>
+  failedSources?: CashPlanSourceFailure[]
+}): CashPlanCanonicalFactBundle {
+  const normalized = normalizeCashPlanFacts(input.inflows, input.outflows)
+  const failedSources = (input.failedSources ?? []).map((source) => ({
+    sourceSystem: source.sourceSystem,
+    sourceId: source.sourceId,
+    reason: source.reason,
+    at: source.at ?? null,
+  }))
+
+  const sourceHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        inflows: normalized.inflows.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          amountCents: item.amountCents,
+          weekIndex: item.weekIndex,
+          sourceSystem: item.sourceSystem ?? "unknown",
+          sourceId: item.sourceId ?? item.id,
+          sourceUpdatedAt: toIso(item.sourceUpdatedAt),
+          sourceHash: item.sourceHash ?? "",
+        })),
+        outflows: normalized.outflows.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          amountCents: item.amountCents,
+          weekIndex: item.weekIndex,
+          sourceSystem: item.sourceSystem ?? "unknown",
+          sourceId: item.sourceId ?? item.id,
+          sourceUpdatedAt: toIso(item.sourceUpdatedAt),
+          sourceHash: item.sourceHash ?? "",
+        })),
+        failedSources,
+      }),
+    )
+    .digest("hex")
+
+  return {
+    inflows: normalized.inflows.map((item) => ({
+      ...item,
+      sourceSystem: item.sourceSystem ?? "unknown",
+      sourceId: item.sourceId ?? item.id,
+      sourceUpdatedAt: item.sourceUpdatedAt ?? null,
+      sourceHash: item.sourceHash ?? "",
+    })),
+    outflows: normalized.outflows.map((item) => ({
+      ...item,
+      sourceSystem: item.sourceSystem ?? "unknown",
+      sourceId: item.sourceId ?? item.id,
+      sourceUpdatedAt: item.sourceUpdatedAt ?? null,
+      sourceHash: item.sourceHash ?? "",
+    })),
+    failedSources,
+    sourceHash,
+  }
+}
+
 const FORECAST_WEEKS = 13
 
 function stableItemSort(a: CashPlanLineItemInput, b: CashPlanLineItemInput): number {

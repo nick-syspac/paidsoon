@@ -19,6 +19,7 @@ import {
   evaluateCashPlanAlerts,
   expireCashPlanOverrides,
   rebuildCashPlanProjection,
+  buildCashPlanCanonicalFactBundle,
 } from "@/lib/cashplan/engine"
 
 describe("CashPlan forecast engine", () => {
@@ -342,5 +343,40 @@ describe("CashPlan forecast engine", () => {
     assert.ok(alerts.length >= 1)
     assert.equal(projection.title, "Base plan")
     assert.deepEqual(expired, ["override-1"])
+  })
+
+  test("preserves source provenance and failed-import state when canonicalising imported cash facts", () => {
+    const bundle = buildCashPlanCanonicalFactBundle({
+      inflows: [
+        {
+          id: "invoice-42",
+          kind: "inflow",
+          amountCents: 500_000,
+          weekIndex: 1,
+          sourceSystem: "xero",
+          sourceId: "invoice-42",
+          sourceUpdatedAt: new Date("2026-09-06T10:00:00.000Z"),
+          sourceHash: "hash-1",
+        },
+      ],
+      outflows: [
+        {
+          id: "bill-7",
+          kind: "outflow",
+          amountCents: 250_000,
+          weekIndex: 2,
+          sourceSystem: "csv-import",
+          sourceId: "bill-7",
+          sourceUpdatedAt: new Date("2026-09-06T12:00:00.000Z"),
+          sourceHash: "hash-2",
+        },
+      ],
+      failedSources: [{ sourceSystem: "myob", sourceId: "expense-99", reason: "sync error" }],
+    })
+
+    assert.equal(bundle.inflows[0].sourceSystem, "xero")
+    assert.equal(bundle.outflows[0].sourceId, "bill-7")
+    assert.equal(bundle.failedSources[0].reason, "sync error")
+    assert.ok(bundle.sourceHash.length > 0)
   })
 })

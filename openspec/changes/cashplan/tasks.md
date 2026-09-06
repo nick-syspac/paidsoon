@@ -35,7 +35,7 @@
 ## 6. API and integrations
 
 - [x] 6.1 Implement summary, periods, items, settings, explanation, and export endpoints under the CashPlan API surface
-- [ ] 6.2 Add worker jobs for source sync, projection rebuild, recommendation evaluation, alerting, override expiry, and digest generation
+- [x] 6.2 Add worker jobs for source sync, projection rebuild, recommendation evaluation, alerting, override expiry, and digest generation
 - [ ] 6.3 Connect existing accounting and CSV import paths to CashPlan canonical facts while preserving source provenance and source failure states
 - [ ] 6.4 Add integration tests for tenant isolation, deterministic forecast output, stale-source handling, and override semantics
 
