@@ -290,4 +290,29 @@ describe("CashPlan forecast engine", () => {
     assert.ok(summary.workspace.weeks.length >= 1)
     assert.ok(summary.recommendations.length >= 1)
   })
+
+  test("ranks recommendations by forecast impact and deduplicates alert keys", () => {
+    const forecast = buildCashPlanForecast({
+      openingCashCents: 120_000,
+      inflows: [{ id: "invoice-1", kind: "inflow", amountCents: 40_000, weekIndex: 1 }],
+      outflows: [{ id: "payroll", kind: "outflow", amountCents: 180_000, weekIndex: 2 }],
+      bufferTargetCents: 100_000,
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const recommendations = buildCashPlanRecommendations({ forecast })
+    const alert = buildCashPlanAlert({
+      id: "alert-1",
+      kind: "buffer_risk",
+      title: "Buffer is at risk",
+      message: "The cash buffer falls below target before the next payroll run.",
+      severity: "high",
+      thresholdCents: 100_000,
+      currentCents: 80_000,
+    })
+
+    assert.ok(recommendations.length > 0)
+    assert.ok(recommendations[0].estimatedImpactCents >= recommendations.at(-1)!.estimatedImpactCents)
+    assert.equal(alert.dedupeKey, "buffer_risk:100000:80000")
+  })
 })

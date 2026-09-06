@@ -64,7 +64,12 @@ export async function PUT(request: Request) {
     }
 
     return tx.cashPlanSetting.upsert({
-      where: { userId_planId: { userId: user.id, planId: null } },
+      where: {
+        userId_planId: {
+          userId: user.id,
+          planId: null as string | null,
+        },
+      },
       update: createData,
       create: createData,
     })
