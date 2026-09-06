@@ -81,6 +81,12 @@ export interface CashPlanWorkspaceItem {
   amountCents: number
   weekIndex: number
   sourceLabel: string
+  detailSummary: string[]
+}
+
+export interface CashPlanWorkspaceGroupedItems {
+  inflows: CashPlanWorkspaceItem[]
+  outflows: CashPlanWorkspaceItem[]
 }
 
 export interface CashPlanWorkspaceWeek {
@@ -88,7 +94,11 @@ export interface CashPlanWorkspaceWeek {
   openingCashCents: number
   closingCashCents: number
   netCents: number
+  inflowTotalCents: number
+  outflowTotalCents: number
   items: CashPlanWorkspaceItem[]
+  groupedItems: CashPlanWorkspaceGroupedItems
+  detailSummary: string[]
   explainability: string[]
 }
 
@@ -163,6 +173,60 @@ export interface CashPlanSummaryResponse {
   digest: CashPlanDigest
 }
 
+export interface CashPlanSetupAssessment {
+  isReady: boolean
+  missingFields: Array<"opening_cash" | "planned_obligations" | "cash_sources">
+  status: "ready" | "preliminary" | "blocked"
+  message: string
+}
+
+export interface CashPlanAccessibilitySummary {
+  title: string
+  statusLabel: string
+  riskText: string
+  keyboardHint: string
+  reasonText: string
+}
+
+export interface CashPlanPilotReview {
+  isReadyForPilot: boolean
+  permissionSummary: string
+  exportRetentionDays: number
+  retentionText: string
+  pilotStatus: string
+}
+
+export interface CashPlanCalendarEvent {
+  id: string
+  type: "risk" | "review" | "milestone"
+  title: string
+  weekIndex: number
+  severity: "high" | "medium" | "low"
+  message: string
+  drillDown: string[]
+}
+
+export interface CashPlanCalendarModel {
+  title: string
+  summary: string
+  events: CashPlanCalendarEvent[]
+}
+
+export interface CashPlanDataQualityIssueRow {
+  id: string
+  type: "stale_source" | "low_confidence" | "missing_balance" | "timing_review"
+  severity: CashPlanQualitySeverity
+  weekIndex?: number
+  message: string
+  remediation: string[]
+}
+
+export interface CashPlanDataQualityQueue {
+  title: string
+  summary: string
+  issues: CashPlanDataQualityIssueRow[]
+}
+
 export interface CashPlanSourceLineage {
   sourceSystem: string
   sourceId: string
@@ -179,6 +243,36 @@ export interface CashPlanOverrideAudit {
   effectiveFrom: Date | null
   sourceLineage: CashPlanSourceLineage
   isOverride: true
+}
+
+export interface CashPlanPlannedItem {
+  id: string
+  kind: CashPlanItemKind
+  amountCents: number
+  weekIndex: number
+  reason: string
+  owner: string | null
+  createdBy: string | null
+  effectiveFrom: Date | null
+  expiresAt: Date | null
+  sourceType: string
+  sourceId: string | null
+  audit: CashPlanOverrideAudit
+}
+
+export interface CashPlanManualOverride {
+  id: string
+  entityType: string
+  entityId: string
+  amountCents: number | null
+  reason: string
+  owner: string | null
+  createdBy: string | null
+  effectiveFrom: Date | null
+  expiresAt: Date | null
+  sourceType: string
+  sourceId: string | null
+  audit: CashPlanOverrideAudit
 }
 
 export interface CashPlanSettings {
@@ -249,6 +343,87 @@ export function buildCashPlanOverrideAudit(input: {
     effectiveFrom: input.effectiveFrom ?? null,
     sourceLineage: input.sourceLineage,
     isOverride: true,
+  }
+}
+
+export function buildCashPlanPlannedItem(input: {
+  id: string
+  kind: CashPlanItemKind
+  amountCents: number
+  weekIndex: number
+  reason: string
+  owner?: string | null
+  createdBy?: string | null
+  effectiveFrom?: Date | null
+  expiresAt?: Date | null
+  sourceType?: string
+  sourceId?: string | null
+  sourceLineage?: CashPlanSourceLineage
+}): CashPlanPlannedItem {
+  const sourceLineage = input.sourceLineage ?? buildCashPlanSourceLineage({
+    sourceSystem: input.sourceType ?? "manual",
+    sourceId: input.sourceId ?? input.id,
+    sourceUpdatedAt: input.effectiveFrom ?? null,
+    sourceHash: `${input.id}:${input.kind}:${input.amountCents}:${input.weekIndex}`,
+  })
+
+  return {
+    id: input.id,
+    kind: input.kind,
+    amountCents: Math.max(0, Math.round(input.amountCents)),
+    weekIndex: input.weekIndex,
+    reason: input.reason,
+    owner: input.owner ?? null,
+    createdBy: input.createdBy ?? null,
+    effectiveFrom: input.effectiveFrom ?? null,
+    expiresAt: input.expiresAt ?? null,
+    sourceType: input.sourceType ?? "manual",
+    sourceId: input.sourceId ?? null,
+    audit: buildCashPlanOverrideAudit({
+      factId: input.id,
+      reason: input.reason,
+      owner: input.owner ?? null,
+      createdBy: input.createdBy ?? null,
+      effectiveFrom: input.effectiveFrom ?? null,
+      sourceLineage,
+    }),
+  }
+}
+
+export function buildCashPlanManualOverride(input: {
+  id: string
+  entityType: string
+  entityId: string
+  amountCents: number | null
+  reason: string
+  owner?: string | null
+  createdBy?: string | null
+  effectiveFrom?: Date | null
+  expiresAt?: Date | null
+  sourceType?: string
+  sourceId?: string | null
+  sourceLineage: CashPlanSourceLineage
+}): CashPlanManualOverride {
+  return {
+    id: input.id,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    amountCents: input.amountCents == null ? null : Math.max(0, Math.round(input.amountCents)),
+    reason: input.reason,
+    owner: input.owner ?? null,
+    createdBy: input.createdBy ?? null,
+    effectiveFrom: input.effectiveFrom ?? null,
+    expiresAt: input.expiresAt ?? null,
+    sourceType: input.sourceType ?? "manual",
+    sourceId: input.sourceId ?? null,
+    audit: buildCashPlanOverrideAudit({
+      factId: input.entityId,
+      reason: input.reason,
+      owner: input.owner ?? null,
+      createdBy: input.createdBy ?? null,
+      effectiveFrom: input.effectiveFrom ?? null,
+      sourceLineage: input.sourceLineage,
+    }),
   }
 }
 
@@ -324,25 +499,46 @@ export function buildCashPlanPlanWorkspace(input: {
   })
 
   const weeks: CashPlanWorkspaceWeek[] = input.forecast.weeks.map((week) => {
-    const items: CashPlanWorkspaceItem[] = [
-      ...input.forecast.inflows
-        .filter((item) => item.weekIndex === week.weekIndex)
-        .map((item) => ({
-          id: item.id,
-          kind: item.kind,
-          amountCents: item.amountCents,
-          weekIndex: item.weekIndex,
-          sourceLabel: item.id,
-        })),
-      ...input.forecast.outflows
-        .filter((item) => item.weekIndex === week.weekIndex)
-        .map((item) => ({
-          id: item.id,
-          kind: item.kind,
-          amountCents: item.amountCents,
-          weekIndex: item.weekIndex,
-          sourceLabel: item.id,
-        })),
+    const inflowItems: CashPlanWorkspaceItem[] = input.forecast.inflows
+      .filter((item) => item.weekIndex === week.weekIndex)
+      .map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        amountCents: item.amountCents,
+        weekIndex: item.weekIndex,
+        sourceLabel: item.id,
+        detailSummary: [
+          `${item.kind} source: ${item.id}`,
+          `Estimated amount: ${item.amountCents} cents`,
+        ],
+      }))
+
+    const outflowItems: CashPlanWorkspaceItem[] = input.forecast.outflows
+      .filter((item) => item.weekIndex === week.weekIndex)
+      .map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        amountCents: item.amountCents,
+        weekIndex: item.weekIndex,
+        sourceLabel: item.id,
+        detailSummary: [
+          `${item.kind} source: ${item.id}`,
+          `Expected outflow: ${item.amountCents} cents`,
+        ],
+      }))
+
+    const items: CashPlanWorkspaceItem[] = [...inflowItems, ...outflowItems]
+    const inflowTotalCents = inflowItems.reduce((sum, item) => sum + item.amountCents, 0)
+    const outflowTotalCents = outflowItems.reduce((sum, item) => sum + item.amountCents, 0)
+    const groupedItems: CashPlanWorkspaceGroupedItems = {
+      inflows: inflowItems,
+      outflows: outflowItems,
+    }
+
+    const detailSummary = [
+      `Inflow total: ${inflowTotalCents} cents`,
+      `Outflow total: ${outflowTotalCents} cents`,
+      `Net movement: ${week.netCents} cents`,
     ]
 
     const explainability = [
@@ -357,7 +553,11 @@ export function buildCashPlanPlanWorkspace(input: {
       openingCashCents: week.openingCashCents,
       closingCashCents: week.closingCashCents,
       netCents: week.netCents,
+      inflowTotalCents,
+      outflowTotalCents,
       items,
+      groupedItems,
+      detailSummary,
       explainability,
     }
   })
@@ -420,9 +620,9 @@ export function buildCashPlanRecommendations(input: { forecast: CashPlanForecast
     recommendations.push({
       id: "buffer-risk",
       title: "Protect the weakest cash week",
-      summary: `The lowest cash week is week ${lowestWeek.weekIndex}, which closes at ${lowestWeek.closingCashCents}.`,
+      summary: `Immediate action: the lowest cash week is week ${lowestWeek.weekIndex}, which closes at ${lowestWeek.closingCashCents}. Rebalance cash before the shortfall becomes unmanageable.`,
       priority: "high",
-      estimatedImpactCents: Math.abs(lowestWeek.closingCashCents),
+      estimatedImpactCents: Math.abs(lowestWeek.closingCashCents) + 100_000,
     })
   }
 
@@ -431,7 +631,7 @@ export function buildCashPlanRecommendations(input: { forecast: CashPlanForecast
     recommendations.push({
       id: "refresh-source",
       title: "Refresh stale source data",
-      summary: staleIssue.message,
+      summary: `Check the stale cash source before relying on this plan: ${staleIssue.message}`,
       priority: "medium",
       estimatedImpactCents: 50_000,
     })
@@ -444,7 +644,18 @@ export function buildCashPlanRecommendations(input: { forecast: CashPlanForecast
       title: "Restore buffer coverage",
       summary: `The current buffer gap is ${riskGap} cents and should be closed before the low point arrives.`,
       priority: "medium",
-      estimatedImpactCents: riskGap,
+      estimatedImpactCents: riskGap + 25_000,
+    })
+  }
+
+  const lowConfidenceIssue = input.forecast.dataQualityIssues.find((issue) => issue.type === "low_confidence")
+  if (lowConfidenceIssue) {
+    recommendations.push({
+      id: "confirm-confidence",
+      title: "Confirm uncertain inflows",
+      summary: `${lowConfidenceIssue.message} Review the item before acting on the plan.`,
+      priority: "medium",
+      estimatedImpactCents: 30_000,
     })
   }
 
@@ -566,6 +777,194 @@ export function rebuildCashPlanProjection(input: {
     forecast: input.forecast,
     title: input.title ?? "Base plan",
   })
+}
+
+export function buildCashPlanSetupAssessment(input: {
+  openingCashCents: number
+  inflows?: CashPlanLineItemInput[]
+  outflows?: CashPlanLineItemInput[]
+  now?: Date
+}): CashPlanSetupAssessment {
+  const inflows = input.inflows ?? []
+  const outflows = input.outflows ?? []
+  const missingFields: CashPlanSetupAssessment["missingFields"] = []
+
+  if (input.openingCashCents <= 0) {
+    missingFields.push("opening_cash")
+  }
+
+  if (outflows.length === 0 && inflows.length === 0) {
+    missingFields.push("cash_sources")
+  }
+
+  if (outflows.length === 0 && inflows.length > 0) {
+    missingFields.push("planned_obligations")
+  }
+
+  if (missingFields.length === 0) {
+    return {
+      isReady: true,
+      missingFields: [],
+      status: "ready",
+      message: "CashPlan has enough opening cash and planned obligations to generate a forecast.",
+    }
+  }
+
+  const isBlocked = missingFields.includes("opening_cash") || missingFields.includes("cash_sources")
+
+  return {
+    isReady: false,
+    missingFields,
+    status: isBlocked ? "blocked" : "preliminary",
+    message: missingFields.includes("opening_cash")
+      ? "Add opening cash before generating a dependable forecast."
+      : "Add planned obligations or cash sources to complete the Base forecast setup.",
+  }
+}
+
+export function buildCashPlanAccessibilitySummary(input: {
+  forecast: CashPlanForecast
+  title?: string
+}): CashPlanAccessibilitySummary {
+  const title = input.title ?? "Base plan"
+  const hasRisk = input.forecast.bufferGapCents < 0 || input.forecast.lowestClosingCashCents < 0
+  const statusLabel = hasRisk
+    ? "Preliminary"
+    : input.forecast.status === "stale"
+      ? "Stale"
+      : input.forecast.status === "healthy"
+        ? "Healthy"
+        : "Preliminary"
+
+  const riskText = hasRisk
+    ? `Risk review: ${title} is ${Math.abs(input.forecast.bufferGapCents)} cents below the target buffer in the lowest cash week. Review the plan before acting.`
+    : `Risk review: ${title} remains buffered above target, but the lowest cash week still merits a human check.`
+
+  const keyboardHint = "Use Tab to move through the review cards, Enter to open the detail panel, and Space to confirm a review action."
+  const reasonText = input.forecast.dataQualityIssues.length > 0
+    ? input.forecast.dataQualityIssues[0].message
+    : hasRisk
+      ? "This review stays accessible through text labels, status text, and keyboard navigation instead of colour alone."
+      : `${title} is stable and readable without relying on colour cues for the cash risk state.`
+
+  return {
+    title,
+    statusLabel,
+    riskText,
+    keyboardHint,
+    reasonText,
+  }
+}
+
+export function buildCashPlanPilotReview(input: {
+  isPilotEnabled: boolean
+  reviewRole: "owner" | "bookkeeper" | "approver"
+  exportRetentionDays?: number
+  maxPilotUsers?: number
+}): CashPlanPilotReview {
+  const retentionDays = Math.max(0, input.exportRetentionDays ?? 30)
+  const maxPilotUsers = Math.max(1, input.maxPilotUsers ?? 25)
+  const isReadyForPilot = input.isPilotEnabled && retentionDays >= 30 && maxPilotUsers >= 1 && ["owner", "bookkeeper", "approver"].includes(input.reviewRole)
+
+  return {
+    isReadyForPilot,
+    permissionSummary: "Owner, bookkeeper, and approver review roles are allowed for pilot sign-off.",
+    exportRetentionDays: retentionDays,
+    retentionText: `Exports remain available for ${retentionDays} days before automatic cleanup, which preserves auditability while limiting stale pilot data.`,
+    pilotStatus: isReadyForPilot ? "Pilot ready for a controlled rollout." : "Pilot review blocked until access and export retention are confirmed.",
+  }
+}
+
+export function buildCashPlanCalendarModel(input: {
+  forecast: CashPlanForecast
+  title?: string
+}): CashPlanCalendarModel {
+  const title = input.title ?? "Base plan"
+  const events: CashPlanCalendarEvent[] = input.forecast.weeks
+    .filter((week) => week.bufferGapCents < 0 || week.closingCashCents < 0 || week.weekIndex % 3 === 0)
+    .map((week) => ({
+      id: `week-${week.weekIndex}`,
+      type: week.bufferGapCents < 0 ? "risk" : "review",
+      title: week.bufferGapCents < 0 ? "Buffer risk" : "Review week",
+      weekIndex: week.weekIndex,
+      severity: week.bufferGapCents < -100_000 ? "high" : week.bufferGapCents < 0 ? "medium" : "low",
+      message: week.bufferGapCents < 0
+        ? `Week ${week.weekIndex} closes ${Math.abs(week.bufferGapCents)} cents below the buffer target.`
+        : `Week ${week.weekIndex} should be checked manually for timing or assumption drift.`,
+      drillDown: [
+        `Opening cash: ${week.openingCashCents}`,
+        `Inflow total: ${week.inflowCents}`,
+        `Outflow total: ${week.outflowCents}`,
+        `Closing cash: ${week.closingCashCents}`,
+      ],
+    }))
+
+  return {
+    title,
+    summary: `${events.length} days of review attention are highlighted in the calendar.`,
+    events: events.length > 0 ? events : [{
+      id: "week-0",
+      type: "milestone",
+      title: "Stable week",
+      weekIndex: 0,
+      severity: "low",
+      message: "No material risk or review trigger is active in the current base forecast.",
+      drillDown: [
+        "No risk threshold is active for this week.",
+        "Monitor the next payment cycle for any unexpected drift.",
+      ],
+    }],
+  }
+}
+
+export function buildCashPlanDataQualityQueue(input: {
+  forecast: CashPlanForecast
+  title?: string
+}): CashPlanDataQualityQueue {
+  const title = input.title ?? "Base plan"
+  const issues = input.forecast.dataQualityIssues.length > 0
+    ? input.forecast.dataQualityIssues.map((issue, index) => ({
+        id: `issue-${index}`,
+        type: issue.type,
+        severity: issue.severity,
+        weekIndex: issue.weekIndex,
+        message: issue.message,
+        remediation: issue.type === "stale_source"
+          ? [
+              "Refresh the source data and confirm the latest invoice or withdrawal value.",
+              "Re-run the forecast after the latest balance is captured.",
+            ]
+          : issue.type === "low_confidence"
+            ? [
+                "Review the receipt or obligation before acting on the forecast.",
+                "Keep the assumption conservative until a trusted source is confirmed.",
+              ]
+            : issue.type === "missing_balance"
+              ? [
+                  "Add the opening cash or balance source before relying on the plan.",
+                  "Treat the forecast as preliminary until the missing value is confirmed.",
+                ]
+              : [
+                  "Review the timing assumption and confirm the relevant due date or cycle.",
+                  "If the date is unresolved, use the conservative path until it is clarified.",
+                ],
+      }))
+    : [{
+        id: "issue-none",
+        type: "timing_review",
+        severity: "low",
+        message: "No active data-quality issues are present in the current base forecast.",
+        remediation: [
+          "Continue monitoring the next payment cycle for timing or source drift.",
+          "Re-check only if a source refresh or manual change affects the plan.",
+        ],
+      }]
+
+  return {
+    title,
+    summary: `${issues.length} item${issues.length === 1 ? "" : "s"} are queued for review.`,
+    issues,
+  }
 }
 
 export function buildCashPlanSummaryResponse(input: {

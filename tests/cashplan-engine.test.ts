@@ -20,6 +20,13 @@ import {
   expireCashPlanOverrides,
   rebuildCashPlanProjection,
   buildCashPlanCanonicalFactBundle,
+  buildCashPlanSetupAssessment,
+  buildCashPlanAccessibilitySummary,
+  buildCashPlanPilotReview,
+  buildCashPlanCalendarModel,
+  buildCashPlanDataQualityQueue,
+  buildCashPlanPlannedItem,
+  buildCashPlanManualOverride,
 } from "@/lib/cashplan/engine"
 
 describe("CashPlan forecast engine", () => {
@@ -205,6 +212,108 @@ describe("CashPlan forecast engine", () => {
     assert.ok(workspace.summary.lowestClosingCashCents <= workspace.summary.latestClosingCashCents)
   })
 
+  test("includes grouped inflow and outflow totals with item-level detail for each plan week", () => {
+    const forecast = buildCashPlanForecast({
+      openingCashCents: 750_000,
+      inflows: [
+        { id: "invoice-1", kind: "inflow", amountCents: 200_000, weekIndex: 1, confidence: 0.9 },
+        { id: "invoice-2", kind: "inflow", amountCents: 75_000, weekIndex: 1, confidence: 0.7 },
+      ],
+      outflows: [
+        { id: "rent", kind: "outflow", amountCents: 120_000, weekIndex: 1 },
+        { id: "supplies", kind: "outflow", amountCents: 35_000, weekIndex: 1 },
+      ],
+      bufferTargetCents: 150_000,
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const workspace = buildCashPlanPlanWorkspace({
+      forecast,
+      title: "Base plan",
+    })
+
+    const week = workspace.weeks.find((entry) => entry.weekIndex === 1) ?? workspace.weeks[0]
+
+    assert.ok(week.groupedItems.inflows.length >= 1)
+    assert.ok(week.groupedItems.outflows.length >= 1)
+    assert.ok(week.inflowTotalCents > 0)
+    assert.ok(week.outflowTotalCents > 0)
+    assert.ok(week.detailSummary.length > 0)
+    assert.ok(week.groupedItems.inflows[0].detailSummary.length > 0)
+  })
+
+  test("builds a calendar and data-quality review model with risk highlighting and remediation steps", () => {
+    const forecast = buildCashPlanForecast({
+      openingCashCents: 400_000,
+      inflows: [
+        { id: "invoice-1", kind: "inflow", amountCents: 90_000, weekIndex: 2, confidence: 0.9 },
+        { id: "invoice-2", kind: "inflow", amountCents: 60_000, weekIndex: 5, confidence: 0.5 },
+      ],
+      outflows: [
+        { id: "rent", kind: "outflow", amountCents: 170_000, weekIndex: 2 },
+        { id: "software", kind: "outflow", amountCents: 90_000, weekIndex: 4 },
+      ],
+      bufferTargetCents: 180_000,
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const calendar = buildCashPlanCalendarModel({ forecast, title: "Base plan" })
+    const qualityQueue = buildCashPlanDataQualityQueue({ forecast, title: "Base plan" })
+
+    assert.equal(calendar.title, "Base plan")
+    assert.ok(calendar.events.some((event) => event.type === "risk" || event.type === "review"))
+    assert.ok(calendar.events.every((event) => event.drillDown.length > 0))
+    assert.ok(qualityQueue.issues.length >= 1)
+    assert.ok(qualityQueue.issues.every((issue) => issue.remediation.length > 0))
+    assert.ok(qualityQueue.summary.length > 0)
+  })
+
+  test("builds a manual planned item and override record with reason, owner, expiry, and audit metadata", () => {
+    const sourceLineage = buildCashPlanSourceLineage({
+      sourceSystem: "xero",
+      sourceId: "bill-42",
+      sourceUpdatedAt: new Date("2026-09-01T00:00:00.000Z"),
+      sourceHash: "manual-override-hash",
+    })
+
+    const plannedItem = buildCashPlanPlannedItem({
+      id: "manual-item-1",
+      kind: "outflow",
+      amountCents: 45_000,
+      weekIndex: 3,
+      reason: "Confirmed annual software renewal",
+      owner: "ops@demo",
+      createdBy: "user-1",
+      effectiveFrom: new Date("2026-09-10T00:00:00.000Z"),
+      expiresAt: new Date("2026-10-15T00:00:00.000Z"),
+      sourceType: "manual",
+      sourceId: "manual-item-1",
+    })
+
+    const override = buildCashPlanManualOverride({
+      id: "override-1",
+      entityType: "outflow",
+      entityId: "bill-42",
+      amountCents: 45_000,
+      reason: "Confirmed annual software renewal",
+      owner: "ops@demo",
+      createdBy: "user-1",
+      effectiveFrom: new Date("2026-09-10T00:00:00.000Z"),
+      expiresAt: new Date("2026-10-15T00:00:00.000Z"),
+      sourceType: "manual",
+      sourceId: "manual-item-1",
+      sourceLineage,
+    })
+
+    assert.equal(plannedItem.kind, "outflow")
+    assert.equal(plannedItem.audit.reason, "Confirmed annual software renewal")
+    assert.equal(plannedItem.owner, "ops@demo")
+    assert.equal(plannedItem.expiresAt?.toISOString(), "2026-10-15T00:00:00.000Z")
+    assert.equal(override.entityType, "outflow")
+    assert.equal(override.audit.sourceLineage.sourceId, "bill-42")
+    assert.equal(override.audit.isOverride, true)
+  })
+
   test("builds scenario templates and a comparison model for optimistic, conservative, and custom views", () => {
     const baseForecast = buildCashPlanForecast({
       openingCashCents: 900_000,
@@ -345,6 +454,22 @@ describe("CashPlan forecast engine", () => {
     assert.deepEqual(expired, ["override-1"])
   })
 
+  test("ranks recommendations by urgency and materiality rather than impact alone", () => {
+    const forecast = buildCashPlanForecast({
+      openingCashCents: 100_000,
+      inflows: [{ id: "invoice-1", kind: "inflow", amountCents: 30_000, weekIndex: 2, confidence: 0.49, sourceUpdatedAt: new Date("2026-07-01T00:00:00.000Z") }],
+      outflows: [{ id: "payroll", kind: "outflow", amountCents: 180_000, weekIndex: 3 }],
+      bufferTargetCents: 80_000,
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const recommendations = buildCashPlanRecommendations({ forecast })
+
+    assert.ok(recommendations.length >= 2)
+    assert.ok(recommendations[0].summary.toLowerCase().includes("immediate") || recommendations[0].summary.toLowerCase().includes("before"))
+    assert.ok(recommendations[0].estimatedImpactCents >= recommendations.at(-1)!.estimatedImpactCents)
+  })
+
   test("preserves source provenance and failed-import state when canonicalising imported cash facts", () => {
     const bundle = buildCashPlanCanonicalFactBundle({
       inflows: [
@@ -378,5 +503,102 @@ describe("CashPlan forecast engine", () => {
     assert.equal(bundle.outflows[0].sourceId, "bill-7")
     assert.equal(bundle.failedSources[0].reason, "sync error")
     assert.ok(bundle.sourceHash.length > 0)
+  })
+
+  test("integrates stale-source handling and override expiry into the same deterministic forecast flow", () => {
+    const staleForecast = buildCashPlanForecast({
+      openingCashCents: 400_000,
+      inflows: [
+        {
+          id: "invoice-9",
+          kind: "inflow",
+          amountCents: 180_000,
+          weekIndex: 2,
+          confidence: 0.4,
+          sourceUpdatedAt: new Date("2026-07-01T00:00:00.000Z"),
+        },
+      ],
+      outflows: [{ id: "payroll", kind: "outflow", amountCents: 160_000, weekIndex: 4 }],
+      bufferTargetCents: 200_000,
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const overrideAudit = buildCashPlanOverrideAudit({
+      factId: "invoice-9",
+      reason: "Override for delayed April receipt",
+      owner: "finance",
+      createdBy: "user-1",
+      effectiveFrom: new Date("2026-09-07T00:00:00.000Z"),
+      sourceLineage: buildCashPlanSourceLineage({
+        sourceSystem: "xero",
+        sourceId: "invoice-9",
+        sourceUpdatedAt: new Date("2026-08-15T00:00:00.000Z"),
+        sourceHash: "hash-stale",
+      }),
+    })
+
+    const expired = expireCashPlanOverrides([
+      { id: "override-live", expiresAt: new Date("2026-09-10T00:00:00.000Z") },
+      { id: "override-expired", expiresAt: new Date("2026-09-06T00:00:00.000Z") },
+      { id: "override-open", expiresAt: null },
+    ])
+
+    assert.ok(staleForecast.dataQualityIssues.some((issue) => issue.type === "stale_source"))
+    assert.equal(overrideAudit.sourceLineage.sourceId, "invoice-9")
+    assert.deepEqual(expired, ["override-expired"])
+  })
+
+  test("assesses setup readiness and flags incomplete opening cash or missing obligations", () => {
+    const missingOpeningCash = buildCashPlanSetupAssessment({
+      openingCashCents: 0,
+      inflows: [{ id: "invoice-1", kind: "inflow", amountCents: 50_000, weekIndex: 1 }],
+      outflows: [{ id: "rent", kind: "outflow", amountCents: 40_000, weekIndex: 0 }],
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const missingObligations = buildCashPlanSetupAssessment({
+      openingCashCents: 250_000,
+      inflows: [{ id: "invoice-2", kind: "inflow", amountCents: 70_000, weekIndex: 2 }],
+      outflows: [],
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    assert.equal(missingOpeningCash.isReady, false)
+    assert.ok(missingOpeningCash.missingFields.includes("opening_cash"))
+    assert.equal(missingObligations.isReady, false)
+    assert.ok(missingObligations.missingFields.includes("planned_obligations"))
+  })
+
+  test("provides text-only accessibility labels for risk and keyboard review actions", () => {
+    const summary = buildCashPlanAccessibilitySummary({
+      forecast: buildCashPlanForecast({
+        openingCashCents: 250_000,
+        inflows: [{ id: "invoice-1", kind: "inflow", amountCents: 75_000, weekIndex: 2 }],
+        outflows: [{ id: "payroll", kind: "outflow", amountCents: 190_000, weekIndex: 4 }],
+        bufferTargetCents: 150_000,
+        now: new Date("2026-09-07T00:00:00.000Z"),
+      }),
+      title: "Base plan",
+    })
+
+    assert.equal(summary.statusLabel, "Preliminary")
+    assert.match(summary.riskText, /risk|review|buffer/i)
+    assert.match(summary.keyboardHint, /Tab|Enter|Space/i)
+    assert.ok(summary.reasonText.length > 0)
+  })
+
+  test("reviews pilot configuration, permissions, and export retention before broader rollout", () => {
+    const review = buildCashPlanPilotReview({
+      isPilotEnabled: true,
+      reviewRole: "approver",
+      exportRetentionDays: 30,
+      maxPilotUsers: 25,
+    })
+
+    assert.equal(review.isReadyForPilot, true)
+    assert.equal(review.permissionSummary, "Owner, bookkeeper, and approver review roles are allowed for pilot sign-off.")
+    assert.equal(review.exportRetentionDays, 30)
+    assert.match(review.retentionText, /30|days/i)
+    assert.match(review.pilotStatus, /pilot|ready/i)
   })
 })
