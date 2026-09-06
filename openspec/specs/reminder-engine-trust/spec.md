@@ -1,5 +1,8 @@
-## ADDED Requirements
+# reminder-engine-trust Specification
 
+## Purpose
+TBD - created by archiving change fix-payment-links-in-reminders. Update Purpose after archive.
+## Requirements
 ### Requirement: Reminder email includes payment link when URL is available
 When a `TrackedInvoice` row has a non-null `paymentUrl`, the system SHALL include a "Pay invoice →" hyperlink in the body of every reminder email sent for that invoice. When `paymentUrl` is null or empty, the template token resolves to an empty string and no link is rendered. The reminder engine SHALL preserve the payment URL through the invoice-to-template pipeline without silently dropping it.
 
@@ -17,3 +20,4 @@ When a `TrackedInvoice` row has a non-null `paymentUrl`, the system SHALL includ
 - **WHEN** an invoice is imported via CSV/XLSX with a non-empty, valid `payment_url` value
 - **THEN** the invoice's `paymentUrl` field is populated with that URL
 - **AND** the reminder engine passes it through to the email template with no silent loss
+

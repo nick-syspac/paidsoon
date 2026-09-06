@@ -1,5 +1,8 @@
-## ADDED Requirements
+# spendleak-finops-foundation Specification
 
+## Purpose
+Define the SpendLeak financial-operations foundation, including spend-side ingestion, explainable savings findings, and how SpendLeak signals appear with PaidSoon receivables context.
+## Requirements
 ### Requirement: SpendLeak SHALL ingest spend-side accounting data as a read-only analysis layer
 The system SHALL import the spend-side accounting data needed for SpendLeak analyses from Xero and
 MYOB without becoming the source of truth for bookkeeping. Imported records SHALL preserve source
@@ -40,15 +43,24 @@ it was raised.
   history
 
 ### Requirement: Financial operations dashboard SHALL combine PaidSoon and SpendLeak signals
-The system SHALL present SpendLeak findings alongside PaidSoon receivables signals so users can see
-cash coming in, cash going out, and recommended next actions in one place.
+The system SHALL present SpendLeak findings alongside PaidSoon receivables signals so users can see cash coming in, cash going out, recommended next actions, and current review outcomes in one place.
 
 #### Scenario: User opens the unified financial-operations overview
 - **WHEN** a signed-in user with PaidSoon and SpendLeak data opens the relevant dashboard surface
-- **THEN** the page shows receivables context, spend findings, and a summarized financial-health
-  view without hiding the existing invoice-chasing workflow
+- **THEN** the page shows receivables context, spend findings, and a summarized financial-health view without hiding the existing invoice-chasing workflow
+- **AND** the page includes SpendLeak review-outcome visibility for keep, cancel, renegotiate, and ignore decisions
 
 #### Scenario: AI summary is generated from grounded findings
 - **WHEN** the user asks where they are wasting money or opens the daily summary
-- **THEN** the AI summary is derived from persisted SpendLeak findings and their evidence rather
-  than inventing unsupported recommendations
+- **THEN** the AI summary is derived from persisted SpendLeak findings and their evidence rather than inventing unsupported recommendations
+
+#### Scenario: Imported expense-source findings are visible with synced-source findings
+- **WHEN** SpendLeak contains findings originating from CSV/XLSX expense imports and accounting-provider syncs
+- **THEN** the dashboard includes both sources in the same finding and module views
+- **AND** each finding remains traceable to its underlying evidence source
+
+#### Scenario: User exports filtered SpendLeak findings from dashboard
+- **WHEN** a signed-in user views SpendLeak findings with an active filter scope and chooses export
+- **THEN** the dashboard can request a SpendLeak report export for that current scope
+- **AND** the exported report remains analysis-oriented and traceable to persisted findings
+
