@@ -26,6 +26,13 @@ import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
 import { formatAudCents, getSpendLeakEvidenceSource } from "@/lib/dashboard/spendleakPresentation"
 import { buildCostGuardNotificationPlan } from "@/lib/costGuard/foundation"
 import {
+  buildCashPlanForecast,
+  buildCashPlanSummaryResponse,
+  defaultCashPlanSettings,
+  type CashPlanForecastWeek,
+} from "@/lib/cashplan/engine"
+import { buildCashPlanDashboardStatus } from "@/lib/dashboard/cashPlanStatus"
+import {
   createServerTraceContext,
   traceEvent,
   warnIfProductionDebugEnabled,
@@ -192,6 +199,93 @@ export default async function DashboardOverviewPage({
   const paymentTrend = buildPaymentTrend({ activeInvoices, paidInvoices, now })
   const showCurrencyHeadings = currencySummaries.length > 1
 
+  const cashPlanSummary = await withUserContext(user.id, async (tx) => {
+    const [plan, settings] = await Promise.all([
+      tx.cashPlan.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          currency: true,
+          timezone: true,
+          horizonWeeks: true,
+          bufferTargetCents: true,
+          status: true,
+          updatedAt: true,
+        },
+      }),
+      tx.cashPlanSetting.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          currency: true,
+          timezone: true,
+          horizonWeeks: true,
+          bufferTargetCents: true,
+          alertThresholdCents: true,
+          reviewRole: true,
+        },
+      }),
+    ])
+
+    const latestSnapshot = plan
+      ? await tx.cashPlanSnapshot.findFirst({
+          where: { planId: plan.id },
+          orderBy: { createdAt: "desc" },
+          select: {
+            inputHash: true,
+            engineVersion: true,
+            confidence: true,
+            status: true,
+            lowestClosingCashCents: true,
+            bufferGapCents: true,
+            weeks: true,
+          },
+        })
+      : null
+
+    const bufferTargetCents = settings?.bufferTargetCents ?? plan?.bufferTargetCents ?? defaultCashPlanSettings.bufferTargetCents
+
+    if (latestSnapshot && Array.isArray(latestSnapshot.weeks)) {
+      const weeks = latestSnapshot.weeks as unknown as CashPlanForecastWeek[]
+      const forecast = {
+        engineVersion: latestSnapshot.engineVersion,
+        inputHash: latestSnapshot.inputHash,
+        confidence: latestSnapshot.confidence,
+        status: (latestSnapshot.status === "healthy" || latestSnapshot.status === "preliminary" || latestSnapshot.status === "stale"
+          ? latestSnapshot.status
+          : "preliminary") as "healthy" | "preliminary" | "stale",
+        lowestClosingCashCents: latestSnapshot.lowestClosingCashCents,
+        bufferGapCents: latestSnapshot.bufferGapCents,
+        dataQualityIssues: [],
+        inflows: [],
+        outflows: [],
+        weeks,
+      }
+
+      return buildCashPlanSummaryResponse({
+        forecast,
+        title: plan?.name ?? "Base plan",
+      })
+    }
+
+    const forecast = buildCashPlanForecast({
+      openingCashCents: 0,
+      inflows: [],
+      outflows: [],
+      bufferTargetCents,
+      now: new Date(),
+    })
+
+    return buildCashPlanSummaryResponse({
+      forecast,
+      title: plan?.name ?? "Base plan",
+    })
+  })
+
+  const cashPlanStatus = cashPlanSummary ? buildCashPlanDashboardStatus({ summary: cashPlanSummary, hasPlan: true }) : null
+
   traceEvent(
     () => ({
       traceId: traceContext.traceId,
@@ -211,6 +305,56 @@ export default async function DashboardOverviewPage({
 
       {currencySummaries[0]?.aiSummaryLines?.length ? (
         <AiSummaryCard lines={currencySummaries[0].aiSummaryLines} />
+      ) : null}
+
+      {cashPlanStatus ? (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">CashPlan status</p>
+              <h2 className="mt-1 text-lg font-semibold text-gray-900">{cashPlanStatus.title}</h2>
+              <p className="mt-2 text-sm text-gray-600">{cashPlanStatus.summaryLabel}</p>
+            </div>
+            <div className="flex gap-2">
+              <Link
+                href="/dashboard/settings/cash-plan"
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Open settings
+              </Link>
+              <Link
+                href="/dashboard/settings/cash-plan"
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Review forecast
+              </Link>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Confidence</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">{cashPlanStatus.confidenceLabel}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Lowest cash</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">{cashPlanStatus.lowestCashLabel}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Freshness</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">{cashPlanStatus.freshnessLabel}</p>
+            </div>
+          </div>
+          {cashPlanStatus.recommendedActions.length > 0 ? (
+            <ul className="mt-4 space-y-2 text-sm text-gray-700">
+              {cashPlanStatus.recommendedActions.map((action) => (
+                <li key={action} className="flex items-start gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  <span>{action}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
       ) : null}
 
       <div>

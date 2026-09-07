@@ -28,6 +28,7 @@ import {
   buildCashPlanPlannedItem,
   buildCashPlanManualOverride,
 } from "@/lib/cashplan/engine"
+import { buildCashPlanDashboardStatus } from "@/lib/dashboard/cashPlanStatus"
 
 describe("CashPlan forecast engine", () => {
   test("builds a deterministic 13-week forecast and tracks version/hash metadata", () => {
@@ -183,6 +184,26 @@ describe("CashPlan forecast engine", () => {
     assert.ok(summary.confidence >= 0)
     assert.ok(summary.recommendedActions.length > 0)
     assert.ok(summary.freshnessLabel.length > 0)
+  })
+
+  test("formats a dashboard-ready CashPlan status summary for UI display", () => {
+    const forecast = buildCashPlanForecast({
+      openingCashCents: 600_000,
+      inflows: [{ id: "invoice-1", kind: "inflow", amountCents: 150_000, weekIndex: 2 }],
+      outflows: [{ id: "payroll", kind: "outflow", amountCents: 200_000, weekIndex: 4 }],
+      bufferTargetCents: 120_000,
+      now: new Date("2026-09-07T00:00:00.000Z"),
+    })
+
+    const status = buildCashPlanDashboardStatus({
+      summary: buildCashPlanSummaryResponse({ forecast, title: "Base plan" }),
+      hasPlan: true,
+    })
+
+    assert.equal(status.title, "Base plan")
+    assert.ok(status.summaryLabel.length > 0)
+    assert.ok(status.primaryActionHref.length > 0)
+    assert.ok(status.recommendedActions.length > 0)
   })
 
   test("builds a plan workspace model with weekly totals, grouped items, and explainability notes", () => {
