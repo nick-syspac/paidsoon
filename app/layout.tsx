@@ -15,6 +15,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: (() => {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (!appUrl) return undefined
+    return new URL(appUrl.startsWith("http") ? appUrl : `https://${appUrl}`)
+  })(),
   title: "PaidSoon",
   description: "Automatic, escalating invoice follow-ups so freelancers never have to play bad cop.",
 };

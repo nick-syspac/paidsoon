@@ -727,37 +727,38 @@ stateDiagram-v2
 | `starter` | public | A$9 | 10 | 1 | 1 |
 | `solo` | public (marked "Most Popular") | A$19 | 50 | 1 | 1 |
 | `small_business` | public | A$39 | 200 | 3 (usable seats not yet implemented) | 1 |
+| `business_pro` | public | A$99 | 1000 | 10 (usable seats not yet implemented) | 3 |
 | `accountant_partner` | contact-only (hidden from pricing page & upgrade recommendations) | Contact us | Unlimited | Unlimited | Unlimited |
 
   Feature matrix (✓ = enabled, — = disabled, ◷ = enabled in the catalog but not yet
   implemented in the product — presentation code must render these as "Coming soon",
   see `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()`):
 
-| Feature (`SubscriptionFeature`) | Starter | Solo | Small Business | Accountant Partner |
-|---|---|---|---|---|
-| `basic_email_reminders` | ✓ | ✓ | ✓ | ✓ |
-| `email_reminder_sequence` (custom timing) | — | ✓ | ✓ | ✓ |
-| `customer_specific_sequences` ◷ | — | — | ◷ | ◷ |
-| `basic_templates` | ✓ | ✓ | ✓ | ✓ |
-| `custom_reminder_templates` | — | ✓ | ✓ | ✓ |
-| `multi_template_customer_wording` ◷ | — | — | ◷ | ◷ |
-| `paid_soon_branding` | ✓ | ✓ | ✓ | ✓ |
-| `custom_reply_to` | — | ✓ | ✓ | ✓ |
-| `custom_sender_name` | — | ✓ | ✓ | ✓ |
-| `verified_from_domain` | — | — | ✓ | ✓ |
-| `ai_rewrite` | — | ✓ | ✓ | ✓ |
-| `tone_settings` | — | ✓ | ✓ | ✓ |
-| `payment_status_dashboard` | ✓ | ✓ | ✓ | ✓ |
-| `overdue_invoice_dashboard` | ✓ | ✓ | ✓ | ✓ |
-| `accounting_integrations` | ✓ | ✓ | ✓ | ✓ |
-| `promise_to_pay_tracking` | ✓ | ✓ | ✓ | ✓ |
-| `dispute_pause` | ✓ | ✓ | ✓ | ✓ |
-| `weekly_summary_email` | — | — | ✓ | ✓ |
-| `csv_export` | — | — | ✓ | ✓ |
-| `approval_mode` ◷ | — | — | ◷ | ◷ |
-| `contact_suppression` ◷ | — | — | ◷ | ◷ |
-| `team_seats` ◷ | — | — | ◷ | ◷ |
-| `multi_client_management` ◷ | — | — | — | ◷ |
+| Feature (`SubscriptionFeature`) | Starter | Solo | Small Business | Business Pro | Accountant Partner |
+|---|---|---|---|---|---|
+| `basic_email_reminders` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `email_reminder_sequence` (custom timing) | — | ✓ | ✓ | ✓ | ✓ |
+| `customer_specific_sequences` ◷ | — | — | ◷ | ◷ | ◷ |
+| `basic_templates` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `custom_reminder_templates` | — | ✓ | ✓ | ✓ | ✓ |
+| `multi_template_customer_wording` ◷ | — | — | ◷ | ◷ | ◷ |
+| `paid_soon_branding` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `custom_reply_to` | — | ✓ | ✓ | ✓ | ✓ |
+| `custom_sender_name` | — | ✓ | ✓ | ✓ | ✓ |
+| `verified_from_domain` | — | — | ✓ | ✓ | ✓ |
+| `ai_rewrite` | — | ✓ | ✓ | ✓ | ✓ |
+| `tone_settings` | — | ✓ | ✓ | ✓ | ✓ |
+| `payment_status_dashboard` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `overdue_invoice_dashboard` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `accounting_integrations` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `promise_to_pay_tracking` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `dispute_pause` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `weekly_summary_email` | — | — | ✓ | ✓ | ✓ |
+| `csv_export` | — | — | ✓ | ✓ | ✓ |
+| `approval_mode` ◷ | — | — | ◷ | ◷ | ◷ |
+| `contact_suppression` ◷ | — | — | ◷ | ◷ | ◷ |
+| `team_seats` ◷ | — | — | ◷ | ◷ | ◷ |
+| `multi_client_management` ◷ | — | — | — | — | ◷ |
 
 - **Features** are a `Record<SubscriptionFeature, boolean>` per plan; checked via
   `hasPlanFeature`/`requireFeature`. Core follow-up capabilities (sync, the
@@ -766,7 +767,7 @@ stateDiagram-v2
   tier — MYOB's own reminder features are not a substitute for PaidSoon's workflow,
   so these are not used as upsell levers.
 - **No legacy alias map:** `normalizeSubscriptionTier` returns `starter` for any
-  value not in `{starter, solo, small_business, accountant_partner}`. Previous
+  value not in `{starter, solo, small_business, business_pro, accountant_partner}`. Previous
   generations of tier naming (`free`/`pro`/`business`) are not aliased — a stray
   legacy value surfaces as a visibly wrong plan rather than resolving silently.
 - **Accountant Partner checkout:** `accountant_partner` has `monthlyPriceAud: null` (contact-us
@@ -785,9 +786,10 @@ stateDiagram-v2
 - **Updates/cancellation:** `customer.subscription.updated` resolves tier from
   the price id (`PRICE_ID_TO_TIER`); `customer.subscription.deleted` reverts to
   `starter`, sets `cancelled`, and pauses invoices exceeding the starter limit.
-- **Price IDs:** the webhook's `PRICE_ID_TO_TIER` map has exactly three entries —
+- **Price IDs:** the webhook's `PRICE_ID_TO_TIER` map has exactly four entries —
   `STRIPE_STARTER_PRICE_ID→starter`, `STRIPE_SOLO_PRICE_ID→solo`,
-  `STRIPE_SMALL_BUSINESS_PRICE_ID→small_business`. `STRIPE_BUSINESS_PRICE_ID` and
+  `STRIPE_SMALL_BUSINESS_PRICE_ID→small_business`, `STRIPE_BUSINESS_PRO_PRICE_ID→business_pro`.
+  `STRIPE_BUSINESS_PRICE_ID` and
   `STRIPE_PRO_PRICE_ID` have been retired (see `changes/restore-three-tier-pricing`).
 - **Portal:** `POST /api/billing/portal` → Stripe billing portal.
 - **Trial/free handling:** `trialing` is treated as active; there is no separate
@@ -938,6 +940,18 @@ favour of "PaidSoon" / `paidsoon.com`.
 | Build | `prisma generate && next build` | `package.json` |
 | API/web runtime | Single Next.js 16 app on Vercel | `docs/runbooks/vercel.md` |
 | Worker runtime | Cron routes on the same Vercel deployment today; a Railway Celery worker + Celery Beat + Redis is being introduced to take over scheduled business workflows (dispatcher claims due work from Postgres, enqueues one task per item onto Redis, tasks call back into `app/api/internal/jobs/*` for the actual business logic) — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). Not yet deployed; runs in parallel with the existing Vercel Cron jobs during burn-in before the old jobs are removed. | `worker/`, `openspec/changes/migrate-scheduled-jobs-to-railway-celery/` |
+
+### 17.1 Marketing and SEO Runtime
+
+- Marketing navigation and module storytelling are implemented in shared components
+  under `components/marketing/**`, with module definitions in
+  `components/marketing/marketingContent.ts` and route pages under
+  `app/(marketing)/**`.
+- Technical SEO routes are generated by Next.js metadata routes:
+  `app/robots.ts`, `app/sitemap.ts`, and `app/manifest.ts`.
+- Marketing page-level analytics tracking uses `@vercel/analytics` through
+  `MarketingPageViewTracker`, `MarketingCtaLink`, and pricing CTA tracking in
+  `components/pricing/PricingCTA.tsx`.
 | Scheduler | Vercel Cron `0 9 * * *` → `/api/cron/send-emails`; `0 2 * * *` → `/api/cron/sync-accounting`; `0 12 * * *` → `/api/cron/scheduling-watchdog`; `0 3 * * *` → `/api/cron/invoice-import-cleanup` (Hobby plan caps cron frequency at once daily) | `vercel.json`, `docs/runbooks/vercel.md` |
 | Database | Supabase Postgres; runtime via the shared pooler as `postgres.[ref]`, RLS applied per-transaction by `withUserContext`. Two internal orchestration tables (`scheduled_task_claims`, `dispatcher_heartbeats`) have RLS enabled with no policies — written only by the Railway worker's trusted DB role. | `prisma.config.ts`, `lib/db/admin.ts`, `prisma/schema.prisma` |
 | Migrations | `prisma migrate` via the derived session-pooler URL on port `5432` | `prisma.config.ts` |

@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 import { formatIntegrationNameList, getIntegrationsByStatus } from "@/lib/integrationsCatalog"
 import { PLAN_CATALOG } from "@/lib/subscriptionPlans"
 import { lowestTierWithFeature } from "@/lib/planPresentation"
@@ -7,6 +8,14 @@ export const metadata: Metadata = {
   title: "Frequently Asked Questions — PaidSoon",
   description:
     "Answers to common questions about PaidSoon — how it works, pricing, integrations, and getting started.",
+  alternates: { canonical: "/faq" },
+  openGraph: {
+    title: "Frequently Asked Questions - PaidSoon",
+    description:
+      "Common questions about PaidSoon pricing, integrations, and invoice follow-up workflows.",
+    url: "/faq",
+    type: "website",
+  },
 }
 
 const availableIntegrationNames = getIntegrationsByStatus("available").map((i) => i.name)
@@ -63,8 +72,23 @@ const faqs = [
 ]
 
 export default function FaqPage() {
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.a,
+      },
+    })),
+  }
+
   return (
     <div className="min-h-screen bg-white">
+      <MarketingPageViewTracker page="faq" />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-10">
         <h1 className="text-3xl font-bold text-gray-900">Frequently Asked Questions</h1>
         <p className="mt-4 text-lg text-gray-500">

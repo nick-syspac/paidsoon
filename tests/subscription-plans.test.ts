@@ -12,6 +12,7 @@ import {
   resolvePlanSelectorTier,
   UNIMPLEMENTED_FEATURES,
 } from "@/lib/subscriptionPlans"
+import { planHighlights } from "@/lib/planPresentation"
 
 test("plan catalog includes Starter, Solo, Small Business, Business Pro, and Accountant Partner pricing", () => {
   assert.equal(PLAN_CATALOG.starter.monthlyPriceAud, 9)
@@ -102,7 +103,7 @@ test("core follow-up capabilities are available on every paid tier", () => {
   assert.equal(hasPlanFeature("accountant_partner", "weekly_summary_email"), true)
 })
 
-test("getPublicPlans excludes the contact-only Accountant Partner tier", () => {
+test("getPublicPlans excludes the contact-only Accountant Partner tier and follows the revised public order", () => {
   const publicPlans = getPublicPlans()
   assert.deepEqual(
     publicPlans.map((plan) => plan.id),
@@ -141,10 +142,23 @@ test("explicit plan selector choice overrides query intent and current tier", ()
   assert.equal(resolvePlanSelectorTier("solo", "small_business", "starter"), "starter")
 })
 
-test("Solo is marked as the popular plan", () => {
-  assert.equal(PLAN_CATALOG.solo.popular, true)
+test("Small Business is marked as the popular plan in the public pricing story", () => {
+  assert.equal(PLAN_CATALOG.small_business.popular, true)
+  assert.ok(!PLAN_CATALOG.solo.popular)
   assert.ok(!PLAN_CATALOG.starter.popular)
-  assert.ok(!PLAN_CATALOG.small_business.popular)
+})
+
+test("Essentials includes SpendLeak, while CostGuard and CashPlan stay behind Solo", () => {
+  const essentialsHighlights = planHighlights("starter").join(" ")
+  const soloHighlights = planHighlights("solo").join(" ")
+  const smallBusinessHighlights = planHighlights("small_business").join(" ")
+  const businessProHighlights = planHighlights("business_pro").join(" ")
+
+  assert.match(essentialsHighlights, /SpendLeak/i)
+  assert.doesNotMatch(essentialsHighlights, /CostGuard|CashPlan/i)
+  assert.match(soloHighlights, /SpendLeak|CostGuard|CashPlan/i)
+  assert.match(smallBusinessHighlights, /SpendLeak|CostGuard|CashPlan/i)
+  assert.match(businessProHighlights, /SpendLeak|CostGuard|CashPlan/i)
 })
 
 test("features marked as not-yet-implemented are disabled on every tier", () => {

@@ -90,10 +90,10 @@ export const DEFAULT_SUBSCRIPTION_TIER: SubscriptionTier = "starter"
 export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   starter: {
     id: "starter",
-    name: "Starter",
+    name: "Essentials",
     monthlyPriceAud: 9,
     visibility: "public",
-    tagline: "For side hustlers and occasional invoicers.",
+    tagline: "Automate day-to-day cash control.",
     limits: {
       chasedInvoicesPerMonth: 10,
       userSeats: 1,
@@ -130,8 +130,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     name: "Solo",
     monthlyPriceAud: 19,
     visibility: "public",
-    popular: true,
-    tagline: "For full-time sole traders and freelancers.",
+    tagline: "Get paid and understand your cash.",
     limits: {
       chasedInvoicesPerMonth: 50,
       userSeats: 1,
@@ -168,7 +167,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     name: "Small Business",
     monthlyPriceAud: 39,
     visibility: "public",
-    tagline: "For small businesses with an admin/accounts team.",
+    popular: true,
+    tagline: "Give the team control over spending and cash flow.",
     limits: {
       chasedInvoicesPerMonth: 200,
       userSeats: 3,
@@ -205,7 +205,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     name: "Business Pro",
     monthlyPriceAud: 99,
     visibility: "public",
-    tagline: "For growing businesses that need higher follow-up capacity and more team seats.",
+    tagline: "Manage complex businesses with governance and forecasting.",
     limits: {
       chasedInvoicesPerMonth: 1000,
       userSeats: 10,
@@ -276,7 +276,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   },
 }
 
-/** Ordered lowest to highest, including the hidden contact-only tier at the end. */
+/** Ordered lowest to highest, reflecting the recommended customer-facing ladder
+ * of Essentials → Solo → Small Business → Business Pro, with the hidden
+ * contact-only tier at the end. */
 export const PLAN_ORDER: SubscriptionTier[] = [
   "starter",
   "solo",

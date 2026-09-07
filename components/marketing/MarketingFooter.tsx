@@ -7,17 +7,24 @@ const footerLinks = {
     { label: "Careers", href: "/careers" },
   ],
   Product: [
-    { label: "Features", href: "/features" },
+    { label: "PaidSoon", href: "/paidsoon" },
+    { label: "SpendLeak", href: "/spendleak" },
+    { label: "CostGuard", href: "/costguard" },
+    { label: "CashPlan", href: "/cashplan" },
+    { label: "Platform Overview", href: "/platform" },
     { label: "Pricing", href: "/pricing" },
     { label: "Integrations", href: "/integrations" },
-    { label: "Roadmap", href: "/roadmap" },
+  ],
+  Support: [
+    { label: "Help Centre", href: "/help" },
+    { label: "FAQ", href: "/faq" },
+    { label: "Security", href: "/security" },
   ],
   Resources: [
     { label: "Blog", href: "/blog" },
-    { label: "Help Centre", href: "/help" },
     { label: "Documentation", href: "/docs" },
-    { label: "FAQ", href: "/faq" },
     { label: "Release Notes", href: "/release-notes" },
+    { label: "Roadmap", href: "/roadmap" },
   ],
   Legal: [
     { label: "Privacy Policy", href: "/privacy" },
@@ -76,6 +83,7 @@ export function MarketingFooter() {
                 Melbourne. VIC. 3000
               </address>
               <p>Australian owned and operated</p>
+              <p>No lock-in contracts</p>
               <a
                 href="https://www.linkedin.com/company/syspac"
                 target="_blank"

@@ -1,14 +1,23 @@
 import type { Metadata } from "next"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 
 export const metadata: Metadata = {
   title: "Privacy Policy — PaidSoon",
   description:
     "PaidSoon Privacy Policy — how Syspac Pty Ltd collects, uses, and protects your personal information.",
+  alternates: { canonical: "/privacy" },
+  openGraph: {
+    title: "Privacy Policy - PaidSoon",
+    description: "How Syspac Pty Ltd collects, uses, and protects PaidSoon personal information.",
+    url: "/privacy",
+    type: "website",
+  },
 }
 
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-white">
+      <MarketingPageViewTracker page="privacy" />
       <div className="max-w-3xl mx-auto px-4 py-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Privacy Policy</h1>
 

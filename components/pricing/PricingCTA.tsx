@@ -1,20 +1,32 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { track } from "@vercel/analytics"
 import type { SubscriptionTier } from "@/lib/subscriptionPlans"
 
 interface PricingCTAProps {
   tier: SubscriptionTier
   label: string
   featured?: boolean
+  href?: string
+  liveMode?: boolean
 }
 
-export function PricingCTA({ tier, label, featured }: PricingCTAProps) {
+export function PricingCTA({ tier, label, featured, href = "/sign-up", liveMode }: PricingCTAProps) {
   const router = useRouter()
 
   function handleClick() {
-    localStorage.setItem("preselectedPlan", tier)
-    router.push("/sign-up")
+    void track("marketing_plan_select_clicked", {
+      tier,
+      liveMode: liveMode === undefined ? "unknown" : String(liveMode),
+      destination: href,
+    })
+
+    if (href === "/sign-up") {
+      localStorage.setItem("preselectedPlan", tier)
+    }
+
+    router.push(href)
   }
 
   return (

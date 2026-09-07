@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { isDebugEnabled } from "@/lib/diagnostics/server"
 import { isLiveMode } from "@/lib/liveMode"
-import DebugDbCheckButton from "@/components/marketing/DebugDbCheckButton"
+import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 import { getPublicPlans, PLAN_CATALOG } from "@/lib/subscriptionPlans"
 import { formatPlanPrice, lowestTierWithFeature } from "@/lib/planPresentation"
 import {
@@ -10,43 +10,33 @@ import {
   INTEGRATION_STATUS_BADGE_STYLES,
   INTEGRATION_STATUS_LABEL,
 } from "@/lib/integrationsCatalog"
+import {
+  getCtaForLiveMode,
+  MODULE_HREF,
+  MODULES,
+  PLATFORM_CYCLE,
+  PLATFORM_TAGLINE,
+} from "@/components/marketing/marketingContent"
 
 export const metadata: Metadata = {
-  title: "PaidSoon — Financial Control for Australian Businesses",
+  title: "PaidSoon - Financial Control for Australian Businesses",
   description:
-    "Xero and MYOB tell you what happened. PaidSoon tells you what needs attention today, what happens next, and what action to take to improve cashflow.",
+    "Your accounting software tells you what happened. PaidSoon helps you control what happens next across receivables, waste, costs, and cash planning.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "PaidSoon - Financial Control for Australian Businesses",
+    description:
+      "Get paid, stop waste, control costs, and plan ahead with one connected financial control platform.",
+    url: "/",
+    type: "website",
+  },
 }
 
-const features = [
-  {
-    title: "Automated Invoice Reminders",
-    body: "Escalating reminder sequences sent automatically when invoices go overdue.",
-  },
-  {
-    title: "Reminder Templates",
-    body: "Choose from friendly, firm, and final notice tones tailored to each relationship.",
-  },
-  {
-    title: "Promise-to-Pay Tracking",
-    body: "Record client commitments and pause reminders when a payment date is agreed.",
-  },
-  {
-    title: "Dispute Pause",
-    body: "Instantly pause the reminder sequence for invoices in dispute, without losing history.",
-  },
-  {
-    title: "Debtor Dashboard",
-    body: "See all overdue invoices, client statuses, and follow-up history in one place.",
-  },
-  {
-    title: "Weekly Debtor Summary",
-    body: "Coming soon: weekly email summaries of your outstanding invoices once the production scheduler cutover is complete.",
-  },
-]
-
 const pricingPreview = getPublicPlans().map((plan) => ({
+  id: plan.id,
   name: plan.name,
   price: formatPlanPrice(plan.monthlyPriceAud),
+  allowance: plan.limits.chasedInvoicesPerMonth,
   featured: Boolean(plan.popular),
 }))
 
@@ -57,314 +47,314 @@ const customSenderNameTierName = customSenderNameTier
   ? PLAN_CATALOG[customSenderNameTier].name
   : "a paid"
 
-const steps = [
-  {
-    n: "1",
-    title: "Connect an invoice source — or upload a spreadsheet",
-    body: "Connect Stripe, Xero, or MYOB via OAuth in one click, or skip integrations entirely and upload a CSV file of your invoices.",
-  },
-  { n: "2", title: "Import unpaid invoices", body: "Connected accounts sync overdue invoices automatically; spreadsheet uploads import them in minutes." },
-  { n: "3", title: "Configure your schedule", body: "Set reminder intervals that match your business style." },
-  { n: "4", title: "Reminders go out automatically", body: "Polite, professional follow-ups without lifting a finger." },
-]
-
 export default function HomePage() {
   const liveMode = isLiveMode()
-  const heroCtaLabel = liveMode ? "Start Free Trial" : "Request early access"
-  const heroCtaHref = liveMode ? "/sign-up" : "/contact"
+  const cta = getCtaForLiveMode(liveMode)
+
+  const faq = [
+    {
+      q: "Do I need to replace Xero or MYOB?",
+      a: "No. PaidSoon sits alongside your accounting software and turns existing data into practical next actions.",
+    },
+    {
+      q: "Can I start without integrations?",
+      a: "Yes. CSV invoice import is available so you can start quickly and connect providers later.",
+    },
+    {
+      q: "Does PaidSoon guarantee payment outcomes?",
+      a: "No. It improves visibility, consistency, and early action, but does not guarantee payment or financial outcomes.",
+    },
+    {
+      q: "Can emails be sent in my business name?",
+      a: `Yes. Custom sender name starts on ${customSenderNameTierName} plans and above; verified custom from-address starts on Small Business plans and above.`,
+    },
+  ]
+
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.a,
+      },
+    })),
+  }
+
+  const softwareJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "PaidSoon",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    offers: {
+      "@type": "AggregateOffer",
+      lowPrice: "9",
+      highPrice: "99",
+      priceCurrency: "AUD",
+    },
+  }
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero */}
-      <section className="max-w-3xl mx-auto px-4 pt-24 pb-20 text-center">
-        <h1 className="text-4xl font-bold text-gray-900 leading-tight">
-          Accounting software records the past.<br />
-          <span className="text-blue-600">PaidSoon helps you control the future.</span>
-        </h1>
-        <p className="mt-6 text-lg text-gray-500 max-w-xl mx-auto">
-          PaidSoon turns your accounting and payment data into practical next actions so
-          you can collect faster, control spending, and stay ahead of cashflow pressure.
-        </p>
-        <div className="mt-8 flex items-center justify-center gap-4">
-          <Link
-            href={heroCtaHref}
-            className="bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-medium hover:bg-blue-700"
-          >
-            {heroCtaLabel}
-          </Link>
-          <Link href="/how-it-works" className="text-sm text-gray-500 hover:text-gray-900">
-            How it works →
-          </Link>
+      <MarketingPageViewTracker page="homepage" />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }} />
+
+      <section className="border-b border-gray-100 bg-gray-50">
+        <div className="mx-auto max-w-6xl px-4 py-3 text-center text-sm text-gray-700">
+          New: Business Pro plan now available for growing teams that need higher follow-up capacity.
         </div>
-        <p className="mt-4 text-sm text-gray-400">
-          No accounting software required to start — import your invoices from a CSV file today.
-        </p>
-        {isDebugEnabled() && <DebugDbCheckButton />}
       </section>
 
-      {/* Purpose alignment */}
-      <section className="py-16 border-y border-gray-100">
-        <div className="max-w-4xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 text-center">
-            Xero and MYOB tell you what happened.
-            <span className="block text-blue-600 mt-1">PaidSoon tells you:</span>
-          </h2>
-          <ul className="mt-8 grid md:grid-cols-2 gap-4">
+      <section className="mx-auto max-w-6xl px-4 pt-16 pb-14">
+        <div className="grid items-center gap-8 lg:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">Financial control platform</p>
+            <h1 className="mt-4 text-4xl font-bold leading-tight text-gray-900 md:text-5xl">
+              Your accounting software tells you what happened.
+              <span className="block text-blue-700">PaidSoon helps you control what happens next.</span>
+            </h1>
+            <p className="mt-5 max-w-xl text-lg text-gray-600">{PLATFORM_TAGLINE}</p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <MarketingCtaLink
+                href={cta.href}
+                label={cta.label}
+                eventName="marketing_hero_cta_selected"
+                eventData={{ liveMode: String(liveMode) }}
+                className="inline-flex items-center justify-center rounded-md bg-blue-700 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-800"
+              />
+              <MarketingCtaLink
+                href="/platform"
+                label="See platform overview"
+                eventName="marketing_hero_secondary_cta_selected"
+                className="inline-flex items-center justify-center rounded-md border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+              />
+            </div>
+            <p className="mt-3 text-sm text-gray-500">{cta.helper}</p>
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-blue-50 to-slate-100 p-6">
+            <h2 className="text-lg font-semibold text-gray-900">Four-module control system</h2>
+            <div className="mt-4 grid gap-3">
+              {MODULES.map((item) => (
+                <Link key={item.id} href={MODULE_HREF[item.id]} className="rounded-xl border border-white bg-white/80 p-4 hover:bg-white">
+                  <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                  <p className="text-sm text-gray-600">{item.question}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-gray-100 py-12">
+        <div className="mx-auto grid max-w-6xl gap-4 px-4 md:grid-cols-2 lg:grid-cols-4">
+          {MODULES.map((item) => (
+            <article key={item.id} className="rounded-xl border border-gray-200 p-5">
+              <p className="text-xs uppercase tracking-wide text-gray-400">{item.name}</p>
+              <h2 className="mt-2 text-lg font-semibold text-gray-900">{item.question}</h2>
+              <p className="mt-2 text-sm text-gray-600">{item.summary}</p>
+              <Link href={MODULE_HREF[item.id]} className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
+                Learn more
+              </Link>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-gray-50 py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">Accounting records. PaidSoon controls.</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <article className="rounded-xl border border-gray-200 bg-white p-6">
+              <h3 className="text-lg font-semibold text-gray-900">Your accounting software</h3>
+              <ul className="mt-3 space-y-2 text-gray-600">
+                <li>Records invoices and payments</li>
+                <li>Shows historical reporting</li>
+                <li>Tracks what already happened</li>
+              </ul>
+            </article>
+            <article className="rounded-xl border border-blue-200 bg-blue-50 p-6">
+              <h3 className="text-lg font-semibold text-blue-900">PaidSoon platform</h3>
+              <ul className="mt-3 space-y-2 text-blue-900">
+                <li>Shows what needs attention now</li>
+                <li>Flags waste and cost drift early</li>
+                <li>Models likely cash position ahead</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">Real business pressure, every week</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
             {[
-              "What needs attention today.",
-              "What will happen next month.",
-              "What action you should take.",
-              "How to improve cashflow.",
-              "Where you're losing money.",
-              "Which customers are becoming risky.",
-              "Whether you'll have enough cash for wages, tax, and suppliers.",
+              "Late payments make payroll and BAS planning stressful.",
+              "Recurring software and supplier costs rise quietly.",
+              "Cash decisions happen too late when visibility is fragmented.",
             ].map((item) => (
-              <li key={item} className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                {item}
-              </li>
+              <article key={item} className="rounded-xl border border-gray-200 p-6">
+                <p className="text-gray-700">{item}</p>
+              </article>
             ))}
-          </ul>
+          </div>
         </div>
       </section>
 
-      {/* Problem */}
-      <section className="bg-gray-50 py-20">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-10">Chasing invoices is costing you more than money</h2>
-          <div className="grid md:grid-cols-3 gap-6 text-left">
+      <section className="bg-gray-50 py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">How the modules work together</h2>
+          <p className="mt-3 text-center text-gray-600">One operating rhythm for day-to-day financial control.</p>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            {PLATFORM_CYCLE.map((step, index) => (
+              <article key={step} className="rounded-xl border border-gray-200 bg-white p-5 text-center">
+                <p className="text-xs uppercase tracking-wide text-gray-400">Step {index + 1}</p>
+                <h3 className="mt-2 font-semibold text-gray-900">{step}</h3>
+              </article>
+            ))}
+          </div>
+          <div className="mt-6 text-center">
+            <MarketingCtaLink
+              href="/platform"
+              label="Explore the full platform"
+              eventName="marketing_platform_explore_selected"
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-900 hover:bg-white"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-2xl font-semibold text-gray-900">Module deep dives</h2>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {MODULES.map((item) => (
+              <article key={item.id} className="rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
+                <p className="mt-1 text-gray-600">{item.tagline}</p>
+                <ul className="mt-4 space-y-2 text-sm text-gray-600">
+                  {item.capabilities.slice(0, 3).map((capability) => (
+                    <li key={capability}>{capability}</li>
+                  ))}
+                </ul>
+                <Link href={MODULE_HREF[item.id]} className="mt-4 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
+                  Visit {item.name}
+                </Link>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-gray-50 py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">Outcome-focused benefits</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
             {[
-              {
-                heading: "Hours wasted every week",
-                body: "Writing follow-up emails, checking payment status, and remembering who owes what eats into billable time.",
-              },
-              {
-                heading: "Inconsistent follow-ups",
-                body: "Busy periods mean reminders slip through. Some clients learn they can ignore invoices without consequence.",
-              },
-              {
-                heading: "Cash flow unpredictability",
-                body: "Without systematic follow-up, late payments stretch out — making it hard to plan your own expenses.",
-              },
-            ].map((item) => (
-              <div key={item.heading} className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="font-semibold text-gray-900 mb-2">{item.heading}</h3>
-                <p className="text-sm text-gray-500">{item.body}</p>
-              </div>
+              "Faster receivables follow-up with less manual chasing",
+              "Clearer view of recurring spend and waste",
+              "Earlier visibility of cost pressure",
+              "More confidence in near-term cash decisions",
+            ].map((benefit) => (
+              <article key={benefit} className="rounded-xl border border-gray-200 bg-white p-5">
+                <p className="text-gray-700">{benefit}</p>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Solution */}
-      <section className="py-20">
-        <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Automated follow-ups. Zero awkwardness.</h2>
-          <p className="text-lg text-gray-500">
-            PaidSoon monitors your unpaid invoices, sends escalating reminders on your behalf,
-            and tracks promise-to-pay commitments and disputes — so you can focus on the work
-            you actually want to do.
-          </p>
-        </div>
-      </section>
-
-      {/* How it works preview */}
-      <section className="bg-gray-50 py-20">
-        <div className="max-w-4xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">How PaidSoon works</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {steps.map((step) => (
-              <div key={step.n} className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="text-2xl font-bold text-blue-600 mb-2">{step.n}</div>
-                <h3 className="font-semibold text-gray-900 mb-2">{step.title}</h3>
-                <p className="text-sm text-gray-500">{step.body}</p>
-              </div>
-            ))}
-          </div>
-          <div className="text-center mt-8">
-            <Link href="/how-it-works" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-              See the full workflow →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature highlights */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">Everything you need to get paid</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature) => (
-              <div key={feature.title} className="border border-gray-100 rounded-lg p-5">
-                <h3 className="font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-sm text-gray-500">{feature.body}</p>
-              </div>
-            ))}
-          </div>
-          <div className="text-center mt-8">
-            <Link href="/features" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-              See all features →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Integrations */}
-      <section className="bg-gray-50 py-20">
-        <div className="max-w-4xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">Connects to tools you already use</h2>
-          <div className="grid md:grid-cols-4 gap-4">
+      <section className="py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">Integrations</h2>
+          <p className="mt-3 text-center text-gray-600">Connect what you already use, or start with CSV import.</p>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
             {integrations.map((integration) => (
-              <div key={integration.id} className="bg-white rounded-lg border border-gray-200 p-5 text-center">
-                <p className="font-semibold text-gray-900">{integration.name}</p>
-                <span
-                  className={`mt-2 inline-block text-xs px-2 py-0.5 rounded-full ${INTEGRATION_STATUS_BADGE_STYLES[integration.status]}`}
-                >
+              <article key={integration.id} className="rounded-xl border border-gray-200 p-5 text-center">
+                <h3 className="font-semibold text-gray-900">{integration.name}</h3>
+                <span className={`mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-medium ${INTEGRATION_STATUS_BADGE_STYLES[integration.status]}`}>
                   {INTEGRATION_STATUS_LABEL[integration.status]}
                 </span>
-              </div>
+              </article>
             ))}
           </div>
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Don&apos;t want to connect an accounting system yet? Upload a CSV spreadsheet instead —
-            works on every plan, no integration required.
-          </p>
-          <div className="text-center mt-6">
-            <Link href="/integrations" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-              View all integrations →
-            </Link>
+        </div>
+      </section>
+
+      <section className="bg-gray-50 py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">Trust and security</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <article className="rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="font-semibold text-gray-900">Tenant isolation</h3>
+              <p className="mt-2 text-sm text-gray-600">Row-level security policies protect customer data boundaries.</p>
+            </article>
+            <article className="rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="font-semibold text-gray-900">Verified webhooks</h3>
+              <p className="mt-2 text-sm text-gray-600">Stripe billing and connect webhooks require signature verification before processing.</p>
+            </article>
+            <article className="rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="font-semibold text-gray-900">Protected provider tokens</h3>
+              <p className="mt-2 text-sm text-gray-600">Accounting OAuth tokens are encrypted at rest and handled server-side only.</p>
+            </article>
           </div>
         </div>
       </section>
 
-      {/* Now / future */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">Now and next</h2>
-          <p className="text-center text-gray-500 max-w-2xl mx-auto mb-10">
-            PaidSoon is rolling out in phases, starting with stronger payment follow-up control and
-            expanding into broader financial operations guidance.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-6">
-              <h3 className="text-base font-semibold text-blue-900 mb-3">Phase 1 focus</h3>
-              <ul className="space-y-2 text-sm text-blue-900">
-                {[
-                  "Promise to pay",
-                  "Disputes",
-                  "Customer payment scoring",
-                ].map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span>•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-6">
-              <h3 className="text-base font-semibold text-gray-900 mb-3">Future phases</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Spendleak, forecasting, AI owner guidance, insolvency and lending signals, bank
-                integrations, and working capital optimisation.
-              </p>
-              <Link href="/roadmap" className="text-sm font-medium text-blue-600 hover:text-blue-800">
-                View full Phase 1-4 roadmap →
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing preview */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">Simple, transparent pricing</h2>
-          <p className="text-gray-500 mb-10">Start with a free trial. No credit card required.</p>
-          <div className="grid md:grid-cols-3 gap-6">
+      <section className="py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">Pricing at a glance</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
             {pricingPreview.map((plan) => (
-              <div
-                key={plan.name}
-                className={`rounded-xl p-6 ${
-                  plan.featured ? "border-2 border-blue-600 shadow-sm" : "border border-gray-200"
-                }`}
-              >
-                <p className="font-semibold text-gray-900">{plan.name}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{plan.price}</p>
-              </div>
+              <article key={plan.id} className={`rounded-xl p-6 ${plan.featured ? "border-2 border-blue-700" : "border border-gray-200"}`}>
+                <h3 className="font-semibold text-gray-900">{plan.name}</h3>
+                <p className="mt-1 text-2xl font-bold text-gray-900">{plan.price}</p>
+                <p className="mt-2 text-sm text-gray-600">
+                  {plan.allowance === -1 ? "Unlimited chased invoices" : `${plan.allowance} chased invoices / period`}
+                </p>
+              </article>
             ))}
           </div>
-          <div className="mt-8">
-            <Link
+          <div className="mt-6 text-center">
+            <MarketingCtaLink
               href="/pricing"
-              className="inline-block bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-medium hover:bg-blue-700"
-            >
-              View full pricing →
-            </Link>
+              label="Compare all plans"
+              eventName="marketing_pricing_preview_selected"
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            />
           </div>
         </div>
       </section>
 
-      {/* Trust */}
-      <section className="bg-gray-50 py-16">
-        <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Built in Australia, for Australian businesses</h2>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-8 text-sm text-gray-500">
-            <span>🇦🇺 Australian owned and operated — Syspac Pty Ltd</span>
-            <span>🔒 Secure invoice data handling</span>
-            <span>🚫 No lock-in contracts</span>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ preview */}
-      <section className="py-20">
-        <div className="max-w-3xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">Common questions</h2>
-          <div className="space-y-6">
-            {[
-              {
-                q: "Do I need to connect Stripe, Xero, or MYOB to use PaidSoon?",
-                a: "No. You can upload your outstanding invoices from a CSV spreadsheet and start sending reminders right away, on any plan. Connect Stripe, Xero, or MYOB later if you'd like automatic syncing.",
-              },
-              {
-                q: "Does PaidSoon send emails in my name?",
-                a: `Yes, on ${customSenderNameTierName} plans and above you can set a custom sender name, and on Small Business plans and above you can send from your own verified domain. On the free trial and Starter plan, emails come from PaidSoon's domain with your name in the sender field.`,
-              },
-              {
-                q: "What happens when an invoice is paid?",
-                a: "PaidSoon detects the payment via Stripe and automatically stops the reminder sequence. No manual intervention needed.",
-              },
-              {
-                q: "Can I pause reminders for a specific client?",
-                a: "Yes. You can pause, snooze, or manually resolve any invoice at any time from your dashboard.",
-              },
-            ].map((faq) => (
-              <div key={faq.q} className="border-b border-gray-100 pb-6">
-                <h3 className="font-medium text-gray-900 mb-2">{faq.q}</h3>
-                <p className="text-sm text-gray-500">{faq.a}</p>
-              </div>
+      <section className="bg-gray-50 py-12">
+        <div className="mx-auto max-w-4xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">Frequently asked questions</h2>
+          <div className="mt-6 space-y-4">
+            {faq.map((item) => (
+              <article key={item.q} className="rounded-xl border border-gray-200 bg-white p-5">
+                <h3 className="font-semibold text-gray-900">{item.q}</h3>
+                <p className="mt-2 text-sm text-gray-600">{item.a}</p>
+              </article>
             ))}
           </div>
-          <div className="text-center mt-8">
-            <Link href="/faq" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-              See all FAQs →
-            </Link>
-          </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="bg-blue-600 py-20">
-        <div className="max-w-2xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Ready to get paid faster?</h2>
-          <p className="text-blue-100 mb-8">
-            Start your free trial today. No credit card required.
-          </p>
-          <Link
-            href="/pricing"
-            className="inline-block bg-white text-blue-600 px-8 py-3 rounded-md text-sm font-semibold hover:bg-blue-50"
-          >
-            Start Free Trial
-          </Link>
+      <section className="bg-blue-700 py-14">
+        <div className="mx-auto max-w-3xl px-4 text-center">
+          <h2 className="text-3xl font-bold text-white">Get paid. Stop waste. Control costs. Plan ahead.</h2>
+          <p className="mt-3 text-blue-100">Built for Australian small businesses that want practical financial control.</p>
+          <MarketingCtaLink
+            href={cta.href}
+            label={cta.label}
+            eventName="marketing_home_bottom_cta_selected"
+            eventData={{ liveMode: String(liveMode) }}
+            className="mt-6 inline-flex items-center justify-center rounded-md bg-white px-6 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+          />
         </div>
       </section>
     </div>

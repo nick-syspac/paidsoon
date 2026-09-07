@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { PricingCTA } from "@/components/pricing/PricingCTA"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 import {
   getPublicPlans,
   isFeatureImplemented,
@@ -9,6 +10,7 @@ import {
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans"
 import { formatPlanPrice, planHighlights, PLAN_TAGLINE } from "@/lib/planPresentation"
+import { isLiveMode } from "@/lib/liveMode"
 
 const publicPlans = getPublicPlans()
 
@@ -17,10 +19,18 @@ export const metadata: Metadata = {
   description: `Simple, transparent pricing for PaidSoon. Start a free trial with ${publicPlans
     .map((plan) => `${plan.name} at ${formatPlanPrice(plan.monthlyPriceAud)} AUD (inc. GST)`)
     .join(", ")}, or contact us for the ${PLAN_CATALOG.accountant_partner.name} plan.`,
+    alternates: { canonical: "/pricing" },
+    openGraph: {
+      title: "Pricing - PaidSoon",
+      description:
+        "Compare Solo, Essentials, Small Business, and Business Pro plans. Transparent AUD pricing and a free trial.",
+      url: "/pricing",
+      type: "website",
+    },
 }
 
 const PLAN_CTA_LABEL: Record<SubscriptionTier, string> = {
-  starter: "Start with Starter",
+  starter: "Start with Essentials",
   solo: "Start with Solo",
   small_business: "Start with Small Business",
   business_pro: "Start with Business Pro",
@@ -79,13 +89,19 @@ const comparisonRows: ComparisonRow[] = [
 ]
 
 export default function PricingPage() {
+  const liveMode = isLiveMode()
+  const defaultCtaHref = liveMode ? "/sign-up" : "/contact?type=early-access"
+
   return (
     <div className="min-h-screen bg-white">
+      <MarketingPageViewTracker page="pricing" />
       {/* Header */}
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-12 text-center">
         <h1 className="text-3xl font-bold text-gray-900">Simple, transparent pricing</h1>
         <p className="mt-4 text-lg text-gray-500">
-          Start your free trial. No credit card required. Cancel any time — no lock-in contracts.
+          {liveMode
+            ? "Start your free trial. No credit card required. Cancel any time - no lock-in contracts."
+            : "Pricing is available now. Request early access to start using PaidSoon."}
         </p>
         <p className="mt-2 text-sm text-gray-400">All prices are in AUD and include GST.</p>
       </section>
@@ -122,7 +138,13 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <PricingCTA tier={plan.id} label={PLAN_CTA_LABEL[plan.id]} featured={plan.popular} />
+              <PricingCTA
+                tier={plan.id}
+                label={liveMode ? PLAN_CTA_LABEL[plan.id] : `Request access for ${plan.name}`}
+                featured={plan.popular}
+                href={defaultCtaHref}
+                liveMode={liveMode}
+              />
             </div>
           ))}
         </div>
@@ -183,12 +205,14 @@ export default function PricingPage() {
       <section className="bg-blue-600 py-16">
         <div className="max-w-2xl mx-auto px-4 text-center">
           <h2 className="text-2xl font-bold text-white mb-4">Ready to get started?</h2>
-          <p className="text-blue-100 mb-6">Free trial. No credit card required.</p>
+          <p className="text-blue-100 mb-6">
+            {liveMode ? "Free trial. No credit card required." : "Request early access and we will contact you."}
+          </p>
           <Link
-            href="/sign-up"
+            href={defaultCtaHref}
             className="inline-block bg-white text-blue-600 px-6 py-3 rounded-md text-sm font-semibold hover:bg-blue-50"
           >
-            Start Free Trial
+            {liveMode ? "Start Free Trial" : "Request Early Access"}
           </Link>
         </div>
       </section>
