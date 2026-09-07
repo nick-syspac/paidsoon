@@ -1,6 +1,5 @@
 import {
   hasPlanFeature,
-  isFeatureImplemented,
   PLAN_CATALOG,
   PLAN_ORDER,
   type SubscriptionFeature,
@@ -27,10 +26,10 @@ export function lowestTierWithFeature(feature: SubscriptionFeature): Subscriptio
 }
 
 export const PLAN_TAGLINE: Record<SubscriptionTier, string> = {
-  starter: "Automate day-to-day cash control.",
-  solo: "Get paid and understand your cash.",
-  small_business: "Give the team control over spending and cash flow.",
-  business_pro: "Manage complex businesses with governance and forecasting.",
+  starter: "A focused entry point for a growing cash-control workflow.",
+  solo: "The first complete control layer for a solo operation.",
+  small_business: "The recommended plan for a growing small business team.",
+  business_pro: "Advanced governance, multi-entity visibility, and cash forecasting.",
   accountant_partner: "For bookkeepers and accountants managing invoice follow-ups across multiple clients.",
 }
 
@@ -42,34 +41,33 @@ export function planHighlights(tier: SubscriptionTier): string[] {
     case "starter":
       return [
         "PaidSoon core reminders",
-        "SpendLeak monthly spend snapshot",
-        "Basic collection automation",
+        "SpendLeak monthly snapshot",
         "One accounting connection",
-        `Up to ${plan.limits.chasedInvoicesPerMonth} active invoices`,
+        `Up to ${plan.limits.chasedInvoicesPerMonth} chased invoices per month`,
       ]
     case "solo":
       return [
-        "PaidSoon reminder automation",
-        "SpendLeak recurring spend monitoring",
-        "CostGuard basic spend controls",
-        "CashPlan 30-day cash view",
-        `Up to ${plan.limits.chasedInvoicesPerMonth} active invoices`,
+        "Full PaidSoon automation",
+        "SpendLeak monitoring",
+        "Basic CostGuard controls",
+        "Interactive 30-day CashPlan",
+        `Up to ${plan.limits.chasedInvoicesPerMonth} chased invoices per month`,
       ]
     case "small_business":
       return [
-        "PaidSoon full collections workflow",
-        "SpendLeak full spend analysis",
-        "CostGuard team cost controls",
-        "CashPlan 13-week planning",
-        `Up to ${plan.limits.chasedInvoicesPerMonth} active invoices`,
+        "Full four-module platform access",
+        "SpendLeak analysis and alerts",
+        "CostGuard budgets and variances",
+        "13-week CashPlan rolling view",
+        `Up to ${plan.limits.chasedInvoicesPerMonth} chased invoices per month`,
       ]
     case "business_pro":
       return [
-        "PaidSoon advanced collections controls",
-        "SpendLeak multi-entity analysis",
-        "CostGuard governance and approvals",
-        "CashPlan 12-month scenarios",
-        "Unlimited invoices",
+        "Advanced collections governance",
+        "Multi-entity SpendLeak visibility",
+        "CostGuard approvals and governance",
+        "12-month CashPlan scenarios",
+        `Up to ${plan.limits.chasedInvoicesPerMonth} chased invoices per month`,
       ]
     default:
       return [

@@ -91,9 +91,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   starter: {
     id: "starter",
     name: "Essentials",
-    monthlyPriceAud: 9,
+    monthlyPriceAud: 15,
     visibility: "public",
-    tagline: "Automate day-to-day cash control.",
+    tagline: "A focused entry point for a growing cash-control workflow.",
     limits: {
       chasedInvoicesPerMonth: 10,
       userSeats: 1,
@@ -128,9 +128,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   solo: {
     id: "solo",
     name: "Solo",
-    monthlyPriceAud: 19,
+    monthlyPriceAud: 29,
     visibility: "public",
-    tagline: "Get paid and understand your cash.",
+    tagline: "The first complete control layer for a solo operation.",
     limits: {
       chasedInvoicesPerMonth: 50,
       userSeats: 1,
@@ -165,12 +165,12 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   small_business: {
     id: "small_business",
     name: "Small Business",
-    monthlyPriceAud: 39,
+    monthlyPriceAud: 69,
     visibility: "public",
     popular: true,
-    tagline: "Give the team control over spending and cash flow.",
+    tagline: "The recommended plan for a growing small business team.",
     limits: {
-      chasedInvoicesPerMonth: 200,
+      chasedInvoicesPerMonth: 250,
       userSeats: 3,
       connectedInvoiceSources: 1,
     },
@@ -203,13 +203,13 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   business_pro: {
     id: "business_pro",
     name: "Business Pro",
-    monthlyPriceAud: 99,
+    monthlyPriceAud: 149,
     visibility: "public",
-    tagline: "Manage complex businesses with governance and forecasting.",
+    tagline: "Advanced governance, multi-entity visibility, and cash forecasting.",
     limits: {
       chasedInvoicesPerMonth: 1000,
       userSeats: 10,
-      connectedInvoiceSources: 1,
+      connectedInvoiceSources: 3,
     },
     features: {
       basic_email_reminders: true,

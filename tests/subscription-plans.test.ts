@@ -14,18 +14,18 @@ import {
 } from "@/lib/subscriptionPlans"
 import { planHighlights } from "@/lib/planPresentation"
 
-test("plan catalog includes Starter, Solo, Small Business, Business Pro, and Accountant Partner pricing", () => {
-  assert.equal(PLAN_CATALOG.starter.monthlyPriceAud, 9)
-  assert.equal(PLAN_CATALOG.solo.monthlyPriceAud, 19)
-  assert.equal(PLAN_CATALOG.small_business.monthlyPriceAud, 39)
-  assert.equal(PLAN_CATALOG.business_pro.monthlyPriceAud, 99)
+test("plan catalog includes Essentials, Solo, Small Business, Business Pro, and Accountant Partner pricing", () => {
+  assert.equal(PLAN_CATALOG.starter.monthlyPriceAud, 15)
+  assert.equal(PLAN_CATALOG.solo.monthlyPriceAud, 29)
+  assert.equal(PLAN_CATALOG.small_business.monthlyPriceAud, 69)
+  assert.equal(PLAN_CATALOG.business_pro.monthlyPriceAud, 149)
   assert.equal(PLAN_CATALOG.accountant_partner.monthlyPriceAud, null)
 })
 
 test("invoice allowances are tier-specific", () => {
   assert.equal(getPlanByTier("starter").limits.chasedInvoicesPerMonth, 10)
   assert.equal(getPlanByTier("solo").limits.chasedInvoicesPerMonth, 50)
-  assert.equal(getPlanByTier("small_business").limits.chasedInvoicesPerMonth, 200)
+  assert.equal(getPlanByTier("small_business").limits.chasedInvoicesPerMonth, 250)
   assert.equal(getPlanByTier("business_pro").limits.chasedInvoicesPerMonth, 1000)
   assert.equal(getPlanByTier("accountant_partner").limits.chasedInvoicesPerMonth, -1)
 })
@@ -38,11 +38,11 @@ test("seat limits are tier-specific", () => {
   assert.equal(getPlanByTier("accountant_partner").limits.userSeats, -1)
 })
 
-test("every customer-selectable tier is limited to one connected invoice source", () => {
+test("customer-selectable limits reflect the launch package, with Business Pro supporting multiple entities", () => {
   assert.equal(getPlanByTier("starter").limits.connectedInvoiceSources, 1)
   assert.equal(getPlanByTier("solo").limits.connectedInvoiceSources, 1)
   assert.equal(getPlanByTier("small_business").limits.connectedInvoiceSources, 1)
-  assert.equal(getPlanByTier("business_pro").limits.connectedInvoiceSources, 1)
+  assert.equal(getPlanByTier("business_pro").limits.connectedInvoiceSources, 3)
   assert.equal(getPlanByTier("accountant_partner").limits.connectedInvoiceSources, -1)
 })
 
