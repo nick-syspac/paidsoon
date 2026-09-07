@@ -868,13 +868,15 @@ export function buildCostGuardForecastSummary(forecast: ForecastSummary): CostGu
   }
 }
 
-export function shouldApplyCostGuardRule(
-  rule: {
+export function shouldApplyCostGuardRule<
+  T extends {
     enabled: boolean
     supplierId?: string | null
     categoryId?: string | null
     ruleType?: string
   },
+>(
+  rule: T,
   context: { supplierId?: string | null; categoryId?: string | null } = {},
 ): boolean {
   if (!rule.enabled) {
@@ -920,7 +922,7 @@ export function resolveCostGuardRuleConflict<
     absoluteThresholdCents?: number
   },
 >(rules: T[], context: { supplierId?: string | null; categoryId?: string | null } = {}): T | null {
-  const applicable = rules.filter((rule) => shouldApplyCostGuardRule(rule as any, context))
+  const applicable = rules.filter((rule) => shouldApplyCostGuardRule(rule, context))
   if (applicable.length === 0) {
     return null
   }

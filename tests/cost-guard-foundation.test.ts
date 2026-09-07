@@ -4,6 +4,8 @@ import assert from "node:assert/strict"
 import {
   BASELINE_WINDOWS,
   COST_GUARD_ALERT_EVENT_TYPES,
+  type CostGuardAlertRecordInput,
+  type CostGuardDigestSummaryInput,
   buildCostGuardAlertEventRecord,
   buildCostGuardAlertEventTypeForStatus,
   buildCostGuardAlertLifecycleSummary,
@@ -322,7 +324,7 @@ test("alert summaries expose a safe API contract for list and detail views", () 
 })
 
 test("SpendLeak recurring spend findings become the recurring baseline for cost guard forecasts", () => {
-  const spendInsights = [
+  const spendInsights: Parameters<typeof buildRecurringSpendBaselineFromSpendInsights>[0] = [
     {
       findingType: "recurring_spend",
       estimatedMonthlyCents: 120000,
@@ -341,7 +343,7 @@ test("SpendLeak recurring spend findings become the recurring baseline for cost 
       estimatedAnnualCents: 600000,
       state: "open",
     },
-  ] as any
+  ]
 
   const baseline = buildRecurringSpendBaselineFromSpendInsights(spendInsights)
   const recurringRisk = detectRecurringCostIncrease({
@@ -360,7 +362,7 @@ test("SpendLeak recurring spend findings become the recurring baseline for cost 
 })
 
 test("critical alerts are sent immediately while warning and watch alerts are grouped into digest buckets", () => {
-  const alerts = [
+  const alerts: CostGuardDigestSummaryInput["alerts"] = [
     {
       id: "alert-critical",
       alertType: "forecast_overrun",
@@ -401,9 +403,9 @@ test("critical alerts are sent immediately while warning and watch alerts are gr
       varianceAmountCents: 12000,
       variancePercent: 14,
     },
-  ] as const
+  ]
 
-  const plan = buildCostGuardNotificationPlan(alerts as any)
+  const plan = buildCostGuardNotificationPlan(alerts)
 
   assert.equal(plan.immediate.length, 1)
   assert.equal(plan.immediate[0].id, "alert-critical")
@@ -412,7 +414,7 @@ test("critical alerts are sent immediately while warning and watch alerts are gr
   assert.equal(plan.weekly.length, 0)
 
   const digest = buildCostGuardDigestSummary({
-    alerts: alerts.slice(0, 2) as any,
+    alerts: alerts.slice(0, 2),
     period: "daily",
     userName: "Taylor",
   })
@@ -424,8 +426,22 @@ test("critical alerts are sent immediately while warning and watch alerts are gr
 })
 
 test("repeated syncs reuse the same alert record for the same supplier drift signal", async () => {
-  const alerts: Array<Record<string, unknown>> = []
-  const tx = {
+  type AlertRow = {
+    id: string
+    userId: string
+    alertType: string
+    supplierId: string | null
+    categoryId: string | null
+    transactionId: string | null
+    actualAmountCents: number
+    varianceAmountCents: number
+    status: string
+  }
+
+  type AlertTx = Parameters<typeof upsertCostGuardAlertRecord>[0]["tx"]
+
+  const alerts: AlertRow[] = []
+  const tx: AlertTx = {
     costGuardAlert: {
       findFirst: async ({ where }: { where: Record<string, unknown> }) => {
         return alerts.find((alert) => {
@@ -441,12 +457,22 @@ test("repeated syncs reuse the same alert record for the same supplier drift sig
           return sameUser && sameType
         })
       },
-      create: async ({ data }: { data: Record<string, unknown> }) => {
-        const row = { id: `alert-${alerts.length + 1}`, ...data }
+      create: async ({ data }: { data: CostGuardAlertRecordInput }) => {
+        const row: AlertRow = {
+          id: `alert-${alerts.length + 1}`,
+          userId: data.userId,
+          alertType: data.alertType,
+          supplierId: data.supplierId ?? null,
+          categoryId: data.categoryId ?? null,
+          transactionId: data.transactionId ?? null,
+          actualAmountCents: data.actualAmountCents,
+          varianceAmountCents: data.varianceAmountCents,
+          status: data.status ?? "new",
+        }
         alerts.push(row)
         return row
       },
-      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      update: async ({ where, data }: { where: { id: string }; data: { status: string } }) => {
         const row = alerts.find((alert) => alert.id === where.id)
         if (!row) throw new Error(`alert ${where.id} not found`)
         Object.assign(row, data)
@@ -456,7 +482,7 @@ test("repeated syncs reuse the same alert record for the same supplier drift sig
   }
 
   const first = await upsertCostGuardAlertRecord({
-    tx: tx as any,
+    tx,
     input: {
       userId: "user-123",
       alertType: "supplier_increase",
@@ -476,7 +502,7 @@ test("repeated syncs reuse the same alert record for the same supplier drift sig
   })
 
   const second = await upsertCostGuardAlertRecord({
-    tx: tx as any,
+    tx,
     input: {
       userId: "user-123",
       alertType: "supplier_increase",
@@ -511,8 +537,8 @@ describe("cost guard supplier and category routes", () => {
     { expenseAccountName: "Office", _sum: { amountCents: 15000 }, _count: { id: 2 } },
   ]
 
-  let getSuppliers: any
-  let getCategories: any
+  let getSuppliers: (typeof import("@/app/api/cost-guard/suppliers/route"))["GET"]
+  let getCategories: (typeof import("@/app/api/cost-guard/categories/route"))["GET"]
 
   before(async () => {
     await mock.module("@/lib/supabase/server", {
@@ -525,7 +551,14 @@ describe("cost guard supplier and category routes", () => {
 
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
-        withUserContext: async (_userId: string, fn: (tx: any) => unknown) => {
+        withUserContext: async (
+          _userId: string,
+          fn: (tx: {
+            importedBill: {
+              groupBy: (args: { by: string[]; _sum: Record<string, boolean>; _count: Record<string, boolean> }) => Promise<Array<{ supplierName: string; _sum: { amountCents: number | null }; _count: { id: number } }> | Array<{ expenseAccountName: string | null; _sum: { amountCents: number | null }; _count: { id: number } }>>
+            }
+          }) => unknown,
+        ) => {
           const tx = {
             importedBill: {
               groupBy: async ({ by, _sum, _count }: { by: string[]; _sum: Record<string, boolean>; _count: Record<string, boolean> }) => {

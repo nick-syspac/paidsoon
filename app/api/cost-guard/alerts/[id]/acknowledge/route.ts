@@ -5,7 +5,6 @@ import {
   buildCostGuardAlertEventRecord,
   buildCostGuardAlertSummary,
   canTransitionCostGuardAlertStatus,
-  COST_GUARD_ALERT_EVENT_TYPES,
 } from "@/lib/costGuard/foundation"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { createClient } from "@/lib/supabase/server"

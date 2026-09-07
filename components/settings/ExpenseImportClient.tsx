@@ -8,8 +8,6 @@ import type { ReactElement } from "react"
 import { Spinner } from "@/components/ui/Spinner"
 import { SPEND_IMPORT_CANONICAL_FIELDS } from "@/lib/spendImport/template"
 
-type MappingSuggestion = { sourceColumn: string; targetField: string }
-
 type PreviewIssue = { field: string; severity: string; code: string; message: string }
 type PreviewRow = {
   rowNumber: number
