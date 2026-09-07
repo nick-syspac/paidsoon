@@ -2,6 +2,7 @@ export type SubscriptionTier =
   | "starter"
   | "solo"
   | "small_business"
+  | "business_pro"
   | "accountant_partner"
 
 /** Where a tier may be surfaced. Contact-only tiers are resolvable by identifier
@@ -199,6 +200,43 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       multi_client_management: false,
     },
   },
+  business_pro: {
+    id: "business_pro",
+    name: "Business Pro",
+    monthlyPriceAud: 99,
+    visibility: "public",
+    tagline: "For growing businesses that need higher follow-up capacity and more team seats.",
+    limits: {
+      chasedInvoicesPerMonth: 1000,
+      userSeats: 10,
+      connectedInvoiceSources: 1,
+    },
+    features: {
+      basic_email_reminders: true,
+      email_reminder_sequence: true,
+      customer_specific_sequences: true,
+      basic_templates: true,
+      custom_reminder_templates: true,
+      multi_template_customer_wording: true,
+      paid_soon_branding: true,
+      custom_reply_to: true,
+      custom_sender_name: true,
+      verified_from_domain: true,
+      ai_rewrite: true,
+      tone_settings: true,
+      payment_status_dashboard: true,
+      overdue_invoice_dashboard: true,
+      accounting_integrations: true,
+      promise_to_pay_tracking: true,
+      dispute_pause: true,
+      weekly_summary_email: true,
+      csv_export: true,
+      approval_mode: true,
+      contact_suppression: true,
+      team_seats: true,
+      multi_client_management: false,
+    },
+  },
   accountant_partner: {
     id: "accountant_partner",
     name: "Accountant Partner",
@@ -243,6 +281,7 @@ export const PLAN_ORDER: SubscriptionTier[] = [
   "starter",
   "solo",
   "small_business",
+  "business_pro",
   "accountant_partner",
 ]
 

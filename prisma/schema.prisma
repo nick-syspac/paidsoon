@@ -24,7 +24,7 @@ model UserProfile {
   subscriptionCancelAt           DateTime? @map("subscription_cancel_at")
   pendingDowngradeTier           String?   @map("pending_downgrade_tier")
   stripeScheduleId               String?   @map("stripe_schedule_id")
-  subscriptionTier               String    @default("starter") // 'starter' | 'solo' | 'small_business' | 'accountant_partner'
+  subscriptionTier               String    @default("starter") // 'starter' | 'solo' | 'small_business' | 'business_pro' | 'accountant_partner'
   subscriptionStatus             String    @default("active") // 'active' | 'trialing' | 'cancelled' | 'past_due'
   trialEndsAt                    DateTime? @map("trial_ends_at")
   onboardingCompletedAt          DateTime? @map("onboarding_completed_at")

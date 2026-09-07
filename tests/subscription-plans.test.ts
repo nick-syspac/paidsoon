@@ -13,10 +13,11 @@ import {
   UNIMPLEMENTED_FEATURES,
 } from "@/lib/subscriptionPlans"
 
-test("plan catalog includes Starter, Solo, Small Business, and Accountant Partner pricing", () => {
+test("plan catalog includes Starter, Solo, Small Business, Business Pro, and Accountant Partner pricing", () => {
   assert.equal(PLAN_CATALOG.starter.monthlyPriceAud, 9)
   assert.equal(PLAN_CATALOG.solo.monthlyPriceAud, 19)
   assert.equal(PLAN_CATALOG.small_business.monthlyPriceAud, 39)
+  assert.equal(PLAN_CATALOG.business_pro.monthlyPriceAud, 99)
   assert.equal(PLAN_CATALOG.accountant_partner.monthlyPriceAud, null)
 })
 
@@ -24,6 +25,7 @@ test("invoice allowances are tier-specific", () => {
   assert.equal(getPlanByTier("starter").limits.chasedInvoicesPerMonth, 10)
   assert.equal(getPlanByTier("solo").limits.chasedInvoicesPerMonth, 50)
   assert.equal(getPlanByTier("small_business").limits.chasedInvoicesPerMonth, 200)
+  assert.equal(getPlanByTier("business_pro").limits.chasedInvoicesPerMonth, 1000)
   assert.equal(getPlanByTier("accountant_partner").limits.chasedInvoicesPerMonth, -1)
 })
 
@@ -31,6 +33,7 @@ test("seat limits are tier-specific", () => {
   assert.equal(getPlanByTier("starter").limits.userSeats, 1)
   assert.equal(getPlanByTier("solo").limits.userSeats, 1)
   assert.equal(getPlanByTier("small_business").limits.userSeats, 3)
+  assert.equal(getPlanByTier("business_pro").limits.userSeats, 10)
   assert.equal(getPlanByTier("accountant_partner").limits.userSeats, -1)
 })
 
@@ -38,6 +41,7 @@ test("every customer-selectable tier is limited to one connected invoice source"
   assert.equal(getPlanByTier("starter").limits.connectedInvoiceSources, 1)
   assert.equal(getPlanByTier("solo").limits.connectedInvoiceSources, 1)
   assert.equal(getPlanByTier("small_business").limits.connectedInvoiceSources, 1)
+  assert.equal(getPlanByTier("business_pro").limits.connectedInvoiceSources, 1)
   assert.equal(getPlanByTier("accountant_partner").limits.connectedInvoiceSources, -1)
 })
 
@@ -52,9 +56,10 @@ test("there is no legacy tier aliasing — unrecognised values fall back to the 
   assert.equal(normalizeSubscriptionTier(null), DEFAULT_SUBSCRIPTION_TIER)
 })
 
-test("solo and small_business are first-class tiers, not aliases", () => {
+test("solo, small_business, and business_pro are first-class tiers, not aliases", () => {
   assert.equal(normalizeSubscriptionTier("solo"), "solo")
   assert.equal(normalizeSubscriptionTier("small_business"), "small_business")
+  assert.equal(normalizeSubscriptionTier("business_pro"), "business_pro")
 })
 
 test("sender-identity ladder is gated by tier", () => {
@@ -68,6 +73,8 @@ test("sender-identity ladder is gated by tier", () => {
 
   assert.equal(hasPlanFeature("small_business", "custom_sender_name"), true)
   assert.equal(hasPlanFeature("small_business", "verified_from_domain"), true)
+  assert.equal(hasPlanFeature("business_pro", "custom_sender_name"), true)
+  assert.equal(hasPlanFeature("business_pro", "verified_from_domain"), true)
 })
 
 test("ai_rewrite and tone_settings are gated at Solo and above", () => {
@@ -76,11 +83,12 @@ test("ai_rewrite and tone_settings are gated at Solo and above", () => {
   assert.equal(hasPlanFeature("solo", "ai_rewrite"), true)
   assert.equal(hasPlanFeature("solo", "tone_settings"), true)
   assert.equal(hasPlanFeature("small_business", "ai_rewrite"), true)
+  assert.equal(hasPlanFeature("business_pro", "ai_rewrite"), true)
   assert.equal(hasPlanFeature("accountant_partner", "ai_rewrite"), true)
 })
 
 test("core follow-up capabilities are available on every paid tier", () => {
-  for (const tier of ["starter", "solo", "small_business"] as const) {
+  for (const tier of ["starter", "solo", "small_business", "business_pro"] as const) {
     assert.equal(hasPlanFeature(tier, "accounting_integrations"), true, `${tier} accounting_integrations`)
     assert.equal(hasPlanFeature(tier, "promise_to_pay_tracking"), true, `${tier} promise_to_pay_tracking`)
     assert.equal(hasPlanFeature(tier, "dispute_pause"), true, `${tier} dispute_pause`)
@@ -90,6 +98,7 @@ test("core follow-up capabilities are available on every paid tier", () => {
   assert.equal(hasPlanFeature("starter", "weekly_summary_email"), false)
   assert.equal(hasPlanFeature("solo", "weekly_summary_email"), false)
   assert.equal(hasPlanFeature("small_business", "weekly_summary_email"), true)
+  assert.equal(hasPlanFeature("business_pro", "weekly_summary_email"), true)
   assert.equal(hasPlanFeature("accountant_partner", "weekly_summary_email"), true)
 })
 
@@ -97,7 +106,7 @@ test("getPublicPlans excludes the contact-only Accountant Partner tier", () => {
   const publicPlans = getPublicPlans()
   assert.deepEqual(
     publicPlans.map((plan) => plan.id),
-    ["starter", "solo", "small_business"],
+    ["starter", "solo", "small_business", "business_pro"],
   )
   assert.ok(publicPlans.every((plan) => plan.visibility === "public"))
 })

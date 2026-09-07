@@ -12,10 +12,11 @@ import {
 test("next-tier recommendation follows the public plan ladder", () => {
   assert.equal(getNextTierRecommendation("starter"), "solo")
   assert.equal(getNextTierRecommendation("solo"), "small_business")
+  assert.equal(getNextTierRecommendation("small_business"), "business_pro")
 })
 
 test("next-tier recommendation never suggests the hidden contact-only tier", () => {
-  assert.equal(getNextTierRecommendation("small_business"), null)
+  assert.equal(getNextTierRecommendation("business_pro"), null)
   assert.equal(getNextTierRecommendation("accountant_partner"), null)
 })
 

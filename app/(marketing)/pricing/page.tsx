@@ -23,6 +23,7 @@ const PLAN_CTA_LABEL: Record<SubscriptionTier, string> = {
   starter: "Start with Starter",
   solo: "Start with Solo",
   small_business: "Start with Small Business",
+  business_pro: "Start with Business Pro",
   accountant_partner: "Contact us",
 }
 
@@ -91,7 +92,7 @@ export default function PricingPage() {
 
       {/* Plan cards */}
       <section className="max-w-5xl mx-auto px-4 pb-16">
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-4 gap-6">
           {publicPlans.map((plan) => (
             <div
               key={plan.id}

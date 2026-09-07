@@ -30,6 +30,7 @@ export const PLAN_TAGLINE: Record<SubscriptionTier, string> = {
   starter: "For side hustlers and occasional invoicers who want automated invoice chasing on autopilot.",
   solo: "For full-time sole traders and freelancers who want a fully custom reminder sequence.",
   small_business: "For small businesses with an admin/accounts team managing higher invoice volume.",
+  business_pro: "For growing businesses that need higher invoice capacity and stronger sender controls.",
   accountant_partner: "For bookkeepers and accountants managing invoice follow-ups across multiple clients.",
 }
 

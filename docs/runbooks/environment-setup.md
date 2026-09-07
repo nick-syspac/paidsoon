@@ -62,6 +62,7 @@ These are independent of each other. Start them while Supabase settles.
 | `STRIPE_STARTER_PRICE_ID` | Stripe Dashboard → Product catalog → Starter price (`price_…`). Must have `tax_behavior: "inclusive"`. |
 | `STRIPE_SOLO_PRICE_ID` | Product catalog → Solo price |
 | `STRIPE_SMALL_BUSINESS_PRICE_ID` | Product catalog → Small Business price |
+| `STRIPE_BUSINESS_PRO_PRICE_ID` | Product catalog → Business Pro price |
 | `STRIPE_CONNECT_CLIENT_ID` | Stripe Dashboard → Connect → Settings (`ca_…`). Connect approval is async — submit on day 1. |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | Created in step 6: Developers → Webhooks → add endpoint → signing secret (`whsec_…`). Local: `stripe listen` CLI output. |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | Same flow, Connect webhook endpoint |
