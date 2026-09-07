@@ -11,6 +11,9 @@ export interface CashPlanLineItemInput {
   weekIndex: number
   confidence?: number | null
   sourceUpdatedAt?: Date | null
+  sourceSystem?: string
+  sourceId?: string
+  sourceHash?: string
 }
 
 export interface BuildCashPlanForecastInput {
@@ -922,7 +925,7 @@ export function buildCashPlanDataQualityQueue(input: {
   title?: string
 }): CashPlanDataQualityQueue {
   const title = input.title ?? "Base plan"
-  const issues = input.forecast.dataQualityIssues.length > 0
+  const issues: CashPlanDataQualityIssueRow[] = input.forecast.dataQualityIssues.length > 0
     ? input.forecast.dataQualityIssues.map((issue, index) => ({
         id: `issue-${index}`,
         type: issue.type,

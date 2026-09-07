@@ -55,6 +55,7 @@ export async function PUT(request: Request) {
   const updated = await withUserContext(user.id, async (tx) => {
     const createData = {
       userId: user.id,
+      planId: null,
       currency: parsed.data.currency,
       timezone: parsed.data.timezone,
       horizonWeeks: parsed.data.horizonWeeks,
@@ -63,15 +64,22 @@ export async function PUT(request: Request) {
       reviewRole: parsed.data.reviewRole,
     }
 
-    return tx.cashPlanSetting.upsert({
+    const existing = await tx.cashPlanSetting.findFirst({
       where: {
-        userId_planId: {
-          userId: user.id,
-          planId: null as string | null,
-        },
+        userId: user.id,
+        planId: null,
       },
-      update: createData,
-      create: createData,
+    })
+
+    if (existing) {
+      return tx.cashPlanSetting.update({
+        where: { id: existing.id },
+        data: createData,
+      })
+    }
+
+    return tx.cashPlanSetting.create({
+      data: createData,
     })
   })
 
