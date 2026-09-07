@@ -1,14 +1,23 @@
 import type { Metadata } from "next"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 
 export const metadata: Metadata = {
   title: "Security — PaidSoon",
   description:
     "How PaidSoon (Syspac Pty Ltd) keeps your invoice data and account secure.",
+  alternates: { canonical: "/security" },
+  openGraph: {
+    title: "Security - PaidSoon",
+    description: "How PaidSoon protects customer data and platform access.",
+    url: "/security",
+    type: "website",
+  },
 }
 
 export default function SecurityPage() {
   return (
     <div className="min-h-screen bg-white">
+      <MarketingPageViewTracker page="security" />
       <div className="max-w-3xl mx-auto px-4 py-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Security</h1>
 

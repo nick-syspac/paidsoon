@@ -28,18 +28,28 @@ export async function POST(req: Request, { params }: Params) {
   const result = await withUserContext(user.id, async (tx) => {
     const invoice = await tx.trackedInvoice.findFirst({
       where: { id, userId: user.id, status: { notIn: [...TERMINAL_TRACKED_INVOICE_STATUSES] } },
+      include: { financialInvoice: { select: { amountDueCents: true, currency: true } } },
     })
     if (!invoice) return { ok: false as const, reason: "not_found" as const }
-    if (invoice.currency !== parsed.data.currency) {
+    if (invoice.financialInvoice.currency !== parsed.data.currency) {
       return { ok: false as const, reason: "currency_mismatch" as const }
     }
 
-    const recorded = await recordInvoicePayment(tx, invoice, {
-      amount: parsed.data.amount,
-      currency: parsed.data.currency,
-      source: "manual",
-      note: parsed.data.note ?? null,
-    })
+    const recorded = await recordInvoicePayment(
+      tx,
+      {
+        id: invoice.id,
+        userId: invoice.userId,
+        amountDue: invoice.financialInvoice.amountDueCents,
+        status: invoice.status,
+      },
+      {
+        amount: parsed.data.amount,
+        currency: parsed.data.currency,
+        source: "manual",
+        note: parsed.data.note ?? null,
+      },
+    )
     return { ok: true as const, recorded }
   })
 

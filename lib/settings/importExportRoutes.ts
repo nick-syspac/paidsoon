@@ -1,0 +1,3 @@
+export const IMPORT_EXPORT_SETTINGS_ROUTE = "/dashboard/settings/import-export"
+export const IMPORT_EXPORT_SETTINGS_INVOICE_IMPORT_ANCHOR = `${IMPORT_EXPORT_SETTINGS_ROUTE}#invoice-import`
+export const IMPORT_EXPORT_SETTINGS_INVOICE_EXPORT_ANCHOR = `${IMPORT_EXPORT_SETTINGS_ROUTE}#invoice-export`

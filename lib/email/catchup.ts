@@ -2,6 +2,7 @@ import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getProvider } from "@/lib/providers"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { findOrCreateCustomer } from "@/lib/db/customers"
+import { upsertFinancialInvoice } from "@/lib/financial/ingest"
 import type { NormalizedInvoice } from "@/lib/providers/types"
 
 /**
@@ -32,13 +33,16 @@ export async function runCatchUpScan() {
     }
 
     for (const invoice of overdueInvoices) {
-      // Idempotency check
-      const existing = await prisma.trackedInvoice.findFirst({
+      // Idempotency check against the canonical source key
+      const existing = await prisma.financialInvoice.findUnique({
         where: {
-          externalId: invoice.externalId,
-          provider: "stripe",
-          userId: connection.userId,
+          userId_sourceSystem_sourceId: {
+            userId: connection.userId,
+            sourceSystem: "stripe",
+            sourceId: invoice.externalId,
+          },
         },
+        select: { id: true },
       })
       if (existing) continue
 
@@ -56,21 +60,26 @@ export async function runCatchUpScan() {
         connection.userId,
         invoice.clientEmail,
         invoice.clientName,
+        "stripe",
       )
+
+      const { invoice: financialInvoice } = await upsertFinancialInvoice(prisma, {
+        userId: connection.userId,
+        sourceSystem: "stripe",
+        sourceId: invoice.externalId,
+        contactId: customer.financialContactId,
+        amountDueCents: invoice.amountDue,
+        currency: invoice.currency,
+        dueDate: invoice.dueDate,
+        paymentUrl: invoice.paymentUrl ?? null,
+      })
 
       await prisma.trackedInvoice.create({
         data: {
           userId: connection.userId,
           invoiceConnectionId: connection.id,
+          financialInvoiceId: financialInvoice.id,
           customerId: customer.id,
-          externalId: invoice.externalId,
-          provider: "stripe",
-          clientEmail: invoice.clientEmail,
-          clientName: invoice.clientName,
-          amountDue: invoice.amountDue,
-          currency: invoice.currency,
-          dueDate: invoice.dueDate,
-          paymentUrl: invoice.paymentUrl ?? null,
           status: "pending",
           currentStage: 0,
           nextEmailAt,

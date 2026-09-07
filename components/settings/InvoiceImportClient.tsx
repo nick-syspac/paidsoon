@@ -275,7 +275,7 @@ function UploadStep({
   onFileSelected: (file: File) => void
 }) {
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 md:grid-cols-2">
       <div className="border border-gray-200 rounded-lg p-4 space-y-3">
         <p className="text-sm font-medium text-gray-900">1. Download a template</p>
         <p className="text-sm text-gray-500">

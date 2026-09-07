@@ -101,6 +101,22 @@ Run the seed once per environment where the account should exist. Typically:
 The account email is real — never use it in `seed-preview.ts`-style demo
 fixtures, and never set `SEED_*` variables in production.
 
+## Wiping production back to a fresh install
+
+If production data ever needs to be cleared entirely (e.g. pre-launch reset
+after testing), use [scripts/db-reset-production.ts](../../scripts/db-reset-production.ts):
+
+```bash
+CONFIRM_PRODUCTION_RESET=reset-production \
+  npm run db:reset:production -- --confirm-production-reset
+```
+
+It deletes every Supabase Auth user and truncates every public table (schema,
+migrations, and RLS policies survive), then follow the script's printed next
+steps: re-apply RLS, run `verify-rls`, re-sign-up, and re-seed this account.
+It requires both a CLI flag and the `CONFIRM_PRODUCTION_RESET` env var, and it
+refuses to run against the known dev/preview project ref.
+
 ## Re-running / changing the tier
 
 Re-running the script is a no-op when nothing changed. To change the tier

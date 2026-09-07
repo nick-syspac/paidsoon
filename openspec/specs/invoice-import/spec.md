@@ -4,13 +4,18 @@
 The invoice-import capability gives a tenant user a safe, reviewable spreadsheet workflow for bringing in customer and invoice records without requiring a live accounting sync. It provides versioned templates, explicit column mapping, server-side validation, and a paused-import safety model so reminder workflows remain intentionally controlled.
 ## Requirements
 ### Requirement: Downloadable import templates
-The system SHALL provide a version-compatible CSV invoice-import template from the invoice-import screen.
+The system SHALL provide version-compatible CSV invoice-import templates from the invoice-import screen.
 
 #### Scenario: Download CSV template
 - **WHEN** an authorised user selects Download CSV template
 - **THEN** the system downloads a UTF-8 CSV file containing the supported canonical headings and fictional sample rows
 - **AND** the sample email addresses use a non-deliverable domain
 - **AND** the file can be uploaded and mapped by the current importer after the sample values are replaced
+
+#### Scenario: No Excel template is offered
+- **WHEN** an authorised user views the invoice-import screen
+- **THEN** the system does not offer an Excel template download
+- **AND** the available template guidance makes clear that CSV is the supported import format for now
 
 ### Requirement: CSV upload support
 The system SHALL accept supported CSV files within configured safety and size limits.
@@ -41,7 +46,7 @@ The system SHALL allow source columns to be mapped to the canonical PaidSoon inv
 - **AND** identifies each missing field
 
 ### Requirement: Server-side validation and safe import
-The system SHALL validate every mapped row server-side before any application records are changed.
+The system SHALL validate every mapped row server-side before any application records are changed and SHALL treat imported rows as tracked invoice records that are subject to the same invoice lifecycle rules as other sources.
 
 #### Scenario: Blocking errors found
 - **WHEN** validation finds one or more blocking errors
@@ -54,11 +59,22 @@ The system SHALL validate every mapped row server-side before any application re
 - **THEN** the system shows the warnings and proposed import counts
 - **AND** allows the user to confirm the import explicitly
 
+#### Scenario: Valid import commit creates tracked invoice lifecycle
+- **WHEN** a valid CSV/XLSX file is committed
+- **THEN** the imported records are converted into tenant-scoped tracked invoices
+- **AND** the system preserves payment metadata and enables reminder workflows for overdue entries
+- **AND** paid imported invoices are excluded from reminder generation without requiring manual cleanup
+
 ### Requirement: Tenant-safe import lifecycle
-The system SHALL keep imported spreadsheet data tenant-scoped and minimise retention of temporary uploads and staging content.
+The system SHALL keep imported spreadsheet data tenant-scoped and minimise retention of temporary uploads and staging content while preserving the operational audit trail needed to validate the imported invoice lifecycle.
 
 #### Scenario: Temporary cleanup
 - **WHEN** an import completes, fails, is cancelled, or is abandoned
-- **THEN** the raw upload and staging rows are deleted immediately when no longer needed and no later than 24 hours after the batch ends
-- **AND** import metadata remains available according to the PaidSoon audit policy
+- **THEN** the raw upload and staging rows are removed as soon as no longer needed and no later than the retention policy allows
+- **AND** the import metadata remains available for audit and support review
+
+#### Scenario: Payment state does not drift across import batches
+- **WHEN** an imported invoice is later marked paid via the normal invoice ledger workflow
+- **THEN** the source batch does not keep creating reminder work for that invoice
+- **AND** the tenant sees the invoice as resolved according to the same status model as other invoice sources
 

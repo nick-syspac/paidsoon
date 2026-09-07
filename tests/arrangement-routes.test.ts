@@ -6,9 +6,14 @@ let mockUser: { id: string } | null = { id: "user-1" }
 let mockInvoices: Array<{
   id: string
   userId: string
-  clientEmail: string
-  clientName: string
-  currency: string
+  financialInvoice: {
+    currency: string
+    contact: {
+      name: string
+      email: string
+      emailLower?: string
+    } | null
+  }
 }> = []
 
 let mockArrangementRecord: {
@@ -36,11 +41,15 @@ type MockArrangementDetail = {
     trackedInvoiceId: string
     trackedInvoice: {
       id: string
-      clientName: string
-      clientEmail: string
-      amountDue: number
-      currency: string
       status: string
+      financialInvoice: {
+        amountDueCents: number
+        currency: string
+        contact: {
+          name: string
+          email: string
+        } | null
+      }
     }
   }>
 }
@@ -125,8 +134,16 @@ describe("Arrangement route handlers", () => {
 
   test("POST /api/arrangements rejects multi-debtor invoice bundle", async () => {
     mockInvoices = [
-      { id: "inv-1", userId: "user-1", clientEmail: "a@example.com", clientName: "A", currency: "usd" },
-      { id: "inv-2", userId: "user-1", clientEmail: "b@example.com", clientName: "B", currency: "usd" },
+      {
+        id: "inv-1",
+        userId: "user-1",
+        financialInvoice: { currency: "usd", contact: { name: "A", email: "a@example.com", emailLower: "a@example.com" } },
+      },
+      {
+        id: "inv-2",
+        userId: "user-1",
+        financialInvoice: { currency: "usd", contact: { name: "B", email: "b@example.com", emailLower: "b@example.com" } },
+      },
     ]
 
     const req = new Request("http://localhost/api/arrangements", {
@@ -145,8 +162,22 @@ describe("Arrangement route handlers", () => {
 
   test("POST /api/arrangements creates arrangement for matching invoices", async () => {
     mockInvoices = [
-      { id: "inv-1", userId: "user-1", clientEmail: "client@example.com", clientName: "Client", currency: "usd" },
-      { id: "inv-2", userId: "user-1", clientEmail: "client@example.com", clientName: "Client", currency: "usd" },
+      {
+        id: "inv-1",
+        userId: "user-1",
+        financialInvoice: {
+          currency: "usd",
+          contact: { name: "Client", email: "client@example.com", emailLower: "client@example.com" },
+        },
+      },
+      {
+        id: "inv-2",
+        userId: "user-1",
+        financialInvoice: {
+          currency: "usd",
+          contact: { name: "Client", email: "client@example.com", emailLower: "client@example.com" },
+        },
+      },
     ]
     mockArrangementRecord = {
       id: "arr-1",
@@ -220,11 +251,15 @@ describe("Arrangement route handlers", () => {
           trackedInvoiceId: "inv-1",
           trackedInvoice: {
             id: "inv-1",
-            clientName: "Client Co",
-            clientEmail: "client@example.com",
-            amountDue: 10000,
-            currency: "usd",
             status: "pending",
+            financialInvoice: {
+              amountDueCents: 10000,
+              currency: "usd",
+              contact: {
+                name: "Client Co",
+                email: "client@example.com",
+              },
+            },
           },
         },
       ],
@@ -267,22 +302,30 @@ describe("Arrangement route handlers", () => {
           trackedInvoiceId: "inv-1",
           trackedInvoice: {
             id: "inv-1",
-            clientName: "Client Co",
-            clientEmail: "client@example.com",
-            amountDue: 5000,
-            currency: "usd",
             status: "pending",
+            financialInvoice: {
+              amountDueCents: 5000,
+              currency: "usd",
+              contact: {
+                name: "Client Co",
+                email: "client@example.com",
+              },
+            },
           },
         },
         {
           trackedInvoiceId: "inv-2",
           trackedInvoice: {
             id: "inv-2",
-            clientName: "Client Co",
-            clientEmail: "client@example.com",
-            amountDue: 10000,
-            currency: "usd",
             status: "pending",
+            financialInvoice: {
+              amountDueCents: 10000,
+              currency: "usd",
+              contact: {
+                name: "Client Co",
+                email: "client@example.com",
+              },
+            },
           },
         },
       ],

@@ -1,15 +1,25 @@
 import type { Metadata } from "next"
-import Link from "next/link"
+import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 
 export const metadata: Metadata = {
   title: "About PaidSoon — Syspac Pty Ltd",
   description:
     "PaidSoon is the financial control platform for Australian businesses. Operated by Syspac Pty Ltd, ABN 12 657 226 125.",
+  alternates: { canonical: "/about" },
+  openGraph: {
+    title: "About PaidSoon",
+    description:
+      "Learn why PaidSoon was built and how it helps Australian small businesses control what happens next.",
+    url: "/about",
+    type: "website",
+  },
 }
 
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white">
+      <MarketingPageViewTracker page="about" />
       <div className="max-w-3xl mx-auto px-4 py-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">About PaidSoon</h1>
 
@@ -90,12 +100,12 @@ export default function AboutPage() {
           </section>
 
           <div className="mt-10 pt-8 border-t border-gray-100">
-            <Link
+            <MarketingCtaLink
               href="/contact"
+              label="Get in touch"
+              eventName="marketing_about_contact_cta_selected"
               className="inline-block bg-blue-600 text-white px-5 py-2.5 rounded-md text-sm font-medium hover:bg-blue-700"
-            >
-              Get in touch →
-            </Link>
+            />
           </div>
         </div>
       </div>

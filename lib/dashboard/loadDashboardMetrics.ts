@@ -43,19 +43,31 @@ export async function loadDashboardMetricsWithTx(
   const todayStart = new Date(now)
   todayStart.setUTCHours(0, 0, 0, 0)
 
-  const paidInvoices = await tx.trackedInvoice.findMany({
+  const paidRows = await tx.trackedInvoice.findMany({
     where: { userId, status: "paid", updatedAt: { gte: since } },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
-      clientEmail: true,
-      clientName: true,
-      amountDue: true,
-      currency: true,
       createdAt: true,
       updatedAt: true,
+      financialInvoice: {
+        select: {
+          amountDueCents: true,
+          currency: true,
+          contact: { select: { name: true, email: true } },
+        },
+      },
     },
   })
+  const paidInvoices: PaidInvoiceSummary[] = paidRows.map((row) => ({
+    id: row.id,
+    clientEmail: row.financialInvoice.contact?.email ?? "",
+    clientName: row.financialInvoice.contact?.name ?? "",
+    amountDue: row.financialInvoice.amountDueCents,
+    currency: row.financialInvoice.currency,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }))
   const paidCountAllTime = await tx.trackedInvoice.count({ where: { userId, status: "paid" } })
   const manuallyResolvedCountAllTime = await tx.trackedInvoice.count({
     where: { userId, status: "manually_resolved" },

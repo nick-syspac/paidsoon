@@ -31,10 +31,11 @@ export interface ResolvedTemplateVars {
 
 export function resolveVars(stage: 1 | 2 | 3, vars: TemplateVars): ResolvedTemplateVars {
   const invoiceRef = vars.invoiceNumber ? `Invoice ${vars.invoiceNumber}` : "your invoice"
-  const paymentLink = vars.paymentUrl
-    ? `<a href="${vars.paymentUrl}">Pay invoice →</a>`
+  const normalizedPaymentUrl = vars.paymentUrl?.trim()
+  const paymentLink = normalizedPaymentUrl
+    ? `<a href="${normalizedPaymentUrl}">Pay invoice →</a>`
     : ""
-  const paymentLinkText = vars.paymentUrl ?? ""
+  const paymentLinkText = normalizedPaymentUrl ?? ""
   const promiseToPayLink = vars.p2pLink
     ? `<a href="${vars.p2pLink}">Confirm when you'll pay →</a>`
     : ""

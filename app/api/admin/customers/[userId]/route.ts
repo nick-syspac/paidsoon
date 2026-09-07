@@ -44,23 +44,27 @@ export async function GET(
     ` as Array<{ email: string }>
     const email = authUser?.[0]?.email || null
 
-    // Invoice summary
+    // Invoice summary (facts joined from the canonical financial invoice)
     const invoices = await prismaAdmin.trackedInvoice.findMany({
       where: { userId },
       select: {
         id: true,
         status: true,
-        amountDue: true,
-        currency: true,
-        dueDate: true,
-        clientName: true,
+        financialInvoice: {
+          select: {
+            amountDueCents: true,
+            currency: true,
+            dueDate: true,
+            contact: { select: { name: true } },
+          },
+        },
       },
-      orderBy: { dueDate: "asc" },
+      orderBy: { financialInvoice: { dueDate: "asc" } },
     })
 
     const activeInvoices = invoices.filter((inv) => inv.status !== "paid" && inv.status !== "cancelled")
     const overdueInvoices = activeInvoices.filter(
-      (inv) => inv.dueDate != null && inv.dueDate < new Date() && inv.status !== "paid"
+      (inv) => inv.financialInvoice.dueDate != null && inv.financialInvoice.dueDate < new Date() && inv.status !== "paid"
     )
 
     // Impersonation session history (last 5)
@@ -121,10 +125,10 @@ export async function GET(
         invoices: activeInvoices.map((inv) => ({
           id: inv.id,
           status: inv.status,
-          amountDue: inv.amountDue,
-          currency: inv.currency,
-          dueDate: inv.dueDate?.toISOString() ?? null,
-          clientName: inv.clientName,
+          amountDue: inv.financialInvoice.amountDueCents,
+          currency: inv.financialInvoice.currency,
+          dueDate: inv.financialInvoice.dueDate?.toISOString() ?? null,
+          clientName: inv.financialInvoice.contact?.name ?? null,
           isPaused: inv.status === "paused",
         })),
       },

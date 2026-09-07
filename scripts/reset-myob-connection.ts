@@ -90,23 +90,31 @@ async function main() {
   for (const connection of connections) {
     console.log(`  - ${connection.id} (${connection.organisationName}, status=${connection.status})`)
 
-    const mappings = await prismaAdmin.providerInvoiceMapping.findMany({
-      where: { accountingConnectionId: connection.id },
-      select: { trackedInvoiceId: true },
-    })
+    const linkedTrackedInvoiceIds = (
+      await prismaAdmin.trackedInvoice.findMany({
+        where: { financialInvoice: { accountingConnectionId: connection.id } },
+        select: { id: true },
+      })
+    ).map((invoice) => invoice.id)
 
     await prismaAdmin.$transaction(async (tx) => {
-      if (mappings.length > 0) {
+      if (linkedTrackedInvoiceIds.length > 0) {
         await tx.trackedInvoice.updateMany({
-          where: { id: { in: mappings.map((m) => m.trackedInvoiceId) }, userId },
+          where: { id: { in: linkedTrackedInvoiceIds }, userId },
           data: { nextEmailAt: null },
         })
       }
 
       if (HARD_DELETE) {
+        await tx.emailLog.deleteMany({ where: { trackedInvoiceId: { in: linkedTrackedInvoiceIds } } })
+        await tx.promiseToPay.deleteMany({ where: { trackedInvoiceId: { in: linkedTrackedInvoiceIds } } })
+        await tx.arrangementInvoiceCoverage.deleteMany({ where: { trackedInvoiceId: { in: linkedTrackedInvoiceIds } } })
+        await tx.invoicePayment.deleteMany({ where: { trackedInvoiceId: { in: linkedTrackedInvoiceIds } } })
+        await tx.trackedInvoice.deleteMany({ where: { id: { in: linkedTrackedInvoiceIds } } })
+        await tx.financialPayment.deleteMany({ where: { accountingConnectionId: connection.id } })
+        await tx.financialInvoice.deleteMany({ where: { accountingConnectionId: connection.id } })
+        await tx.financialContact.deleteMany({ where: { accountingConnectionId: connection.id } })
         await tx.accountingSyncRun.deleteMany({ where: { accountingConnectionId: connection.id } })
-        await tx.providerInvoiceMapping.deleteMany({ where: { accountingConnectionId: connection.id } })
-        await tx.providerContactMapping.deleteMany({ where: { accountingConnectionId: connection.id } })
         await tx.accountingConnection.delete({ where: { id: connection.id } })
       } else {
         await tx.accountingConnection.update({

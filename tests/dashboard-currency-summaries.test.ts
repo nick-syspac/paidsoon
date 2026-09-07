@@ -5,18 +5,16 @@ import type { InvoiceWithRelations } from "@/lib/dashboard/loadDashboardInvoices
 import type { PaidInvoiceSummary } from "@/lib/dashboard/loadDashboardMetrics"
 
 function makeActiveInvoice(overrides: Partial<InvoiceWithRelations> & { id: string }): InvoiceWithRelations {
+  const clientEmail = overrides.clientEmail ?? "client@example.com"
+  const clientName = overrides.clientName ?? "Client"
+  const amountDue = overrides.amountDue ?? 1000
+  const currency = overrides.currency ?? "usd"
+  const dueDate = overrides.dueDate ?? new Date("2026-08-01T00:00:00Z")
   return {
     userId: "user-1",
     invoiceConnectionId: "conn-1",
+    financialInvoiceId: `fin-${overrides.id}`,
     customerId: null,
-    externalId: `ext-${overrides.id}`,
-    provider: "stripe",
-    clientEmail: overrides.clientEmail ?? "client@example.com",
-    clientName: overrides.clientName ?? "Client",
-    amountDue: overrides.amountDue ?? 1000,
-    currency: overrides.currency ?? "usd",
-    dueDate: overrides.dueDate ?? new Date("2026-08-01T00:00:00Z"),
-    paymentUrl: null,
     status: (overrides.status ?? "pending") as InvoiceWithRelations["status"],
     currentStage: overrides.currentStage ?? 0,
     nextEmailAt: null,
@@ -29,6 +27,49 @@ function makeActiveInvoice(overrides: Partial<InvoiceWithRelations> & { id: stri
     disputeResolvedAt: null,
     createdAt: new Date("2026-07-01T00:00:00Z"),
     updatedAt: new Date("2026-08-01T00:00:00Z"),
+    financialInvoice: {
+      id: `fin-${overrides.id}`,
+      userId: "user-1",
+      sourceSystem: "stripe",
+      sourceId: `ext-${overrides.id}`,
+      sourceUpdatedAt: null,
+      syncedAt: new Date("2026-07-01T00:00:00Z"),
+      accountingConnectionId: null,
+      contactId: `contact-${overrides.id}`,
+      invoiceNumber: null,
+      amountDueCents: amountDue,
+      currency,
+      dueDate,
+      issueDate: null,
+      paymentUrl: null,
+      rawSourceData: null,
+      createdAt: new Date("2026-07-01T00:00:00Z"),
+      updatedAt: new Date("2026-08-01T00:00:00Z"),
+      contact: {
+        id: `contact-${overrides.id}`,
+        userId: "user-1",
+        sourceSystem: "stripe",
+        sourceId: `email:${clientEmail.toLowerCase()}`,
+        sourceUpdatedAt: null,
+        syncedAt: new Date("2026-07-01T00:00:00Z"),
+        accountingConnectionId: null,
+        name: clientName,
+        email: clientEmail,
+        emailLower: clientEmail.toLowerCase(),
+        rawSourceData: null,
+        createdAt: new Date("2026-07-01T00:00:00Z"),
+        updatedAt: new Date("2026-08-01T00:00:00Z"),
+      },
+    },
+    // Flat canonical projections (legacy names) as produced by the loader.
+    clientEmail,
+    clientName,
+    amountDue,
+    currency,
+    dueDate,
+    paymentUrl: null,
+    externalId: `ext-${overrides.id}`,
+    provider: "stripe",
     emailLogs: [],
     promisesToPay: [],
     arrangementCoverages: [],
@@ -64,6 +105,19 @@ test("buildCurrencyDashboardSummaries keeps mixed-currency totals separate", () 
     brokenPromiseCountsByDebtor: {},
     paidCountAllTime: 2,
     manuallyResolvedCountAllTime: 1,
+    spendLeak: {
+      hasAccess: true,
+      hasAccountingConnection: true,
+      findingCount: 3,
+      statusTitle: "SpendLeak ready",
+      topModuleTitle: "Recurring spend",
+      topModuleFindingCount: 2,
+      topModuleAnnualCents: 120000,
+      sourceBreakdown: {
+        providerSyncFindings: 2,
+        expenseImportFindings: 1,
+      },
+    },
     now: new Date("2026-08-06T00:00:00Z"),
   })
 
@@ -79,6 +133,9 @@ test("buildCurrencyDashboardSummaries keeps mixed-currency totals separate", () 
   assert.equal(aud.biggestDebtors[0]?.amountOwed, 4500)
   assert.equal(usd.cashWaitingSummary.outstanding, 5000)
   assert.equal(usd.biggestDebtors[0]?.amountOwed, 5000)
+  assert.match(aud.aiSummaryLines.map((line) => line.text).join(" "), /SpendLeak flagged 3 findings/)
+  assert.match(aud.aiSummaryLines.map((line) => line.text).join(" "), /Evidence sources: 2 provider-synced and 1 import-sourced findings/)
+  assert.doesNotMatch(usd.aiSummaryLines.map((line) => line.text).join(" "), /SpendLeak flagged 3 findings/)
   assert.match(usd.aiSummaryLines[1]?.text ?? "", /worth \$50\./)
 })
 
@@ -90,10 +147,23 @@ test("buildCurrencyDashboardSummaries preserves single-currency output shape", (
     brokenPromiseCountsByDebtor: {},
     paidCountAllTime: 1,
     manuallyResolvedCountAllTime: 0,
+    spendLeak: {
+      hasAccess: false,
+      hasAccountingConnection: false,
+      findingCount: 0,
+      statusTitle: "SpendLeak locked",
+      topModuleTitle: null,
+      topModuleFindingCount: 0,
+      topModuleAnnualCents: 0,
+    },
     now: new Date("2026-08-06T00:00:00Z"),
   })
 
   assert.equal(summaries.length, 1)
   assert.equal(summaries[0]?.currency, "usd")
   assert.equal(summaries[0]?.cashWaitingSummary.outstanding, 1250)
+  assert.match(
+    summaries[0]?.aiSummaryLines.map((line) => line.text).join(" ") ?? "",
+    /SpendLeak is locked on your current tier/,
+  )
 })

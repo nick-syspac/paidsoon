@@ -25,6 +25,7 @@ export async function POST(
   // Look up invoice by stable p2p token
   const invoice = await prisma.trackedInvoice.findUnique({
     where: { p2pToken: token },
+    include: { financialInvoice: { include: { contact: true } } },
   })
 
   if (!invoice) {
@@ -55,7 +56,7 @@ export async function POST(
   const { promisedPayBy, promisedAmount, clientNotes } = parsed.data
 
   // Public client promise flow only supports full-payment commitments.
-  if (promisedAmount != null && promisedAmount !== invoice.amountDue) {
+  if (promisedAmount != null && promisedAmount !== invoice.financialInvoice.amountDueCents) {
     return NextResponse.json(
       { error: "Only full-payment commitments are allowed for this link" },
       { status: 422 }
@@ -85,7 +86,11 @@ export async function POST(
       where: {
         userId: invoice.userId,
         status: "broken",
-        trackedInvoice: { clientEmail: invoice.clientEmail },
+        trackedInvoice: {
+          financialInvoice: {
+            contact: { emailLower: invoice.financialInvoice.contact?.emailLower ?? "" },
+          },
+        },
       },
     }),
   ])

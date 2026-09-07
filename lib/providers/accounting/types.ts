@@ -30,13 +30,22 @@ export interface Organisation {
   countryCode?: string // ISO 3166-1 alpha-2 where available
 }
 
-/** PaidSoon's normalised invoice type as imported from an accounting provider. */
+/**
+ * PaidSoon's normalised invoice type as imported from an accounting provider.
+ *
+ * Canonical ingestion contract (openspec/changes/canonical-financial-data-model):
+ * adapters return these normalized shapes; the sync orchestrator maps them onto
+ * the canonical financial tables via `lib/financial/ingest.ts` using
+ * `providerInvoiceId`/`providerContactId` as the provenance `sourceId`. Adapters
+ * never write chasing state or feature-specific rows — provider variability stops
+ * at this boundary.
+ */
 export interface ProviderInvoice {
-  /** Unique identifier within the provider (e.g. Xero InvoiceID, MYOB UID). */
+  /** Unique identifier within the provider (e.g. Xero InvoiceID, MYOB UID). Becomes the canonical `sourceId`. */
   providerInvoiceId: string
   /** Provider's invoice number / reference shown to the customer. */
   invoiceNumber?: string
-  /** Provider contact/customer ID (used for ProviderContactMapping). */
+  /** Provider contact/customer ID — becomes the canonical contact's `sourceId`. */
   providerContactId: string
   /** Customer display name. */
   clientName: string
@@ -80,6 +89,66 @@ export interface ProviderContact {
   providerContactId: string
   name: string
   email?: string
+  rawMetadata?: Record<string, unknown>
+}
+
+// ---------------------------------------------------------------------------
+// Spend-side normalized value types
+// ---------------------------------------------------------------------------
+
+export type ProviderSpendBillStatus = "open" | "paid" | "voided" | "draft" | "unknown"
+
+export interface ProviderSpendBill {
+  providerBillId: string
+  providerSupplierId?: string
+  supplierName: string
+  supplierReference?: string
+  documentNumber?: string
+  expenseAccountCode?: string
+  expenseAccountName?: string
+  amountTotal: number
+  gstAmount?: number
+  currency: string
+  dueDate?: Date
+  paidDate?: Date
+  status: ProviderSpendBillStatus
+  providerUpdatedAt?: Date
+  rawMetadata?: Record<string, unknown>
+}
+
+export interface ProviderSpendBankTransaction {
+  providerTransactionId: string
+  providerSupplierId?: string
+  accountName?: string
+  accountCode?: string
+  description: string
+  reference?: string
+  counterpartyName?: string
+  amount: number
+  currency: string
+  transactionDate: Date
+  providerUpdatedAt?: Date
+  rawMetadata?: Record<string, unknown>
+}
+
+export interface ProviderSpendSupplier {
+  providerSupplierId: string
+  supplierName: string
+  supplierEmail?: string
+  abn?: string
+  paymentTerms?: string
+  defaultAccountCode?: string
+  defaultAccountName?: string
+  providerUpdatedAt?: Date
+  rawMetadata?: Record<string, unknown>
+}
+
+export interface ProviderSpendExpenseAccount {
+  providerAccountId: string
+  accountCode?: string
+  accountName: string
+  classification?: string
+  providerUpdatedAt?: Date
   rawMetadata?: Record<string, unknown>
 }
 
@@ -157,11 +226,48 @@ export interface AccountingProvider {
 
   /**
    * Fetch customer/contact details for a list of provider contact IDs.
-   * Used to enrich ProviderContactMapping after invoice sync.
+   * Used to enrich the canonical FinancialContact after invoice sync.
    */
   getContacts(params: {
     accessToken: string
     organisationId: string
     contactIds: string[]
   }): Promise<ProviderContact[]>
+
+  /**
+   * Fetch spend-side bills/accounts-payable data for SpendLeak analysis.
+   * Implementations must paginate internally and return normalized records.
+   */
+  getSpendBills(params: {
+    accessToken: string
+    organisationId: string
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBill[]>
+
+  /**
+   * Fetch spend-side bank transaction rows needed for initial SpendLeak analysis.
+   * Implementations must paginate internally and return normalized records.
+   */
+  getSpendBankTransactions(params: {
+    accessToken: string
+    organisationId: string
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBankTransaction[]>
+
+  /**
+   * Fetch supplier/contact records used to enrich spend-side bill and findings data.
+   */
+  getSpendSuppliers(params: {
+    accessToken: string
+    organisationId: string
+    supplierIds?: string[]
+  }): Promise<ProviderSpendSupplier[]>
+
+  /**
+   * Fetch expense account metadata to support initial category/account analysis.
+   */
+  getSpendExpenseAccounts(params: {
+    accessToken: string
+    organisationId: string
+  }): Promise<ProviderSpendExpenseAccount[]>
 }

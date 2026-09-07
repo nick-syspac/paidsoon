@@ -254,4 +254,156 @@ describe("MyobProvider", () => {
       assert.equal(contacts[0].email, "bob@example.com")
     })
   })
+
+  describe("getSpendBills", () => {
+    test("maps MYOB purchase bills into normalized spend bills", async () => {
+      const emptyResponse = { status: 200, body: { Items: [] } }
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            Items: [
+              {
+                UID: "bill-1",
+                Number: "PUR-001",
+                Status: "Open",
+                BalanceDue: 320.0,
+                TotalAmount: 352.0,
+                TotalTax: 32.0,
+                Supplier: {
+                  UID: "sup-1",
+                  Name: "Cloud Vendor",
+                  Addresses: [{ Email: "billing@vendor.test" }],
+                },
+                Terms: { DueDate: "2025-12-31T00:00:00" },
+                LastModified: "2025-06-01T10:00:00",
+                CurrencyCode: "AUD",
+                JournalMemo: "Monthly subscription",
+                Category: { UID: "cat-1", DisplayID: "6-2300", Name: "Software" },
+              },
+            ],
+          },
+        },
+        emptyResponse,
+        emptyResponse,
+        emptyResponse,
+        emptyResponse,
+      ])
+
+      const bills = await provider.getSpendBills({
+        accessToken: "at-myob",
+        organisationId: "https://api.myob.com/accountright/abc123",
+      })
+
+      assert.equal(bills.length, 1)
+      assert.equal(bills[0].providerBillId, "bill-1")
+      assert.equal(bills[0].providerSupplierId, "sup-1")
+      assert.equal(bills[0].supplierName, "Cloud Vendor")
+      assert.equal(bills[0].expenseAccountCode, "6-2300")
+      assert.equal(bills[0].status, "open")
+    })
+  })
+
+  describe("getSpendBankTransactions", () => {
+    test("maps MYOB bank transactions into normalized spend rows", async () => {
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            Items: [
+              {
+                UID: "txn-1",
+                Date: "2025-06-01T10:00:00",
+                LastModified: "2025-06-01T11:00:00",
+                Amount: 199.0,
+                Memo: "Vendor debit",
+                ReferenceNumber: "RF-9001",
+                Account: { Name: "Operating", DisplayID: "1-1100" },
+                Contact: { UID: "sup-1", Name: "Cloud Vendor" },
+                CurrencyCode: "AUD",
+              },
+            ],
+          },
+        },
+      ])
+
+      const rows = await provider.getSpendBankTransactions({
+        accessToken: "at-myob",
+        organisationId: "https://api.myob.com/accountright/abc123",
+      })
+
+      assert.equal(rows.length, 1)
+      assert.equal(rows[0].providerTransactionId, "txn-1")
+      assert.equal(rows[0].providerSupplierId, "sup-1")
+      assert.equal(rows[0].accountCode, "1-1100")
+      assert.equal(rows[0].amount, 199)
+      assert.equal(rows[0].reference, "RF-9001")
+    })
+  })
+
+  describe("getSpendSuppliers", () => {
+    test("maps MYOB supplier contacts into normalized supplier rows", async () => {
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            Items: [
+              {
+                UID: "sup-1",
+                CompanyName: "Cloud Vendor",
+                ABN: "51824753556",
+                PaymentTerms: { Note: "Due 14" },
+                SellingDetails: { TaxCode: { Code: "GST", Name: "GST on Income" } },
+                Addresses: [{ Email: "billing@vendor.test" }],
+                LastModified: "2025-06-01T11:00:00",
+              },
+            ],
+          },
+        },
+      ])
+
+      const suppliers = await provider.getSpendSuppliers({
+        accessToken: "at-myob",
+        organisationId: "https://api.myob.com/accountright/abc123",
+      })
+
+      assert.equal(suppliers.length, 1)
+      assert.equal(suppliers[0].providerSupplierId, "sup-1")
+      assert.equal(suppliers[0].supplierName, "Cloud Vendor")
+      assert.equal(suppliers[0].supplierEmail, "billing@vendor.test")
+      assert.equal(suppliers[0].paymentTerms, "Due 14")
+    })
+  })
+
+  describe("getSpendExpenseAccounts", () => {
+    test("maps MYOB expense accounts into normalized account rows", async () => {
+      mockFetch([
+        {
+          status: 200,
+          body: {
+            Items: [
+              {
+                UID: "acc-1",
+                DisplayID: "6-2300",
+                Name: "Software",
+                Classification: "Expense",
+                LastModified: "2025-06-01T11:00:00",
+              },
+            ],
+          },
+        },
+      ])
+
+      const accounts = await provider.getSpendExpenseAccounts({
+        accessToken: "at-myob",
+        organisationId: "https://api.myob.com/accountright/abc123",
+      })
+
+      assert.equal(accounts.length, 1)
+      assert.equal(accounts[0].providerAccountId, "acc-1")
+      assert.equal(accounts[0].accountCode, "6-2300")
+      assert.equal(accounts[0].accountName, "Software")
+      assert.equal(accounts[0].classification, "Expense")
+    })
+  })
 })

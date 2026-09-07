@@ -57,24 +57,15 @@ export async function POST(request: Request) {
         data: { status: "disconnected" },
       })
 
-      // Pause active invoices from this connection (clear nextEmailAt)
-      // by finding all ProviderInvoiceMappings for this connection and
-      // setting nextEmailAt = null on the linked TrackedInvoices
-      const mappings = await tx.providerInvoiceMapping.findMany({
-        where: { accountingConnectionId: connectionId },
-        select: { trackedInvoiceId: true },
+      // Pause active invoices from this connection (clear nextEmailAt) by
+      // targeting the canonical invoices linked to this accounting connection.
+      await tx.trackedInvoice.updateMany({
+        where: {
+          userId: user.id,
+          financialInvoice: { accountingConnectionId: connectionId },
+        },
+        data: { nextEmailAt: null },
       })
-
-      if (mappings.length > 0) {
-        const trackedIds = mappings.map((m) => m.trackedInvoiceId)
-        await tx.trackedInvoice.updateMany({
-          where: {
-            id: { in: trackedIds },
-            userId: user.id,
-          },
-          data: { nextEmailAt: null },
-        })
-      }
     })
   } catch (err: unknown) {
     if (err instanceof Error) {

@@ -81,7 +81,11 @@ Repeat for the other paid tiers (same Inclusive tax behavior applies to both):
 - **Pricing**: Recurring, monthly, **A$39.00 / month, inclusive of GST**
 - Capture the Price ID as `STRIPE_SMALL_BUSINESS_PRICE_ID`
 
-These are the three canonical Price IDs, read by [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts) and [app/api/billing/downgrade/route.ts](../../app/api/billing/downgrade/route.ts). There is no fourth "Business" tier and no legacy Pro/Solo fallback variable — `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired.
+- **Name**: `PaidSoon Business Pro`
+- **Pricing**: Recurring, monthly, **A$99.00 / month, inclusive of GST**
+- Capture the Price ID as `STRIPE_BUSINESS_PRO_PRICE_ID`
+
+These are the four canonical Price IDs, read by [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts) and [app/api/billing/downgrade/route.ts](../../app/api/billing/downgrade/route.ts). There is no legacy Pro/Solo fallback variable — `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired.
 
 ---
 
@@ -260,4 +264,4 @@ If you need to reset Stripe configuration:
 - **API keys** are non-rotatable on a free dashboard; if leaked, rotate via dashboard → Developers → API keys.
 - **Webhook endpoint** can be deleted and recreated; you must redo §5 / §6 and capture new `whsec_…` secrets.
 - **Connect Client ID** never changes for the lifetime of the platform.
-- **Products / prices**: if you change a tier price, create a **new** `price_…` and update the matching env var (`STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, or `STRIPE_SMALL_BUSINESS_PRICE_ID`). Do not archive the old price until no existing subscriptions reference it. Remember `tax_behavior` is immutable — a new Price is required (not an edit) if it needs to change.
+- **Products / prices**: if you change a tier price, create a **new** `price_…` and update the matching env var (`STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, `STRIPE_SMALL_BUSINESS_PRICE_ID`, or `STRIPE_BUSINESS_PRO_PRICE_ID`). Do not archive the old price until no existing subscriptions reference it. Remember `tax_behavior` is immutable — a new Price is required (not an edit) if it needs to change.

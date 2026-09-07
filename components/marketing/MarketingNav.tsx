@@ -3,24 +3,33 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
+import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
+import { getCtaForLiveMode } from "@/components/marketing/marketingContent"
 
-const navLinks = [
-  { label: "Features", href: "/features" },
+const productLinks = [
+  { label: "PaidSoon", href: "/paidsoon" },
+  { label: "SpendLeak", href: "/spendleak" },
+  { label: "CostGuard", href: "/costguard" },
+  { label: "CashPlan", href: "/cashplan" },
+  { label: "Platform overview", href: "/platform" },
   { label: "Pricing", href: "/pricing" },
-  { label: "How It Works", href: "/how-it-works" },
-  { label: "For Accountants", href: "/accountants" },
+  { label: "Integrations", href: "/integrations" },
+]
+
+const topLinks = [
   { label: "Resources", href: "/resources" },
+  { label: "Security", href: "/security" },
   { label: "Contact", href: "/contact" },
 ]
 
 export function MarketingNav({ liveMode }: { liveMode: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const ctaLabel = liveMode ? "Start Free Trial" : "Request early access"
-  const ctaHref = liveMode ? "/sign-up" : "/contact"
+  const [productOpen, setProductOpen] = useState(false)
+  const cta = getCtaForLiveMode(liveMode)
 
   return (
-    <header className="border-b border-gray-100 bg-white sticky top-0 z-40">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+    <header className="border-b border-gray-100 bg-white/95 backdrop-blur sticky top-0 z-40">
+      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link
           href="/"
           aria-label="PaidSoon home"
@@ -28,7 +37,7 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
         >
           <Image
             src="/paidsoon-logo.png"
-            alt="PaidSoon FinOps"
+            alt="PaidSoon"
             width={1086}
             height={160}
             priority
@@ -38,7 +47,35 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
 
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-6" aria-label="Main navigation">
-          {navLinks.map((link) => (
+          <div className="relative">
+            <button
+              type="button"
+              className="text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1 py-1"
+              aria-haspopup="true"
+              aria-expanded={productOpen}
+              onClick={() => setProductOpen((value) => !value)}
+              onBlur={() => {
+                setTimeout(() => setProductOpen(false), 120)
+              }}
+            >
+              Product
+            </button>
+            {productOpen ? (
+              <div className="absolute left-0 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
+                {productLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    onClick={() => setProductOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {topLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -55,14 +92,15 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
             href="/sign-in"
             className="text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
           >
-            Log In
+            Login
           </Link>
-          <Link
-            href={ctaHref}
+          <MarketingCtaLink
+            href={cta.href}
+            label={cta.label}
+            eventName="marketing_nav_cta_selected"
+            eventData={{ liveMode: String(liveMode) }}
             className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            {ctaLabel}
-          </Link>
+          />
         </div>
 
         {/* Mobile hamburger */}
@@ -92,7 +130,19 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
           className="lg:hidden border-t border-gray-100 bg-white px-4 py-3 flex flex-col gap-3"
           aria-label="Mobile navigation"
         >
-          {navLinks.map((link) => (
+          <p className="text-xs uppercase tracking-wide text-gray-400 px-1">Product</p>
+          {productLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-sm text-gray-700 hover:text-gray-900 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+              onClick={() => setMobileOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
+          <p className="text-xs uppercase tracking-wide text-gray-400 mt-1 px-1">Company</p>
+          {topLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -108,15 +158,15 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
             className="text-sm text-gray-600 hover:text-gray-900 py-1"
             onClick={() => setMobileOpen(false)}
           >
-            Log In
+            Login
           </Link>
-          <Link
-            href={ctaHref}
+          <MarketingCtaLink
+            href={cta.href}
+            label={cta.label}
+            eventName="marketing_mobile_nav_cta_selected"
+            eventData={{ liveMode: String(liveMode) }}
             className="text-sm bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-center"
-            onClick={() => setMobileOpen(false)}
-          >
-            {ctaLabel}
-          </Link>
+          />
         </nav>
       )}
     </header>

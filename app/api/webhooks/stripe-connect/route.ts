@@ -2,6 +2,7 @@ import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getProvider } from "@/lib/providers"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { findOrCreateCustomer } from "@/lib/db/customers"
+import { upsertFinancialInvoice } from "@/lib/financial/ingest"
 import { NextResponse } from "next/server"
 import type { NormalizedInvoice } from "@/lib/providers/types"
 
@@ -47,13 +48,16 @@ async function handleOverdueInvoice(
   })
   if (!connection) return
 
-  // Idempotency: skip if already tracked
-  const existing = await prisma.trackedInvoice.findFirst({
+  // Idempotency: skip if this source invoice is already tracked
+  const existing = await prisma.financialInvoice.findUnique({
     where: {
-      externalId: invoice.externalId,
-      provider: "stripe",
-      userId: connection.userId,
+      userId_sourceSystem_sourceId: {
+        userId: connection.userId,
+        sourceSystem: "stripe",
+        sourceId: invoice.externalId,
+      },
     },
+    select: { id: true },
   })
   if (existing) return
 
@@ -77,21 +81,26 @@ async function handleOverdueInvoice(
     connection.userId,
     invoice.clientEmail,
     invoice.clientName,
+    "stripe",
   )
+
+  const { invoice: financialInvoice } = await upsertFinancialInvoice(prisma, {
+    userId: connection.userId,
+    sourceSystem: "stripe",
+    sourceId: invoice.externalId,
+    contactId: customer.financialContactId,
+    amountDueCents: invoice.amountDue,
+    currency: invoice.currency,
+    dueDate: invoice.dueDate,
+    paymentUrl: invoice.paymentUrl ?? null,
+  })
 
   await prisma.trackedInvoice.create({
     data: {
       userId: connection.userId,
       invoiceConnectionId: connection.id,
+      financialInvoiceId: financialInvoice.id,
       customerId: customer.id,
-      externalId: invoice.externalId,
-      provider: "stripe",
-      clientEmail: invoice.clientEmail,
-      clientName: invoice.clientName,
-      amountDue: invoice.amountDue,
-      currency: invoice.currency,
-      dueDate: invoice.dueDate,
-      paymentUrl: invoice.paymentUrl ?? null,
       status: "pending",
       currentStage: 0,
       nextEmailAt,
@@ -112,8 +121,10 @@ async function handleInvoicePaid(
 
   await prisma.trackedInvoice.updateMany({
     where: {
-      externalId,
-      provider: "stripe",
+      financialInvoice: {
+        sourceSystem: "stripe",
+        sourceId: externalId,
+      },
       userId: connection.userId,
       status: { not: "paid" },
     },
@@ -122,7 +133,10 @@ async function handleInvoicePaid(
 
   // Mark any active promise as kept — the client followed through.
   const paidInvoice = await prisma.trackedInvoice.findFirst({
-    where: { externalId, provider: "stripe", userId: connection.userId },
+    where: {
+      financialInvoice: { sourceSystem: "stripe", sourceId: externalId },
+      userId: connection.userId,
+    },
     select: { id: true },
   })
   if (paidInvoice) {

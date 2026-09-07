@@ -47,7 +47,11 @@
 import "./_loadEnv"
 
 import { prismaAdmin } from "../lib/db/admin"
+import { findOrCreateCustomer } from "../lib/db/customers"
+import { upsertFinancialInvoice } from "../lib/financial/ingest"
+import { Prisma } from "../lib/generated/prisma/client"
 import { DEMO_ORGANISATION_ID_PREFIX } from "../lib/providers/accounting/demoGuard"
+import { detectSpendFindings } from "../lib/spendleak/engine"
 import {
   createSeedClock,
   resolveSeedReferenceDate,
@@ -957,16 +961,6 @@ async function cleanup(userIds: string[]): Promise<void> {
   }
   await prismaAdmin.promiseToPay.deleteMany({ where: { userId: { in: userIds } } })
 
-  if (invoiceIds.length > 0 || accountingConnectionIds.length > 0) {
-    await prismaAdmin.providerInvoiceMapping.deleteMany({
-      where: {
-        OR: [
-          { trackedInvoiceId: { in: invoiceIds } },
-          { accountingConnectionId: { in: accountingConnectionIds } },
-        ],
-      },
-    })
-  }
   if (invoiceIds.length > 0 || arrangementIds.length > 0) {
     await prismaAdmin.arrangementInvoiceCoverage.deleteMany({
       where: {
@@ -975,17 +969,44 @@ async function cleanup(userIds: string[]): Promise<void> {
     })
   }
   if (accountingConnectionIds.length > 0) {
-    await prismaAdmin.providerContactMapping.deleteMany({
-      where: { accountingConnectionId: { in: accountingConnectionIds } },
-    })
     await prismaAdmin.accountingSyncRun.deleteMany({
       where: { accountingConnectionId: { in: accountingConnectionIds } },
     })
   }
 
+  await prismaAdmin.spendInsight.deleteMany({
+    where: {
+      OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
+    },
+  })
+  await prismaAdmin.cashForecastSnapshot.deleteMany({
+    where: {
+      OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
+    },
+  })
+  await prismaAdmin.importedBankTransaction.deleteMany({
+    where: {
+      OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
+    },
+  })
+  await prismaAdmin.importedBill.deleteMany({
+    where: {
+      OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
+    },
+  })
+  await prismaAdmin.supplierProfile.deleteMany({
+    where: {
+      OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
+    },
+  })
+
   if (invoiceIds.length > 0) {
     await prismaAdmin.trackedInvoice.deleteMany({ where: { id: { in: invoiceIds } } })
   }
+  await prismaAdmin.customer.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.financialPayment.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.financialInvoice.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.financialContact.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.emailSettings.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.schedule.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.emailTemplate.deleteMany({ where: { userId: { in: userIds } } })
@@ -1020,6 +1041,11 @@ interface SeedCounters {
   arrangements: number
   syncRuns: number
   mappings: number
+  spendBills: number
+  spendTransactions: number
+  spendSuppliers: number
+  spendInsights: number
+  cashSnapshots: number
 }
 
 /** Deterministic, obviously-fake token (never a real credential). */
@@ -1029,6 +1055,386 @@ function demoToken(kind: string, slug: string): string {
 
 function stableP2PToken(slug: string): string {
   return `demoseedp2p${slug.replace(/[^a-z0-9]/g, "")}`.padEnd(48, "0").slice(0, 64)
+}
+
+interface SpendLeakBillSpec {
+  sourceId: string
+  supplierSourceId: string
+  supplierName: string
+  amountCents: number
+  dueInDays: number
+  status: "open" | "paid"
+}
+
+interface SpendLeakTransactionSpec {
+  sourceId: string
+  amountCents: number
+  description: string
+  counterpartyName: string
+  daysAgo: number
+}
+
+interface SpendLeakSupplierSpec {
+  sourceId: string
+  supplierName: string
+  supplierEmail: string
+  paymentTerms: string
+  defaultAccountCode: string
+  defaultAccountName: string
+}
+
+function spendLeakSeedData(profile: "coastline" | "yarra") {
+  if (profile === "coastline") {
+    const suppliers: SpendLeakSupplierSpec[] = [
+      {
+        sourceId: "coast-supplier-metro-saas",
+        supplierName: "Metro SaaS Systems",
+        supplierEmail: "billing@metrosaas.example.test",
+        paymentTerms: "Due in 14 days",
+        defaultAccountCode: "621",
+        defaultAccountName: "Software subscriptions",
+      },
+      {
+        sourceId: "coast-supplier-fleetfuel",
+        supplierName: "FleetFuel Card Services",
+        supplierEmail: "accounts@fleetfuel.example.test",
+        paymentTerms: "Due on receipt",
+        defaultAccountCode: "646",
+        defaultAccountName: "Vehicle fuel",
+      },
+      {
+        sourceId: "coast-supplier-lease",
+        supplierName: "Office Lease Group",
+        supplierEmail: "receivables@officelease.example.test",
+        paymentTerms: "Net 30",
+        defaultAccountCode: "690",
+        defaultAccountName: "Rent",
+      },
+    ]
+
+    const bills: SpendLeakBillSpec[] = [
+      {
+        sourceId: "coast-bill-metro-jan",
+        supplierSourceId: "coast-supplier-metro-saas",
+        supplierName: "Metro SaaS Systems",
+        amountCents: 420_000,
+        dueInDays: -60,
+        status: "paid",
+      },
+      {
+        sourceId: "coast-bill-metro-feb",
+        supplierSourceId: "coast-supplier-metro-saas",
+        supplierName: "Metro SaaS Systems",
+        amountCents: 420_000,
+        dueInDays: -30,
+        status: "paid",
+      },
+      {
+        sourceId: "coast-bill-metro-renewal",
+        supplierSourceId: "coast-supplier-metro-saas",
+        supplierName: "Metro SaaS Systems",
+        amountCents: 420_000,
+        dueInDays: 2,
+        status: "open",
+      },
+      {
+        sourceId: "coast-bill-fleetfuel-mar",
+        supplierSourceId: "coast-supplier-fleetfuel",
+        supplierName: "FleetFuel Card Services",
+        amountCents: 95_000,
+        dueInDays: -35,
+        status: "paid",
+      },
+      {
+        sourceId: "coast-bill-fleetfuel-apr",
+        supplierSourceId: "coast-supplier-fleetfuel",
+        supplierName: "FleetFuel Card Services",
+        amountCents: 97_000,
+        dueInDays: -5,
+        status: "open",
+      },
+      {
+        sourceId: "coast-bill-office-lease",
+        supplierSourceId: "coast-supplier-lease",
+        supplierName: "Office Lease Group",
+        amountCents: 210_000,
+        dueInDays: 14,
+        status: "open",
+      },
+    ]
+
+    const bankTransactions: SpendLeakTransactionSpec[] = [
+      {
+        sourceId: "coast-txn-metro-feb",
+        amountCents: -420_000,
+        description: "Metro SaaS Systems monthly platform charge",
+        counterpartyName: "Metro SaaS Systems",
+        daysAgo: 30,
+      },
+      {
+        sourceId: "coast-txn-fleetfuel",
+        amountCents: -97_000,
+        description: "FleetFuel card settlement",
+        counterpartyName: "FleetFuel Card Services",
+        daysAgo: 5,
+      },
+      {
+        sourceId: "coast-txn-payroll",
+        amountCents: -315_000,
+        description: "Payroll clearing",
+        counterpartyName: "Coastline Payroll",
+        daysAgo: 4,
+      },
+      {
+        sourceId: "coast-txn-insurance",
+        amountCents: -215_000,
+        description: "Business insurance premium",
+        counterpartyName: "AUS Trade Insurance",
+        daysAgo: 9,
+      },
+    ]
+
+    return {
+      suppliers,
+      bills,
+      bankTransactions,
+      syncedAt: (clock: SeedClock) => clock.hoursAgo(6),
+      cashSnapshot: {
+        currentCashCents: 1_940_000,
+        receivablesCents: 8_120_000,
+        payablesCents: 1_192_000,
+        predictedMonthEndCents: 1_280_000,
+        runwayDays: 46,
+      },
+    }
+  }
+
+  const suppliers: SpendLeakSupplierSpec[] = [
+    {
+      sourceId: "yarra-supplier-cloud-host",
+      supplierName: "CloudHost Managed Services",
+      supplierEmail: "billing@cloudhost.example.test",
+      paymentTerms: "Net 14",
+      defaultAccountCode: "621",
+      defaultAccountName: "Software subscriptions",
+    },
+    {
+      sourceId: "yarra-supplier-freelancer",
+      supplierName: "Valley Contract Developers",
+      supplierEmail: "finance@valleydevs.example.test",
+      paymentTerms: "Net 7",
+      defaultAccountCode: "670",
+      defaultAccountName: "Contractors",
+    },
+  ]
+
+  const bills: SpendLeakBillSpec[] = [
+    {
+      sourceId: "yarra-bill-cloudhost-mar",
+      supplierSourceId: "yarra-supplier-cloud-host",
+      supplierName: "CloudHost Managed Services",
+      amountCents: 245_000,
+      dueInDays: -55,
+      status: "paid",
+    },
+    {
+      sourceId: "yarra-bill-cloudhost-apr",
+      supplierSourceId: "yarra-supplier-cloud-host",
+      supplierName: "CloudHost Managed Services",
+      amountCents: 248_000,
+      dueInDays: -26,
+      status: "paid",
+    },
+    {
+      sourceId: "yarra-bill-cloudhost-renewal",
+      supplierSourceId: "yarra-supplier-cloud-host",
+      supplierName: "CloudHost Managed Services",
+      amountCents: 248_000,
+      dueInDays: 4,
+      status: "open",
+    },
+    {
+      sourceId: "yarra-bill-contractor",
+      supplierSourceId: "yarra-supplier-freelancer",
+      supplierName: "Valley Contract Developers",
+      amountCents: 95_000,
+      dueInDays: -8,
+      status: "open",
+    },
+  ]
+
+  const bankTransactions: SpendLeakTransactionSpec[] = [
+    {
+      sourceId: "yarra-txn-cloudhost",
+      amountCents: -248_000,
+      description: "CloudHost recurring invoice payment",
+      counterpartyName: "CloudHost Managed Services",
+      daysAgo: 26,
+    },
+    {
+      sourceId: "yarra-txn-contractor",
+      amountCents: -95_000,
+      description: "Contractor milestone payment",
+      counterpartyName: "Valley Contract Developers",
+      daysAgo: 8,
+    },
+  ]
+
+  return {
+    suppliers,
+    bills,
+    bankTransactions,
+    syncedAt: (clock: SeedClock) => clock.daysAgo(3),
+    cashSnapshot: {
+      currentCashCents: 590_000,
+      receivablesCents: 2_430_000,
+      payablesCents: 836_000,
+      predictedMonthEndCents: 440_000,
+      runwayDays: 31,
+    },
+  }
+}
+
+async function seedSpendLeakFoundation(
+  userId: string,
+  accountingConnectionId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  const dataset = spendLeakSeedData(profile)
+  const syncedAt = dataset.syncedAt(clock)
+
+  await prismaAdmin.supplierProfile.createMany({
+    data: dataset.suppliers.map((supplier) => ({
+      userId,
+      accountingConnectionId,
+      sourceId: supplier.sourceId,
+      supplierName: supplier.supplierName,
+      supplierEmail: supplier.supplierEmail,
+      paymentTerms: supplier.paymentTerms,
+      defaultAccountCode: supplier.defaultAccountCode,
+      defaultAccountName: supplier.defaultAccountName,
+      sourceUpdatedAt: clock.daysAgo(1),
+      syncedAt,
+      rawSourceData: {
+        source: "seed",
+        profile,
+      },
+    })),
+  })
+  counters.spendSuppliers += dataset.suppliers.length
+
+  await prismaAdmin.importedBill.createMany({
+    data: dataset.bills.map((bill) => ({
+      userId,
+      accountingConnectionId,
+      sourceId: bill.sourceId,
+      sourceContactId: bill.supplierSourceId,
+      supplierName: bill.supplierName,
+      supplierReference: `${bill.sourceId.toUpperCase()}-REF`,
+      documentNumber: bill.sourceId.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+      expenseAccountCode: "621",
+      expenseAccountName: "Software subscriptions",
+      amountCents: bill.amountCents,
+      gstCents: Math.round(bill.amountCents / 11),
+      currency: CURRENCY.toUpperCase(),
+      dueDate: clock.daysFromNow(bill.dueInDays),
+      paidDate: bill.status === "paid" ? clock.daysFromNow(Math.min(-1, bill.dueInDays + 1)) : null,
+      status: bill.status,
+      sourceUpdatedAt: clock.daysAgo(1),
+      syncedAt,
+      rawSourceData: {
+        source: "seed",
+        profile,
+      },
+    })),
+  })
+  counters.spendBills += dataset.bills.length
+
+  await prismaAdmin.importedBankTransaction.createMany({
+    data: dataset.bankTransactions.map((tx) => ({
+      userId,
+      accountingConnectionId,
+      sourceId: tx.sourceId,
+      accountName: "Business Transaction Account",
+      accountCode: "090",
+      description: tx.description,
+      counterpartyName: tx.counterpartyName,
+      amountCents: tx.amountCents,
+      currency: CURRENCY.toUpperCase(),
+      transactionDate: clock.daysAgo(tx.daysAgo),
+      sourceUpdatedAt: clock.daysAgo(1),
+      syncedAt,
+      rawSourceData: {
+        source: "seed",
+        profile,
+      },
+    })),
+  })
+  counters.spendTransactions += dataset.bankTransactions.length
+
+  const generatedFindings = detectSpendFindings({
+    now: syncedAt,
+    bills: dataset.bills.map((bill) => ({
+      sourceId: bill.sourceId,
+      supplierName: bill.supplierName,
+      amountCents: bill.amountCents,
+      dueDate: clock.daysFromNow(bill.dueInDays),
+      paidDate: bill.status === "paid" ? clock.daysFromNow(Math.min(-1, bill.dueInDays + 1)) : null,
+      status: bill.status,
+      sourceUpdatedAt: clock.daysAgo(1),
+    })),
+    bankTransactions: dataset.bankTransactions.map((tx) => ({
+      sourceId: tx.sourceId,
+      description: tx.description,
+      amountCents: tx.amountCents,
+      transactionDate: clock.daysAgo(tx.daysAgo),
+      counterpartyName: tx.counterpartyName,
+    })),
+    suppliers: dataset.suppliers.map((supplier) => ({
+      sourceId: supplier.sourceId,
+      supplierName: supplier.supplierName,
+    })),
+  })
+
+  await prismaAdmin.spendInsight.createMany({
+    data: generatedFindings.map((finding) => ({
+      userId,
+      accountingConnectionId,
+      findingType: finding.findingType,
+      subjectKey: finding.subjectKey,
+      severity: finding.severity,
+      summary: finding.summary,
+      state: finding.state,
+      estimatedMonthlyCents: finding.estimatedMonthlyCents ?? null,
+      estimatedAnnualCents: finding.estimatedAnnualCents ?? null,
+      evidence: finding.evidence as Prisma.InputJsonValue,
+      detectedAt: finding.detectedAt,
+      resolvedAt: null,
+    })),
+  })
+  counters.spendInsights += generatedFindings.length
+
+  await prismaAdmin.cashForecastSnapshot.create({
+    data: {
+      userId,
+      accountingConnectionId,
+      currentCashCents: dataset.cashSnapshot.currentCashCents,
+      receivablesCents: dataset.cashSnapshot.receivablesCents,
+      payablesCents: dataset.cashSnapshot.payablesCents,
+      predictedMonthEndCents: dataset.cashSnapshot.predictedMonthEndCents,
+      runwayDays: dataset.cashSnapshot.runwayDays,
+      assumptions: {
+        source: "seed",
+        profile,
+        methodology: "deterministic-development-fixture",
+      },
+      snapshotAt: syncedAt,
+      createdAt: syncedAt,
+    },
+  })
+  counters.cashSnapshots += 1
 }
 
 async function createInvoices(
@@ -1059,17 +1465,39 @@ async function createInvoices(
           ? `XERO-INV-${spec.slug.toUpperCase().replace(/[^A-Z0-9]/g, "")}`
           : `seed-${spec.slug}`
 
+    const customer = await findOrCreateCustomer(
+      prismaAdmin,
+      userId,
+      spec.clientEmail,
+      spec.clientName,
+      connectionKey,
+      externalId,
+    )
+
+    const { invoice: financialInvoice } = await upsertFinancialInvoice(prismaAdmin, {
+      userId,
+      sourceSystem: connectionKey,
+      sourceId: externalId,
+      contactId: customer.financialContactId,
+      amountDueCents: spec.amountDue,
+      currency: CURRENCY,
+      dueDate,
+      rawSourceData: {
+        seedScenario: spec.scenario,
+        timeZone: SEED_TIME_ZONE,
+        gst: gstBreakdown(spec.amountDue),
+        lineItems: lineItems(spec.lines),
+        paymentTerms: "Net 14 days from invoice date",
+        ...(spec.metadata ?? {}),
+      },
+    })
+
     const invoice = await prismaAdmin.trackedInvoice.create({
       data: {
         userId,
         invoiceConnectionId,
-        externalId,
-        provider: connectionKey,
-        clientEmail: spec.clientEmail,
-        clientName: spec.clientName,
-        amountDue: spec.amountDue,
-        currency: CURRENCY,
-        dueDate,
+        financialInvoiceId: financialInvoice.id,
+        customerId: customer.id,
         status: spec.status,
         currentStage: remindersSent,
         nextEmailAt:
@@ -1308,7 +1736,6 @@ async function seedCoastline(
       arrangementId: instalment.id,
       trackedInvoiceId: dandenong.id,
       userId,
-      debtorEmail: dandenong.clientEmail,
     },
   })
   counters.arrangements++
@@ -1333,7 +1760,6 @@ async function seedCoastline(
       arrangementId: brokenArrangement.id,
       trackedInvoiceId: broadmeadows.id,
       userId,
-      debtorEmail: broadmeadows.clientEmail,
     },
   })
   counters.arrangements++
@@ -1360,7 +1786,6 @@ async function seedCoastline(
       arrangementId: partial.id,
       trackedInvoiceId: yarraville2.id,
       userId,
-      debtorEmail: yarraville2.clientEmail,
     },
   })
   counters.arrangements++
@@ -1386,7 +1811,6 @@ async function seedCoastline(
       arrangementId: fulfilled.id,
       trackedInvoiceId: camberwell.id,
       userId,
-      debtorEmail: camberwell.clientEmail,
     },
   })
   counters.arrangements++
@@ -1425,6 +1849,8 @@ async function seedCoastline(
   })
   counters.syncRuns++
 
+  await seedSpendLeakFoundation(userId, myobConnection.id, "coastline", clock, counters)
+
   await prismaAdmin.accountingSyncRun.create({
     data: {
       accountingConnectionId: myobConnection.id,
@@ -1460,25 +1886,30 @@ async function seedCoastline(
 
   for (const slug of ["dandenong-freight", "broadmeadows-panel", "bendigo-childcare"]) {
     const invoice = invoices.get(slug)!
-    await prismaAdmin.providerInvoiceMapping.create({
-      data: {
-        trackedInvoiceId: invoice.id,
-        accountingConnectionId: myobConnection.id,
-        providerInvoiceId: `demo-seed-myob-invoice-${slug}`,
-        providerUpdatedAt: clock.hoursAgo(9),
-        providerMetadata: { source: "seed", providerStatus: "Open" },
-      },
+    const existingContact = await findOrCreateCustomer(
+      prismaAdmin,
+      userId,
+      invoice.clientEmail,
+      invoice.clientName,
+      "myob",
+      `demo-seed-myob-invoice-${slug}`,
+    )
+    await prismaAdmin.financialContact.update({
+      where: { id: existingContact.financialContactId },
+      data: { accountingConnectionId: myobConnection.id },
     })
-    await prismaAdmin.providerContactMapping.create({
-      data: {
-        accountingConnectionId: myobConnection.id,
-        providerContactId: `demo-seed-myob-contact-${slug}`,
-        contactName: invoice.clientName,
-        contactEmail: invoice.clientEmail,
-        providerMetadata: { source: "seed", isCustomer: true },
-      },
+    await upsertFinancialInvoice(prismaAdmin, {
+      userId,
+      sourceSystem: "myob",
+      sourceId: `demo-seed-myob-invoice-${slug}`,
+      accountingConnectionId: myobConnection.id,
+      contactId: existingContact.financialContactId,
+      amountDueCents: invoice.amountDue,
+      currency: CURRENCY,
+      dueDate: clock.daysFromNow(0),
+      rawSourceData: { source: "seed", providerStatus: "Open" },
     })
-    counters.mappings += 2
+    counters.mappings += 1
   }
 
   // --- AI usage (Business tier ai_rewrite feature) --------------------------
@@ -1508,7 +1939,7 @@ async function seedCoastline(
   })
 
   console.log(
-    `  ✓ ${COASTLINE_INVOICES.length} invoices, 4 promises, 4 arrangements, MYOB connection (demo, sync blocked)`,
+    `  ✓ ${COASTLINE_INVOICES.length} invoices, 4 promises, 4 arrangements, MYOB connection and SpendLeak fixtures`,
   )
 }
 
@@ -1663,6 +2094,8 @@ async function seedYarraValley(
   })
   counters.syncRuns++
 
+  await seedSpendLeakFoundation(userId, xeroConnection.id, "yarra", clock, counters)
+
   await prismaAdmin.accountingSyncRun.create({
     data: {
       accountingConnectionId: xeroConnection.id,
@@ -1682,28 +2115,33 @@ async function seedYarraValley(
 
   for (const slug of ["yv-healesville", "yv-warburton", "yv-lilydale"]) {
     const invoice = invoices.get(slug)!
-    await prismaAdmin.providerInvoiceMapping.create({
-      data: {
-        trackedInvoiceId: invoice.id,
-        accountingConnectionId: xeroConnection.id,
-        providerInvoiceId: `demo-seed-xero-invoice-${slug}`,
-        providerUpdatedAt: clock.daysAgo(10),
-        providerMetadata: { source: "seed", providerStatus: "AUTHORISED" },
-      },
+    const existingContact = await findOrCreateCustomer(
+      prismaAdmin,
+      userId,
+      invoice.clientEmail,
+      invoice.clientName,
+      "xero",
+      `demo-seed-xero-invoice-${slug}`,
+    )
+    await prismaAdmin.financialContact.update({
+      where: { id: existingContact.financialContactId },
+      data: { accountingConnectionId: xeroConnection.id },
     })
-    await prismaAdmin.providerContactMapping.create({
-      data: {
-        accountingConnectionId: xeroConnection.id,
-        providerContactId: `demo-seed-xero-contact-${slug}`,
-        contactName: invoice.clientName,
-        contactEmail: invoice.clientEmail,
-        providerMetadata: { source: "seed", isCustomer: true },
-      },
+    await upsertFinancialInvoice(prismaAdmin, {
+      userId,
+      sourceSystem: "xero",
+      sourceId: `demo-seed-xero-invoice-${slug}`,
+      accountingConnectionId: xeroConnection.id,
+      contactId: existingContact.financialContactId,
+      amountDueCents: invoice.amountDue,
+      currency: CURRENCY,
+      dueDate: clock.daysFromNow(0),
+      rawSourceData: { source: "seed", providerStatus: "AUTHORISED" },
     })
-    counters.mappings += 2
+    counters.mappings += 1
   }
 
-  console.log(`  ✓ ${YARRA_VALLEY_INVOICES.length} invoices, 1 promise, Xero connection (error state)`)
+  console.log(`  ✓ ${YARRA_VALLEY_INVOICES.length} invoices, 1 promise, Xero connection and SpendLeak fixtures`)
 }
 
 // ---------------------------------------------------------------------------
@@ -1760,6 +2198,11 @@ async function main(): Promise<void> {
     arrangements: 0,
     syncRuns: 0,
     mappings: 0,
+    spendBills: 0,
+    spendTransactions: 0,
+    spendSuppliers: 0,
+    spendInsights: 0,
+    cashSnapshots: 0,
   }
 
   await seedCoastline(byKey.get("owner")!, clock, counters)
@@ -1776,6 +2219,11 @@ async function main(): Promise<void> {
   console.log(`  Arrangements:         ${counters.arrangements}`)
   console.log(`  Accounting sync runs: ${counters.syncRuns}`)
   console.log(`  Provider mappings:    ${counters.mappings}`)
+  console.log(`  SpendLeak bills:      ${counters.spendBills}`)
+  console.log(`  SpendLeak txns:       ${counters.spendTransactions}`)
+  console.log(`  SpendLeak suppliers:  ${counters.spendSuppliers}`)
+  console.log(`  SpendLeak findings:   ${counters.spendInsights}`)
+  console.log(`  Cash snapshots:       ${counters.cashSnapshots}`)
 
   console.log("\nDevelopment sign-in (development environments only):")
   for (const account of Object.values(ACCOUNTS)) {

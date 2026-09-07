@@ -16,7 +16,7 @@
 
 ## 3. Sync And Reconciliation
 
-- [ ] 3.1 Implement QuickBooks invoice and customer fetch logic with the query strategy defined in the design and map results into the existing tracked-invoice and provider-mapping model.
+- [ ] 3.1 Implement QuickBooks invoice and customer fetch logic with the query strategy defined in the design and map results into the canonical financial model (`FinancialInvoice`, `FinancialContact`, `FinancialPayment`) via shared ingestion helpers.
 - [ ] 3.2 Extend the shared accounting sync orchestrator to run QuickBooks manual and scheduled syncs, update `lastSyncedAt`, and record `AccountingSyncRun` results.
 - [ ] 3.3 Add QuickBooks-specific status and balance mapping so paid, partially paid, voided, and otherwise closed invoices affect reminder eligibility correctly.
 - [ ] 3.4 Apply bounded exponential backoff and non-concurrent sync guards to QuickBooks sync operations using the existing accounting sync patterns.

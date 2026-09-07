@@ -7,6 +7,7 @@ const TIER_LABELS: Record<string, string> = {
   starter: "Starter",
   solo: "Solo",
   small_business: "Small Business",
+  business_pro: "Business Pro",
   accountant_partner: "Accountant Partner",
   free: "Starter",
   pro: "Solo",

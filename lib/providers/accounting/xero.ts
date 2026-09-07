@@ -21,6 +21,11 @@ import {
   ProviderContact,
   ProviderInvoice,
   ProviderInvoiceStatus,
+  ProviderSpendBankTransaction,
+  ProviderSpendBill,
+  ProviderSpendBillStatus,
+  ProviderSpendExpenseAccount,
+  ProviderSpendSupplier,
   TokenSet,
 } from "./types"
 
@@ -76,6 +81,23 @@ async function handleProviderResponse(res: Response): Promise<unknown> {
 }
 
 function normaliseXeroStatus(status: string): ProviderInvoiceStatus {
+  switch (status) {
+    case "AUTHORISED":
+    case "SUBMITTED":
+      return "open"
+    case "PAID":
+      return "paid"
+    case "VOIDED":
+    case "DELETED":
+      return "voided"
+    case "DRAFT":
+      return "draft"
+    default:
+      return "unknown"
+  }
+}
+
+function normaliseXeroSpendBillStatus(status: string): ProviderSpendBillStatus {
   switch (status) {
     case "AUTHORISED":
     case "SUBMITTED":
@@ -335,5 +357,242 @@ export class XeroProvider implements AccountingProvider {
     }
 
     return results
+  }
+
+  async getSpendBills(params: {
+    accessToken: string
+    organisationId: string
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBill[]> {
+    const allBills: ProviderSpendBill[] = []
+    let page = 1
+
+    while (true) {
+      const url = new URL(`${XERO_API_BASE}/Invoices`)
+      url.searchParams.set("page", String(page))
+      url.searchParams.set("pageSize", String(PAGE_SIZE))
+      url.searchParams.set("Type", "ACCPAY")
+      url.searchParams.set("Statuses", "AUTHORISED,SUBMITTED,PAID,VOIDED,DELETED,DRAFT")
+
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Xero-tenant-id": params.organisationId,
+        Accept: "application/json",
+      }
+
+      if (params.modifiedAfter) {
+        const iso = params.modifiedAfter.toISOString().replace("Z", "").split(".")[0]
+        headers["If-Modified-Since"] = iso
+      }
+
+      const res = await fetch(url.toString(), { headers })
+      if (res.status === 304) break
+
+      const data = (await handleProviderResponse(res)) as {
+        Invoices?: Array<{
+          InvoiceID: string
+          InvoiceNumber?: string
+          Contact?: { ContactID?: string; Name?: string }
+          Reference?: string
+          LineAmountTypes?: string
+          SubTotal?: number
+          TotalTax?: number
+          Total?: number
+          CurrencyCode?: string
+          DueDate?: string
+          Date?: string
+          FullyPaidOnDate?: string
+          Status?: string
+          UpdatedDateUTC?: string
+        }>
+      }
+
+      const invoices = data.Invoices ?? []
+      for (const bill of invoices) {
+        allBills.push({
+          providerBillId: bill.InvoiceID,
+          providerSupplierId: bill.Contact?.ContactID,
+          supplierName: bill.Contact?.Name ?? "Unknown supplier",
+          supplierReference: bill.Reference,
+          documentNumber: bill.InvoiceNumber,
+          amountTotal: bill.Total ?? bill.SubTotal ?? 0,
+          gstAmount: bill.TotalTax,
+          currency: bill.CurrencyCode ?? "AUD",
+          dueDate: parseXeroDate(bill.DueDate),
+          paidDate: parseXeroDate(bill.FullyPaidOnDate),
+          status: normaliseXeroSpendBillStatus(bill.Status ?? ""),
+          providerUpdatedAt: parseXeroDate(bill.UpdatedDateUTC),
+          rawMetadata: bill as unknown as Record<string, unknown>,
+        })
+      }
+
+      if (invoices.length < PAGE_SIZE) break
+      page++
+    }
+
+    return allBills
+  }
+
+  async getSpendBankTransactions(params: {
+    accessToken: string
+    organisationId: string
+    modifiedAfter?: Date
+  }): Promise<ProviderSpendBankTransaction[]> {
+    const allTransactions: ProviderSpendBankTransaction[] = []
+    let page = 1
+
+    while (true) {
+      const url = new URL(`${XERO_API_BASE}/BankTransactions`)
+      url.searchParams.set("page", String(page))
+      url.searchParams.set("pageSize", String(PAGE_SIZE))
+      url.searchParams.set("where", 'Type=="SPEND"')
+
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Xero-tenant-id": params.organisationId,
+        Accept: "application/json",
+      }
+
+      if (params.modifiedAfter) {
+        const iso = params.modifiedAfter.toISOString().replace("Z", "").split(".")[0]
+        headers["If-Modified-Since"] = iso
+      }
+
+      const res = await fetch(url.toString(), { headers })
+      if (res.status === 304) break
+
+      const data = (await handleProviderResponse(res)) as {
+        BankTransactions?: Array<{
+          BankTransactionID: string
+          Contact?: { ContactID?: string; Name?: string }
+          BankAccount?: { Name?: string; Code?: string }
+          Reference?: string
+          Type?: string
+          SubTotal?: number
+          Total?: number
+          CurrencyCode?: string
+          Date?: string
+          UpdatedDateUTC?: string
+        }>
+      }
+
+      const items = data.BankTransactions ?? []
+      for (const tx of items) {
+        allTransactions.push({
+          providerTransactionId: tx.BankTransactionID,
+          providerSupplierId: tx.Contact?.ContactID,
+          accountName: tx.BankAccount?.Name,
+          accountCode: tx.BankAccount?.Code,
+          description: tx.Reference ?? tx.Contact?.Name ?? "Spend transaction",
+          reference: tx.Reference,
+          counterpartyName: tx.Contact?.Name,
+          amount: tx.Total ?? tx.SubTotal ?? 0,
+          currency: tx.CurrencyCode ?? "AUD",
+          transactionDate: parseXeroDate(tx.Date) ?? new Date(),
+          providerUpdatedAt: parseXeroDate(tx.UpdatedDateUTC),
+          rawMetadata: tx as unknown as Record<string, unknown>,
+        })
+      }
+
+      if (items.length < PAGE_SIZE) break
+      page++
+    }
+
+    return allTransactions
+  }
+
+  async getSpendSuppliers(params: {
+    accessToken: string
+    organisationId: string
+    supplierIds?: string[]
+  }): Promise<ProviderSpendSupplier[]> {
+    const allSuppliers: ProviderSpendSupplier[] = []
+    let page = 1
+
+    while (true) {
+      const url = new URL(`${XERO_API_BASE}/Contacts`)
+      url.searchParams.set("page", String(page))
+      url.searchParams.set("pageSize", String(PAGE_SIZE))
+
+      if (params.supplierIds && params.supplierIds.length > 0) {
+        url.searchParams.set("IDs", params.supplierIds.join(","))
+      } else {
+        url.searchParams.set("where", 'IsSupplier==true')
+      }
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${params.accessToken}`,
+          "Xero-tenant-id": params.organisationId,
+          Accept: "application/json",
+        },
+      })
+
+      const data = (await handleProviderResponse(res)) as {
+        Contacts?: Array<{
+          ContactID: string
+          Name?: string
+          EmailAddress?: string
+          TaxNumber?: string
+          AccountsPayableTaxType?: string
+          DefaultAccountCode?: string
+          UpdatedDateUTC?: string
+        }>
+      }
+
+      const contacts = data.Contacts ?? []
+      for (const supplier of contacts) {
+        allSuppliers.push({
+          providerSupplierId: supplier.ContactID,
+          supplierName: supplier.Name ?? "Unknown supplier",
+          supplierEmail: supplier.EmailAddress,
+          abn: supplier.TaxNumber,
+          paymentTerms: supplier.AccountsPayableTaxType,
+          defaultAccountCode: supplier.DefaultAccountCode,
+          providerUpdatedAt: parseXeroDate(supplier.UpdatedDateUTC),
+          rawMetadata: supplier as unknown as Record<string, unknown>,
+        })
+      }
+
+      if (contacts.length < PAGE_SIZE) break
+      page++
+    }
+
+    return allSuppliers
+  }
+
+  async getSpendExpenseAccounts(params: {
+    accessToken: string
+    organisationId: string
+  }): Promise<ProviderSpendExpenseAccount[]> {
+    const url = new URL(`${XERO_API_BASE}/Accounts`)
+    url.searchParams.set("where", 'Class=="EXPENSE"')
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Xero-tenant-id": params.organisationId,
+        Accept: "application/json",
+      },
+    })
+
+    const data = (await handleProviderResponse(res)) as {
+      Accounts?: Array<{
+        AccountID: string
+        Code?: string
+        Name?: string
+        Class?: string
+        UpdatedDateUTC?: string
+      }>
+    }
+
+    return (data.Accounts ?? []).map((account) => ({
+      providerAccountId: account.AccountID,
+      accountCode: account.Code,
+      accountName: account.Name ?? "Unnamed account",
+      classification: account.Class,
+      providerUpdatedAt: parseXeroDate(account.UpdatedDateUTC),
+      rawMetadata: account as unknown as Record<string, unknown>,
+    }))
   }
 }

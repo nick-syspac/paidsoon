@@ -42,6 +42,7 @@ export async function POST(req: NextRequest, { params }: Params): Promise<NextRe
     where: { id: invoiceId, userId },
     include: {
       userProfile: { select: { displayName: true } },
+      financialInvoice: { include: { contact: true } },
     },
   })
 

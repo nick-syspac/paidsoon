@@ -11,9 +11,9 @@
 > engine, compliance/control library, RAG/vector AI) are explicitly marked
 > **Not applicable to this repository** rather than invented.
 >
-> Source-of-truth order used: (1) current code, (2) `openspec/changes/**`
-> (there is no `openspec/specs/**` directory — specs live inside change
-> folders), (3) `docs/runbooks/**`, (4) `README.md`.
+> Source-of-truth order used: (1) current code, (2) OpenSpec capability
+> baselines in `openspec/specs/**` plus active deltas in `openspec/changes/**`,
+> (3) `docs/runbooks/**`, (4) `README.md`.
 
 ---
 
@@ -35,12 +35,18 @@ Stripe accounts, user seats, custom from-address, reminder templates, accounting
 integrations, AI rewrite, tone settings)
 (`lib/subscriptionPlans.ts`).
 
-**Planned product direction:** the public roadmap now introduces **SpendLeak** as a planned
-spend-side companion to PaidSoon. The intent is not to turn this repository into an accounting
-package, but to extend the platform over time into a broader financial-operations layer on top of
-Xero and MYOB: PaidSoon for cash collection, SpendLeak for spend efficiency and cash-out analysis.
-That direction is roadmap-only at the time of writing unless and until concrete implementation
-lands in code.
+**SpendLeak status:** the app now includes a deterministic spend-side intelligence layer built
+from normalized spend data, persisted findings, and grounded summaries. The implementation stays
+read-only against accounting providers and generates owner-facing recommendations from persisted
+findings and evidence, rather than from raw provider records or fabricated savings claims.
+PaidSoon remains the cash-collection product; SpendLeak adds a spend-efficiency view on top of
+Xero and MYOB data without becoming a bookkeeping replacement.
+
+**Cost Guard foundation status:** the repository now includes the shared Cost Guard baseline
+objects needed to support the next phase of work: per-user settings, default rules, historical
+baselines, alert records, event audit trail, and forecast snapshots. The foundation remains
+read-only by design and is intentionally anchored to the shared financial layer rather than a
+parallel cost ledger.
 
 **There is no multi-vertical platform.** PaidSoon is a single product, single
 tenant-type system (one freelancer = one tenant, keyed by Supabase
@@ -181,7 +187,7 @@ no `apps/*` or `packages/*` workspaces.
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation policies (applied manually in Supabase) | Postgres | Not run by `prisma migrate` |
 | Generated Prisma client | `lib/generated/prisma/**` | Generated at `prisma generate` (build step) | In-process | Git-ignored output |
 | Runbooks | `docs/runbooks/**` | Operator setup (Supabase, Stripe, Resend, Vercel) | Docs | Canonical env-var matrix |
-| OpenSpec | `openspec/changes/**` | Change proposals + delta specs | Docs | No `specs/` baseline dir |
+| OpenSpec | `openspec/specs/**`, `openspec/changes/**` | Capability baselines + change deltas | Docs | Baselines and deltas coexist |
 | Scripts | `scripts/**` | `verify-rls.ts`, `_loadEnv.ts` | Node (tsx) | RLS verification |
 | Tests | `tests/**` | `node --test` unit tests (pure logic) | Node (tsx) | No integration/E2E in repo |
 
@@ -248,6 +254,10 @@ erDiagram
     USER_PROFILE ||--o| SCHEDULE : has
     USER_PROFILE ||--o| EMAIL_SETTINGS : has
     USER_PROFILE ||--o{ TRACKED_INVOICE : owns
+    USER_PROFILE ||--o{ FINANCIAL_CONTACT : owns
+    USER_PROFILE ||--o{ FINANCIAL_INVOICE : owns
+    FINANCIAL_CONTACT ||--o{ FINANCIAL_INVOICE : bills
+    FINANCIAL_INVOICE ||--o| TRACKED_INVOICE : "chased by"
     INVOICE_CONNECTION ||--o{ TRACKED_INVOICE : sources
     TRACKED_INVOICE ||--o{ EMAIL_LOG : logs
 
@@ -260,6 +270,20 @@ erDiagram
         string subscriptionStatus
         string stripeCustomerId
     }
+    FINANCIAL_CONTACT {
+        string userId
+        string sourceSystem
+        string sourceId
+        string email
+    }
+    FINANCIAL_INVOICE {
+        string userId
+        string sourceSystem
+        string sourceId
+        int amountDueCents
+        string currency
+        datetime dueDate
+    }
     INVOICE_CONNECTION {
         string userId
         string provider
@@ -268,7 +292,7 @@ erDiagram
     }
     TRACKED_INVOICE {
         string userId
-        string externalId
+        string financialInvoiceId FK
         string status
         int currentStage
         datetime nextEmailAt
@@ -279,6 +303,15 @@ erDiagram
         string resendMessageId
     }
 ```
+
+**Canonical financial layer:** Receivables facts (contacts, invoices, payments) live in
+provider-neutral canonical tables (`financial_contacts`, `financial_invoices`,
+`financial_payments`) with provenance (`source_system`, `source_id`, `source_updated_at`,
+`synced_at`, `raw_source_data`). Every ingestion path (Xero, MYOB, Stripe, CSV/XLSX) writes the
+canonical layer via `lib/financial/ingest.ts`; `tracked_invoices` holds only chasing workflow
+state. This separates "what the source system says" from "what PaidSoon is doing about it" and is
+the foundation SpendLeak and future modules build on
+(openspec/changes/canonical-financial-data-model).
 
 ---
 

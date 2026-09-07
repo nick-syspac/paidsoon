@@ -1,16 +1,25 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { ContactForm } from "@/components/marketing/ContactForm"
+import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 
 export const metadata: Metadata = {
   title: "Contact Us — PaidSoon",
   description:
     "Get in touch with the PaidSoon team for sales enquiries, support, or accountant partnership discussions.",
+  alternates: { canonical: "/contact" },
+  openGraph: {
+    title: "Contact PaidSoon",
+    description: "Talk with the PaidSoon team about demos, support, or partnerships.",
+    url: "/contact",
+    type: "website",
+  },
 }
 
 export default function ContactPage() {
   return (
     <div className="min-h-screen bg-white">
+      <MarketingPageViewTracker page="contact" />
       <section className="max-w-5xl mx-auto px-4 py-16">
         <div className="text-center mb-12">
           <h1 className="text-3xl font-bold text-gray-900">Get in touch</h1>
@@ -35,12 +44,12 @@ export default function ContactPage() {
                 Want to see PaidSoon in action before signing up? We&apos;ll walk you through the product
                 and answer your questions live.
               </p>
-              <Link
+              <MarketingCtaLink
                 href="/contact?type=demo"
+                label="Request a demo"
+                eventName="marketing_contact_demo_cta_selected"
                 className="inline-block text-sm bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >
-                Request a demo →
-              </Link>
+              />
             </div>
 
             {/* Direct contact */}
@@ -70,9 +79,12 @@ export default function ContactPage() {
                 Learn about our Accountant Partner programme — manage invoice follow-ups for all your clients
                 from one dashboard.
               </p>
-              <Link href="/accountants" className="text-sm text-blue-600 hover:underline font-medium">
-                Learn about the partner programme →
-              </Link>
+              <MarketingCtaLink
+                href="/accountants"
+                label="Learn about the partner programme"
+                eventName="marketing_contact_partner_cta_selected"
+                className="text-sm text-blue-600 hover:underline font-medium"
+              />
             </div>
           </div>
         </div>

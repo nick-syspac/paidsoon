@@ -63,6 +63,7 @@ export async function GET(request: Request) {
     include: {
       userProfile: { select: { subscriptionTier: true, userId: true, displayName: true } },
       customer: { select: { neverAutoChase: true, unsubscribed: true, cadenceOverride: true } },
+      financialInvoice: { include: { contact: true } },
     },
   })
 
@@ -92,7 +93,9 @@ export async function GET(request: Request) {
       },
       select: {
         userId: true,
-        trackedInvoice: { select: { clientEmail: true } },
+        trackedInvoice: {
+          select: { financialInvoice: { select: { contact: { select: { email: true } } } } },
+        },
       },
     }),
     prisma.promiseEscalationPolicy.findMany({
@@ -112,7 +115,7 @@ export async function GET(request: Request) {
   const brokenCountsByUserAndDebtor = buildBrokenPromiseDebtorCounts(
     brokenPromiseRows.map((row) => ({
       userId: row.userId,
-      clientEmail: row.trackedInvoice.clientEmail,
+      clientEmail: row.trackedInvoice.financialInvoice.contact?.email ?? "",
     }))
   )
 
@@ -139,7 +142,9 @@ export async function GET(request: Request) {
     const baseStage = (invoice.currentStage + 1) as 1 | 2 | 3
     const policy = resolvePromiseEscalationPolicy(policyByUserId.get(invoice.userId))
     const brokenCount =
-      brokenCountsByUserAndDebtor.get(promiseDebtorKey(invoice.userId, invoice.clientEmail)) ?? 0
+      brokenCountsByUserAndDebtor.get(
+        promiseDebtorKey(invoice.userId, invoice.financialInvoice.contact?.email ?? "")
+      ) ?? 0
     const stage = applyToneEscalationStage(baseStage, brokenCount, policy)
 
     // Get freelancer's name and email from Supabase auth
@@ -194,7 +199,7 @@ export async function GET(request: Request) {
         schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 },
         invoice.customer?.cadenceOverride,
       )
-      let nextEmailAt = computeNextEmailAt(invoice.dueDate, nextStage, effectiveSchedule)
+      let nextEmailAt = computeNextEmailAt(invoice.financialInvoice.dueDate, nextStage, effectiveSchedule)
       nextEmailAt = applyTimingEscalation(nextEmailAt, brokenCount, policy)
       await prisma.trackedInvoice.update({
         where: { id: invoice.id },

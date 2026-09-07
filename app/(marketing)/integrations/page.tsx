@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
-import Link from "next/link"
+import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 import {
   getIntegrations,
   INTEGRATION_STATUS_BADGE_STYLES,
@@ -10,6 +11,14 @@ export const metadata: Metadata = {
   title: "Integrations — PaidSoon",
   description:
     "PaidSoon integrates with Stripe Connect, MYOB Business, and Xero today, with QuickBooks Online planned. No accounting software? Import invoices from a CSV spreadsheet instead.",
+  alternates: { canonical: "/integrations" },
+  openGraph: {
+    title: "Integrations - PaidSoon",
+    description:
+      "Connect Stripe, MYOB, and Xero, or start with CSV imports and integrate later.",
+    url: "/integrations",
+    type: "website",
+  },
 }
 
 const integrations = getIntegrations()
@@ -17,6 +26,7 @@ const integrations = getIntegrations()
 export default function IntegrationsPage() {
   return (
     <div className="min-h-screen bg-white">
+      <MarketingPageViewTracker page="integrations" />
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-10 text-center">
         <h1 className="text-3xl font-bold text-gray-900">Integrations</h1>
         <p className="mt-4 text-lg text-gray-500">
@@ -55,12 +65,12 @@ export default function IntegrationsPage() {
           <p className="text-sm text-gray-500 mb-5">
             Let us know which integration would be most useful for you — we prioritise based on demand.
           </p>
-          <Link
+          <MarketingCtaLink
             href="/contact"
+            label="Request an integration"
+            eventName="marketing_integration_request_clicked"
             className="inline-block bg-blue-600 text-white px-5 py-2.5 rounded-md text-sm font-medium hover:bg-blue-700"
-          >
-            Request an integration →
-          </Link>
+          />
         </div>
       </section>
     </div>

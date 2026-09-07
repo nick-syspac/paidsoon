@@ -49,18 +49,14 @@ export async function POST(request: Request) {
         data: { status: "disconnected" },
       })
 
-      const mappings = await tx.providerInvoiceMapping.findMany({
-        where: { accountingConnectionId: connectionId },
-        select: { trackedInvoiceId: true },
+      // Pause active invoices from this connection via the canonical link.
+      await tx.trackedInvoice.updateMany({
+        where: {
+          userId: user.id,
+          financialInvoice: { accountingConnectionId: connectionId },
+        },
+        data: { nextEmailAt: null },
       })
-
-      if (mappings.length > 0) {
-        const trackedIds = mappings.map((m) => m.trackedInvoiceId)
-        await tx.trackedInvoice.updateMany({
-          where: { id: { in: trackedIds }, userId: user.id },
-          data: { nextEmailAt: null },
-        })
-      }
     })
   } catch (err: unknown) {
     if (err instanceof Error) {

@@ -14,12 +14,20 @@ The system SHALL treat any feature that is entitled by plan but marked unimpleme
 - **WHEN** a user loads a direct URL for an entitled but unimplemented feature surface
 - **THEN** the UI still renders as non-actionable and does not expose an operational action path
 
+#### Scenario: Entitled feature is operationally inactive in production
+- **WHEN** a feature is commercially entitled but lacks an active production execution path
+- **THEN** the feature is marked and presented as unimplemented/coming soon until operational activation is verified
+
 ### Requirement: Unimplemented feature APIs return deterministic unavailability
-APIs backing entitled but unimplemented feature workflows SHALL return a deterministic unavailable response with a machine-readable reason code and SHALL NOT return a success response implying completed work.
+APIs backing entitled but unimplemented feature workflows SHALL return a deterministic unavailable response with a machine-readable reason code and SHALL NOT return a success response implying completed work. This requirement applies to Team invite actions while `team_seats` is not implemented.
 
 #### Scenario: Client submits an action for an unimplemented feature
 - **WHEN** a client sends a request to execute an unimplemented feature workflow
 - **THEN** the API response indicates feature unavailable and includes a stable reason code usable by the client UI
+
+#### Scenario: Team invite API is called while Team seats are unimplemented
+- **WHEN** a request is made to execute Team invite actions while `team_seats` is unimplemented
+- **THEN** the system returns a feature-unavailable response rather than a success response
 
 #### Scenario: Unimplemented API is called repeatedly
 - **WHEN** repeated requests are made to an unimplemented feature endpoint

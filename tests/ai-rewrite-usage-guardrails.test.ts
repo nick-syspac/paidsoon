@@ -20,6 +20,11 @@ describe("ai rewrite usage guardrails helper", () => {
       hourlyCap: 20,
       burstCap: 5,
     })
+    assert.deepEqual(getAiRewriteGuardrailPolicy("business_pro"), {
+      monthlyQuota: 1000,
+      hourlyCap: 30,
+      burstCap: 6,
+    })
     assert.deepEqual(getAiRewriteGuardrailPolicy("accountant_partner"), {
       monthlyQuota: 1500,
       hourlyCap: 40,

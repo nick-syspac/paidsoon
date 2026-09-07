@@ -7,10 +7,12 @@
  * directory has correct historical data before cron enforcement (never-auto-
  * chase, unsubscribed, cadence override) starts reading it.
  *
- * For each table, rows are grouped by (userId, lower(clientEmail/debtorEmail)),
- * a `Customer` row is upserted per group via the shared `findOrCreateCustomer`
- * helper, and every matching row (case-insensitive email match) is updated
- * with the resulting `customerId`. Rows with a blank email are left
+ * For each table, rows are grouped by (userId, lower(email)) — the debtor
+ * email comes from the tracked invoice's canonical `FinancialInvoice.contact`
+ * (`FinancialContact.email`) and from `Arrangement.debtorEmail` — a `Customer`
+ * row is upserted per group via the shared `findOrCreateCustomer` helper, and
+ * every matching row (case-insensitive email match) is updated with the
+ * resulting `customerId`. Rows with no contact / blank email are left
  * unattached — there is nothing to key a `Customer` on.
  *
  * Idempotent: only touches rows where `customerId` is still null, so it is
@@ -50,16 +52,21 @@ function groupByUserAndEmail<T extends { userId: string }>(
 
 async function backfillTrackedInvoiceCustomers() {
   const rows = await prismaAdmin.trackedInvoice.findMany({
-    where: { customerId: null, clientEmail: { not: "" } },
-    select: { userId: true, clientEmail: true, clientName: true },
+    where: { customerId: null },
+    select: {
+      userId: true,
+      financialInvoice: {
+        select: { contact: { select: { email: true, name: true } } },
+      },
+    },
   })
 
   console.log(`tracked_invoices: ${rows.length} row(s) missing a customerId`)
 
   const groups = groupByUserAndEmail(
     rows,
-    (row) => row.clientEmail,
-    (row) => row.clientName,
+    (row) => row.financialInvoice.contact?.email ?? "",
+    (row) => row.financialInvoice.contact?.name ?? null,
   )
   console.log(`tracked_invoices: ${groups.size} distinct (user, email) pair(s) to backfill`)
 
@@ -67,7 +74,11 @@ async function backfillTrackedInvoiceCustomers() {
   for (const { userId, email, name } of groups.values()) {
     const customer = await findOrCreateCustomer(prismaAdmin, userId, email, name)
     const result = await prismaAdmin.trackedInvoice.updateMany({
-      where: { userId, customerId: null, clientEmail: { equals: email, mode: "insensitive" } },
+      where: {
+        userId,
+        customerId: null,
+        financialInvoice: { contact: { emailLower: email.toLowerCase() } },
+      },
       data: { customerId: customer.id },
     })
     updated += result.count

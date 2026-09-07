@@ -1,14 +1,24 @@
 import type { Metadata } from "next"
+import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 
 export const metadata: Metadata = {
   title: "Terms of Service — PaidSoon",
   description:
     "PaidSoon Terms of Service — the agreement between you and Syspac Pty Ltd governing your use of the PaidSoon platform.",
+  alternates: { canonical: "/terms" },
+  openGraph: {
+    title: "Terms of Service - PaidSoon",
+    description:
+      "Terms governing your use of PaidSoon, operated by Syspac Pty Ltd.",
+    url: "/terms",
+    type: "website",
+  },
 }
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-white">
+      <MarketingPageViewTracker page="terms" />
       <div className="max-w-3xl mx-auto px-4 py-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Terms of Service</h1>
 

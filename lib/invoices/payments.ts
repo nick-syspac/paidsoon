@@ -1,13 +1,17 @@
 import type { PrismaTx } from "@/lib/db/withUserContext"
-import type { InvoicePayment, TrackedInvoice } from "@/lib/generated/prisma/client"
+import type { InvoicePayment } from "@/lib/generated/prisma/client"
 
 /**
  * Computes an invoice's current outstanding balance: its original `amountDue`
- * minus every payment recorded against it in the ledger, floored at 0 so an
- * overpayment never reports a negative balance owed.
+ * (cents) minus every payment recorded against it in the ledger, floored at 0
+ * so an overpayment never reports a negative balance owed.
+ *
+ * The invoice is passed structurally (`{ amountDue }`) — the amount now lives
+ * on the canonical `FinancialInvoice.amountDueCents`; callers project it to
+ * `amountDue` before calling.
  */
 export function computeOutstanding(
-  invoice: Pick<TrackedInvoice, "amountDue">,
+  invoice: { amountDue: number },
   payments: Pick<InvoicePayment, "amount">[],
 ): number {
   const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0)
@@ -34,7 +38,7 @@ export interface RecordInvoicePaymentResult {
  */
 export async function recordInvoicePayment(
   tx: PrismaTx,
-  invoice: Pick<TrackedInvoice, "id" | "userId" | "amountDue" | "status">,
+  invoice: { id: string; userId: string; amountDue: number; status: string },
   params: { amount: number; currency: string; source: InvoicePaymentSource; note?: string | null },
 ): Promise<RecordInvoicePaymentResult> {
   const priorPayments = await tx.invoicePayment.findMany({

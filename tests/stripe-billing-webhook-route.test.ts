@@ -35,6 +35,7 @@ describe("Stripe billing webhook", () => {
     process.env.STRIPE_STARTER_PRICE_ID = "price_starter"
     process.env.STRIPE_SOLO_PRICE_ID = "price_solo"
     process.env.STRIPE_SMALL_BUSINESS_PRICE_ID = "price_small_business"
+    process.env.STRIPE_BUSINESS_PRO_PRICE_ID = "price_business_pro"
 
     await mock.module("@/lib/db/admin", {
       namedExports: {

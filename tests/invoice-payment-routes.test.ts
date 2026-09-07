@@ -69,6 +69,17 @@ describe("Invoice payment route handlers", () => {
     return { params: Promise.resolve({ id }) }
   }
 
+  // Canonical-shaped invoice fixture: chasing fields on the record, facts on
+  // financialInvoice (amountDueCents, currency).
+  function makeInvoice(amountDueCents: number, currency = "usd", status = "pending") {
+    return {
+      id: "inv-1",
+      userId: "user-123",
+      status,
+      financialInvoice: { amountDueCents, currency },
+    }
+  }
+
   function makeRequest(path: string, body?: Record<string, unknown>) {
     return new Request(`http://localhost/api/invoices/test-id/${path}`, {
       method: "POST",
@@ -94,7 +105,7 @@ describe("Invoice payment route handlers", () => {
     })
 
     test("returns 400 when amount is missing or not a positive integer", async () => {
-      mockFindFirstResult = { id: "inv-1", userId: "user-123", amountDue: 10_000, currency: "usd", status: "pending" }
+      mockFindFirstResult = makeInvoice(10_000)
       const res = await paymentsRoute(makeRequest("payments", { amount: -5, currency: "usd" }), makeParams("inv-1"))
       assert.strictEqual(res.status, 400)
     })
@@ -106,20 +117,20 @@ describe("Invoice payment route handlers", () => {
     })
 
     test("excludes paid and manually_resolved invoices from findFirst", async () => {
-      mockFindFirstResult = { id: "inv-1", userId: "user-123", amountDue: 10_000, currency: "usd", status: "pending" }
+      mockFindFirstResult = makeInvoice(10_000)
       await paymentsRoute(makeRequest("payments", { amount: 1000, currency: "usd" }), makeParams("inv-1"))
       const args = lastFindFirstArgs as { where: { status: { notIn: string[] } } }
       assert.deepStrictEqual(args.where.status.notIn.sort(), ["manually_resolved", "paid"])
     })
 
     test("returns 400 when payment currency does not match the invoice's currency", async () => {
-      mockFindFirstResult = { id: "inv-1", userId: "user-123", amountDue: 10_000, currency: "usd", status: "pending" }
+      mockFindFirstResult = makeInvoice(10_000)
       const res = await paymentsRoute(makeRequest("payments", { amount: 1000, currency: "aud" }), makeParams("inv-1"))
       assert.strictEqual(res.status, 400)
     })
 
     test("records a partial payment with source manual and returns remaining outstanding", async () => {
-      mockFindFirstResult = { id: "inv-1", userId: "user-123", amountDue: 10_000, currency: "usd", status: "pending" }
+      mockFindFirstResult = makeInvoice(10_000)
       const res = await paymentsRoute(makeRequest("payments", { amount: 4_000, currency: "usd", note: "part payment" }), makeParams("inv-1"))
       assert.strictEqual(res.status, 200)
       const body = await res.json()
@@ -133,7 +144,7 @@ describe("Invoice payment route handlers", () => {
     })
 
     test("marks the invoice paid once the ledger fully covers amountDue", async () => {
-      mockFindFirstResult = { id: "inv-1", userId: "user-123", amountDue: 10_000, currency: "usd", status: "pending" }
+      mockFindFirstResult = makeInvoice(10_000)
       mockPayments = [{ amount: 6_000 }]
       const res = await paymentsRoute(makeRequest("payments", { amount: 4_000, currency: "usd" }), makeParams("inv-1"))
       assert.strictEqual(res.status, 200)
@@ -168,14 +179,14 @@ describe("Invoice payment route handlers", () => {
     })
 
     test("returns 400 when the invoice has no outstanding balance", async () => {
-      mockFindFirstResult = { id: "inv-1", userId: "user-123", amountDue: 10_000, currency: "usd", status: "pending" }
+      mockFindFirstResult = makeInvoice(10_000)
       mockPayments = [{ amount: 10_000 }]
       const res = await markPaidRoute(makeRequest("mark-paid"), makeParams("inv-1"))
       assert.strictEqual(res.status, 400)
     })
 
     test("records a payment for the full remaining outstanding balance and flips status to paid", async () => {
-      mockFindFirstResult = { id: "inv-1", userId: "user-123", amountDue: 10_000, currency: "usd", status: "pending" }
+      mockFindFirstResult = makeInvoice(10_000)
       mockPayments = [{ amount: 3_000 }]
       const res = await markPaidRoute(makeRequest("mark-paid", { note: "paid by cheque" }), makeParams("inv-1"))
       assert.strictEqual(res.status, 200)

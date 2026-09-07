@@ -32,9 +32,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       select: {
         id: true,
         userId: true,
-        clientEmail: true,
-        clientName: true,
-        currency: true,
+        financialInvoice: {
+          select: {
+            currency: true,
+            contact: { select: { name: true, email: true, emailLower: true } },
+          },
+        },
       },
     })
 
@@ -42,7 +45,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       return { ok: false as const, status: 404, error: "One or more invoices were not found" }
     }
 
-    const debtorEmails = new Set(invoices.map((invoice) => invoice.clientEmail.toLowerCase()))
+    const invoiceFacts = invoices.map((invoice) => ({
+      id: invoice.id,
+      clientEmail: invoice.financialInvoice.contact?.email ?? "",
+      clientEmailLower: invoice.financialInvoice.contact?.emailLower ?? "",
+      clientName: invoice.financialInvoice.contact?.name ?? "",
+      currency: invoice.financialInvoice.currency,
+    }))
+
+    const debtorEmails = new Set(invoiceFacts.map((invoice) => invoice.clientEmailLower))
     if (debtorEmails.size !== 1) {
       return {
         ok: false as const,
@@ -51,7 +62,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     }
 
-    const currencies = new Set(invoices.map((invoice) => invoice.currency.toLowerCase()))
+    const currencies = new Set(invoiceFacts.map((invoice) => invoice.currency.toLowerCase()))
     if (currencies.size !== 1) {
       return {
         ok: false as const,
@@ -60,26 +71,25 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     }
 
-    const debtorEmail = invoices[0].clientEmail
+    const debtorEmail = invoiceFacts[0].clientEmail
     const arrangement = await tx.arrangement.create({
       data: {
         userId: user.id,
         debtorEmail,
-        debtorName: invoices[0].clientName,
+        debtorName: invoiceFacts[0].clientName,
         arrangementType: parsed.data.arrangementType,
         status: "active",
         promisedPayBy: parsed.data.promisedPayBy ? new Date(parsed.data.promisedPayBy) : null,
         agreedAmount: parsed.data.agreedAmount ?? null,
-        currency: (parsed.data.currency ?? invoices[0].currency).toLowerCase(),
+        currency: (parsed.data.currency ?? invoiceFacts[0].currency).toLowerCase(),
         planSchedule: parsed.data.planSchedule,
         termsNotes: parsed.data.termsNotes?.trim() ?? null,
         expiresAt: parsed.data.promisedPayBy ? new Date(parsed.data.promisedPayBy) : null,
         coverages: {
           createMany: {
-            data: invoices.map((invoice) => ({
+            data: invoiceFacts.map((invoice) => ({
               trackedInvoiceId: invoice.id,
               userId: user.id,
-              debtorEmail,
             })),
           },
         },

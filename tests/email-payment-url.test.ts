@@ -8,6 +8,7 @@ import { before, beforeEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
 
 let lastEmailLogCreateArgs: { data: { htmlBody?: string; textBody?: string } } | null = null
+let mockCustomTemplate: { subject: string; htmlBody: string; textBody: string } | null = null
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let sendFollowUpEmail: any
@@ -24,7 +25,7 @@ describe("sendFollowUpEmail — paymentUrl passthrough", () => {
             findUnique: async () => null,
           },
           emailTemplate: {
-            findUnique: async () => null,
+            findUnique: async () => mockCustomTemplate,
           },
           trackedInvoice: {
             update: async () => ({}),
@@ -45,19 +46,25 @@ describe("sendFollowUpEmail — paymentUrl passthrough", () => {
 
   beforeEach(() => {
     lastEmailLogCreateArgs = null
+    mockCustomTemplate = null
   })
 
   test("includes Pay invoice link when paymentUrl is set", async () => {
     const invoice = {
       id: "inv-pay-1",
       userId: "user-1",
-      clientEmail: "client@example.test", // reserved TLD — suppressed, never reaches Resend
-      clientName: "Pay Link Client",
-      amountDue: 10_000,
-      currency: "usd",
-      dueDate: new Date("2026-01-01"),
-      paymentUrl: "https://invoice.stripe.com/i/acct_123/test_abc",
       p2pToken: null,
+      financialInvoice: {
+        id: "finv-pay-1",
+        amountDueCents: 10_000,
+        currency: "usd",
+        dueDate: new Date("2026-01-01"),
+        paymentUrl: "https://invoice.stripe.com/i/acct_123/test_abc",
+        contact: {
+          email: "client@example.test", // reserved TLD — suppressed, never reaches Resend
+          name: "Pay Link Client",
+        },
+      },
     }
 
     const messageId = await sendFollowUpEmail(invoice, 1, "freelancer@example.com", "Freelancer")
@@ -73,13 +80,18 @@ describe("sendFollowUpEmail — paymentUrl passthrough", () => {
     const invoice = {
       id: "inv-pay-2",
       userId: "user-1",
-      clientEmail: "client@example.test",
-      clientName: "No Link Client",
-      amountDue: 5_000,
-      currency: "usd",
-      dueDate: new Date("2026-01-01"),
-      paymentUrl: null,
       p2pToken: null,
+      financialInvoice: {
+        id: "finv-pay-2",
+        amountDueCents: 5_000,
+        currency: "usd",
+        dueDate: new Date("2026-01-01"),
+        paymentUrl: null,
+        contact: {
+          email: "client@example.test",
+          name: "No Link Client",
+        },
+      },
     }
 
     const messageId = await sendFollowUpEmail(invoice, 1, "freelancer@example.com", "Freelancer")
@@ -90,5 +102,70 @@ describe("sendFollowUpEmail — paymentUrl passthrough", () => {
     assert.ok(lastEmailLogCreateArgs?.data.textBody)
     assert.ok(!lastEmailLogCreateArgs!.data.textBody!.includes("Pay invoice"))
     assert.ok(!lastEmailLogCreateArgs!.data.textBody!.includes("<a href="))
+  })
+
+  test("omits payment link when paymentUrl is whitespace-only", async () => {
+    const invoice = {
+      id: "inv-pay-3",
+      userId: "user-1",
+      p2pToken: null,
+      financialInvoice: {
+        id: "finv-pay-3",
+        amountDueCents: 8_000,
+        currency: "usd",
+        dueDate: new Date("2026-01-01"),
+        paymentUrl: "   ",
+        contact: {
+          email: "client@example.test",
+          name: "Whitespace Link Client",
+        },
+      },
+    }
+
+    const messageId = await sendFollowUpEmail(invoice, 1, "freelancer@example.com", "Freelancer")
+
+    assert.equal(messageId, "suppressed-undeliverable-domain")
+    assert.ok(lastEmailLogCreateArgs?.data.htmlBody)
+    assert.ok(!lastEmailLogCreateArgs!.data.htmlBody!.includes("Pay invoice"))
+    assert.ok(lastEmailLogCreateArgs?.data.textBody)
+    assert.ok(!lastEmailLogCreateArgs!.data.textBody!.includes("https://"))
+    assert.ok(!lastEmailLogCreateArgs!.data.textBody!.includes("<a href="))
+  })
+
+  test("uses the same payment-link token behavior for custom templates", async () => {
+    mockCustomTemplate = {
+      subject: "Reminder for {{invoiceRef}}",
+      htmlBody: "<p>{{paymentLink}}</p>",
+      textBody: "{{paymentLinkText}}",
+    }
+
+    const invoice = {
+      id: "inv-pay-4",
+      userId: "user-1",
+      p2pToken: null,
+      financialInvoice: {
+        id: "finv-pay-4",
+        amountDueCents: 11_000,
+        currency: "usd",
+        dueDate: new Date("2026-01-01"),
+        paymentUrl: "  https://invoice.stripe.com/i/acct_123/custom_tpl  ",
+        contact: {
+          email: "client@example.test",
+          name: "Custom Template Client",
+        },
+      },
+    }
+
+    const messageId = await sendFollowUpEmail(invoice, 1, "freelancer@example.com", "Freelancer")
+
+    assert.equal(messageId, "suppressed-undeliverable-domain")
+    assert.equal(
+      lastEmailLogCreateArgs?.data.htmlBody,
+      '<p><a href="https://invoice.stripe.com/i/acct_123/custom_tpl">Pay invoice →</a></p>',
+    )
+    assert.equal(
+      lastEmailLogCreateArgs?.data.textBody,
+      "https://invoice.stripe.com/i/acct_123/custom_tpl",
+    )
   })
 })

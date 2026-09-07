@@ -27,6 +27,7 @@
     "import:help-mdx:write": "node --import tsx scripts/import-help-mdx.ts --write",
     "verify:training-import": "node --import tsx scripts/verify-training-import.ts",
     "db:reset:local": "SEED_ENV=local node --import tsx scripts/db-reset-local.ts",
+    "db:reset:production": "node --import tsx scripts/db-reset-production.ts",
     "seed:admin-owner": "node --import tsx scripts/seed-admin-owner.ts",
     "seed:support-account": "node --import tsx scripts/seed-support-account.ts",
     "get:admin-devices": "node --import tsx scripts/get-admin-devices.ts",

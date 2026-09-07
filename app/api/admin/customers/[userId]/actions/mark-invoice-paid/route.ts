@@ -42,24 +42,32 @@ export async function POST(req: NextRequest, { params }: Params): Promise<NextRe
       userId,
       status: { notIn: [...TERMINAL_TRACKED_INVOICE_STATUSES] },
     },
+    include: { financialInvoice: { select: { amountDueCents: true, currency: true } } },
   })
 
   if (!invoice) {
     return NextResponse.json({ error: "Invoice not found or not payable" }, { status: 404 })
   }
 
+  const ledgerInvoice = {
+    id: invoice.id,
+    userId: invoice.userId,
+    amountDue: invoice.financialInvoice.amountDueCents,
+    status: invoice.status,
+  }
+
   const payments = await prismaAdmin.invoicePayment.findMany({
     where: { trackedInvoiceId: invoice.id },
     select: { amount: true },
   })
-  const outstanding = computeOutstanding(invoice, payments)
+  const outstanding = computeOutstanding(ledgerInvoice, payments)
   if (outstanding <= 0) {
     return NextResponse.json({ error: "Invoice has no outstanding balance" }, { status: 400 })
   }
 
-  const recorded = await recordInvoicePayment(prismaAdmin, invoice, {
+  const recorded = await recordInvoicePayment(prismaAdmin, ledgerInvoice, {
     amount: outstanding,
-    currency: invoice.currency,
+    currency: invoice.financialInvoice.currency,
     source: "manual",
     note: reason,
   })

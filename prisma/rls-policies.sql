@@ -27,6 +27,9 @@ ALTER TABLE invoice_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracked_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE financial_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE financial_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE financial_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
@@ -123,6 +126,59 @@ DROP POLICY IF EXISTS "users can update own invoices" ON tracked_invoices;
 CREATE POLICY "users can update own invoices"
   ON tracked_invoices FOR UPDATE
   USING (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
+-- Canonical financial layer (financial_contacts / financial_invoices /
+-- financial_payments)
+-- Users can read their own records. Writes are performed by ingestion paths
+-- (accounting sync, Stripe webhook, CSV import) via prismaAdmin or a
+-- withUserContext transaction — the INSERT/UPDATE policies below support the
+-- withUserContext path.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own financial contacts" ON financial_contacts;
+CREATE POLICY "users can view own financial contacts"
+  ON financial_contacts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own financial contacts" ON financial_contacts;
+CREATE POLICY "users can insert own financial contacts"
+  ON financial_contacts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own financial contacts" ON financial_contacts;
+CREATE POLICY "users can update own financial contacts"
+  ON financial_contacts FOR UPDATE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own financial invoices" ON financial_invoices;
+CREATE POLICY "users can view own financial invoices"
+  ON financial_invoices FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own financial invoices" ON financial_invoices;
+CREATE POLICY "users can insert own financial invoices"
+  ON financial_invoices FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own financial invoices" ON financial_invoices;
+CREATE POLICY "users can update own financial invoices"
+  ON financial_invoices FOR UPDATE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own financial payments" ON financial_payments;
+CREATE POLICY "users can view own financial payments"
+  ON financial_payments FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own financial payments" ON financial_payments;
+CREATE POLICY "users can insert own financial payments"
+  ON financial_payments FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own financial payments" ON financial_payments;
+CREATE POLICY "users can update own financial payments"
+  ON financial_payments FOR UPDATE
+  USING (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- email_logs
@@ -233,42 +289,9 @@ CREATE POLICY "users can view own sync runs"
 
 -- ---------------------------------------------------------------------------
 -- provider_invoice_mappings
--- Accessed via trackedInvoice which belongs to userId. Users can read their
--- own mappings. Writes are performed by the sync orchestrator via prismaAdmin.
--- ---------------------------------------------------------------------------
-ALTER TABLE provider_invoice_mappings ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "users can view own provider invoice mappings" ON provider_invoice_mappings;
-CREATE POLICY "users can view own provider invoice mappings"
-  ON provider_invoice_mappings FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM tracked_invoices
-      WHERE tracked_invoices.id = provider_invoice_mappings."tracked_invoice_id"
-        AND tracked_invoices."userId" = auth.uid()::text
-    )
-  );
-
--- No user INSERT/UPDATE policy — sync orchestrator uses prismaAdmin (service role)
-
--- ---------------------------------------------------------------------------
--- provider_contact_mappings
--- Scoped via accounting_connections which belongs to userId.
--- ---------------------------------------------------------------------------
-ALTER TABLE provider_contact_mappings ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "users can view own provider contact mappings" ON provider_contact_mappings;
-CREATE POLICY "users can view own provider contact mappings"
-  ON provider_contact_mappings FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM accounting_connections
-      WHERE accounting_connections.id = provider_contact_mappings."accounting_connection_id"
-        AND accounting_connections."userId" = auth.uid()::text
-    )
-  );
-
--- No user INSERT/UPDATE policy — sync orchestrator uses prismaAdmin (service role)
+-- provider_invoice_mappings and provider_contact_mappings were retired by the
+-- canonical-financial-data-model change; their role is absorbed by provenance
+-- fields on the canonical financial tables.
 
 -- ---------------------------------------------------------------------------
 -- oauth_states
@@ -305,6 +328,17 @@ CREATE POLICY "users can view own imported bills"
   ON imported_bills FOR SELECT
   USING (auth.uid()::text = user_id);
 
+DROP POLICY IF EXISTS "users can insert own imported bills" ON imported_bills;
+CREATE POLICY "users can insert own imported bills"
+  ON imported_bills FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own imported bills" ON imported_bills;
+CREATE POLICY "users can update own imported bills"
+  ON imported_bills FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
 -- ---------------------------------------------------------------------------
 -- imported_bank_transactions
 -- Users can read their own imported bank transactions. Writes are performed by
@@ -316,6 +350,17 @@ DROP POLICY IF EXISTS "users can view own imported bank transactions" ON importe
 CREATE POLICY "users can view own imported bank transactions"
   ON imported_bank_transactions FOR SELECT
   USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own imported bank transactions" ON imported_bank_transactions;
+CREATE POLICY "users can insert own imported bank transactions"
+  ON imported_bank_transactions FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own imported bank transactions" ON imported_bank_transactions;
+CREATE POLICY "users can update own imported bank transactions"
+  ON imported_bank_transactions FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- supplier_profiles
@@ -329,11 +374,22 @@ CREATE POLICY "users can view own supplier profiles"
   ON supplier_profiles FOR SELECT
   USING (auth.uid()::text = user_id);
 
+DROP POLICY IF EXISTS "users can insert own supplier profiles" ON supplier_profiles;
+CREATE POLICY "users can insert own supplier profiles"
+  ON supplier_profiles FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own supplier profiles" ON supplier_profiles;
+CREATE POLICY "users can update own supplier profiles"
+  ON supplier_profiles FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
 -- ---------------------------------------------------------------------------
 -- spend_insights
 -- Users can read their own spend insights. UPDATE is row-scoped by RLS and
 -- column-scoped by GRANT so authenticated users can mutate lifecycle fields
--- only (`state`, `resolved_at`).
+-- only (`state`, `resolved_at`, `updated_at`).
 -- Inserts are performed by the insight pipeline via prismaAdmin.
 -- ---------------------------------------------------------------------------
 ALTER TABLE spend_insights ENABLE ROW LEVEL SECURITY;
@@ -349,8 +405,13 @@ CREATE POLICY "users can update own spend insights"
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 
+DROP POLICY IF EXISTS "users can insert own spend insights" ON spend_insights;
+CREATE POLICY "users can insert own spend insights"
+  ON spend_insights FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
 REVOKE UPDATE ON TABLE spend_insights FROM authenticated;
-GRANT UPDATE (state, resolved_at) ON TABLE spend_insights TO authenticated;
+GRANT UPDATE (state, review_action, review_action_at, review_action_by, review_note, evidence_fingerprint, resolved_at, updated_at) ON TABLE spend_insights TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- cash_forecast_snapshots
@@ -363,6 +424,114 @@ DROP POLICY IF EXISTS "users can view own cash forecast snapshots" ON cash_forec
 CREATE POLICY "users can view own cash forecast snapshots"
   ON cash_forecast_snapshots FOR SELECT
   USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_settings
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard settings" ON cost_guard_settings;
+CREATE POLICY "users can view own cost guard settings"
+  ON cost_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard settings" ON cost_guard_settings;
+CREATE POLICY "users can insert own cost guard settings"
+  ON cost_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own cost guard settings" ON cost_guard_settings;
+CREATE POLICY "users can update own cost guard settings"
+  ON cost_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_rules
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_rules ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard rules" ON cost_guard_rules;
+CREATE POLICY "users can view own cost guard rules"
+  ON cost_guard_rules FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard rules" ON cost_guard_rules;
+CREATE POLICY "users can insert own cost guard rules"
+  ON cost_guard_rules FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own cost guard rules" ON cost_guard_rules;
+CREATE POLICY "users can update own cost guard rules"
+  ON cost_guard_rules FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_baselines
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_baselines ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard baselines" ON cost_guard_baselines;
+CREATE POLICY "users can view own cost guard baselines"
+  ON cost_guard_baselines FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard baselines" ON cost_guard_baselines;
+CREATE POLICY "users can insert own cost guard baselines"
+  ON cost_guard_baselines FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_alerts
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_alerts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard alerts" ON cost_guard_alerts;
+CREATE POLICY "users can view own cost guard alerts"
+  ON cost_guard_alerts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard alerts" ON cost_guard_alerts;
+CREATE POLICY "users can insert own cost guard alerts"
+  ON cost_guard_alerts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own cost guard alerts" ON cost_guard_alerts;
+CREATE POLICY "users can update own cost guard alerts"
+  ON cost_guard_alerts FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_alert_events
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_alert_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard alert events" ON cost_guard_alert_events;
+CREATE POLICY "users can view own cost guard alert events"
+  ON cost_guard_alert_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard alert events" ON cost_guard_alert_events;
+CREATE POLICY "users can insert own cost guard alert events"
+  ON cost_guard_alert_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- cost_guard_forecasts
+-- ---------------------------------------------------------------------------
+ALTER TABLE cost_guard_forecasts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own cost guard forecasts" ON cost_guard_forecasts;
+CREATE POLICY "users can view own cost guard forecasts"
+  ON cost_guard_forecasts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own cost guard forecasts" ON cost_guard_forecasts;
+CREATE POLICY "users can insert own cost guard forecasts"
+  ON cost_guard_forecasts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- scheduled_task_claims / dispatcher_heartbeats
@@ -675,6 +844,156 @@ DROP POLICY IF EXISTS "users can delete own invoice import mapping profiles" ON 
 CREATE POLICY "users can delete own invoice import mapping profiles"
   ON invoice_import_mapping_profiles FOR DELETE
   USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- spend_import_batches
+-- Users can create and manage their own SpendLeak expense import batches.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_import_batches ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own spend import batches" ON spend_import_batches;
+CREATE POLICY "users can view own spend import batches"
+  ON spend_import_batches FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own spend import batches" ON spend_import_batches;
+CREATE POLICY "users can insert own spend import batches"
+  ON spend_import_batches FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own spend import batches" ON spend_import_batches;
+CREATE POLICY "users can update own spend import batches"
+  ON spend_import_batches FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- spend_import_column_mappings
+-- Scoped via batch_id which belongs to the owning user's batch.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_import_column_mappings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own spend import mappings" ON spend_import_column_mappings;
+CREATE POLICY "users can view own spend import mappings"
+  ON spend_import_column_mappings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_column_mappings.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can insert own spend import mappings" ON spend_import_column_mappings;
+CREATE POLICY "users can insert own spend import mappings"
+  ON spend_import_column_mappings FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_column_mappings.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can update own spend import mappings" ON spend_import_column_mappings;
+CREATE POLICY "users can update own spend import mappings"
+  ON spend_import_column_mappings FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_column_mappings.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can delete own spend import mappings" ON spend_import_column_mappings;
+CREATE POLICY "users can delete own spend import mappings"
+  ON spend_import_column_mappings FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_column_mappings.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- spend_import_staging_rows
+-- Scoped via batch_id which belongs to the owning user's batch.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_import_staging_rows ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own spend import staging rows" ON spend_import_staging_rows;
+CREATE POLICY "users can view own spend import staging rows"
+  ON spend_import_staging_rows FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_staging_rows.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can insert own spend import staging rows" ON spend_import_staging_rows;
+CREATE POLICY "users can insert own spend import staging rows"
+  ON spend_import_staging_rows FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_staging_rows.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can update own spend import staging rows" ON spend_import_staging_rows;
+CREATE POLICY "users can update own spend import staging rows"
+  ON spend_import_staging_rows FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_staging_rows.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- spend_import_errors
+-- Scoped via batch_id which belongs to the owning user's batch.
+-- ---------------------------------------------------------------------------
+ALTER TABLE spend_import_errors ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own spend import errors" ON spend_import_errors;
+CREATE POLICY "users can view own spend import errors"
+  ON spend_import_errors FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_errors.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can insert own spend import errors" ON spend_import_errors;
+CREATE POLICY "users can insert own spend import errors"
+  ON spend_import_errors FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_errors.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "users can delete own spend import errors" ON spend_import_errors;
+CREATE POLICY "users can delete own spend import errors"
+  ON spend_import_errors FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM spend_import_batches
+      WHERE spend_import_batches.id = spend_import_errors.batch_id
+        AND spend_import_batches.user_id = auth.uid()::text
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- invoice_payments

@@ -41,6 +41,7 @@ export async function sendReminderForInvoice(
       where: { id: trackedInvoiceId },
       include: {
         userProfile: { select: { subscriptionTier: true, userId: true, displayName: true } },
+        financialInvoice: { include: { contact: true } },
       },
     })
     if (!invoice) return { outcome: "skipped", reason: "invoice_not_found" }
@@ -81,7 +82,11 @@ export async function sendReminderForInvoice(
       where: {
         userId,
         status: "broken",
-        trackedInvoice: { clientEmail: invoice.clientEmail },
+        trackedInvoice: {
+          financialInvoice: {
+            contact: { emailLower: invoice.financialInvoice.contact?.emailLower ?? "" },
+          },
+        },
       },
     })
     const policyRow = await tx.promiseEscalationPolicy.findUnique({ where: { userId } })
@@ -115,7 +120,7 @@ export async function sendReminderForInvoice(
     } else {
       const nextStage = (stage + 1) as 2 | 3
       let nextEmailAt = computeNextEmailAt(
-        invoice.dueDate,
+        invoice.financialInvoice.dueDate,
         nextStage,
         schedule ?? { email1DaysAfterDue: 3, email2DaysAfterDue: 10, email3DaysAfterDue: 21 },
       )

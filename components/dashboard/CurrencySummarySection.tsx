@@ -9,9 +9,11 @@ import type { CurrencyDashboardSummary } from "@/lib/dashboard/currencySummary"
 export function CurrencySummarySection({
   summary,
   showCurrencyHeading = false,
+  showAiSummary = true,
 }: {
   summary: CurrencyDashboardSummary
   showCurrencyHeading?: boolean
+  showAiSummary?: boolean
 }) {
   return (
     <section className="space-y-4">
@@ -22,7 +24,7 @@ export function CurrencySummarySection({
         </div>
       ) : null}
 
-      <AiSummaryCard lines={summary.aiSummaryLines} />
+      {showAiSummary ? <AiSummaryCard lines={summary.aiSummaryLines} /> : null}
       <TopKpiCards cards={summary.topKpiCards} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

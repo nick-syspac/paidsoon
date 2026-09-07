@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
 import { UserMenu } from "@/components/dashboard/UserMenu"
 import { SupportBanner } from "@/components/dashboard/SupportBanner"
@@ -182,7 +183,7 @@ export default async function DashboardLayout({
           </div>
         </div>
       </nav>
-      <DashboardMain>{children}</DashboardMain>
+      <DashboardMain canViewSpendLeak={canAccessSpendLeak(tier)}>{children}</DashboardMain>
     </div>
   )
 }

@@ -78,12 +78,18 @@ describe("sendFollowUpEmail — duplicate-send guard", () => {
   const invoice = {
     id: "inv-dedup-1",
     userId: "user-1",
-    clientEmail: "client@example.test", // reserved TLD — send is suppressed, never reaches Resend
-    clientName: "Client Co",
-    amountDue: 10_000,
-    currency: "usd",
-    dueDate: new Date("2026-01-01"),
     p2pToken: null,
+    financialInvoice: {
+      id: "finv-dedup-1",
+      amountDueCents: 10_000,
+      currency: "usd",
+      dueDate: new Date("2026-01-01"),
+      paymentUrl: null,
+      contact: {
+        email: "client@example.test", // reserved TLD — send is suppressed, never reaches Resend
+        name: "Client Co",
+      },
+    },
   }
 
   test("skips sending and never calls EmailLog.create when a log already exists for this stage", async () => {

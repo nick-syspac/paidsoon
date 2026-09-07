@@ -2,6 +2,10 @@ import { before, beforeEach, afterEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
 import { TRACE_DEBUG_HEADER, TRACE_ID_HEADER } from "@/lib/diagnostics/shared"
 
+class AuthApiError extends Error {
+  name = "AuthApiError"
+}
+
 type SignInResult = {
   error: Error | null
   data?: { user: { id: string } } | null
@@ -139,6 +143,28 @@ describe("POST /api/auth/sign-in diagnostic tracing", () => {
     const output = [...info.mock.calls, ...warn.mock.calls].map((call) => String(call.arguments[0])).join("\n")
     assert.match(output, /"status":503/)
     assert.match(output, /Invalid API key/)
+    assert.ok(!output.includes("secret-password"))
+    assert.ok(!output.includes("turnstile-token"))
+  })
+
+  test("returns 503 when Supabase CAPTCHA protection is misconfigured", async () => {
+    process.env.DEBUG = "true"
+    signInResult = {
+      error: new AuthApiError("captcha protection: request disallowed (invalid-input-secret)"),
+    }
+    const info = mock.method(console, "info", () => undefined)
+    const warn = mock.method(console, "warn", () => undefined)
+
+    const response = await POST(
+      makeRequest({ email: "user@example.com", password: "secret-password", cfToken: "turnstile-token" }),
+    )
+
+    assert.equal(response.status, 503)
+    assert.deepEqual(await response.json(), { error: "Authentication service unavailable" })
+
+    const output = [...info.mock.calls, ...warn.mock.calls].map((call) => String(call.arguments[0])).join("\n")
+    assert.match(output, /invalid-input-secret/)
+    assert.match(output, /"status":503/)
     assert.ok(!output.includes("secret-password"))
     assert.ok(!output.includes("turnstile-token"))
   })

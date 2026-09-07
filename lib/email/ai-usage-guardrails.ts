@@ -51,6 +51,7 @@ const AI_REWRITE_POLICY_BY_TIER: Record<SubscriptionTier, AiRewriteGuardrailPoli
   starter: null,
   solo: { monthlyQuota: 120, hourlyCap: 12, burstCap: 3 },
   small_business: { monthlyQuota: 500, hourlyCap: 20, burstCap: 5 },
+  business_pro: { monthlyQuota: 1000, hourlyCap: 30, burstCap: 6 },
   accountant_partner: { monthlyQuota: 1500, hourlyCap: 40, burstCap: 8 },
 }
 

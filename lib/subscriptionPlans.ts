@@ -2,6 +2,7 @@ export type SubscriptionTier =
   | "starter"
   | "solo"
   | "small_business"
+  | "business_pro"
   | "accountant_partner"
 
 /** Where a tier may be surfaced. Contact-only tiers are resolvable by identifier
@@ -89,10 +90,10 @@ export const DEFAULT_SUBSCRIPTION_TIER: SubscriptionTier = "starter"
 export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   starter: {
     id: "starter",
-    name: "Starter",
+    name: "Essentials",
     monthlyPriceAud: 9,
     visibility: "public",
-    tagline: "For side hustlers and occasional invoicers.",
+    tagline: "Automate day-to-day cash control.",
     limits: {
       chasedInvoicesPerMonth: 10,
       userSeats: 1,
@@ -129,8 +130,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     name: "Solo",
     monthlyPriceAud: 19,
     visibility: "public",
-    popular: true,
-    tagline: "For full-time sole traders and freelancers.",
+    tagline: "Get paid and understand your cash.",
     limits: {
       chasedInvoicesPerMonth: 50,
       userSeats: 1,
@@ -167,10 +167,48 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     name: "Small Business",
     monthlyPriceAud: 39,
     visibility: "public",
-    tagline: "For small businesses with an admin/accounts team.",
+    popular: true,
+    tagline: "Give the team control over spending and cash flow.",
     limits: {
       chasedInvoicesPerMonth: 200,
       userSeats: 3,
+      connectedInvoiceSources: 1,
+    },
+    features: {
+      basic_email_reminders: true,
+      email_reminder_sequence: true,
+      customer_specific_sequences: true,
+      basic_templates: true,
+      custom_reminder_templates: true,
+      multi_template_customer_wording: true,
+      paid_soon_branding: true,
+      custom_reply_to: true,
+      custom_sender_name: true,
+      verified_from_domain: true,
+      ai_rewrite: true,
+      tone_settings: true,
+      payment_status_dashboard: true,
+      overdue_invoice_dashboard: true,
+      accounting_integrations: true,
+      promise_to_pay_tracking: true,
+      dispute_pause: true,
+      weekly_summary_email: true,
+      csv_export: true,
+      approval_mode: true,
+      contact_suppression: true,
+      team_seats: true,
+      multi_client_management: false,
+    },
+  },
+  business_pro: {
+    id: "business_pro",
+    name: "Business Pro",
+    monthlyPriceAud: 99,
+    visibility: "public",
+    tagline: "Manage complex businesses with governance and forecasting.",
+    limits: {
+      chasedInvoicesPerMonth: 1000,
+      userSeats: 10,
       connectedInvoiceSources: 1,
     },
     features: {
@@ -238,11 +276,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   },
 }
 
-/** Ordered lowest to highest, including the hidden contact-only tier at the end. */
+/** Ordered lowest to highest, reflecting the recommended customer-facing ladder
+ * of Essentials → Solo → Small Business → Business Pro, with the hidden
+ * contact-only tier at the end. */
 export const PLAN_ORDER: SubscriptionTier[] = [
   "starter",
   "solo",
   "small_business",
+  "business_pro",
   "accountant_partner",
 ]
 
