@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
 import { getCtaForLiveMode } from "@/components/marketing/marketingContent"
 
@@ -25,6 +25,7 @@ const topLinks = [
 export function MarketingNav({ liveMode }: { liveMode: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [productOpen, setProductOpen] = useState(false)
+  const productMenuRef = useRef<HTMLDivElement | null>(null)
   const cta = getCtaForLiveMode(liveMode)
 
   return (
@@ -47,16 +48,21 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
 
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-6" aria-label="Main navigation">
-          <div className="relative">
+          <div
+            ref={productMenuRef}
+            className="relative"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setProductOpen(false)
+              }
+            }}
+          >
             <button
               type="button"
               className="text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1 py-1"
               aria-haspopup="true"
               aria-expanded={productOpen}
               onClick={() => setProductOpen((value) => !value)}
-              onBlur={() => {
-                setTimeout(() => setProductOpen(false), 120)
-              }}
             >
               Product
             </button>
