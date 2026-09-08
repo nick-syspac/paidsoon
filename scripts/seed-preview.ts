@@ -979,6 +979,15 @@ async function cleanup(userIds: string[]): Promise<void> {
       OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
     },
   })
+  await prismaAdmin.marginAlertEvent.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginAlert.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginOpportunity.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginSnapshot.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginScenario.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginCostClassification.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginClassificationRule.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginGuardTarget.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginGuardSetting.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.cashForecastSnapshot.deleteMany({
     where: {
       OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
@@ -1046,6 +1055,9 @@ interface SeedCounters {
   spendSuppliers: number
   spendInsights: number
   cashSnapshots: number
+  marginSnapshots: number
+  marginAlerts: number
+  marginOpportunities: number
 }
 
 /** Deterministic, obviously-fake token (never a real credential). */
@@ -1435,6 +1447,322 @@ async function seedSpendLeakFoundation(
     },
   })
   counters.cashSnapshots += 1
+}
+
+async function seedMarginGuardFoundation(
+  userId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  await prismaAdmin.marginGuardSetting.create({
+    data: {
+      userId,
+      enabled: true,
+      defaultPeriod: "3m",
+      targetGrossMarginPercent: profile === "coastline" ? 38 : 35,
+      warningGrossMarginPercent: profile === "coastline" ? 33 : 31,
+      criticalGrossMarginPercent: profile === "coastline" ? 28 : 27,
+      minCompletenessPercent: 70,
+      alertDigestMode: "weekly",
+    },
+  })
+
+  await prismaAdmin.marginGuardTarget.create({
+    data: {
+      userId,
+      scopeType: "organization",
+      scopeKey: null,
+      targetGrossMarginPercent: profile === "coastline" ? 38 : 35,
+      warningGrossMarginPercent: profile === "coastline" ? 33 : 31,
+      criticalGrossMarginPercent: profile === "coastline" ? 28 : 27,
+      createdBy: "seed-preview",
+      updatedBy: "seed-preview",
+    },
+  })
+
+  const focusEmails = profile === "coastline"
+    ? [
+        "accounts@camberwellstrata.example.test",
+        "ap@docklandsfm.example.test",
+        "accounts@sunshinemetalworks.example.test",
+      ]
+    : [
+        "accounts@healesvilleretreat.example.test",
+        "finance@warburtonadventure.example.test",
+      ]
+
+  const contacts = await prismaAdmin.financialContact.findMany({
+    where: {
+      userId,
+      emailLower: { in: focusEmails },
+    },
+    select: { id: true, emailLower: true },
+  })
+
+  const byEmail = new Map(contacts.map((contact) => [contact.emailLower ?? "", contact.id]))
+
+  const scopedTargets = profile === "coastline"
+    ? [
+        { email: "accounts@camberwellstrata.example.test", target: 42, warning: 37, critical: 32 },
+        { email: "ap@docklandsfm.example.test", target: 36, warning: 31, critical: 27 },
+        { email: "accounts@sunshinemetalworks.example.test", target: 34, warning: 28, critical: 24 },
+      ]
+    : [
+        { email: "accounts@healesvilleretreat.example.test", target: 37, warning: 32, critical: 28 },
+        { email: "finance@warburtonadventure.example.test", target: 35, warning: 30, critical: 26 },
+      ]
+
+  for (const target of scopedTargets) {
+    const contactId = byEmail.get(target.email)
+    if (!contactId) continue
+
+    await prismaAdmin.marginGuardTarget.create({
+      data: {
+        userId,
+        scopeType: "customer",
+        scopeKey: contactId,
+        targetGrossMarginPercent: target.target,
+        warningGrossMarginPercent: target.warning,
+        criticalGrossMarginPercent: target.critical,
+        createdBy: "seed-preview",
+        updatedBy: "seed-preview",
+      },
+    })
+  }
+
+  const snapshotRows = profile === "coastline"
+    ? [
+        {
+          periodStart: clock.startOfDay(-90),
+          periodEnd: clock.endOfDay(-61),
+          revenueCents: 1_320_000,
+          directCostCents: 765_000,
+          variableCostCents: 132_000,
+          grossProfitCents: 555_000,
+          grossMarginPercent: 42,
+          completenessPercent: 92,
+          confidence: "high",
+          status: "healthy",
+        },
+        {
+          periodStart: clock.startOfDay(-60),
+          periodEnd: clock.endOfDay(-31),
+          revenueCents: 1_410_000,
+          directCostCents: 965_000,
+          variableCostCents: 151_000,
+          grossProfitCents: 445_000,
+          grossMarginPercent: 31.56,
+          completenessPercent: 84,
+          confidence: "medium",
+          status: "watch",
+        },
+        {
+          periodStart: clock.startOfDay(-30),
+          periodEnd: clock.endOfDay(-1),
+          revenueCents: 1_370_000,
+          directCostCents: 975_000,
+          variableCostCents: 179_000,
+          grossProfitCents: 395_000,
+          grossMarginPercent: 28.83,
+          completenessPercent: 74,
+          confidence: "medium",
+          status: "critical",
+        },
+      ]
+    : [
+        {
+          periodStart: clock.startOfDay(-30),
+          periodEnd: clock.endOfDay(-1),
+          revenueCents: 486_000,
+          directCostCents: 296_000,
+          variableCostCents: 44_000,
+          grossProfitCents: 190_000,
+          grossMarginPercent: 39.09,
+          completenessPercent: 88,
+          confidence: "high",
+          status: "healthy",
+        },
+      ]
+
+  const createdSnapshots = [] as Array<{ id: string; status: string }>
+  for (const row of snapshotRows) {
+    const snapshot = await prismaAdmin.marginSnapshot.create({
+      data: {
+        userId,
+        periodGranularity: "monthly",
+        periodStart: row.periodStart,
+        periodEnd: row.periodEnd,
+        currency: CURRENCY,
+        revenueCents: row.revenueCents,
+        directCostCents: row.directCostCents,
+        variableCostCents: row.variableCostCents,
+        grossProfitCents: row.grossProfitCents,
+        grossMarginPercent: row.grossMarginPercent,
+        contributionMarginCents: row.revenueCents - row.variableCostCents,
+        contributionMarginPercent: Number((((row.revenueCents - row.variableCostCents) / row.revenueCents) * 100).toFixed(2)),
+        completenessPercent: row.completenessPercent,
+        confidence: row.confidence,
+        status: row.status,
+        assumptions: {
+          source: "seed-preview",
+          profile,
+          includesDeteriorationSeries: profile === "coastline",
+        },
+        calculatedAt: row.periodEnd,
+      },
+    })
+    createdSnapshots.push({ id: snapshot.id, status: row.status })
+    counters.marginSnapshots += 1
+  }
+
+  await prismaAdmin.marginCostClassification.createMany({
+    data: [
+      {
+        userId,
+        sourceType: "imported_bill",
+        sourceRecordId: `${profile}-marginguard-uncategorized-bill-1`,
+        classification: "UNCLASSIFIED",
+        classificationOrigin: "default",
+        confidence: "low",
+        metadata: {
+          source: "seed-preview",
+          reason: "awaiting category review",
+        } as Prisma.InputJsonValue,
+      },
+      {
+        userId,
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: `${profile}-marginguard-uncategorized-txn-1`,
+        classification: "UNCLASSIFIED",
+        classificationOrigin: "default",
+        confidence: "low",
+        metadata: {
+          source: "seed-preview",
+          reason: "counterparty mapping missing",
+        } as Prisma.InputJsonValue,
+      },
+      {
+        userId,
+        sourceType: "imported_bill",
+        sourceRecordId: `${profile}-marginguard-directcost-bill-1`,
+        classification: "DIRECT_COST",
+        classificationOrigin: "rule",
+        confidence: "high",
+        metadata: {
+          source: "seed-preview",
+          ruleName: "Material and freight baseline",
+        } as Prisma.InputJsonValue,
+      },
+    ],
+  })
+
+  const latestSnapshot = createdSnapshots[createdSnapshots.length - 1]
+  if (latestSnapshot && profile === "coastline") {
+    const criticalAlert = await prismaAdmin.marginAlert.create({
+      data: {
+        userId,
+        marginSnapshotId: latestSnapshot.id,
+        alertType: "margin.below_critical",
+        scopeType: "organization",
+        scopeKey: null,
+        severity: "critical",
+        status: "open",
+        title: "Gross margin below critical threshold",
+        message: "Monthly gross margin has dropped below the configured critical threshold.",
+        evidence: {
+          source: "seed-preview",
+          profile,
+          grossMarginPercent: 28.83,
+          criticalThreshold: 28,
+        } as Prisma.InputJsonValue,
+        estimatedImpactCents: 124_000,
+        confidence: "medium",
+        detectedAt: clock.daysAgo(2),
+      },
+    })
+
+    await prismaAdmin.marginAlertEvent.create({
+      data: {
+        userId,
+        marginAlertId: criticalAlert.id,
+        eventType: "created",
+        actorId: "seed-preview",
+        newStatus: "open",
+        metadata: {
+          source: "seed-preview",
+        } as Prisma.InputJsonValue,
+      },
+    })
+
+    await prismaAdmin.marginAlert.create({
+      data: {
+        userId,
+        marginSnapshotId: latestSnapshot.id,
+        alertType: "margin.deterioration",
+        scopeType: "organization",
+        scopeKey: null,
+        severity: "warning",
+        status: "acknowledged",
+        title: "Gross margin deteriorating period-over-period",
+        message: "Gross margin has fallen for two consecutive monthly snapshots.",
+        evidence: {
+          source: "seed-preview",
+          profile,
+          trend: [42, 31.56, 28.83],
+        } as Prisma.InputJsonValue,
+        confidence: "medium",
+        detectedAt: clock.daysAgo(4),
+        acknowledgedAt: clock.daysAgo(3),
+      },
+    })
+
+    counters.marginAlerts += 2
+
+    await prismaAdmin.marginOpportunity.createMany({
+      data: [
+        {
+          userId,
+          opportunityType: "pricing",
+          scopeType: "customer",
+          scopeKey: byEmail.get("accounts@sunshinemetalworks.example.test") ?? null,
+          severity: "critical",
+          status: "open",
+          title: "Reprice high-effort fixed-fee work",
+          description: "Sunshine Metal Works jobs are consuming disproportionate direct costs compared to billed revenue.",
+          evidence: {
+            source: "seed-preview",
+            customerStatus: "critical",
+            action: "price review before next quote",
+          } as Prisma.InputJsonValue,
+          estimatedMonthlyCents: 45_000,
+          estimatedAnnualCents: 540_000,
+          confidence: "medium",
+          detectedAt: clock.daysAgo(2),
+        },
+        {
+          userId,
+          opportunityType: "classification",
+          scopeType: "organization",
+          scopeKey: null,
+          severity: "warning",
+          status: "open",
+          title: "Classify remaining spend records",
+          description: "Unclassified spend items are lowering confidence in margin attribution.",
+          evidence: {
+            source: "seed-preview",
+            unclassifiedCount: 2,
+            action: "apply supplier rules",
+          } as Prisma.InputJsonValue,
+          estimatedMonthlyCents: null,
+          estimatedAnnualCents: null,
+          confidence: "medium",
+          detectedAt: clock.daysAgo(1),
+        },
+      ],
+    })
+    counters.marginOpportunities += 2
+  }
 }
 
 async function createInvoices(
@@ -1850,6 +2178,7 @@ async function seedCoastline(
   counters.syncRuns++
 
   await seedSpendLeakFoundation(userId, myobConnection.id, "coastline", clock, counters)
+  await seedMarginGuardFoundation(userId, "coastline", clock, counters)
 
   await prismaAdmin.accountingSyncRun.create({
     data: {
@@ -1939,7 +2268,7 @@ async function seedCoastline(
   })
 
   console.log(
-    `  ✓ ${COASTLINE_INVOICES.length} invoices, 4 promises, 4 arrangements, MYOB connection and SpendLeak fixtures`,
+    `  ✓ ${COASTLINE_INVOICES.length} invoices, 4 promises, 4 arrangements, MYOB connection, SpendLeak fixtures, MarginGuard fixtures`,
   )
 }
 
@@ -2095,6 +2424,7 @@ async function seedYarraValley(
   counters.syncRuns++
 
   await seedSpendLeakFoundation(userId, xeroConnection.id, "yarra", clock, counters)
+  await seedMarginGuardFoundation(userId, "yarra", clock, counters)
 
   await prismaAdmin.accountingSyncRun.create({
     data: {
@@ -2141,7 +2471,7 @@ async function seedYarraValley(
     counters.mappings += 1
   }
 
-  console.log(`  ✓ ${YARRA_VALLEY_INVOICES.length} invoices, 1 promise, Xero connection and SpendLeak fixtures`)
+  console.log(`  ✓ ${YARRA_VALLEY_INVOICES.length} invoices, 1 promise, Xero connection, SpendLeak fixtures, MarginGuard fixtures`)
 }
 
 // ---------------------------------------------------------------------------
@@ -2203,6 +2533,9 @@ async function main(): Promise<void> {
     spendSuppliers: 0,
     spendInsights: 0,
     cashSnapshots: 0,
+    marginSnapshots: 0,
+    marginAlerts: 0,
+    marginOpportunities: 0,
   }
 
   await seedCoastline(byKey.get("owner")!, clock, counters)
@@ -2224,6 +2557,9 @@ async function main(): Promise<void> {
   console.log(`  SpendLeak suppliers:  ${counters.spendSuppliers}`)
   console.log(`  SpendLeak findings:   ${counters.spendInsights}`)
   console.log(`  Cash snapshots:       ${counters.cashSnapshots}`)
+  console.log(`  Margin snapshots:     ${counters.marginSnapshots}`)
+  console.log(`  Margin alerts:        ${counters.marginAlerts}`)
+  console.log(`  Margin opportunities: ${counters.marginOpportunities}`)
 
   console.log("\nDevelopment sign-in (development environments only):")
   for (const account of Object.values(ACCOUNTS)) {

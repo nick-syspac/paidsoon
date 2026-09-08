@@ -21,10 +21,12 @@ import { buildCurrencyDashboardSummaries } from "@/lib/dashboard/currencySummary
 import Link from "next/link"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
+import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
 import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperationsSummary"
 import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
 import { formatAudCents, getSpendLeakEvidenceSource } from "@/lib/dashboard/spendleakPresentation"
 import { buildCostGuardNotificationPlan } from "@/lib/costGuard/foundation"
+import { getMarginSummary, getMarginTrends } from "@/lib/marginguard/service"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
 import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
 import { buildTaxBufferDigestSummary } from "@/lib/taxBuffer/engine"
@@ -118,9 +120,12 @@ export default async function DashboardOverviewPage({
   } = await loadDashboardOverview(user.id, traceContext, COMPONENT)
 
   const canViewSpendLeak = canAccessSpendLeak(profile?.subscriptionTier)
+  const canViewMarginGuard = canAccessMarginGuard(profile?.subscriptionTier)
   const canViewTaxBuffer = canAccessTaxBuffer(profile?.subscriptionTier)
   const canViewCommitGuard = hasPlanFeature(profile?.subscriptionTier, "commitguard_core")
   const spendLeakData = canViewSpendLeak ? await loadSpendLeakDashboard(user.id) : null
+  const marginSummary = canViewMarginGuard ? await getMarginSummary(user.id) : null
+  const marginTrendsComparison = canViewMarginGuard ? await getMarginTrends(user.id, undefined, "previous_period") : null
   const taxBufferSummary = canViewTaxBuffer ? await loadTaxBufferSummary(user.id) : null
   const commitGuardSummary = canViewCommitGuard
     ? await summarizeCommitGuard({
@@ -150,6 +155,15 @@ export default async function DashboardOverviewPage({
     hasAccountingConnection: spendLeakData?.hasAccountingConnection ?? false,
     latestSyncAt: spendLeakData?.latestSyncAt ?? null,
   })
+  const marginTrendDirection = marginTrendsComparison?.comparison.deltaGrossMarginPercent
+  const marginTrendLabel =
+    marginTrendDirection === null || marginTrendDirection === undefined
+      ? "No prior trend available"
+      : marginTrendDirection > 0
+        ? `Improving +${marginTrendDirection.toFixed(1)} pp`
+        : marginTrendDirection < 0
+          ? `Declining ${marginTrendDirection.toFixed(1)} pp`
+          : "Flat 0.0 pp"
 
   const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
   const now = new Date()
@@ -575,6 +589,53 @@ export default async function DashboardOverviewPage({
         ) : (
           <p className="mt-4 text-sm text-gray-500">
             Spend-side insights are not yet available on your current tier.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">MarginGuard summary</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Gross margin health against your target, with trend context from the prior period.
+            </p>
+          </div>
+          <Link
+            href={canViewMarginGuard ? "/dashboard/margin-guard" : "/dashboard?intent=marginguard"}
+            className="shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            {canViewMarginGuard ? "Open MarginGuard" : "Unlock MarginGuard"}
+          </Link>
+        </div>
+        {canViewMarginGuard && marginSummary ? (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Gross margin</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">
+                {marginSummary.grossMarginPercent === null ? "N/A" : `${marginSummary.grossMarginPercent.toFixed(1)}%`}
+              </p>
+              <p className="mt-1 text-xs text-gray-600">Current operating gross margin</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Target margin</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{marginSummary.targetGrossMarginPercent.toFixed(1)}%</p>
+              <p className="mt-1 text-xs text-gray-600">Configured threshold baseline</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Trend direction</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{marginTrendLabel}</p>
+              <p className="mt-1 text-xs text-gray-600">Compared with previous period</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Open alerts</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{marginSummary.alertsOpenCount}</p>
+              <p className="mt-1 text-xs text-gray-600">Margin conditions requiring review</p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">
+            Upgrade to unlock MarginGuard summary metrics and proactive margin alerts in your FinOps overview.
           </p>
         )}
       </section>

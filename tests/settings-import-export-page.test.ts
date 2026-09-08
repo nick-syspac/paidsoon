@@ -5,6 +5,7 @@ import { ImportExportSettingsView } from "@/components/settings/ImportExportSett
 import {
   IMPORT_EXPORT_SETTINGS_INVOICE_EXPORT_ANCHOR,
   IMPORT_EXPORT_SETTINGS_INVOICE_IMPORT_ANCHOR,
+  IMPORT_EXPORT_SETTINGS_MARGINGUARD_EXPORT_ANCHOR,
   IMPORT_EXPORT_SETTINGS_ROUTE,
 } from "@/lib/settings/importExportRoutes"
 
@@ -51,6 +52,7 @@ describe("combined settings import/export surface", () => {
     assert.equal(IMPORT_EXPORT_SETTINGS_ROUTE, "/dashboard/settings/import-export")
     assert.equal(IMPORT_EXPORT_SETTINGS_INVOICE_IMPORT_ANCHOR, "/dashboard/settings/import-export#invoice-import")
     assert.equal(IMPORT_EXPORT_SETTINGS_INVOICE_EXPORT_ANCHOR, "/dashboard/settings/import-export#invoice-export")
+    assert.equal(IMPORT_EXPORT_SETTINGS_MARGINGUARD_EXPORT_ANCHOR, "/dashboard/settings/import-export#marginguard-export")
   })
 
   test("renders invoice import, expense import, and export sections on one page", () => {
@@ -58,6 +60,7 @@ describe("combined settings import/export surface", () => {
       initialBatches,
       initialSpendBatches,
       canExport: true,
+      canManageMarginGuard: true,
       canManageCommitGuard: true,
       exportCustomers,
     }) as { props: { className?: string; children?: unknown } }
@@ -65,7 +68,7 @@ describe("combined settings import/export surface", () => {
 
     const children = Array.isArray(element.props.children) ? element.props.children : [element.props.children]
     const sectionIds = children.filter(Boolean).map((child: { props?: { id?: string } }) => child?.props?.id)
-    assert.deepEqual(sectionIds, ["invoice-import", "expense-import", "invoice-export", "commitguard-settings"])
+    assert.deepEqual(sectionIds, ["invoice-import", "expense-import", "invoice-export", "marginguard-export", "commitguard-settings"])
 
     const exportSection = children[2] as { props?: { children?: unknown } }
     const exportClient = Array.isArray(exportSection.props?.children)
@@ -79,6 +82,7 @@ describe("combined settings import/export surface", () => {
       initialBatches,
       initialSpendBatches,
       canExport: false,
+      canManageMarginGuard: false,
       canManageCommitGuard: false,
       exportCustomers: [],
     }) as { props: { children?: unknown } }

@@ -115,7 +115,8 @@ All three accounts share the password `PaidSoonDev!2026` (or `SEED_USER_PASSWORD
 configuration: verified custom sender (`accounts@coastline-demo.test`), a
 reminder schedule of 3 / 10 / 21 days after due date, a promise-escalation
 policy, a customised stage-1 template, Stripe and MYOB invoice connections, an
-MYOB accounting connection with sync history, and AI usage records.
+MYOB accounting connection with sync history, deterministic MarginGuard fixtures,
+and AI usage records.
 
 **Ageing coverage**
 
@@ -166,6 +167,20 @@ connection, so Starter-tier gating and upsell prompts are visible.
 4 invoices, its own schedule and Stripe + Xero connections, one active promise
 to pay, and a Xero accounting connection in the `error` state with a failed
 `invalid_grant` sync run. Shares no customers with the primary tenant.
+
+### MarginGuard fixtures (seeded)
+
+The seed now creates deterministic MarginGuard records for both Business-tier
+accounts so module UI, exports, and alert/opportunity flows are testable without
+manual setup.
+
+| Coverage | Coastline (primary) | Yarra Valley (second tenant) |
+|---|---|---|
+| Customer margin states | Explicit healthy/watch/critical customer target profiles | Healthy/watch targets |
+| Trend behavior | 3 monthly snapshots with deterioration (healthy → watch → critical) | 1 healthy monthly snapshot |
+| Data quality | Unclassified cost classification fixtures | Unclassified cost classification fixtures |
+| Alerts | Open critical + acknowledged deterioration alerts | none (healthy baseline) |
+| Opportunities | Open pricing + classification opportunities with evidence/action hints | none (healthy baseline) |
 
 ---
 

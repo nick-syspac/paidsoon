@@ -117,15 +117,24 @@ After DNS propagates (usually <10 min), Vercel will auto-provision the TLS certi
 ```json
 {
   "crons": [
-    { "path": "/api/cron/send-emails", "schedule": "0 9 * * *" }
+    { "path": "/api/cron/send-emails", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/sync-accounting", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/invoice-import-cleanup", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/margin-guard-snapshots", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" }
   ]
 }
 ```
 
 Vercel auto-detects this on import. Verify in **Settings → Cron Jobs** that the entry appears.
 
-- **Schedule**: `0 9 * * *` → daily at 09:00 **UTC**.
-- **Path**: `/api/cron/send-emails` — handled by [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts).
+- **Schedules**:
+  - `0 2 * * *` → `/api/cron/sync-accounting`
+  - `0 3 * * *` → `/api/cron/invoice-import-cleanup`
+  - `0 4 * * *` → `/api/cron/margin-guard-snapshots`
+  - `0 9 * * *` → `/api/cron/send-emails`
+  - `0 12 * * *` → `/api/cron/scheduling-watchdog`
+- **Paths**: handlers live under [app/api/cron](../../app/api/cron).
 - **Auth**: the route checks `Authorization: Bearer $CRON_SECRET` and returns 401 otherwise. Vercel sets this header automatically for its own cron invocations using the `CRON_SECRET` env var you set in §2.
 
 > **Cron does NOT fire on Preview deployments.** Vercel only schedules cron jobs against the Production deployment. To exercise the email path on a preview (or locally), use the manual trigger in §6 below.
@@ -155,7 +164,7 @@ openssl rand -hex 32
 
 Required on Production. Optional on Preview and Development — the cron does not run there, so the variable is unread. (Set it anyway in `.env.local` if you plan to use the manual trigger in §6.)
 
-The value never appears in any client bundle; it is only read by [send-emails/route.ts L11](../../app/api/cron/send-emails/route.ts#L11).
+The value never appears in any client bundle; it is only read by cron route handlers under [app/api/cron](../../app/api/cron).
 
 ---
 

@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/invoice-import-cleanup",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/margin-guard-snapshots",
+      "schedule": "0 4 * * *"
     }
   ]
 }

@@ -54,6 +54,10 @@ and composes safe-to-spend cash using available cash and near-term commitments. 
 through dedicated dashboard/settings pages and a session-authenticated API surface, with
 tenant-scoped persistence and RLS policies across all Tax Buffer tables.
 
+**MarginGuard status:** the repository now includes a first-class margin intelligence layer with
+deterministic summary/trend/customer analytics, configurable targets and alerts, snapshot/alert/
+opportunity background sweeps, overview integration, and tenant-scoped CSV/XLSX export datasets.
+
 **There is no multi-vertical platform.** PaidSoon is a single product, single
 tenant-type system (one freelancer = one tenant, keyed by Supabase
 `auth.users.id`). There are no organisations, workspaces, teams, RBAC roles,
@@ -218,6 +222,7 @@ what is actually present, and explicitly marks absent capabilities.
 | Email settings | Custom verified from-address | Implemented | `app/api/settings/email/route.ts`, `lib/email/send.ts` | `.../specs/email-settings/spec.md` | Resend domain verify polling |
 | Manual invoice actions | Pause / resume / snooze / resolve | Implemented | `app/api/invoices/[id]/**` | `.../specs/dashboard/spec.md` | RLS-scoped |
 | Dashboard | Overdue + resolved views, upsell | Implemented | `app/dashboard/page.tsx`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell/specs/...` | Feature-gated modules |
+| MarginGuard | Margin analytics, threshold alerts, opportunities, and exportable datasets | Implemented | `lib/marginguard/**`, `app/api/margin-guard/**`, `app/api/cron/margin-guard-snapshots/route.ts`, `app/dashboard/margin-guard/**`, `app/dashboard/settings/margin-guard/**` | `changes/implement-marginguard-finops-module` | Overview card on `/dashboard`; cross-module signal integration with SpendLeak, Cost Guard, CommitGuard, and CashPlan while preserving tax-reserve separation |
 | CommitGuard | Commitment registry, detection/review queue, horizon projection, and free-cash guardrails | Implemented | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | `changes/add-commitguard-module` | Bridges spend-side signals to planning by converting recurring commitments into deterministic outflow and free-cash signals |
 | Tax Buffer | Tax reserve control layer and safe-to-spend composition | Implemented | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | `changes/add-tax-buffer-module` | First-time setup suggestions, category-level methods, deduplicated reserve events |
 | Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/restore-three-tier-pricing/specs/...` | 4 tiers: Starter A$9 / Solo A$19 / Small Business A$39 (public) / Accountant Partner (contact us, hidden) |

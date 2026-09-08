@@ -46,6 +46,15 @@ ALTER TABLE commit_guard_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commitments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commitment_detection_candidates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commitment_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_guard_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_guard_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_classification_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_cost_classifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_alert_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_scenarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_opportunities ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles
@@ -325,6 +334,163 @@ DROP POLICY IF EXISTS "users can delete own oauth states" ON oauth_states;
 CREATE POLICY "users can delete own oauth states"
   ON oauth_states FOR DELETE
   USING (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
+-- MarginGuard foundation tables
+-- ---------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS "users can view own margin guard settings" ON margin_guard_settings;
+CREATE POLICY "users can view own margin guard settings"
+  ON margin_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin guard settings" ON margin_guard_settings;
+CREATE POLICY "users can insert own margin guard settings"
+  ON margin_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin guard settings" ON margin_guard_settings;
+CREATE POLICY "users can update own margin guard settings"
+  ON margin_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin guard targets" ON margin_guard_targets;
+CREATE POLICY "users can view own margin guard targets"
+  ON margin_guard_targets FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin guard targets" ON margin_guard_targets;
+CREATE POLICY "users can insert own margin guard targets"
+  ON margin_guard_targets FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin guard targets" ON margin_guard_targets;
+CREATE POLICY "users can update own margin guard targets"
+  ON margin_guard_targets FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin classification rules" ON margin_classification_rules;
+CREATE POLICY "users can view own margin classification rules"
+  ON margin_classification_rules FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin classification rules" ON margin_classification_rules;
+CREATE POLICY "users can insert own margin classification rules"
+  ON margin_classification_rules FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin classification rules" ON margin_classification_rules;
+CREATE POLICY "users can update own margin classification rules"
+  ON margin_classification_rules FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own margin classification rules" ON margin_classification_rules;
+CREATE POLICY "users can delete own margin classification rules"
+  ON margin_classification_rules FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin cost classifications" ON margin_cost_classifications;
+CREATE POLICY "users can view own margin cost classifications"
+  ON margin_cost_classifications FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin cost classifications" ON margin_cost_classifications;
+CREATE POLICY "users can insert own margin cost classifications"
+  ON margin_cost_classifications FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin cost classifications" ON margin_cost_classifications;
+CREATE POLICY "users can update own margin cost classifications"
+  ON margin_cost_classifications FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own margin cost classifications" ON margin_cost_classifications;
+CREATE POLICY "users can delete own margin cost classifications"
+  ON margin_cost_classifications FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin alerts" ON margin_alerts;
+CREATE POLICY "users can view own margin alerts"
+  ON margin_alerts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin alerts" ON margin_alerts;
+CREATE POLICY "users can insert own margin alerts"
+  ON margin_alerts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin alerts" ON margin_alerts;
+CREATE POLICY "users can update own margin alerts"
+  ON margin_alerts FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin alert events" ON margin_alert_events;
+CREATE POLICY "users can view own margin alert events"
+  ON margin_alert_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin alert events" ON margin_alert_events;
+CREATE POLICY "users can insert own margin alert events"
+  ON margin_alert_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin snapshots" ON margin_snapshots;
+CREATE POLICY "users can view own margin snapshots"
+  ON margin_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin snapshots" ON margin_snapshots;
+CREATE POLICY "users can insert own margin snapshots"
+  ON margin_snapshots FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin snapshots" ON margin_snapshots;
+CREATE POLICY "users can update own margin snapshots"
+  ON margin_snapshots FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin scenarios" ON margin_scenarios;
+CREATE POLICY "users can view own margin scenarios"
+  ON margin_scenarios FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin scenarios" ON margin_scenarios;
+CREATE POLICY "users can insert own margin scenarios"
+  ON margin_scenarios FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin scenarios" ON margin_scenarios;
+CREATE POLICY "users can update own margin scenarios"
+  ON margin_scenarios FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own margin scenarios" ON margin_scenarios;
+CREATE POLICY "users can delete own margin scenarios"
+  ON margin_scenarios FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin opportunities" ON margin_opportunities;
+CREATE POLICY "users can view own margin opportunities"
+  ON margin_opportunities FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin opportunities" ON margin_opportunities;
+CREATE POLICY "users can insert own margin opportunities"
+  ON margin_opportunities FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin opportunities" ON margin_opportunities;
+CREATE POLICY "users can update own margin opportunities"
+  ON margin_opportunities FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- imported_bills

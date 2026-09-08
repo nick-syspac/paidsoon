@@ -56,6 +56,15 @@ model UserProfile {
   costGuardAlerts              CostGuardAlert[]
   costGuardAlertEvents         CostGuardAlertEvent[]
   costGuardForecasts           CostGuardForecast[]
+  marginGuardSettings          MarginGuardSetting[]
+  marginGuardTargets           MarginGuardTarget[]
+  marginCostClassifications    MarginCostClassification[]
+  marginClassificationRules    MarginClassificationRule[]
+  marginAlerts                 MarginAlert[]
+  marginAlertEvents            MarginAlertEvent[]
+  marginSnapshots              MarginSnapshot[]
+  marginScenarios              MarginScenario[]
+  marginOpportunities          MarginOpportunity[]
   taxBufferConfigurations      TaxBufferConfiguration[]
   taxReserveCategories         TaxReserveCategory[]
   taxBufferObligations         TaxBufferObligation[]
@@ -298,6 +307,7 @@ model FinancialInvoice {
   contact              FinancialContact?     @relation(fields: [contactId], references: [id])
   trackedInvoice       TrackedInvoice?
   financialPayments    FinancialPayment[]
+  marginCostClassifications MarginCostClassification[]
   taxBufferObligations TaxBufferObligation[]
 
   @@unique([userId, sourceSystem, sourceId])
@@ -695,6 +705,7 @@ model ImportedBill {
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+  marginCostClassifications MarginCostClassification[]
   taxBufferObligations TaxBufferObligation[]
 
   @@unique([accountingConnectionId, sourceId])
@@ -725,6 +736,7 @@ model ImportedBankTransaction {
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+  marginCostClassifications MarginCostClassification[]
   taxBufferObligations TaxBufferObligation[]
 
   @@unique([accountingConnectionId, sourceId])
@@ -1190,6 +1202,240 @@ model CostGuardForecast {
 
   @@index([userId, forecastMonth])
   @@map("cost_guard_forecasts")
+}
+
+// ---------------------------------------------------------------------------
+// MarginGuard Foundation
+// ---------------------------------------------------------------------------
+
+model MarginGuardSetting {
+  id                             String   @id @default(cuid())
+  userId                         String   @map("user_id")
+  enabled                        Boolean  @default(false)
+  defaultPeriod                  String   @default("30d") @map("default_period")
+  targetGrossMarginPercent       Float    @default(35) @map("target_gross_margin_percent")
+  warningGrossMarginPercent      Float    @default(30) @map("warning_gross_margin_percent")
+  criticalGrossMarginPercent     Float    @default(25) @map("critical_gross_margin_percent")
+  minCompletenessPercent         Float    @default(70) @map("min_completeness_percent")
+  highConfidencePercent          Float    @default(90) @map("high_confidence_percent")
+  mediumConfidencePercent        Float    @default(75) @map("medium_confidence_percent")
+  lowConfidencePercent           Float    @default(50) @map("low_confidence_percent")
+  alertBelowWarning              Boolean  @default(true) @map("alert_below_warning")
+  alertBelowCritical             Boolean  @default(true) @map("alert_below_critical")
+  alertDeterioration             Boolean  @default(true) @map("alert_deterioration")
+  alertNegativeMargin            Boolean  @default(true) @map("alert_negative_margin")
+  alertCustomerMarginWarning     Boolean  @default(true) @map("alert_customer_margin_warning")
+  alertCostIncrease              Boolean  @default(true) @map("alert_cost_increase")
+  alertDataQualityWarning        Boolean  @default(true) @map("alert_data_quality_warning")
+  alertDigestMode                String   @default("daily") @map("alert_digest_mode") // daily | weekly | monthly
+  createdAt                      DateTime @default(now()) @map("created_at")
+  updatedAt                      DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("margin_guard_settings")
+}
+
+model MarginGuardTarget {
+  id                         String    @id @default(cuid())
+  userId                     String    @map("user_id")
+  scopeType                  String    @map("scope_type") // organization | customer | product_service | category | project_job
+  scopeKey                   String?   @map("scope_key")
+  targetGrossMarginPercent   Float     @map("target_gross_margin_percent")
+  warningGrossMarginPercent  Float?    @map("warning_gross_margin_percent")
+  criticalGrossMarginPercent Float?    @map("critical_gross_margin_percent")
+  isActive                   Boolean   @default(true) @map("is_active")
+  createdBy                  String?   @map("created_by")
+  updatedBy                  String?   @map("updated_by")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId, scopeType, scopeKey])
+  @@index([userId, scopeType, isActive])
+  @@map("margin_guard_targets")
+}
+
+model MarginClassificationRule {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  name               String
+  ruleType           String   @map("rule_type") // supplier | category | account | text_match | recurring
+  classification     String // DIRECT_COST | VARIABLE_COST | OVERHEAD | EXCLUDED | UNCLASSIFIED
+  priority           Int      @default(100)
+  enabled            Boolean  @default(true)
+  matchConfig        Json     @map("match_config")
+  createdBy          String?  @map("created_by")
+  updatedBy          String?  @map("updated_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  userProfile          UserProfile                 @relation(fields: [userId], references: [userId])
+  marginClassifications MarginCostClassification[]
+
+  @@index([userId, enabled, priority])
+  @@index([userId, ruleType])
+  @@map("margin_classification_rules")
+}
+
+model MarginCostClassification {
+  id                        String    @id @default(cuid())
+  userId                    String    @map("user_id")
+  sourceType                String    @map("source_type") // imported_bill | imported_bank_transaction | financial_invoice
+  sourceRecordId            String    @map("source_record_id")
+  classification            String // DIRECT_COST | VARIABLE_COST | OVERHEAD | EXCLUDED | UNCLASSIFIED
+  classificationOrigin      String    @default("default") @map("classification_origin") // default | rule | manual
+  confidence                String    @default("medium")
+  overrideLocked            Boolean   @default(false) @map("override_locked")
+  marginClassificationRuleId String?  @map("margin_classification_rule_id")
+  importedBillId            String?   @map("imported_bill_id")
+  importedBankTransactionId String?   @map("imported_bank_transaction_id")
+  financialInvoiceId        String?   @map("financial_invoice_id")
+  metadata                  Json?
+  createdBy                 String?   @map("created_by")
+  updatedBy                 String?   @map("updated_by")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  userProfile            UserProfile              @relation(fields: [userId], references: [userId])
+  rule                   MarginClassificationRule? @relation(fields: [marginClassificationRuleId], references: [id], onDelete: SetNull)
+  importedBill           ImportedBill?            @relation(fields: [importedBillId], references: [id], onDelete: SetNull)
+  importedBankTransaction ImportedBankTransaction? @relation(fields: [importedBankTransactionId], references: [id], onDelete: SetNull)
+  financialInvoice       FinancialInvoice?        @relation(fields: [financialInvoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, sourceType, sourceRecordId])
+  @@index([userId, classification])
+  @@index([userId, sourceType])
+  @@index([marginClassificationRuleId])
+  @@map("margin_cost_classifications")
+}
+
+model MarginSnapshot {
+  id                        String   @id @default(cuid())
+  userId                    String   @map("user_id")
+  periodGranularity         String   @map("period_granularity") // daily | monthly | quarterly | yearly
+  periodStart               DateTime @map("period_start")
+  periodEnd                 DateTime @map("period_end")
+  currency                  String
+  revenueCents              Int      @default(0) @map("revenue_cents")
+  directCostCents           Int      @default(0) @map("direct_cost_cents")
+  variableCostCents         Int      @default(0) @map("variable_cost_cents")
+  grossProfitCents          Int      @default(0) @map("gross_profit_cents")
+  grossMarginPercent        Float?   @map("gross_margin_percent")
+  contributionMarginCents   Int?     @map("contribution_margin_cents")
+  contributionMarginPercent Float?   @map("contribution_margin_percent")
+  completenessPercent       Float    @default(0) @map("completeness_percent")
+  confidence                String   @default("insufficient_data") // high | medium | low | insufficient_data
+  status                    String   @default("insufficient_data") // healthy | watch | warning | critical | insufficient_data
+  assumptions               Json?
+  calculatedAt              DateTime @default(now()) @map("calculated_at")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  alerts      MarginAlert[]
+
+  @@unique([userId, periodGranularity, periodStart, periodEnd])
+  @@index([userId, periodStart])
+  @@index([userId, status])
+  @@map("margin_snapshots")
+}
+
+model MarginAlert {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  marginSnapshotId      String?   @map("margin_snapshot_id")
+  alertType             String    @map("alert_type")
+  scopeType             String    @map("scope_type") // organization | customer | product_service | category | invoice | project_job
+  scopeKey              String?   @map("scope_key")
+  severity              String    @default("warning") // info | warning | critical
+  status                String    @default("open") // open | acknowledged | resolved | dismissed
+  title                 String
+  message               String
+  evidence              Json?
+  estimatedImpactCents  Int?      @map("estimated_impact_cents")
+  confidence            String    @default("medium")
+  detectedAt            DateTime  @default(now()) @map("detected_at")
+  acknowledgedAt        DateTime? @map("acknowledged_at")
+  resolvedAt            DateTime? @map("resolved_at")
+  dismissedAt           DateTime? @map("dismissed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile    @relation(fields: [userId], references: [userId])
+  snapshot    MarginSnapshot? @relation(fields: [marginSnapshotId], references: [id], onDelete: SetNull)
+  events      MarginAlertEvent[]
+
+  @@index([userId, status, severity])
+  @@index([userId, alertType, detectedAt])
+  @@map("margin_alerts")
+}
+
+model MarginAlertEvent {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  marginAlertId String @map("margin_alert_id")
+  eventType   String   @map("event_type") // created | acknowledged | resolved | dismissed | reopened
+  actorId     String?  @map("actor_id")
+  oldStatus   String?  @map("old_status")
+  newStatus   String?  @map("new_status")
+  reason      String?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  alert       MarginAlert @relation(fields: [marginAlertId], references: [id], onDelete: Cascade)
+
+  @@index([marginAlertId, createdAt])
+  @@index([userId, createdAt])
+  @@map("margin_alert_events")
+}
+
+model MarginScenario {
+  id                    String   @id @default(cuid())
+  userId                String   @map("user_id")
+  name                  String
+  scenarioType          String   @map("scenario_type") // price_to_target | cost_change | mixed
+  inputs                Json
+  outputs               Json
+  assumptions           Json?
+  createdBy             String?  @map("created_by")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, scenarioType])
+  @@index([userId, createdAt])
+  @@map("margin_scenarios")
+}
+
+model MarginOpportunity {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  opportunityType        String    @map("opportunity_type") // pricing | cost_reduction | classification | customer_mix | service_mix
+  scopeType              String    @map("scope_type")
+  scopeKey               String?   @map("scope_key")
+  severity               String    @default("warning") // info | warning | critical
+  status                 String    @default("open") // open | accepted | dismissed | resolved
+  title                  String
+  description            String
+  evidence               Json?
+  estimatedMonthlyCents  Int?      @map("estimated_monthly_cents")
+  estimatedAnnualCents   Int?      @map("estimated_annual_cents")
+  confidence             String    @default("medium")
+  detectedAt             DateTime  @default(now()) @map("detected_at")
+  resolvedAt             DateTime? @map("resolved_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, status, severity])
+  @@index([userId, opportunityType, detectedAt])
+  @@map("margin_opportunities")
 }
 
 // ---------------------------------------------------------------------------

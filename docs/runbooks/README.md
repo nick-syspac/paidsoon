@@ -10,7 +10,7 @@ For a condensed per-subsystem env-var checklist (Vercel / Supabase / Railway) wi
 |---|---|---|---|---|---|
 | **Local** | `npm run dev` on your machine | `paidsoon-dev` | test | `onboarding@resend.dev` | manual `curl` only |
 | **Vercel Preview** | every PR / preview deploy | `paidsoon-dev` (shared with Local) | test (shared) | `onboarding@resend.dev` | not scheduled — production only |
-| **Production** | `paidsoon.com` on Vercel | `paidsoon-prod` | live | `billing@paidsoon.com` | daily 09:00 UTC (Vercel Cron) |
+| **Production** | `paidsoon.com` on Vercel | `paidsoon-prod` | live | `billing@paidsoon.com` | daily cron suite (`send-emails`, `sync-accounting`, `invoice-import-cleanup`, `margin-guard-snapshots`, `scheduling-watchdog`) |
 
 Two operating principles:
 
@@ -233,7 +233,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `NEXT_PUBLIC_APP_URL` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/authorize/route.ts](../../app/api/stripe/connect/authorize/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/auth/sign-out/route.ts](../../app/auth/sign-out/route.ts) |
 | `LIVE` | [lib/liveMode.ts](../../lib/liveMode.ts), [proxy.ts](../../proxy.ts), [app/layout.tsx](../../app/layout.tsx) |
 | `DEBUG` | [lib/diagnostics/server.ts](../../lib/diagnostics/server.ts) — server-side diagnostic tracing gate; browser code receives only non-secret trace IDs/debug response headers |
-| `CRON_SECRET` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts) |
+| `CRON_SECRET` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts), [app/api/cron/sync-accounting/route.ts](../../app/api/cron/sync-accounting/route.ts), [app/api/cron/invoice-import-cleanup/route.ts](../../app/api/cron/invoice-import-cleanup/route.ts), [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts), [app/api/cron/margin-guard-snapshots/route.ts](../../app/api/cron/margin-guard-snapshots/route.ts) |
 | `INTERNAL_JOBS_SECRET` | [app/api/internal/jobs/send-reminder/route.ts](../../app/api/internal/jobs/send-reminder/route.ts), [app/api/internal/jobs/sync-connection/route.ts](../../app/api/internal/jobs/sync-connection/route.ts), [app/api/internal/jobs/promise-arrangement-sweep/route.ts](../../app/api/internal/jobs/promise-arrangement-sweep/route.ts), [app/api/internal/jobs/catchup-snooze-sweep/route.ts](../../app/api/internal/jobs/catchup-snooze-sweep/route.ts) |
 | `RAILWAY_WORKER_URL` | [lib/providers/accounting/triggerSyncNow.ts](../../lib/providers/accounting/triggerSyncNow.ts) |
 | `WORKER_TRIGGER_SECRET` | [lib/providers/accounting/triggerSyncNow.ts](../../lib/providers/accounting/triggerSyncNow.ts) |

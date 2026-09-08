@@ -7,6 +7,7 @@ import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
+import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
 import { UserMenu } from "@/components/dashboard/UserMenu"
 import { SupportBanner } from "@/components/dashboard/SupportBanner"
@@ -188,6 +189,7 @@ export default async function DashboardLayout({
         canViewCommitGuard={hasPlanFeature(tier, "commitguard_core")}
         canViewSpendLeak={canAccessSpendLeak(tier)}
         canViewTaxBuffer={canAccessTaxBuffer(tier)}
+        canViewMarginGuard={canAccessMarginGuard(tier)}
       >
         {children}
       </DashboardMain>

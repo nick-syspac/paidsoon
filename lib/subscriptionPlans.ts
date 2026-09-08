@@ -32,6 +32,11 @@ export type SubscriptionFeature =
   | "commitguard_core"
   | "commitguard_detection"
   | "commitguard_advanced_alerts"
+  | "marginguard_core"
+  | "marginguard_customer_analysis"
+  | "marginguard_alerts"
+  | "marginguard_scenarios"
+  | "marginguard_historical_analytics"
   | "promise_to_pay_tracking"
   | "dispute_pause"
   | "weekly_summary_email"
@@ -133,6 +138,11 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       commitguard_core: true,
       commitguard_detection: false,
       commitguard_advanced_alerts: false,
+      marginguard_core: false,
+      marginguard_customer_analysis: false,
+      marginguard_alerts: false,
+      marginguard_scenarios: false,
+      marginguard_historical_analytics: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -178,6 +188,11 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       commitguard_core: true,
       commitguard_detection: true,
       commitguard_advanced_alerts: false,
+      marginguard_core: true,
+      marginguard_customer_analysis: false,
+      marginguard_alerts: false,
+      marginguard_scenarios: false,
+      marginguard_historical_analytics: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -224,6 +239,11 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       commitguard_core: true,
       commitguard_detection: true,
       commitguard_advanced_alerts: true,
+      marginguard_core: true,
+      marginguard_customer_analysis: true,
+      marginguard_alerts: true,
+      marginguard_scenarios: true,
+      marginguard_historical_analytics: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -269,6 +289,11 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       commitguard_core: true,
       commitguard_detection: true,
       commitguard_advanced_alerts: true,
+      marginguard_core: true,
+      marginguard_customer_analysis: true,
+      marginguard_alerts: true,
+      marginguard_scenarios: true,
+      marginguard_historical_analytics: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -314,6 +339,11 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       commitguard_core: true,
       commitguard_detection: true,
       commitguard_advanced_alerts: true,
+      marginguard_core: true,
+      marginguard_customer_analysis: true,
+      marginguard_alerts: true,
+      marginguard_scenarios: true,
+      marginguard_historical_analytics: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
