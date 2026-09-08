@@ -7,19 +7,22 @@ const TABS = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/invoices", label: "Invoices" },
   { href: "/dashboard/resolved", label: "Resolved Invoices" },
+  { href: "/dashboard/commitguard", label: "CommitGuard" },
   { href: "/dashboard/cost-guard", label: "Cost Guard" },
 ]
 
 export function DashboardNavRail({
+  canViewCommitGuard,
   canViewSpendLeak,
   canViewTaxBuffer,
 }: {
+  canViewCommitGuard: boolean
   canViewSpendLeak: boolean
   canViewTaxBuffer: boolean
 }) {
   const pathname = usePathname()
   const tabs = [
-    ...TABS,
+    ...TABS.filter((tab) => (tab.href === "/dashboard/commitguard" ? canViewCommitGuard : true)),
     ...(canViewTaxBuffer ? [{ href: "/dashboard/tax-buffer", label: "Tax Buffer" }] : []),
     ...(canViewSpendLeak ? [{ href: "/dashboard/spendleak", label: "SpendLeak" }] : []),
   ]

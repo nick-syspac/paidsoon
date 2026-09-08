@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
-import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
@@ -185,6 +185,7 @@ export default async function DashboardLayout({
         </div>
       </nav>
       <DashboardMain
+        canViewCommitGuard={hasPlanFeature(tier, "commitguard_core")}
         canViewSpendLeak={canAccessSpendLeak(tier)}
         canViewTaxBuffer={canAccessTaxBuffer(tier)}
       >

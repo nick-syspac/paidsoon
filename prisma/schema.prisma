@@ -69,6 +69,10 @@ model UserProfile {
   cashPlanSettings             CashPlanSetting[]
   cashPlanAlerts               CashPlanAlert[]
   cashPlanDataQualityIssues    CashPlanDataQualityIssue[]
+  commitGuardSettings          CommitGuardSetting[]
+  commitments                  Commitment[]
+  commitmentDetectionCandidates CommitmentDetectionCandidate[]
+  commitmentEvents             CommitmentEvent[]
 
   @@map("user_profiles")
 }
@@ -1336,6 +1340,145 @@ model TaxBufferEvent {
   @@unique([userId, dedupeKey])
   @@index([userId, occurredAt])
   @@map("tax_buffer_events")
+}
+
+// ---------------------------------------------------------------------------
+// CommitGuard Foundation
+// ---------------------------------------------------------------------------
+
+model CommitGuardSetting {
+  id                               String   @id @default(cuid())
+  userId                           String   @map("user_id")
+  enabled                          Boolean  @default(false)
+  defaultHorizonDays               Int      @default(30) @map("default_horizon_days")
+  safetyBufferMode                 String   @default("fixed_amount") @map("safety_buffer_mode") // fixed_amount | percentage_monthly_commitments | weeks_operating_expenses
+  safetyBufferFixedCents           Int      @default(0) @map("safety_buffer_fixed_cents")
+  safetyBufferPercent              Float?   @map("safety_buffer_percent")
+  safetyBufferWeeks                Float?   @map("safety_buffer_weeks")
+  detectRecurringCommitments       Boolean  @default(false) @map("detect_recurring_commitments")
+  detectionMinOccurrences          Int      @default(3) @map("detection_min_occurrences")
+  detectionAmountVariancePercent   Float    @default(12) @map("detection_amount_variance_percent")
+  detectionIntervalToleranceDays   Int      @default(3) @map("detection_interval_tolerance_days")
+  detectionConfidenceThreshold     String   @default("medium") @map("detection_confidence_threshold") // confirmed | high | medium | low
+  alertCommitmentDueSoon           Boolean  @default(true) @map("alert_commitment_due_soon")
+  alertRenewalApproaching          Boolean  @default(true) @map("alert_renewal_approaching")
+  alertNoticePeriodApproaching     Boolean  @default(true) @map("alert_notice_period_approaching")
+  alertCommitmentAmountChanged     Boolean  @default(true) @map("alert_commitment_amount_changed")
+  alertCommitmentBufferLow         Boolean  @default(true) @map("alert_commitment_buffer_low")
+  alertCommitmentShortfall         Boolean  @default(true) @map("alert_commitment_shortfall")
+  renewalWarningDays               Json?    @map("renewal_warning_days")
+  createdAt                        DateTime @default(now()) @map("created_at")
+  updatedAt                        DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("commit_guard_settings")
+}
+
+model Commitment {
+  id                      String    @id @default(cuid())
+  userId                  String    @map("user_id")
+  name                    String
+  description             String?
+  category                String
+  amountCents             Int       @map("amount_cents")
+  currency                String
+  frequency               String // one_off | weekly | fortnightly | monthly | quarterly | six_monthly | annual | custom
+  nextDueDate             DateTime? @map("next_due_date")
+  startDate               DateTime? @map("start_date")
+  endDate                 DateTime? @map("end_date")
+  recurrenceRule          Json?     @map("recurrence_rule")
+  supplierName            String?   @map("supplier_name")
+  supplierId              String?   @map("supplier_id")
+  accountId               String?   @map("account_id")
+  source                  String    @default("manual") // manual | accounting_integration | bank_transaction_pattern | spendleak | costguard | import | system_inferred
+  status                  String    @default("active") // active | upcoming | ending | cancelled | expired | paused | review
+  confidence              String    @default("confirmed") // confirmed | high | medium | low
+  noticePeriodDays        Int?      @map("notice_period_days")
+  renewalDate             DateTime? @map("renewal_date")
+  autoRenew               Boolean   @default(false) @map("auto_renew")
+  cancellable             Boolean   @default(true)
+  essentiality            String    @default("operational") // critical | essential | operational | discretionary
+  notes                   String?
+  linkedSpendInsightId    String?   @map("linked_spend_insight_id")
+  linkedCostGuardAlertId  String?   @map("linked_cost_guard_alert_id")
+  pausedAt                DateTime? @map("paused_at")
+  cancelledAt             DateTime? @map("cancelled_at")
+  expiredAt               DateTime? @map("expired_at")
+  archivedAt              DateTime? @map("archived_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  events      CommitmentEvent[]
+
+  @@index([userId, nextDueDate])
+  @@index([userId, status])
+  @@index([userId, renewalDate])
+  @@index([userId, source])
+  @@index([userId, confidence])
+  @@index([userId, supplierId])
+  @@map("commitments")
+}
+
+model CommitmentDetectionCandidate {
+  id                           String    @id @default(cuid())
+  userId                       String    @map("user_id")
+  name                         String
+  supplierName                 String?   @map("supplier_name")
+  supplierId                   String?   @map("supplier_id")
+  category                     String
+  frequency                    String // one_off | weekly | fortnightly | monthly | quarterly | six_monthly | annual | custom
+  typicalAmountCents           Int       @map("typical_amount_cents")
+  currency                     String
+  source                       String    @default("system_inferred")
+  confidence                   String    @default("medium") // confirmed | high | medium | low
+  confidenceScore              Float     @default(0) @map("confidence_score")
+  status                       String    @default("pending") // pending | confirmed | ignored | not_a_commitment | converted
+  evidence                     Json?
+  evidenceFingerprint          String?   @map("evidence_fingerprint")
+  rejectionEvidenceFingerprint String?   @map("rejection_evidence_fingerprint")
+  firstDetectedAt              DateTime  @default(now()) @map("first_detected_at")
+  lastDetectedAt               DateTime  @default(now()) @map("last_detected_at")
+  nextSuggestedAt              DateTime? @map("next_suggested_at")
+  reviewNote                   String?   @map("review_note")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  events      CommitmentEvent[]
+
+  @@index([userId, status, lastDetectedAt])
+  @@index([userId, source])
+  @@index([userId, supplierId])
+  @@map("commitment_detection_candidates")
+}
+
+model CommitmentEvent {
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  commitmentId         String?   @map("commitment_id")
+  detectionCandidateId String?   @map("detection_candidate_id")
+  eventType            String    @map("event_type")
+  severity             String    @default("info")
+  dedupeKey            String?   @map("dedupe_key")
+  title                String
+  message              String
+  actorId              String?   @map("actor_id")
+  metadata             Json?
+  occurredAt           DateTime  @default(now()) @map("occurred_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  userProfile         UserProfile                   @relation(fields: [userId], references: [userId])
+  commitment         Commitment?                   @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  detectionCandidate CommitmentDetectionCandidate? @relation(fields: [detectionCandidateId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, occurredAt])
+  @@index([commitmentId, occurredAt])
+  @@index([detectionCandidateId, occurredAt])
+  @@map("commitment_events")
 }
 
 // ---------------------------------------------------------------------------

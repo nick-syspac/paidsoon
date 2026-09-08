@@ -51,6 +51,7 @@ below maps logical areas to code modules (there are no Django apps).
 | SpendLeak brain | `lib/spendleak/**`, `lib/dashboard/loadSpendLeakDashboard.ts`, `app/api/spend-insights/[id]/route.ts`, `app/api/spendleak/export/route.ts`, `prisma/schema.prisma` | Read-only spend ingestion, deterministic detection, grounded summaries, and analysis-only CSV/XLSX report export | `ImportedBill`, `ImportedBankTransaction`, `SupplierProfile`, `SpendInsight`; `SPENDLEAK_EXPORT_FIELDS`, `loadSpendLeakFindingsForExport`, `generateSpendLeakExportCsv`, `generateSpendLeakExportXlsx` | `changes/build-spendleak-brain`, `changes/export-spendleak-report` |
 | Cost Guard foundation | `lib/costGuard/**`, `prisma/schema.prisma`, `prisma/rls-policies.sql` | Shared cost-risk baseline, rule catalog, alerts, and month-end forecast state for the read-only Cost Guard module | `CostGuardSetting`, `CostGuardRule`, `CostGuardBaseline`, `CostGuardAlert`, `CostGuardAlertEvent`, `CostGuardForecast`; `calculateBaseline`, `evaluateMateriality`, `buildDefaultCostGuardRules` | `changes/cost-guard-foundation` |
 | Tax Buffer | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | Tax reserve estimation, safe-to-spend composition, obligation tracking, and reserve override audit trail | `TaxBufferConfiguration`, `TaxReserveCategory`, `TaxBufferObligation`, `TaxBufferSnapshot`, `TaxBufferOverride`, `TaxBufferEvent`; `buildTaxBufferSummary`, `loadTaxBufferSummary`, `saveTaxBufferSettings` | `changes/add-tax-buffer-module` |
+| CommitGuard | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | Recurring commitment registry, detection/review queue, horizon projection, free-cash guardrails, and renewal/notice alerts | `CommitGuardSetting`, `Commitment`, `CommitmentDetectionCandidate`, `CommitmentEvent`; `summarizeCommitGuard`, `detectCommitmentCandidates`, `buildCommitmentHorizonTotals`, `calculateFreeCashBreakdown` | `changes/add-commitguard-module` |
 | Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV/XLSX invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/csv-only-invoice-import`, `changes/combine-settings-import-export`, `changes/canonical-financial-data-model` |
 | Settings import/export shell | `app/dashboard/settings/layout.tsx`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `app/dashboard/settings/export/**`, `components/settings/ExpenseImportClient.tsx` | Combined Settings page for invoice import, expense import, and invoice export, with legacy route aliases | Reuses existing import/export models and SpendLeak import workflow | `changes/combine-settings-import-export` |
 | Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export`, `changes/combine-settings-import-export` |
@@ -297,7 +298,33 @@ subsection documents a functional module.
   `withUserContext`; all six Tax Buffer tables are covered by tenant-scoped RLS
   policies in `prisma/rls-policies.sql`.
 
-### 4.11 Training content destination governance and fallback
+### 4.11 CommitGuard (`lib/commitguard/**`, `app/api/commitguard/**`)
+
+- **Responsibility:** track upcoming commitments, project near-term cash impact,
+  and surface renewal / notice actions before commitments become cash stress.
+- **Core service flow:** `summarizeCommitGuard()` composes commitment horizons
+  (7/30/60/90), renewal severities, and canonical free-cash status from
+  available cash, commitment outflow, tax-protected cash, and safety buffer.
+  When tax-protected cash is not supplied, it is derived from
+  `loadTaxBufferSummary()` (feature-gated) to prevent duplicated reserve logic.
+- **Detection flow:** `detectCommitmentCandidates()` groups canonical spend
+  signals by supplier/currency, applies deterministic recurrence + amount
+  variance thresholds, and writes `CommitmentDetectionCandidate` rows with
+  explainability and rejection-memory fingerprints.
+- **Lifecycle and events:** create/update/pause/resume/cancel/confirm flows are
+  audit-backed via `CommitmentEvent` and deduped event keys for
+  `COMMITMENT_DUE_SOON`, `COMMITMENT_AMOUNT_CHANGED`,
+  `COMMITMENT_RENEWAL_APPROACHING`, `COMMITMENT_NOTICE_PERIOD_APPROACHING`,
+  `COMMITMENT_DETECTED`, `COMMITMENT_SHORTFALL`, and
+  `COMMITMENT_BUFFER_LOW`.
+- **Cross-module integration:** SpendLeak findings surface linked active
+  commitment counts; Cost Guard alerts deep-link to CommitGuard filtered by
+  `costGuardAlertId`; CashPlan can consume committed-outflow/free-cash via
+  `GET /api/commitguard/cashplan`.
+
+### 4.12 Training content destination governance and fallback
+
+### 4.12 Training content destination governance and fallback
 
 - Destination keys are platform-defined identifiers resolved by
   `lib/help/destinations.ts`.
@@ -312,7 +339,7 @@ subsection documents a functional module.
 - This keeps historic guide links stable during destination refactors while
   preserving least-privilege visibility.
 
-### 4.12 Not applicable
+### 4.13 Not applicable
 
 Compliance/control-library, workflow engine, CMS, vertical_setup, RTO,
 integrations registry, and any `apps/api/apps/**` modules — **not present**.
@@ -331,10 +358,12 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 | Dashboard Overview page | `app/dashboard/page.tsx` | Traffic-light summary cards (Overdue, Chase allowance, Broken promises, Held invoices), ungated for every tier; redirects legacy `?resolved=1` to `/dashboard/resolved` |
 | Tax Buffer dashboard page | `app/dashboard/tax-buffer/page.tsx` | Tier-gated module showing reserve totals, safe-to-spend, category explainability, and 90-day obligations; includes setup guidance when disabled |
 | SpendLeak dashboard page | `app/dashboard/spendleak/page.tsx` | Spend-side module summaries plus freshness/empty/partial/stale state copy; tier-gated to eligible dashboard tiers; supports `?module=` filters and an analysis-only "Export SpendLeak Report" action |
+| CommitGuard dashboard page | `app/dashboard/commitguard/page.tsx` | Commitment horizons, free-cash status, upcoming commitment table, renewal/notice priorities, detection queue visibility; supports Cost Guard deep-link filter via `?costGuardAlertId=` |
 | SpendLeak finding detail page | `app/dashboard/spendleak/[id]/page.tsx` | Evidence-first drill-down for a single finding, with structured evidence cards, raw evidence disclosure, and lifecycle controls |
 | Dashboard Invoices page | `app/dashboard/invoices/page.tsx` | Active-invoice table; feature-gated module + upsell; supports `?filter=` from Overview card click-throughs |
 | Dashboard Resolved Invoices page | `app/dashboard/resolved/page.tsx` | Paid/manually-resolved invoice table; feature-gated module + upsell |
 | Settings pages | `app/dashboard/settings/{account,schedule,email,templates,team,stripe,subscription}/page.tsx` | Each pairs with a `*Client.tsx`; AI controls are embedded in the templates page |
+| CommitGuard settings page | `app/dashboard/settings/commitguard/page.tsx`, `components/settings/CommitGuardSettingsClient.tsx` | Tier-gated module settings for horizon defaults, safety-buffer strategy, detection thresholds, and event toggles |
 | Tax Buffer settings page | `app/dashboard/settings/tax-buffer/page.tsx`, `components/settings/TaxBufferSettingsClient.tsx` | Tier-gated settings with first-time suggested defaults, reserve account/manual balance controls, and category method/recurrence tuning |
 | Dashboard components | `components/dashboard/{InvoiceTable,LockedDashboardPreview,UpgradeBanner,OverviewCards,DashboardNavRail}.tsx` | Table + locked preview + banner + Overview cards + nav rail |
 | Settings clients | `components/settings/*Client.tsx` | Client-side forms calling the settings APIs |
@@ -490,6 +519,10 @@ erDiagram
 | `TaxBufferSnapshot` | `prisma/schema.prisma` | Immutable reserve and safe-to-spend summary snapshots | `userId`, `availableCashCents`, `totalRequiredCents`, `totalReservedCents`, `reserveGapCents`, `committedOutflowsCents`, `safeToSpendCents`, `healthStatus`, `warnings` | N—1 profile/configuration | Yes (RLS CRUD) | Written on summary load for trend/audit history |
 | `TaxBufferOverride` | `prisma/schema.prisma` | Manual override records for category or obligation values | `userId`, `reserveCategoryId`, `obligationId`, `calculatedValueCents`, `overrideValueCents`, `reason`, `basedOnAccountant`, `createdBy` | N—1 profile; optional N—1 category/obligation | Yes (RLS CRUD) | Preserves human decision context for audit and explainability |
 | `TaxBufferEvent` | `prisma/schema.prisma` | Deduplicated event trail for reserve health and configuration changes | `userId`, `eventType`, `severity`, `dedupeKey`, `title`, `message`, `metadata` | N—1 profile; optional N—1 category/obligation/configuration | Yes (RLS CRUD) | Powers in-app Tax Buffer notifications and auditability |
+| `CommitGuardSetting` | `prisma/schema.prisma` | Per-tenant CommitGuard defaults and alert/detection policy | `userId`, `enabled`, `defaultHorizonDays`, safety-buffer controls (`safetyBufferMode`, `safetyBufferFixedCents`, `safetyBufferPercent`, `safetyBufferWeeks`), detection thresholds, alert toggles, `renewalWarningDays` | 1—1 profile; 1—N commitments/detection candidates/events | Yes (RLS CRUD) | Created lazily; canonical source for dashboard/settings behavior |
+| `Commitment` | `prisma/schema.prisma` | Tracked recurring or one-off commitment outflows | `userId`, `name`, `category`, `amountCents`, `frequency`, due/start/end dates, source/status/confidence, renewal + notice metadata, SpendLeak/Cost Guard linkage ids | N—1 profile; 1—N commitment events | Yes (RLS CRUD) | Indexed by `(userId,nextDueDate)`, `(userId,status)`, `(userId,renewalDate)` for horizon and renewal views |
+| `CommitmentDetectionCandidate` | `prisma/schema.prisma` | Deterministic candidate queue before commitment confirmation | `userId`, `name`, `category`, `frequency`, `typicalAmountCents`, `source`, `confidence`, `confidenceScore`, `status`, `evidence`, fingerprint fields, detection/review timestamps | N—1 profile; 1—N commitment events | Yes (RLS CRUD) | Rejection-memory fingerprint prevents repetitive re-suggestions without material evidence changes |
+| `CommitmentEvent` | `prisma/schema.prisma` | Deduplicated lifecycle + risk events for commitments and candidate review | `userId`, `commitmentId`, `detectionCandidateId`, `eventType`, `severity`, `dedupeKey`, `title`, `message`, `actorId`, `metadata`, `occurredAt` | N—1 profile; optional N—1 commitment/candidate | Yes (RLS CRUD) | Powers timeline views and event-level notification planning |
 | `AccountingConnection` | `prisma/schema.prisma` | OAuth connection to Xero or MYOB | `userId`, `provider`, `organisationId`, `organisationName`, `encryptedAccessToken`, `encryptedRefreshToken`, `tokenExpiresAt`, `scopes`, `status`, `lastSyncedAt` | N—1 profile; 1—N sync runs, provider mappings | Yes (RLS) | Unique `(userId, provider, organisationId)`; tokens encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY` |
 | `AccountingSyncRun` | `prisma/schema.prisma` | Sync run history per accounting connection | `accountingConnectionId`, `provider`, `userId`, `startedAt`, `completedAt`, `status`, `invoicesCreated`, `invoicesUpdated`, `invoicesSkipped`, `errorMessage` | N—1 connection | Yes (SELECT only; writes via `prismaAdmin` in cron) | Index on `(accountingConnectionId, startedAt)` |
 | ~~`ProviderInvoiceMapping`~~ | — | **Retired** by canonical-financial-data-model — absorbed into `FinancialInvoice` provenance (`sourceSystem`/`sourceId`/`sourceUpdatedAt`) | — | — | — | — |
@@ -607,6 +640,15 @@ enforced server-side before content is returned.
 | `DELETE /api/invoice-imports/mapping-profiles/[profileId]` | `.../mapping-profiles/[profileId]/route.ts` | path `profileId` | session | `withUserContext` + ownership check | → `{success}` | Implemented |
 | `GET /api/invoices/export` | `app/api/invoices/export/route.ts` | query `format=csv\|xlsx`, `statusBucket?`, `overviewFilter?`, `statuses?`, `customerId?`, `provider?`, `dateField?`, `dateFrom?`, `dateTo?` (`zod`) | session + `csv_export` feature | `withUserContext` (`loadInvoicesForExport`) | → CSV/XLSX file download (`Content-Disposition: attachment; filename="paidsoon-invoices-<YYYY-MM-DD>.<ext>"`, `X-PaidSoon-Export-Row-Count` header) | Implemented — 403 without querying invoice data if the tier lacks the feature; 413 if the row-count ceiling is exceeded |
 | `GET /api/spendleak/export` | `app/api/spendleak/export/route.ts` | query `format=csv\|xlsx`, `module?` (`zod`) | session + `csv_export` feature | `withUserContext` (`loadSpendLeakFindingsForExport`) | → CSV/XLSX analysis report (`Content-Disposition: attachment; filename="paidsoon-spendleak-report-<YYYY-MM-DD>.<ext>"`, `X-PaidSoon-SpendLeak-Export-Row-Count` header) | Implemented — exports the current SpendLeak dashboard scope (`module` filter) and keeps fields analysis-only (not accounting-format output) |
+| `GET /api/commitguard/summary` | `app/api/commitguard/summary/route.ts` | query `cashAvailableCents?`, `taxProtectedCashCents?`, `weeklyOperatingExpensesCents?` (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{settings,horizons,renewals,freeCash}` | Implemented — canonical summary contract for dashboard + integrations |
+| `GET/POST /api/commitguard/commitments` | `app/api/commitguard/commitments/route.ts` | query filters (`status`,`search`,`currency`,`sortBy`,`sortOrder`) / create payload (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{commitments}` / `201` created commitment | Implemented — enforces plan limits and lifecycle-safe shapes |
+| `GET/PATCH /api/commitguard/commitments/[id]` | `app/api/commitguard/commitments/[id]/route.ts` | path `id`; patch payload (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{commitment}` or `404` | Implemented |
+| `POST /api/commitguard/commitments/[id]/actions` | `app/api/commitguard/commitments/[id]/actions/route.ts` | `zod` `{action}` (`pause|resume|cancel|confirm`) | session + `commitguard_core` feature | `withUserContext` (via service) | → transitioned commitment | Implemented |
+| `GET /api/commitguard/detections` | `app/api/commitguard/detections/route.ts` | query `status?`, `source?`, `limit?` (`zod`) | session + `commitguard_core` + `commitguard_detection` | `withUserContext` (via service) | → `{candidates}` | Implemented |
+| `POST /api/commitguard/detections/[id]/review` | `app/api/commitguard/detections/[id]/review/route.ts` | path `id`; `zod` review payload (`confirm|ignore|not_a_commitment|edit`) | session + `commitguard_core` + `commitguard_detection` | `withUserContext` (via service) | → review outcome / `404` | Implemented |
+| `GET/PUT /api/commitguard/settings` | `app/api/commitguard/settings/route.ts` | settings payload (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{settings}` | Implemented |
+| `GET /api/commitguard/timeline` | `app/api/commitguard/timeline/route.ts` | query `limit?` (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{events}` | Implemented |
+| `GET /api/commitguard/cashplan` | `app/api/commitguard/cashplan/route.ts` | query `cashAvailableCents?`, `taxProtectedCashCents?`, `weeklyOperatingExpensesCents?` (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{committedOutflow,freeCash}` | Implemented — integration-safe contract for CashPlan consumption |
 | `POST /api/admin/challenges` | `app/api/admin/challenges/route.ts` | `zod` `{deviceId}` | Layer 1+2 (Supabase session + PlatformRole) | `prismaAdmin` | → `{challengeId, nonce}` | Implemented |
 | `POST /api/admin/challenges/[id]/verify` | `.../verify/route.ts` | `zod` `{deviceId, signature}` | Layer 1+2 | `prismaAdmin` | → sets `admin_session` cookie; `{sessionId, expiresAt}` | Implemented |
 | `POST /api/admin/sessions/revoke` | `app/api/admin/sessions/revoke/route.ts` | — | All 3 layers | `prismaAdmin` | → clears `admin_session` cookie; `{ok}` | Implemented |

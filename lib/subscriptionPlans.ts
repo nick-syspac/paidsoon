@@ -29,6 +29,9 @@ export type SubscriptionFeature =
   | "tax_buffer_basic"
   | "tax_buffer_automation"
   | "tax_buffer_custom_reserves"
+  | "commitguard_core"
+  | "commitguard_detection"
+  | "commitguard_advanced_alerts"
   | "promise_to_pay_tracking"
   | "dispute_pause"
   | "weekly_summary_email"
@@ -72,6 +75,10 @@ export interface PlanLimits {
   /** Connected invoice sources (Stripe Connect accounts and accounting
    * connections, combined). -1 = unlimited. */
   connectedInvoiceSources: number
+  /** Maximum tracked commitments in CommitGuard. -1 = unlimited. */
+  commitmentsTracked: number
+  /** Maximum open detection candidates surfaced per detection cycle. -1 = unlimited. */
+  commitmentDetectionCandidatesPerCycle: number
 }
 
 export interface PlanDefinition {
@@ -101,6 +108,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       chasedInvoicesPerMonth: 10,
       userSeats: 1,
       connectedInvoiceSources: 1,
+      commitmentsTracked: 25,
+      commitmentDetectionCandidatesPerCycle: 25,
     },
     features: {
       basic_email_reminders: true,
@@ -121,6 +130,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tax_buffer_basic: true,
       tax_buffer_automation: false,
       tax_buffer_custom_reserves: false,
+      commitguard_core: true,
+      commitguard_detection: false,
+      commitguard_advanced_alerts: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -141,6 +153,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       chasedInvoicesPerMonth: 50,
       userSeats: 1,
       connectedInvoiceSources: 1,
+      commitmentsTracked: 150,
+      commitmentDetectionCandidatesPerCycle: 75,
     },
     features: {
       basic_email_reminders: true,
@@ -161,6 +175,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tax_buffer_basic: true,
       tax_buffer_automation: true,
       tax_buffer_custom_reserves: false,
+      commitguard_core: true,
+      commitguard_detection: true,
+      commitguard_advanced_alerts: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -182,6 +199,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       chasedInvoicesPerMonth: 250,
       userSeats: 3,
       connectedInvoiceSources: 1,
+      commitmentsTracked: 500,
+      commitmentDetectionCandidatesPerCycle: 250,
     },
     features: {
       basic_email_reminders: true,
@@ -202,6 +221,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tax_buffer_basic: true,
       tax_buffer_automation: true,
       tax_buffer_custom_reserves: true,
+      commitguard_core: true,
+      commitguard_detection: true,
+      commitguard_advanced_alerts: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -222,6 +244,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       chasedInvoicesPerMonth: 1000,
       userSeats: 10,
       connectedInvoiceSources: 3,
+      commitmentsTracked: 2000,
+      commitmentDetectionCandidatesPerCycle: 1000,
     },
     features: {
       basic_email_reminders: true,
@@ -242,6 +266,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tax_buffer_basic: true,
       tax_buffer_automation: true,
       tax_buffer_custom_reserves: true,
+      commitguard_core: true,
+      commitguard_detection: true,
+      commitguard_advanced_alerts: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -262,6 +289,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       chasedInvoicesPerMonth: -1, // unlimited
       userSeats: -1, // unlimited
       connectedInvoiceSources: -1, // unlimited — exempt from the one-source limit
+      commitmentsTracked: -1, // unlimited
+      commitmentDetectionCandidatesPerCycle: -1, // unlimited
     },
     features: {
       basic_email_reminders: true,
@@ -282,6 +311,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       tax_buffer_basic: true,
       tax_buffer_automation: true,
       tax_buffer_custom_reserves: true,
+      commitguard_core: true,
+      commitguard_detection: true,
+      commitguard_advanced_alerts: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,

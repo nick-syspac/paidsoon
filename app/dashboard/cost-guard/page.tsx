@@ -222,12 +222,18 @@ export default async function CostGuardOverviewPage() {
                 ) : null}
 
                 {alert.id !== "empty" ? (
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <Link
                       href={`/dashboard/cost-guard/alerts/${alert.id}`}
                       className="inline-flex rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                     >
                       View details
+                    </Link>
+                    <Link
+                      href={`/dashboard/commitguard?costGuardAlertId=${encodeURIComponent(alert.id)}`}
+                      className="inline-flex rounded-md border border-blue-300 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                    >
+                      Commitment impact
                     </Link>
                   </div>
                 ) : null}

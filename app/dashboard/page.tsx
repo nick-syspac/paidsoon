@@ -28,6 +28,7 @@ import { buildCostGuardNotificationPlan } from "@/lib/costGuard/foundation"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
 import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
 import { buildTaxBufferDigestSummary } from "@/lib/taxBuffer/engine"
+import { summarizeCommitGuard } from "@/lib/commitguard/service"
 import {
   buildCashPlanForecast,
   buildCashPlanSummaryResponse,
@@ -35,6 +36,7 @@ import {
   type CashPlanForecastWeek,
 } from "@/lib/cashplan/engine"
 import { buildCashPlanDashboardStatus } from "@/lib/dashboard/cashPlanStatus"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import {
   createServerTraceContext,
   traceEvent,
@@ -44,6 +46,10 @@ import { summariseAuthForTrace } from "@/lib/diagnostics/shared"
 import { withUserContext } from "@/lib/db/withUserContext"
 
 const COMPONENT = "app/dashboard/page.tsx"
+
+function formatOptionalAudCents(value: number | null): string {
+  return value === null ? "Not available" : formatAudCents(value)
+}
 
 export default async function DashboardOverviewPage({
   searchParams,
@@ -113,8 +119,16 @@ export default async function DashboardOverviewPage({
 
   const canViewSpendLeak = canAccessSpendLeak(profile?.subscriptionTier)
   const canViewTaxBuffer = canAccessTaxBuffer(profile?.subscriptionTier)
+  const canViewCommitGuard = hasPlanFeature(profile?.subscriptionTier, "commitguard_core")
   const spendLeakData = canViewSpendLeak ? await loadSpendLeakDashboard(user.id) : null
   const taxBufferSummary = canViewTaxBuffer ? await loadTaxBufferSummary(user.id) : null
+  const commitGuardSummary = canViewCommitGuard
+    ? await summarizeCommitGuard({
+        userId: user.id,
+        cashAvailableCents: taxBufferSummary?.availableCashCents ?? null,
+        taxProtectedCashCents: taxBufferSummary?.totalRequiredReserveCents,
+      })
+    : null
   const topSpendLeakModule = spendLeakData?.modules
     .filter((module) => module.findingCount > 0)
     .sort((left, right) => right.estimatedAnnualCents - left.estimatedAnnualCents)[0]
@@ -404,7 +418,7 @@ export default async function DashboardOverviewPage({
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-gray-500">Tax Buffer</p>
-              <h2 className="mt-1 text-lg font-semibold text-gray-900">Safe to spend {formatAudCents(taxBufferSummary.safeToSpendCents)}</h2>
+              <h2 className="mt-1 text-lg font-semibold text-gray-900">Safe to spend {formatOptionalAudCents(taxBufferSummary.safeToSpendCents)}</h2>
               <p className="mt-2 text-sm text-gray-600">
                 Required reserve {formatAudCents(taxBufferSummary.totalRequiredReserveCents)} · Reserved {formatAudCents(taxBufferSummary.totalReservedCents)}
               </p>
@@ -427,7 +441,7 @@ export default async function DashboardOverviewPage({
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">Available cash</p>
-              <p className="mt-2 text-lg font-semibold text-gray-900">{formatAudCents(taxBufferSummary.availableCashCents)}</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">{formatOptionalAudCents(taxBufferSummary.availableCashCents)}</p>
             </div>
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">Required reserve</p>
@@ -455,6 +469,45 @@ export default async function DashboardOverviewPage({
               ) : null}
             </div>
           ) : null}
+        </section>
+      ) : null}
+
+      {commitGuardSummary ? (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">CommitGuard</p>
+              <h2 className="mt-1 text-lg font-semibold text-gray-900">Free cash {formatOptionalAudCents(commitGuardSummary.freeCash.freeCashCents)}</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Protected cash {formatAudCents(commitGuardSummary.freeCash.protectedCashCents)} · Status {commitGuardSummary.freeCash.status.replace("_", " ")}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Link
+                href="/dashboard/settings/commitguard"
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Open settings
+              </Link>
+              <Link
+                href="/dashboard/commitguard"
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Open CommitGuard
+              </Link>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            {commitGuardSummary.horizons.map((horizon) => (
+              <div key={horizon.days} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">{horizon.days}-day commitments</p>
+                <p className="mt-2 text-lg font-semibold text-gray-900">{formatAudCents(horizon.totalCents)}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-gray-600">
+            Renewal items requiring attention: {commitGuardSummary.renewals.filter((item) => item.severity !== "info").length}
+          </p>
         </section>
       ) : null}
 

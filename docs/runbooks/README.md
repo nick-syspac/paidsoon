@@ -96,6 +96,10 @@ For Local development only, run sections 1–3 against test mode / dev project, 
 
 This is the only place where env-var values are listed. Every runbook **references** this matrix rather than restating values. To change which value an environment uses, change this table and update Vercel / `.env.local` accordingly.
 
+CommitGuard rollout note: the CommitGuard module does **not** introduce any new
+environment variables. It uses existing auth, billing feature-gate, and database
+configuration inputs already listed in this matrix.
+
 | Env var | Local (`.env.local`) | Vercel Preview | Vercel Production | Source runbook |
 |---|---|---|---|---|
 | `SUPABASE_PROJECT_REF` | `paidsoon-dev` 20-character project ref | `paidsoon-dev` project ref | `paidsoon-prod` project ref | [supabase.md §2](./supabase.md) |

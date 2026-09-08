@@ -6,6 +6,34 @@ import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getTaxBufferSettings } from "@/lib/taxBuffer/service"
 
+const CATEGORY_METHODS = new Set([
+  "integration",
+  "fixed_amount",
+  "percentage_profit",
+  "percentage_revenue",
+  "manual",
+])
+
+const CATEGORY_RECURRENCES = new Set([
+  "weekly",
+  "fortnightly",
+  "monthly",
+  "quarterly",
+  "annually",
+  "one_off",
+])
+
+type CategoryMethod = "integration" | "fixed_amount" | "percentage_profit" | "percentage_revenue" | "manual"
+type CategoryRecurrence = "weekly" | "fortnightly" | "monthly" | "quarterly" | "annually" | "one_off"
+
+function isCategoryMethod(value: string): value is CategoryMethod {
+  return CATEGORY_METHODS.has(value)
+}
+
+function isCategoryRecurrence(value: string): value is CategoryRecurrence {
+  return CATEGORY_RECURRENCES.has(value)
+}
+
 export default async function TaxBufferSettingsPage() {
   const {
     data: { user },
@@ -50,8 +78,12 @@ export default async function TaxBufferSettingsPage() {
             categoryType: category.categoryType,
             name: category.name,
             enabled: category.enabled,
-            calculationMethod: category.calculationMethod,
-            recurrence: category.recurrence,
+            calculationMethod: isCategoryMethod(category.calculationMethod)
+              ? category.calculationMethod
+              : "manual",
+            recurrence: isCategoryRecurrence(category.recurrence)
+              ? category.recurrence
+              : "quarterly",
             ratePercent: category.ratePercent,
             fixedAmountCents: category.fixedAmountCents,
             manualAmountCents: category.manualAmountCents,

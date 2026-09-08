@@ -1,6 +1,7 @@
 import { InvoiceExportClient } from "@/components/settings/InvoiceExportClient"
 import { InvoiceImportClient } from "@/components/settings/InvoiceImportClient"
 import { ExpenseImportClient } from "@/components/settings/ExpenseImportClient"
+import { CommitGuardSettingsTransferClient } from "@/components/settings/CommitGuardSettingsTransferClient"
 import type { ReactElement } from "react"
 
 type InvoiceImportBatchSummary = {
@@ -41,6 +42,7 @@ interface ImportExportSettingsViewProps {
   initialBatches: InvoiceImportBatchSummary[]
   initialSpendBatches: SpendImportBatchSummary[]
   canExport: boolean
+  canManageCommitGuard: boolean
   exportCustomers: ExportCustomer[]
 }
 
@@ -48,6 +50,7 @@ export function ImportExportSettingsView({
   initialBatches,
   initialSpendBatches,
   canExport,
+  canManageCommitGuard,
   exportCustomers,
 }: ImportExportSettingsViewProps): ReactElement {
   return (
@@ -78,6 +81,12 @@ export function ImportExportSettingsView({
           </div>
         )}
       </section>
+
+      {canManageCommitGuard ? (
+        <section id="commitguard-settings" className="scroll-mt-24 space-y-3">
+          <CommitGuardSettingsTransferClient />
+        </section>
+      ) : null}
     </div>
   )
 }

@@ -11,9 +11,14 @@ import {
 interface SpendLeakFindingsTableProps {
   findings: SpendInsight[]
   selectedModule: SpendLeakModuleId | null
+  linkedCommitmentCountsByFindingId: Record<string, number>
 }
 
-export function SpendLeakFindingsTable({ findings, selectedModule }: SpendLeakFindingsTableProps) {
+export function SpendLeakFindingsTable({
+  findings,
+  selectedModule,
+  linkedCommitmentCountsByFindingId,
+}: SpendLeakFindingsTableProps) {
   const filtered = selectedModule
     ? findings.filter((finding) => moduleFromFindingType(finding.findingType) === selectedModule)
     : findings
@@ -37,6 +42,7 @@ export function SpendLeakFindingsTable({ findings, selectedModule }: SpendLeakFi
             <th className="px-4 py-2 text-left font-medium text-gray-600">State</th>
             <th className="px-4 py-2 text-left font-medium text-gray-600">Review outcome</th>
             <th className="px-4 py-2 text-left font-medium text-gray-600">Source</th>
+            <th className="px-4 py-2 text-left font-medium text-gray-600">CommitGuard links</th>
             <th className="px-4 py-2 text-left font-medium text-gray-600">Detected</th>
           </tr>
         </thead>
@@ -54,6 +60,18 @@ export function SpendLeakFindingsTable({ findings, selectedModule }: SpendLeakFi
               <td className="whitespace-nowrap px-4 py-2 text-gray-700">{formatSpendLeakReviewAction(finding.reviewAction)}</td>
               <td className="whitespace-nowrap px-4 py-2 text-gray-700">
                 {formatSpendLeakEvidenceSource(getSpendLeakEvidenceSource(finding))}
+              </td>
+              <td className="whitespace-nowrap px-4 py-2 text-gray-700">
+                {(linkedCommitmentCountsByFindingId[finding.id] ?? 0) > 0 ? (
+                  <Link
+                    href={`/dashboard/commitguard?search=${encodeURIComponent(finding.summary)}`}
+                    className="text-blue-700 hover:text-blue-800 hover:underline"
+                  >
+                    {linkedCommitmentCountsByFindingId[finding.id]} linked
+                  </Link>
+                ) : (
+                  <span className="text-gray-400">None</span>
+                )}
               </td>
               <td className="whitespace-nowrap px-4 py-2 text-gray-700">
                 {finding.detectedAt.toLocaleDateString("en-AU")}

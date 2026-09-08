@@ -10,6 +10,7 @@ import {
 
 export interface SpendLeakDashboardData {
   findings: SpendInsight[]
+  linkedCommitmentCountsByFindingId: Record<string, number>
   modules: SpendLeakModuleSummary[]
   latestSyncAt: Date | null
   hasAccountingConnection: boolean
@@ -51,6 +52,28 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       }),
     ])
 
+    const findingIds = findings.map((finding) => finding.id)
+    const linkedCommitments = findingIds.length
+      ? await tx.commitment.findMany({
+          where: {
+            userId,
+            linkedSpendInsightId: { in: findingIds },
+            status: { in: ["active", "upcoming", "ending", "review"] },
+          },
+          select: { linkedSpendInsightId: true },
+        })
+      : []
+
+    const linkedCommitmentCountsByFindingId = linkedCommitments.reduce<Record<string, number>>(
+      (summary, commitment) => {
+        if (!commitment.linkedSpendInsightId) return summary
+        summary[commitment.linkedSpendInsightId] =
+          (summary[commitment.linkedSpendInsightId] ?? 0) + 1
+        return summary
+      },
+      {},
+    )
+
     const latestSyncAt = latestDate([
       latestBill?.syncedAt ?? null,
       latestTxn?.syncedAt ?? null,
@@ -62,6 +85,7 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
 
     return {
       findings,
+      linkedCommitmentCountsByFindingId,
       modules: buildSpendLeakModuleSummaries(findings),
       latestSyncAt,
       hasAccountingConnection: connectionCount > 0,

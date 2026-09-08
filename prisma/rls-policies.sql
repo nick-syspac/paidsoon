@@ -42,6 +42,10 @@ ALTER TABLE tax_buffer_obligations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tax_buffer_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tax_buffer_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tax_buffer_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commit_guard_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commitments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commitment_detection_candidates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commitment_events ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles
@@ -659,6 +663,92 @@ CREATE POLICY "users can insert own tax buffer events"
 DROP POLICY IF EXISTS "users can update own tax buffer events" ON tax_buffer_events;
 CREATE POLICY "users can update own tax buffer events"
   ON tax_buffer_events FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- commit_guard_settings
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own commit guard settings" ON commit_guard_settings;
+CREATE POLICY "users can view own commit guard settings"
+  ON commit_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own commit guard settings" ON commit_guard_settings;
+CREATE POLICY "users can insert own commit guard settings"
+  ON commit_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own commit guard settings" ON commit_guard_settings;
+CREATE POLICY "users can update own commit guard settings"
+  ON commit_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- commitments
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own commitments" ON commitments;
+CREATE POLICY "users can view own commitments"
+  ON commitments FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own commitments" ON commitments;
+CREATE POLICY "users can insert own commitments"
+  ON commitments FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own commitments" ON commitments;
+CREATE POLICY "users can update own commitments"
+  ON commitments FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own commitments" ON commitments;
+CREATE POLICY "users can delete own commitments"
+  ON commitments FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- commitment_detection_candidates
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own commitment detection candidates" ON commitment_detection_candidates;
+CREATE POLICY "users can view own commitment detection candidates"
+  ON commitment_detection_candidates FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own commitment detection candidates" ON commitment_detection_candidates;
+CREATE POLICY "users can insert own commitment detection candidates"
+  ON commitment_detection_candidates FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own commitment detection candidates" ON commitment_detection_candidates;
+CREATE POLICY "users can update own commitment detection candidates"
+  ON commitment_detection_candidates FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own commitment detection candidates" ON commitment_detection_candidates;
+CREATE POLICY "users can delete own commitment detection candidates"
+  ON commitment_detection_candidates FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- commitment_events
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own commitment events" ON commitment_events;
+CREATE POLICY "users can view own commitment events"
+  ON commitment_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own commitment events" ON commitment_events;
+CREATE POLICY "users can insert own commitment events"
+  ON commitment_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own commitment events" ON commitment_events;
+CREATE POLICY "users can update own commitment events"
+  ON commitment_events FOR UPDATE
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 

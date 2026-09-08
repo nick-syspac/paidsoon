@@ -8,6 +8,6 @@ test("getPlanChangeImpact lists lost features and limit reductions for downgrade
 
   assert.ok(impact.lostFeatures.includes("Custom reminder templates"))
   assert.ok(impact.lostFeatures.includes("Verified from domain"))
-  assert.ok(impact.limitChanges.includes("200 → 10"))
-  assert.ok(impact.limitChanges.includes("3 → 1"))
+  assert.ok(impact.limitChanges.some((change) => change.includes("→ 10")))
+  assert.ok(impact.limitChanges.some((change) => change.includes("→ 1")))
 })

@@ -468,7 +468,7 @@ describe("CashPlan forecast engine", () => {
       { id: "override-1", expiresAt: new Date("2026-09-06T00:00:00.000Z") },
       { id: "override-2", expiresAt: new Date("2026-09-08T00:00:00.000Z") },
       { id: "override-3", expiresAt: null },
-    ])
+    ], new Date("2026-09-07T00:00:00.000Z"))
 
     assert.ok(alerts.length >= 1)
     assert.equal(projection.title, "Base plan")

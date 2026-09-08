@@ -145,6 +145,7 @@ export default async function ImportExportSettingsPage(): Promise<ReactElement> 
 
   const tier = normalizeSubscriptionTier(profile?.subscriptionTier)
   const canExport = hasPlanFeature(tier, "csv_export")
+  const canManageCommitGuard = hasPlanFeature(tier, "commitguard_core")
   const exportCustomers = canExport ? await loadExportCustomers(authenticatedUser.id) : []
 
   return (
@@ -152,6 +153,7 @@ export default async function ImportExportSettingsPage(): Promise<ReactElement> 
       initialBatches={initialBatches}
       initialSpendBatches={initialSpendBatches}
       canExport={canExport}
+      canManageCommitGuard={canManageCommitGuard}
       exportCustomers={exportCustomers}
     />
   )

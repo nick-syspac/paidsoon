@@ -30,11 +30,21 @@ describe("settings navigation configuration", () => {
     })
 
     assert.deepEqual(groups[3], {
+      label: "CommitGuard",
+      items: ["CommitGuard"],
+    })
+
+    assert.deepEqual(groups[4], {
       label: "CostGuard",
       items: ["Cost Guard"],
     })
 
-    assert.deepEqual(groups[4], {
+    assert.deepEqual(groups[5], {
+      label: "TaxBuffer",
+      items: ["Tax Buffer"],
+    })
+
+    assert.deepEqual(groups[6], {
       label: "CashPlan",
       items: ["Forecast settings"],
     })
@@ -52,5 +62,11 @@ describe("settings navigation configuration", () => {
     const active = findActiveSettingsItem("/dashboard/settings/cash-plan")
     assert.equal(active?.label, "Forecast settings")
     assert.equal(active?.href, "/dashboard/settings/cash-plan")
+  })
+
+  test("returns the CommitGuard item for commitguard settings routes", () => {
+    const active = findActiveSettingsItem("/dashboard/settings/commitguard")
+    assert.equal(active?.label, "CommitGuard")
+    assert.equal(active?.href, "/dashboard/settings/commitguard")
   })
 })

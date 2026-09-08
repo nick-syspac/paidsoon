@@ -58,13 +58,14 @@ describe("combined settings import/export surface", () => {
       initialBatches,
       initialSpendBatches,
       canExport: true,
+      canManageCommitGuard: true,
       exportCustomers,
-    })
+    }) as { props: { className?: string; children?: unknown } }
     assert.equal(element.props.className, "space-y-8")
 
     const children = Array.isArray(element.props.children) ? element.props.children : [element.props.children]
     const sectionIds = children.filter(Boolean).map((child: { props?: { id?: string } }) => child?.props?.id)
-    assert.deepEqual(sectionIds, ["invoice-import", "expense-import", "invoice-export"])
+    assert.deepEqual(sectionIds, ["invoice-import", "expense-import", "invoice-export", "commitguard-settings"])
 
     const exportSection = children[2] as { props?: { children?: unknown } }
     const exportClient = Array.isArray(exportSection.props?.children)
@@ -78,8 +79,9 @@ describe("combined settings import/export surface", () => {
       initialBatches,
       initialSpendBatches,
       canExport: false,
+      canManageCommitGuard: false,
       exportCustomers: [],
-    })
+    }) as { props: { children?: unknown } }
     const children = Array.isArray(element.props.children) ? element.props.children : [element.props.children]
     const exportSection = children.find((child: { props?: { id?: string } }) => child?.props?.id === "invoice-export")
     assert.ok(exportSection)

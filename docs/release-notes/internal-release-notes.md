@@ -3,6 +3,91 @@
 This file is internal-only and chronological, with newest releases first.
 Use it as the engineering source of truth for each release.
 
+## Release v0.4.0 - 2026-08-18
+
+- Internal reference ID: REL-2026-08-18-v0.4.0
+- Release owner: Engineering
+- Deployment window: 2026-08-18 09:00-10:30 UTC
+- Risk level: medium
+
+### Executive Summary
+This release introduces CommitGuard: recurring commitment tracking, deterministic detection/review, and free-cash protection signals. It adds tenant-scoped CommitGuard tables and APIs and integrates with Cost Guard deep links, Tax Buffer protected-cash composition, SpendLeak linkage counts, and CashPlan consumption contracts. Rollout is controlled by plan-feature gating and does not require new environment variables.
+
+### Scope Included
+- New CommitGuard module (`lib/commitguard/**`) covering settings, commitment lifecycle, recurrence projection, horizon aggregation, detection/review flow, and event timeline output.
+- New dashboard and settings module surfaces: `/dashboard/commitguard` and `/dashboard/settings/commitguard`.
+- New API routes under `/api/commitguard/**` for summary, commitments, actions, detections, review, settings, timeline, renewals, and CashPlan integration output.
+- Cross-module links: Cost Guard alert -> CommitGuard filtered view (`?costGuardAlertId=`), SpendLeak active commitment linkage metadata, Tax Buffer reserve integration in free-cash composition.
+
+### Deferred
+- No customer-facing release-note entry in this file; see customer release notes workflow in `docs/runbooks/README.md`.
+- No new dedicated ops dashboard/alerts for CommitGuard event thresholds beyond existing in-app/event trails.
+
+### Technical Changes
+- Added CommitGuard domain models: `CommitGuardSetting`, `Commitment`, `CommitmentDetectionCandidate`, `CommitmentEvent`.
+- Added tenant-scoped RLS policies for all CommitGuard tables.
+- Added deterministic recurrence and confidence classification logic with review-state rejection memory.
+- Added integration-safe CashPlan contract endpoint: `GET /api/commitguard/cashplan`.
+
+### Database and Migration Notes
+- Prisma schema change: yes.
+- Migration required: yes.
+- Backfill required: no.
+- Rollback impact: medium.
+- Migration application order:
+  1. Deploy schema migration for CommitGuard tables/indexes.
+  2. Apply matching RLS policy updates from `prisma/rls-policies.sql`.
+  3. Deploy application code that reads/writes CommitGuard routes/services.
+  4. Verify tenant isolation with `npm run verify-rls` before broad rollout.
+
+### Security Notes
+- All CommitGuard user-facing data access is session-authenticated and tenant-scoped via `withUserContext`.
+- Feature access is enforced server-side through existing entitlement gates (`requireFeature` / `hasPlanFeature`).
+- CommitGuard introduces no new secrets or environment variables.
+
+### Operational Notes
+- Feature flags changed: added/used CommitGuard feature keys in subscription feature model.
+- Cron schedule changed: no.
+- Runbook updates required: yes (CommitGuard no-new-env note added).
+- Support briefing required: yes (new module navigation, free-cash semantics, detection review behavior).
+
+### Testing and Verification
+- Build validation: pass.
+- Test suite: pass.
+- Lint: pass.
+- Manual QA focus:
+  - CommitGuard dashboard filters and Cost Guard deep-link behavior.
+  - Commitment create/edit/pause/resume/cancel/confirm lifecycle transitions.
+  - Detection review actions (`confirm`, `ignore`, `not_a_commitment`) and queue behavior.
+  - CashPlan integration endpoint output consistency.
+
+### Incidents and Reversions
+- None during release window.
+
+### Breaking or Behavioral Changes
+- Breaking changes: none expected for existing routes.
+- Behavioral change: tenants with CommitGuard entitlement now see commitment-based free-cash and renewal/notice risk context in dashboard workflows.
+
+### Rollout and Rollback Notes
+- Rollout strategy:
+  - Apply migration + RLS updates first.
+  - Deploy app code.
+  - Validate health checks (`npm run lint`, `npx tsc --noEmit`, `npm run test`, `npm run build`).
+  - Spot-check one entitled tenant and one non-entitled tenant for correct gating and API responses.
+- Rollback strategy:
+  - If post-deploy regressions occur, roll back app deployment first (leaving additive tables in place).
+  - Disable CommitGuard access by reverting/locking entitlement keys if needed.
+  - Do not drop CommitGuard tables during incident response; schedule cleanup only after root-cause review.
+
+### Post-Release Tasks
+- Owner: Engineering + Support
+- Due: 2026-08-25
+- Status: Open
+- Tasks:
+  - Publish customer-facing release note entry.
+  - Capture first-week support feedback on free-cash messaging clarity.
+  - Review event volumes for Commitment-related notifications and adjust thresholds if needed.
+
 ## Release v0.3.0 - 2026-08-11
 
 - Internal reference ID: REL-2026-08-11-v0.3.0

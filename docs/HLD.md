@@ -218,6 +218,7 @@ what is actually present, and explicitly marks absent capabilities.
 | Email settings | Custom verified from-address | Implemented | `app/api/settings/email/route.ts`, `lib/email/send.ts` | `.../specs/email-settings/spec.md` | Resend domain verify polling |
 | Manual invoice actions | Pause / resume / snooze / resolve | Implemented | `app/api/invoices/[id]/**` | `.../specs/dashboard/spec.md` | RLS-scoped |
 | Dashboard | Overdue + resolved views, upsell | Implemented | `app/dashboard/page.tsx`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell/specs/...` | Feature-gated modules |
+| CommitGuard | Commitment registry, detection/review queue, horizon projection, and free-cash guardrails | Implemented | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | `changes/add-commitguard-module` | Bridges spend-side signals to planning by converting recurring commitments into deterministic outflow and free-cash signals |
 | Tax Buffer | Tax reserve control layer and safe-to-spend composition | Implemented | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | `changes/add-tax-buffer-module` | First-time setup suggestions, category-level methods, deduplicated reserve events |
 | Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/restore-three-tier-pricing/specs/...` | 4 tiers: Starter A$9 / Solo A$19 / Small Business A$39 (public) / Accountant Partner (contact us, hidden) |
 | Live-mode gating | Pre-launch auth lockout + banner | Implemented | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | `changes/live-mode-auth-gate-banner/specs/...` | `LIVE` env var |
@@ -233,6 +234,22 @@ what is actually present, and explicitly marks absent capabilities.
 | Workflow engine | Definitions/instances/nodes/tasks | **Not applicable** | — | — | The only "workflow" is the 3-stage email sequence |
 | Audit logging | Structured audit events | **Not present** | — | — | `email_logs` is the only persistent event trail |
 | Internal admin / platform settings | Operator console | **Not present** | — | — | Operators use Supabase/Stripe/Vercel dashboards |
+
+### FinOps progression: Cost Guard -> CommitGuard -> Tax Buffer -> CashPlan
+
+PaidSoon's spend-control flow now has a clear progression:
+
+1. **Cost Guard** establishes baseline drift/risk signals from spend history.
+2. **CommitGuard** translates recurring and contractual obligations into
+  explicit commitment outflows, renewal/notice severities, and free-cash risk.
+3. **Tax Buffer** reserves statutory cash and reports tax-protected balances.
+4. **CashPlan** consumes committed-outflow + protected-cash outputs to keep
+  planning projections aligned to real obligations.
+
+In implementation terms, Cost Guard alerts can deep-link into CommitGuard
+filtered commitment views, CommitGuard can consume Tax Buffer protected-cash
+inputs in its free-cash composition, and CashPlan consumes CommitGuard's
+integration-safe cash projection contract (`/api/commitguard/cashplan`).
 
 ---
 
