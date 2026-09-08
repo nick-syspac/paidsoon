@@ -25,6 +25,7 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { href: "/dashboard/settings/templates", label: "Templates", group: "paidsoon", order: 3 },
   { href: "/dashboard/settings/import-export", label: "Import / Export", group: "paidsoon", order: 4 },
   { href: "/dashboard/settings/cost-guard", label: "Cost Guard", group: "costguard", order: 1 },
+  { href: "/dashboard/settings/tax-buffer", label: "Tax Buffer", group: "taxbuffer", order: 1 },
   { href: "/dashboard/settings/cash-plan", label: "Forecast settings", group: "cashplan", order: 1 },
 ]
 
@@ -33,6 +34,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   { id: "paidsoon", label: "PaidSoon", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "paidsoon") },
   { id: "spendleak", label: "SpendLeak", items: [] },
   { id: "costguard", label: "CostGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "costguard") },
+  { id: "taxbuffer", label: "TaxBuffer", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "taxbuffer") },
   { id: "cashplan", label: "CashPlan", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "cashplan") },
 ]
 

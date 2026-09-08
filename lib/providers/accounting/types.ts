@@ -76,6 +76,12 @@ export interface ProviderInvoice {
    * Must not be logged. Stored in ProviderInvoiceMapping.providerMetadata.
    */
   rawMetadata?: Record<string, unknown>
+  taxMetadata?: {
+    taxAmount?: number
+    taxCode?: string
+    lineAmountType?: string
+    taxInclusive?: boolean
+  }
 }
 
 export type ProviderInvoiceStatus =
@@ -114,6 +120,12 @@ export interface ProviderSpendBill {
   status: ProviderSpendBillStatus
   providerUpdatedAt?: Date
   rawMetadata?: Record<string, unknown>
+  taxMetadata?: {
+    taxAmount?: number
+    taxCode?: string
+    lineAmountType?: string
+    taxInclusive?: boolean
+  }
 }
 
 export interface ProviderSpendBankTransaction {
@@ -129,6 +141,12 @@ export interface ProviderSpendBankTransaction {
   transactionDate: Date
   providerUpdatedAt?: Date
   rawMetadata?: Record<string, unknown>
+  taxMetadata?: {
+    taxAmount?: number
+    taxCode?: string
+    lineAmountType?: string
+    taxInclusive?: boolean
+  }
 }
 
 export interface ProviderSpendSupplier {

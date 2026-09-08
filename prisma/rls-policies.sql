@@ -36,6 +36,12 @@ ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promise_escalation_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arrangements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arrangement_invoice_coverages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_configurations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_reserve_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_obligations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_overrides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_events ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles
@@ -531,6 +537,129 @@ CREATE POLICY "users can view own cost guard forecasts"
 DROP POLICY IF EXISTS "users can insert own cost guard forecasts" ON cost_guard_forecasts;
 CREATE POLICY "users can insert own cost guard forecasts"
   ON cost_guard_forecasts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_configurations
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer configurations" ON tax_buffer_configurations;
+CREATE POLICY "users can view own tax buffer configurations"
+  ON tax_buffer_configurations FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer configurations" ON tax_buffer_configurations;
+CREATE POLICY "users can insert own tax buffer configurations"
+  ON tax_buffer_configurations FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax buffer configurations" ON tax_buffer_configurations;
+CREATE POLICY "users can update own tax buffer configurations"
+  ON tax_buffer_configurations FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_reserve_categories
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax reserve categories" ON tax_reserve_categories;
+CREATE POLICY "users can view own tax reserve categories"
+  ON tax_reserve_categories FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax reserve categories" ON tax_reserve_categories;
+CREATE POLICY "users can insert own tax reserve categories"
+  ON tax_reserve_categories FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax reserve categories" ON tax_reserve_categories;
+CREATE POLICY "users can update own tax reserve categories"
+  ON tax_reserve_categories FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own tax reserve categories" ON tax_reserve_categories;
+CREATE POLICY "users can delete own tax reserve categories"
+  ON tax_reserve_categories FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_obligations
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer obligations" ON tax_buffer_obligations;
+CREATE POLICY "users can view own tax buffer obligations"
+  ON tax_buffer_obligations FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer obligations" ON tax_buffer_obligations;
+CREATE POLICY "users can insert own tax buffer obligations"
+  ON tax_buffer_obligations FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax buffer obligations" ON tax_buffer_obligations;
+CREATE POLICY "users can update own tax buffer obligations"
+  ON tax_buffer_obligations FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own tax buffer obligations" ON tax_buffer_obligations;
+CREATE POLICY "users can delete own tax buffer obligations"
+  ON tax_buffer_obligations FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_snapshots
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer snapshots" ON tax_buffer_snapshots;
+CREATE POLICY "users can view own tax buffer snapshots"
+  ON tax_buffer_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer snapshots" ON tax_buffer_snapshots;
+CREATE POLICY "users can insert own tax buffer snapshots"
+  ON tax_buffer_snapshots FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_overrides
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer overrides" ON tax_buffer_overrides;
+CREATE POLICY "users can view own tax buffer overrides"
+  ON tax_buffer_overrides FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer overrides" ON tax_buffer_overrides;
+CREATE POLICY "users can insert own tax buffer overrides"
+  ON tax_buffer_overrides FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax buffer overrides" ON tax_buffer_overrides;
+CREATE POLICY "users can update own tax buffer overrides"
+  ON tax_buffer_overrides FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own tax buffer overrides" ON tax_buffer_overrides;
+CREATE POLICY "users can delete own tax buffer overrides"
+  ON tax_buffer_overrides FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_events
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer events" ON tax_buffer_events;
+CREATE POLICY "users can view own tax buffer events"
+  ON tax_buffer_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer events" ON tax_buffer_events;
+CREATE POLICY "users can insert own tax buffer events"
+  ON tax_buffer_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax buffer events" ON tax_buffer_events;
+CREATE POLICY "users can update own tax buffer events"
+  ON tax_buffer_events FOR UPDATE
+  USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------

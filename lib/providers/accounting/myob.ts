@@ -408,6 +408,10 @@ export class MyobProvider implements AccountingProvider {
           status: normaliseMYOBStatus(inv.Status ?? ""),
           providerUpdatedAt: parseMYOBDate(inv.LastModified),
           rawMetadata: inv as unknown as Record<string, unknown>,
+          taxMetadata: {
+            taxAmount: inv.TotalTax,
+            taxInclusive: true,
+          },
         })
       }
 
@@ -558,6 +562,10 @@ export class MyobProvider implements AccountingProvider {
           status: normaliseMYOBSpendBillStatus(bill.Status ?? ""),
           providerUpdatedAt: parseMYOBDate(bill.LastModified),
           rawMetadata: bill as unknown as Record<string, unknown>,
+          taxMetadata: {
+            taxAmount: bill.TotalTax,
+            taxInclusive: true,
+          },
         })
       }
 
@@ -626,6 +634,9 @@ export class MyobProvider implements AccountingProvider {
           transactionDate: parseMYOBDate(tx.Date) ?? new Date(),
           providerUpdatedAt: parseMYOBDate(tx.LastModified),
           rawMetadata: tx as unknown as Record<string, unknown>,
+          taxMetadata: {
+            taxInclusive: true,
+          },
         })
       }
 

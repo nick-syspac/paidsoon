@@ -25,6 +25,9 @@ import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperat
 import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
 import { formatAudCents, getSpendLeakEvidenceSource } from "@/lib/dashboard/spendleakPresentation"
 import { buildCostGuardNotificationPlan } from "@/lib/costGuard/foundation"
+import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
+import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
+import { buildTaxBufferDigestSummary } from "@/lib/taxBuffer/engine"
 import {
   buildCashPlanForecast,
   buildCashPlanSummaryResponse,
@@ -109,7 +112,9 @@ export default async function DashboardOverviewPage({
   } = await loadDashboardOverview(user.id, traceContext, COMPONENT)
 
   const canViewSpendLeak = canAccessSpendLeak(profile?.subscriptionTier)
+  const canViewTaxBuffer = canAccessTaxBuffer(profile?.subscriptionTier)
   const spendLeakData = canViewSpendLeak ? await loadSpendLeakDashboard(user.id) : null
+  const taxBufferSummary = canViewTaxBuffer ? await loadTaxBufferSummary(user.id) : null
   const topSpendLeakModule = spendLeakData?.modules
     .filter((module) => module.findingCount > 0)
     .sort((left, right) => right.estimatedAnnualCents - left.estimatedAnnualCents)[0]
@@ -133,6 +138,8 @@ export default async function DashboardOverviewPage({
   })
 
   const heldInvoiceIds = computeHeldInvoiceIds(activeInvoices, chaseAllowance?.atCapacity ?? false)
+  const now = new Date()
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
   const costGuardAlerts = await withUserContext(user.id, async (tx) =>
     tx.costGuardAlert.findMany({
@@ -141,6 +148,18 @@ export default async function DashboardOverviewPage({
       take: 5,
     }),
   )
+  const taxBufferEvents = canViewTaxBuffer
+    ? await withUserContext(user.id, async (tx) =>
+        tx.taxBufferEvent.findMany({
+          where: {
+            userId: user.id,
+            createdAt: { gte: sevenDaysAgo },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+        }),
+      )
+    : []
   const costGuardNotifications = buildCostGuardNotificationPlan(
     costGuardAlerts.map((alert) => ({
       id: alert.id,
@@ -154,7 +173,31 @@ export default async function DashboardOverviewPage({
     ...costGuardNotifications.immediate,
     ...costGuardNotifications.daily,
     ...costGuardNotifications.weekly,
+    ...taxBufferEvents
+      .filter((event) => event.severity === "warning" || event.severity === "critical")
+      .map((event) => ({
+      id: `tax-buffer-${event.id}`,
+      title: event.title,
+      description: event.message,
+      severity: event.severity as "critical" | "warning" | "watch" | "info",
+      status: "open",
+      })),
   ].slice(0, 3)
+  const taxBufferDigest =
+    taxBufferSummary && canViewTaxBuffer
+      ? buildTaxBufferDigestSummary({
+          period: "daily",
+          userName: profile?.displayName ?? undefined,
+          transferNowCents: taxBufferSummary.recommendation.transferNowCents,
+          events: taxBufferEvents.map((event) => ({
+            id: event.id,
+            title: event.title,
+            message: event.message,
+            severity: event.severity as "critical" | "warning" | "watch" | "info",
+            status: "open",
+          })),
+        })
+      : null
 
   const cards = buildOverviewCards({
     activeInvoices,
@@ -165,7 +208,6 @@ export default async function DashboardOverviewPage({
     disputedInvoiceCount,
   })
 
-  const now = new Date()
   const currencySummaries = buildCurrencyDashboardSummaries({
     activeInvoices,
     paidInvoices,
@@ -353,6 +395,65 @@ export default async function DashboardOverviewPage({
                 </li>
               ))}
             </ul>
+          ) : null}
+        </section>
+      ) : null}
+
+      {taxBufferSummary ? (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">Tax Buffer</p>
+              <h2 className="mt-1 text-lg font-semibold text-gray-900">Safe to spend {formatAudCents(taxBufferSummary.safeToSpendCents)}</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Required reserve {formatAudCents(taxBufferSummary.totalRequiredReserveCents)} · Reserved {formatAudCents(taxBufferSummary.totalReservedCents)}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Link
+                href="/dashboard/settings/tax-buffer"
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Open settings
+              </Link>
+              <Link
+                href="/dashboard/tax-buffer"
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Open Tax Buffer
+              </Link>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Available cash</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">{formatAudCents(taxBufferSummary.availableCashCents)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Required reserve</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">{formatAudCents(taxBufferSummary.totalRequiredReserveCents)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Reserve gap</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">{formatAudCents(taxBufferSummary.reserveGapCents)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Health</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">{taxBufferSummary.healthStatus}</p>
+            </div>
+          </div>
+          {taxBufferDigest && taxBufferDigest.count > 0 ? (
+            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Tax Buffer digest</p>
+              <p className="mt-1 text-sm font-medium text-gray-900">{taxBufferDigest.headline}</p>
+              {taxBufferDigest.actions.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                  {taxBufferDigest.actions.map((action) => (
+                    <li key={action}>{action}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
         </section>
       ) : null}

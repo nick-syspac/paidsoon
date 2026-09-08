@@ -56,6 +56,12 @@ model UserProfile {
   costGuardAlerts              CostGuardAlert[]
   costGuardAlertEvents         CostGuardAlertEvent[]
   costGuardForecasts           CostGuardForecast[]
+  taxBufferConfigurations      TaxBufferConfiguration[]
+  taxReserveCategories         TaxReserveCategory[]
+  taxBufferObligations         TaxBufferObligation[]
+  taxBufferSnapshots           TaxBufferSnapshot[]
+  taxBufferOverrides           TaxBufferOverride[]
+  taxBufferEvents              TaxBufferEvent[]
   invoiceImportBatches         InvoiceImportBatch[]
   invoiceImportMappingProfiles InvoiceImportMappingProfile[]
   spendImportBatches           SpendImportBatch[]
@@ -288,6 +294,7 @@ model FinancialInvoice {
   contact              FinancialContact?     @relation(fields: [contactId], references: [id])
   trackedInvoice       TrackedInvoice?
   financialPayments    FinancialPayment[]
+  taxBufferObligations TaxBufferObligation[]
 
   @@unique([userId, sourceSystem, sourceId])
   @@index([userId, dueDate])
@@ -684,6 +691,7 @@ model ImportedBill {
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+  taxBufferObligations TaxBufferObligation[]
 
   @@unique([accountingConnectionId, sourceId])
   @@index([userId, status, dueDate])
@@ -713,6 +721,7 @@ model ImportedBankTransaction {
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+  taxBufferObligations TaxBufferObligation[]
 
   @@unique([accountingConnectionId, sourceId])
   @@index([userId, transactionDate])
@@ -1177,6 +1186,156 @@ model CostGuardForecast {
 
   @@index([userId, forecastMonth])
   @@map("cost_guard_forecasts")
+}
+
+// ---------------------------------------------------------------------------
+// Tax Buffer Foundation
+// ---------------------------------------------------------------------------
+
+model TaxBufferConfiguration {
+  id                          String   @id @default(cuid())
+  userId                      String   @map("user_id")
+  enabled                     Boolean  @default(false)
+  accountingBasis             String   @default("cash") @map("accounting_basis") // cash | accrual
+  businessType                String   @default("other") @map("business_type")
+  gstRegistered               Boolean  @default(false) @map("gst_registered")
+  gstFrequency                String   @default("quarterly") @map("gst_frequency") // monthly | quarterly | annually
+  reserveHealthWatchThreshold Float    @default(0.9) @map("reserve_health_watch_threshold")
+  reserveHealthCriticalThreshold Float @default(0.7) @map("reserve_health_critical_threshold")
+  reserveBalanceSource        String   @default("manual") @map("reserve_balance_source") // manual | connected_account
+  reserveBalanceCents         Int      @default(0) @map("reserve_balance_cents")
+  reserveAccountName          String?  @map("reserve_account_name")
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("tax_buffer_configurations")
+}
+
+model TaxReserveCategory {
+  id                      String    @id @default(cuid())
+  userId                  String    @map("user_id")
+  categoryType            String    @map("category_type") // gst | payg_withholding | payg_instalment | income_tax | custom
+  name                    String
+  description             String?
+  calculationMethod       String    @default("manual") @map("calculation_method") // integration | fixed_amount | percentage_profit | percentage_revenue | manual
+  recurrence              String    @default("quarterly") // weekly | fortnightly | monthly | quarterly | annually | one_off
+  enabled                 Boolean   @default(true)
+  ratePercent             Float?    @map("rate_percent")
+  fixedAmountCents        Int?      @map("fixed_amount_cents")
+  manualAmountCents       Int?      @map("manual_amount_cents")
+  nextDueDate             DateTime? @map("next_due_date")
+  sourcePreference        String    @default("auto") @map("source_preference")
+  confidenceOverride      String?   @map("confidence_override")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  userProfile        UserProfile          @relation(fields: [userId], references: [userId])
+  obligations        TaxBufferObligation[]
+  overrides          TaxBufferOverride[]
+
+  @@index([userId, categoryType])
+  @@index([userId, enabled])
+  @@map("tax_reserve_categories")
+}
+
+model TaxBufferObligation {
+  id                         String    @id @default(cuid())
+  userId                     String    @map("user_id")
+  reserveCategoryId          String    @map("reserve_category_id")
+  name                       String
+  periodStart                DateTime? @map("period_start")
+  periodEnd                  DateTime? @map("period_end")
+  dueDate                    DateTime  @map("due_date")
+  estimatedAmountCents       Int       @map("estimated_amount_cents")
+  reservedAmountCents        Int       @default(0) @map("reserved_amount_cents")
+  source                     String
+  sourceDetail               String?   @map("source_detail")
+  confidence                 String    @default("medium")
+  status                     String    @default("open") // open | covered | short | settled
+  calculatedAt               DateTime  @default(now()) @map("calculated_at")
+  financialInvoiceId         String?   @map("financial_invoice_id")
+  importedBillId             String?   @map("imported_bill_id")
+  importedBankTransactionId  String?   @map("imported_bank_transaction_id")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  userProfile             UserProfile            @relation(fields: [userId], references: [userId])
+  reserveCategory         TaxReserveCategory     @relation(fields: [reserveCategoryId], references: [id], onDelete: Cascade)
+  financialInvoice        FinancialInvoice?      @relation(fields: [financialInvoiceId], references: [id], onDelete: SetNull)
+  importedBill            ImportedBill?          @relation(fields: [importedBillId], references: [id], onDelete: SetNull)
+  importedBankTransaction ImportedBankTransaction? @relation(fields: [importedBankTransactionId], references: [id], onDelete: SetNull)
+  overrides               TaxBufferOverride[]
+
+  @@index([userId, dueDate])
+  @@index([userId, status])
+  @@index([reserveCategoryId])
+  @@map("tax_buffer_obligations")
+}
+
+model TaxBufferSnapshot {
+  id                      String   @id @default(cuid())
+  userId                  String   @map("user_id")
+  snapshotAt              DateTime @default(now()) @map("snapshot_at")
+  availableCashCents      Int?     @map("available_cash_cents")
+  totalRequiredCents      Int      @default(0) @map("total_required_cents")
+  totalReservedCents      Int      @default(0) @map("total_reserved_cents")
+  reserveGapCents         Int      @default(0) @map("reserve_gap_cents")
+  committedOutflowsCents  Int      @default(0) @map("committed_outflows_cents")
+  safeToSpendCents        Int?     @map("safe_to_spend_cents")
+  healthStatus            String   @default("unknown") @map("health_status")
+  warnings                Json?
+  calculationInputs       Json?    @map("calculation_inputs")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, snapshotAt])
+  @@map("tax_buffer_snapshots")
+}
+
+model TaxBufferOverride {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  reserveCategoryId     String?   @map("reserve_category_id")
+  obligationId          String?   @map("obligation_id")
+  calculatedValueCents  Int       @map("calculated_value_cents")
+  overrideValueCents    Int       @map("override_value_cents")
+  reason                String
+  basedOnAccountant     Boolean   @default(false) @map("based_on_accountant")
+  createdBy             String?   @map("created_by")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  userProfile      UserProfile          @relation(fields: [userId], references: [userId])
+  reserveCategory  TaxReserveCategory?  @relation(fields: [reserveCategoryId], references: [id], onDelete: SetNull)
+  obligation       TaxBufferObligation? @relation(fields: [obligationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([reserveCategoryId])
+  @@index([obligationId])
+  @@map("tax_buffer_overrides")
+}
+
+model TaxBufferEvent {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  eventType  String   @map("event_type")
+  severity   String   @default("info")
+  dedupeKey  String   @map("dedupe_key")
+  title      String
+  message    String
+  metadata   Json?
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, occurredAt])
+  @@map("tax_buffer_events")
 }
 
 // ---------------------------------------------------------------------------

@@ -26,6 +26,9 @@ export type SubscriptionFeature =
   | "payment_status_dashboard"
   | "overdue_invoice_dashboard"
   | "accounting_integrations"
+  | "tax_buffer_basic"
+  | "tax_buffer_automation"
+  | "tax_buffer_custom_reserves"
   | "promise_to_pay_tracking"
   | "dispute_pause"
   | "weekly_summary_email"
@@ -115,6 +118,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: false,
+      tax_buffer_custom_reserves: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -152,6 +158,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: true,
+      tax_buffer_custom_reserves: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -190,6 +199,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: true,
+      tax_buffer_custom_reserves: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -227,6 +239,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: true,
+      tax_buffer_custom_reserves: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -264,6 +279,9 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: true,
+      tax_buffer_custom_reserves: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -435,6 +453,12 @@ function featureToLabel(feature: SubscriptionFeature): string {
       return "Payment status dashboard"
     case "overdue_invoice_dashboard":
       return "Overdue invoice dashboard"
+    case "tax_buffer_basic":
+      return "Tax Buffer"
+    case "tax_buffer_automation":
+      return "Tax Buffer automation"
+    case "tax_buffer_custom_reserves":
+      return "Custom tax reserves"
     case "basic_email_reminders":
       return "Basic email reminders"
     case "team_seats":

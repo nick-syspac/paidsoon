@@ -50,6 +50,7 @@ below maps logical areas to code modules (there are no Django apps).
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` |
 | SpendLeak brain | `lib/spendleak/**`, `lib/dashboard/loadSpendLeakDashboard.ts`, `app/api/spend-insights/[id]/route.ts`, `app/api/spendleak/export/route.ts`, `prisma/schema.prisma` | Read-only spend ingestion, deterministic detection, grounded summaries, and analysis-only CSV/XLSX report export | `ImportedBill`, `ImportedBankTransaction`, `SupplierProfile`, `SpendInsight`; `SPENDLEAK_EXPORT_FIELDS`, `loadSpendLeakFindingsForExport`, `generateSpendLeakExportCsv`, `generateSpendLeakExportXlsx` | `changes/build-spendleak-brain`, `changes/export-spendleak-report` |
 | Cost Guard foundation | `lib/costGuard/**`, `prisma/schema.prisma`, `prisma/rls-policies.sql` | Shared cost-risk baseline, rule catalog, alerts, and month-end forecast state for the read-only Cost Guard module | `CostGuardSetting`, `CostGuardRule`, `CostGuardBaseline`, `CostGuardAlert`, `CostGuardAlertEvent`, `CostGuardForecast`; `calculateBaseline`, `evaluateMateriality`, `buildDefaultCostGuardRules` | `changes/cost-guard-foundation` |
+| Tax Buffer | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | Tax reserve estimation, safe-to-spend composition, obligation tracking, and reserve override audit trail | `TaxBufferConfiguration`, `TaxReserveCategory`, `TaxBufferObligation`, `TaxBufferSnapshot`, `TaxBufferOverride`, `TaxBufferEvent`; `buildTaxBufferSummary`, `loadTaxBufferSummary`, `saveTaxBufferSettings` | `changes/add-tax-buffer-module` |
 | Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV/XLSX invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/csv-only-invoice-import`, `changes/combine-settings-import-export`, `changes/canonical-financial-data-model` |
 | Settings import/export shell | `app/dashboard/settings/layout.tsx`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `app/dashboard/settings/export/**`, `components/settings/ExpenseImportClient.tsx` | Combined Settings page for invoice import, expense import, and invoice export, with legacy route aliases | Reuses existing import/export models and SpendLeak import workflow | `changes/combine-settings-import-export` |
 | Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export`, `changes/combine-settings-import-export` |
@@ -274,7 +275,29 @@ subsection documents a functional module.
 - `settings/team/invite` — GET reports seats; POST validates email and seat
   limit but **does not persist** (no membership model).
 
-### 4.9 Training content destination governance and fallback
+### 4.10 Tax Buffer (`lib/taxBuffer/**`, `app/api/tax-buffer/**`)
+
+- **Responsibility:** estimate required tax reserves, report safe-to-spend
+  cash, and maintain an auditable trail of reserve configuration and override
+  decisions.
+- **Core service flow:** `loadTaxBufferSummary()` ensures default configuration,
+  gathers canonical financial inputs (financial invoices, imported bills, cash
+  forecast, near-term cash-plan outflows), runs deterministic category
+  calculations via `buildTaxBufferSummary()`, stores a point-in-time
+  `TaxBufferSnapshot`, and emits deduplicated `TaxBufferEvent` records for
+  under-reserved/recovered, due-soon, and material reserve-delta conditions.
+- **Settings flow:** `getTaxBufferSettings()` returns configuration, categories,
+  and first-time suggested defaults when reliable source data exists. The
+  settings UI can apply these suggestions and then persist category-level
+  methods, recurrence, and configured inputs through `saveTaxBufferSettings()`.
+- **API surface:** summary, obligations, settings, and overrides routes are
+  session-authenticated, plan-gated via `requireFeature("tax_buffer_basic")`,
+  and return safe JSON shapes.
+- **Tenant controls:** all user-facing reads and writes run through
+  `withUserContext`; all six Tax Buffer tables are covered by tenant-scoped RLS
+  policies in `prisma/rls-policies.sql`.
+
+### 4.11 Training content destination governance and fallback
 
 - Destination keys are platform-defined identifiers resolved by
   `lib/help/destinations.ts`.
@@ -289,7 +312,7 @@ subsection documents a functional module.
 - This keeps historic guide links stable during destination refactors while
   preserving least-privilege visibility.
 
-### 4.10 Not applicable
+### 4.12 Not applicable
 
 Compliance/control-library, workflow engine, CMS, vertical_setup, RTO,
 integrations registry, and any `apps/api/apps/**` modules — **not present**.
@@ -306,11 +329,13 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 | Trial checkout gateway | `app/billing/checkout/page.tsx` | Server component; reads `?plan` param (falls back to profile tier), POSTs to `/api/billing/checkout`, and redirects to the Stripe Checkout URL. Entry point for both the trial-expired gate and the TrialBanner "Add payment" CTA. Renders an error UI if checkout session creation fails. |
 | Dashboard shell | `app/dashboard/layout.tsx` | Nav with `UserMenu` dropdown (identity + sign-out); left-side vertical tab rail (`DashboardNavRail`) for Overview/Invoices/Resolved Invoices; redirects unauthenticated to `/sign-in` |
 | Dashboard Overview page | `app/dashboard/page.tsx` | Traffic-light summary cards (Overdue, Chase allowance, Broken promises, Held invoices), ungated for every tier; redirects legacy `?resolved=1` to `/dashboard/resolved` |
+| Tax Buffer dashboard page | `app/dashboard/tax-buffer/page.tsx` | Tier-gated module showing reserve totals, safe-to-spend, category explainability, and 90-day obligations; includes setup guidance when disabled |
 | SpendLeak dashboard page | `app/dashboard/spendleak/page.tsx` | Spend-side module summaries plus freshness/empty/partial/stale state copy; tier-gated to eligible dashboard tiers; supports `?module=` filters and an analysis-only "Export SpendLeak Report" action |
 | SpendLeak finding detail page | `app/dashboard/spendleak/[id]/page.tsx` | Evidence-first drill-down for a single finding, with structured evidence cards, raw evidence disclosure, and lifecycle controls |
 | Dashboard Invoices page | `app/dashboard/invoices/page.tsx` | Active-invoice table; feature-gated module + upsell; supports `?filter=` from Overview card click-throughs |
 | Dashboard Resolved Invoices page | `app/dashboard/resolved/page.tsx` | Paid/manually-resolved invoice table; feature-gated module + upsell |
 | Settings pages | `app/dashboard/settings/{account,schedule,email,templates,team,stripe,subscription}/page.tsx` | Each pairs with a `*Client.tsx`; AI controls are embedded in the templates page |
+| Tax Buffer settings page | `app/dashboard/settings/tax-buffer/page.tsx`, `components/settings/TaxBufferSettingsClient.tsx` | Tier-gated settings with first-time suggested defaults, reserve account/manual balance controls, and category method/recurrence tuning |
 | Dashboard components | `components/dashboard/{InvoiceTable,LockedDashboardPreview,UpgradeBanner,OverviewCards,DashboardNavRail}.tsx` | Table + locked preview + banner + Overview cards + nav rail |
 | Settings clients | `components/settings/*Client.tsx` | Client-side forms calling the settings APIs |
 | Shared UI | `components/ui/Spinner.tsx` | Only shared primitive |
@@ -459,6 +484,12 @@ erDiagram
 | `PromiseToPay` | `prisma/schema.prisma` | Client payment commitment history per invoice | `trackedInvoiceId`, `userId`, `promisedPayBy`, `promisedAmount`, `clientNotes`, `status`, `breachNotifiedAt` | N—1 tracked invoice | Yes (SELECT only; INSERT/UPDATE via `prismaAdmin`) | `status`: `active` → `kept` / `broken` / `superseded`; indexes on `(trackedInvoiceId, createdAt)` and `(status, promisedPayBy)` |
 | `Arrangement` | `prisma/schema.prisma` | Freelancer-managed agreement for one debtor (single or multi-invoice scope) | `userId`, `debtorEmail`, `arrangementType`, `status`, `promisedPayBy`, `agreedAmount`, `planSchedule`, `expiresAt`, `breachedAt`, `fulfilledAt` | N—1 profile; 1—N coverages | Yes (RLS CRUD) | `arrangementType`: `full_payment` / `partial_payment` / `instalment_plan`; `status`: `active` → `broken` / `fulfilled` / `expired` / `cancelled` |
 | `ArrangementInvoiceCoverage` | `prisma/schema.prisma` | Joins arrangements to covered invoices for suppression/resume behavior | `arrangementId`, `trackedInvoiceId`, `userId` | N—1 arrangement; N—1 tracked invoice | Yes (RLS CRUD) | Unique `(arrangementId, trackedInvoiceId)`; FK `(arrangementId, userId)` → arrangements |
+| `TaxBufferConfiguration` | `prisma/schema.prisma` | Per-tenant Tax Buffer settings baseline | `userId`, `enabled`, `accountingBasis`, `businessType`, `gstRegistered`, `gstFrequency`, `reserveBalanceSource`, `reserveBalanceCents`, `reserveAccountName`, `reserveHealthWatchThreshold`, `reserveHealthCriticalThreshold` | 1—1 profile; 1—N reserve categories/obligations/snapshots/events | Yes (RLS CRUD) | Defaults created lazily on first Tax Buffer access |
+| `TaxReserveCategory` | `prisma/schema.prisma` | Per-tenant reserve categories (GST/PAYG/income/custom) | `userId`, `categoryType`, `name`, `enabled`, `calculationMethod`, `recurrence`, `ratePercent`, `fixedAmountCents`, `manualAmountCents`, `sourcePreference` | N—1 configuration/profile; 1—N obligations/overrides/events | Yes (RLS CRUD) | Seeded with default categories; updated through Tax Buffer settings route |
+| `TaxBufferObligation` | `prisma/schema.prisma` | Upcoming tax obligations with reserve coverage tracking | `userId`, `reserveCategoryId`, `name`, `dueDate`, `estimatedAmountCents`, `reservedAmountCents`, `status`, `confidence`, `source`, `metadata` | N—1 reserve category/profile; 1—N overrides/events | Yes (RLS CRUD) | Queried by 30/60/90-day horizons with sort options |
+| `TaxBufferSnapshot` | `prisma/schema.prisma` | Immutable reserve and safe-to-spend summary snapshots | `userId`, `availableCashCents`, `totalRequiredCents`, `totalReservedCents`, `reserveGapCents`, `committedOutflowsCents`, `safeToSpendCents`, `healthStatus`, `warnings` | N—1 profile/configuration | Yes (RLS CRUD) | Written on summary load for trend/audit history |
+| `TaxBufferOverride` | `prisma/schema.prisma` | Manual override records for category or obligation values | `userId`, `reserveCategoryId`, `obligationId`, `calculatedValueCents`, `overrideValueCents`, `reason`, `basedOnAccountant`, `createdBy` | N—1 profile; optional N—1 category/obligation | Yes (RLS CRUD) | Preserves human decision context for audit and explainability |
+| `TaxBufferEvent` | `prisma/schema.prisma` | Deduplicated event trail for reserve health and configuration changes | `userId`, `eventType`, `severity`, `dedupeKey`, `title`, `message`, `metadata` | N—1 profile; optional N—1 category/obligation/configuration | Yes (RLS CRUD) | Powers in-app Tax Buffer notifications and auditability |
 | `AccountingConnection` | `prisma/schema.prisma` | OAuth connection to Xero or MYOB | `userId`, `provider`, `organisationId`, `organisationName`, `encryptedAccessToken`, `encryptedRefreshToken`, `tokenExpiresAt`, `scopes`, `status`, `lastSyncedAt` | N—1 profile; 1—N sync runs, provider mappings | Yes (RLS) | Unique `(userId, provider, organisationId)`; tokens encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY` |
 | `AccountingSyncRun` | `prisma/schema.prisma` | Sync run history per accounting connection | `accountingConnectionId`, `provider`, `userId`, `startedAt`, `completedAt`, `status`, `invoicesCreated`, `invoicesUpdated`, `invoicesSkipped`, `errorMessage` | N—1 connection | Yes (SELECT only; writes via `prismaAdmin` in cron) | Index on `(accountingConnectionId, startedAt)` |
 | ~~`ProviderInvoiceMapping`~~ | — | **Retired** by canonical-financial-data-model — absorbed into `FinancialInvoice` provenance (`sourceSystem`/`sourceId`/`sourceUpdatedAt`) | — | — | — | — |
@@ -543,6 +574,11 @@ enforced server-side before content is returned.
 | `POST /api/promise/[token]` | `.../promise/[token]/route.ts` | path `token`; body `{promisedPayBy, promisedAmount?, clientNotes?}` | none (public) | `prismaAdmin` | → `{ok}` | Implemented — client-initiated single-invoice P2P; arrangement-like payloads rejected |
 | `GET/PUT /api/settings/schedule` | `.../schedule/route.ts` | `zod` ascending offsets | session + `email_reminder_sequence` | `withUserContext` upsert | → `{schedule}` / `{success}` | Implemented |
 | `GET/PUT /api/settings/email` | `.../email/route.ts` | `zod` email/name | session + `custom_reply_to` (PUT) | `withUserContext` | → `{settings}` / `{success}` | Implemented |
+| `GET /api/tax-buffer/summary` | `app/api/tax-buffer/summary/route.ts` | — | session + `tax_buffer_basic` feature | `withUserContext` (via service) | → `{summary}` | Implemented |
+| `GET /api/tax-buffer/obligations` | `app/api/tax-buffer/obligations/route.ts` | query `horizonDays` (30/60/90), `status?`, `sortBy?`, `sortOrder?` (`zod`) | session + `tax_buffer_basic` feature | `withUserContext` (via service) | → `{obligations}` | Implemented |
+| `GET/PUT /api/tax-buffer/settings` | `app/api/tax-buffer/settings/route.ts` | `zod` settings payload (strict) | session + `tax_buffer_basic` feature | `withUserContext` (via service) | → `{configuration,categories,suggestedDefaults}` / `{configuration}` | Implemented |
+| `GET/PUT /api/settings/tax-buffer` | `app/api/settings/tax-buffer/route.ts` | Alias to `/api/tax-buffer/settings` | session + `tax_buffer_basic` feature | same as canonical route | same as canonical route | Implemented (compat alias) |
+| `GET/POST /api/tax-buffer/overrides` | `app/api/tax-buffer/overrides/route.ts` | `zod` override payload (strict) | session + `tax_buffer_basic` feature | `withUserContext` (via service) | → `{overrides}` / `{override}` | Implemented |
 | `PATCH /api/settings/profile` | `.../profile/route.ts` | `zod` `{displayName}` 1–100 chars | session | `withUserContext` profile update | → `{displayName}` | Implemented |
 | `GET/PUT/DELETE /api/settings/templates` | `.../templates/route.ts` | `zod` subject/body | session + template features | `withUserContext` (PUT/DELETE) | → `{...template}` / `{success}` | Implemented |
 | `GET/POST /api/settings/ai` | `.../ai/route.ts` | `zod` text/stage | session + `ai_rewrite` | `prismaAdmin` (`ai_usage_logs`) | → `{canRewrite}` / `{success, friendly, firm, final_notice}` | Implemented (GPT-4o-mini) |

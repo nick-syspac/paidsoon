@@ -10,11 +10,19 @@ const TABS = [
   { href: "/dashboard/cost-guard", label: "Cost Guard" },
 ]
 
-export function DashboardNavRail({ canViewSpendLeak }: { canViewSpendLeak: boolean }) {
+export function DashboardNavRail({
+  canViewSpendLeak,
+  canViewTaxBuffer,
+}: {
+  canViewSpendLeak: boolean
+  canViewTaxBuffer: boolean
+}) {
   const pathname = usePathname()
-  const tabs = canViewSpendLeak
-    ? [...TABS, { href: "/dashboard/spendleak", label: "SpendLeak" }]
-    : TABS
+  const tabs = [
+    ...TABS,
+    ...(canViewTaxBuffer ? [{ href: "/dashboard/tax-buffer", label: "Tax Buffer" }] : []),
+    ...(canViewSpendLeak ? [{ href: "/dashboard/spendleak", label: "SpendLeak" }] : []),
+  ]
 
   return (
     <nav

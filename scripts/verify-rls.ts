@@ -34,6 +34,10 @@ const PROBE_CUSTOMER_EMAIL_A = "rls-verify-customer-a@example.com"
 const PROBE_CUSTOMER_EMAIL_B = "rls-verify-customer-b@example.com"
 const PROBE_CONTACT_EMAIL_A = "rls-verify-contact-a@example.com"
 const PROBE_CONTACT_EMAIL_B = "rls-verify-contact-b@example.com"
+const PROBE_TAX_OBLIGATION_A = "rls-verify-tax-obligation-a"
+const PROBE_TAX_OBLIGATION_B = "rls-verify-tax-obligation-b"
+const PROBE_TAX_OVERRIDE_A = "RLS verify tax override A"
+const PROBE_TAX_OVERRIDE_B = "RLS verify tax override B"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -226,6 +230,160 @@ async function seed() {
   await prismaAdmin.customer.create({
     data: { userId: USER_B, financialContactId: custContactB.id },
   })
+
+  await prismaAdmin.taxBufferConfiguration.create({
+    data: {
+      userId: USER_A,
+      enabled: true,
+      accountingBasis: "cash",
+      businessType: "other",
+      gstRegistered: true,
+      gstFrequency: "quarterly",
+      reserveBalanceSource: "manual",
+      reserveBalanceCents: 15_000,
+    },
+  })
+
+  await prismaAdmin.taxBufferConfiguration.create({
+    data: {
+      userId: USER_B,
+      enabled: true,
+      accountingBasis: "cash",
+      businessType: "other",
+      gstRegistered: true,
+      gstFrequency: "quarterly",
+      reserveBalanceSource: "manual",
+      reserveBalanceCents: 20_000,
+    },
+  })
+
+  const taxCategoryA = await prismaAdmin.taxReserveCategory.create({
+    data: {
+      userId: USER_A,
+      categoryType: "gst",
+      name: "RLS Verify GST A",
+      enabled: true,
+      calculationMethod: "manual",
+      manualAmountCents: 18_000,
+      sourcePreference: "manual",
+    },
+  })
+
+  const taxCategoryB = await prismaAdmin.taxReserveCategory.create({
+    data: {
+      userId: USER_B,
+      categoryType: "gst",
+      name: "RLS Verify GST B",
+      enabled: true,
+      calculationMethod: "manual",
+      manualAmountCents: 22_000,
+      sourcePreference: "manual",
+    },
+  })
+
+  const taxObligationA = await prismaAdmin.taxBufferObligation.create({
+    data: {
+      userId: USER_A,
+      reserveCategoryId: taxCategoryA.id,
+      name: PROBE_TAX_OBLIGATION_A,
+      dueDate: new Date("2026-01-15T00:00:00.000Z"),
+      estimatedAmountCents: 19_000,
+      reservedAmountCents: 10_000,
+      source: "verify-rls",
+      confidence: "medium",
+      status: "open",
+    },
+  })
+
+  const taxObligationB = await prismaAdmin.taxBufferObligation.create({
+    data: {
+      userId: USER_B,
+      reserveCategoryId: taxCategoryB.id,
+      name: PROBE_TAX_OBLIGATION_B,
+      dueDate: new Date("2026-01-16T00:00:00.000Z"),
+      estimatedAmountCents: 23_000,
+      reservedAmountCents: 12_000,
+      source: "verify-rls",
+      confidence: "medium",
+      status: "open",
+    },
+  })
+
+  await prismaAdmin.taxBufferOverride.create({
+    data: {
+      userId: USER_A,
+      reserveCategoryId: taxCategoryA.id,
+      obligationId: taxObligationA.id,
+      calculatedValueCents: 19_000,
+      overrideValueCents: 17_000,
+      reason: PROBE_TAX_OVERRIDE_A,
+      basedOnAccountant: false,
+      createdBy: USER_A,
+    },
+  })
+
+  await prismaAdmin.taxBufferOverride.create({
+    data: {
+      userId: USER_B,
+      reserveCategoryId: taxCategoryB.id,
+      obligationId: taxObligationB.id,
+      calculatedValueCents: 23_000,
+      overrideValueCents: 21_000,
+      reason: PROBE_TAX_OVERRIDE_B,
+      basedOnAccountant: false,
+      createdBy: USER_B,
+    },
+  })
+
+  await prismaAdmin.taxBufferEvent.create({
+    data: {
+      userId: USER_A,
+      eventType: "tax_buffer_below_target",
+      severity: "warning",
+      dedupeKey: "rls-verify-tax-event-a",
+      title: "RLS verify event A",
+      message: "Tax reserve below target A",
+    },
+  })
+
+  await prismaAdmin.taxBufferEvent.create({
+    data: {
+      userId: USER_B,
+      eventType: "tax_buffer_below_target",
+      severity: "warning",
+      dedupeKey: "rls-verify-tax-event-b",
+      title: "RLS verify event B",
+      message: "Tax reserve below target B",
+    },
+  })
+
+  await prismaAdmin.taxBufferSnapshot.create({
+    data: {
+      userId: USER_A,
+      availableCashCents: 100_000,
+      totalRequiredCents: 30_000,
+      totalReservedCents: 10_000,
+      reserveGapCents: 20_000,
+      committedOutflowsCents: 5_000,
+      safeToSpendCents: 65_000,
+      healthStatus: "underfunded",
+      calculationInputs: { source: "verify-rls", sample: "A" },
+    },
+  })
+
+  await prismaAdmin.taxBufferSnapshot.create({
+    data: {
+      userId: USER_B,
+      availableCashCents: 120_000,
+      totalRequiredCents: 35_000,
+      totalReservedCents: 12_000,
+      reserveGapCents: 23_000,
+      committedOutflowsCents: 6_000,
+      safeToSpendCents: 79_000,
+      healthStatus: "underfunded",
+      calculationInputs: { source: "verify-rls", sample: "B" },
+    },
+  })
 }
 
 async function cleanup() {
@@ -252,6 +410,24 @@ async function cleanup() {
     where: { userId: { in: [USER_A, USER_B] } },
   })
   await prismaAdmin.costGuardSetting.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.taxBufferEvent.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.taxBufferOverride.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.taxBufferSnapshot.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.taxBufferObligation.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.taxReserveCategory.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.taxBufferConfiguration.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
   })
   await prismaAdmin.accountingConnection.deleteMany({
@@ -499,6 +675,54 @@ async function main() {
     )
   }
   console.log("  ✓ saw only A's customer")
+
+  console.log("\nCheck 11: withUserContext(USER_A) sees only A's Tax Buffer obligation")
+  const taxObligations = await withUserContext(USER_A, (tx) =>
+    tx.taxBufferObligation.findMany({
+      where: {
+        name: { in: [PROBE_TAX_OBLIGATION_A, PROBE_TAX_OBLIGATION_B] },
+      },
+    }),
+  )
+  if (taxObligations.length !== 1 || taxObligations[0].name !== PROBE_TAX_OBLIGATION_A) {
+    await cleanup()
+    fail(`expected exactly A's tax obligation, got ${JSON.stringify(taxObligations.map((r) => r.name))}`)
+  }
+  console.log("  ✓ saw only A's Tax Buffer obligation")
+
+  console.log("\nCheck 12: withUserContext(USER_A) sees only A's Tax Buffer override")
+  const taxOverrides = await withUserContext(USER_A, (tx) =>
+    tx.taxBufferOverride.findMany({
+      where: {
+        reason: { in: [PROBE_TAX_OVERRIDE_A, PROBE_TAX_OVERRIDE_B] },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  )
+  if (taxOverrides.length !== 1 || taxOverrides[0].reason !== PROBE_TAX_OVERRIDE_A) {
+    await cleanup()
+    fail(`expected exactly A's tax override, got ${JSON.stringify(taxOverrides.map((r) => r.reason))}`)
+  }
+  console.log("  ✓ saw only A's Tax Buffer override")
+
+  console.log("\nCheck 13: withUserContext(USER_A) can update only own Tax Buffer configuration")
+  const taxConfigUpdate = await withUserContext(USER_A, (tx) =>
+    tx.taxBufferConfiguration.updateMany({
+      where: { userId: USER_A },
+      data: { reserveBalanceCents: 33_000 },
+    }),
+  )
+  if (taxConfigUpdate.count !== 1) {
+    await cleanup()
+    fail(`expected one Tax Buffer configuration update for USER_A, got ${taxConfigUpdate.count}`)
+  }
+
+  const taxConfigB = await prismaAdmin.taxBufferConfiguration.findUnique({ where: { userId: USER_B } })
+  if (!taxConfigB || taxConfigB.reserveBalanceCents !== 20_000) {
+    await cleanup()
+    fail("expected USER_B Tax Buffer configuration to remain unchanged")
+  }
+  console.log("  ✓ Tax Buffer configuration updates are tenant-scoped")
 
   await cleanup()
   console.log("\nPASS: RLS is enforced.")
