@@ -30,31 +30,36 @@ describe("settings navigation configuration", () => {
     })
 
     assert.deepEqual(groups[3], {
+      label: "Owner's Digest",
+      items: ["Owner's Digest"],
+    })
+
+    assert.deepEqual(groups[4], {
       label: "CommitGuard",
       items: ["CommitGuard"],
     })
 
-    assert.deepEqual(groups[4], {
+    assert.deepEqual(groups[5], {
       label: "CostGuard",
       items: ["Cost Guard"],
     })
 
-    assert.deepEqual(groups[5], {
+    assert.deepEqual(groups[6], {
       label: "MarginGuard",
       items: ["MarginGuard"],
     })
 
-    assert.deepEqual(groups[6], {
+    assert.deepEqual(groups[7], {
       label: "RunwayGuard",
       items: ["RunwayGuard"],
     })
 
-    assert.deepEqual(groups[7], {
+    assert.deepEqual(groups[8], {
       label: "TaxBuffer",
       items: ["Tax Buffer"],
     })
 
-    assert.deepEqual(groups[8], {
+    assert.deepEqual(groups[9], {
       label: "CashPlan",
       items: ["Forecast settings"],
     })
