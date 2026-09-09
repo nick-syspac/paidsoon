@@ -76,6 +76,7 @@ One-off / in-flight change runbooks (not part of the standard bring-up order):
 For launch readiness review and final go/no-go criteria, use:
 
 - [go-live-decision-matrix.md](./go-live-decision-matrix.md) — operator decision matrix with owner, ETA, and evidence fields.
+- [seeded-dev-user-test-plan.md](./seeded-dev-user-test-plan.md) — comprehensive step-by-step QA plan using seeded data in `dev.paidsoon.com`, covering all user and operator modules.
 
 ## Release Notes Workflow
 

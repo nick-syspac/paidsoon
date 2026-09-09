@@ -35,11 +35,19 @@ function toGuideOrder(value: unknown): number {
 }
 
 export default function HelpLayout({ children }: { children: ReactNode }) {
-  const pages = [...helpSource.getPages()].map((page) => ({
-    page,
-    section: asGuideSection((page.data as Record<string, unknown>).guideSection),
-    order: toGuideOrder((page.data as Record<string, unknown>).guideOrder),
-  }))
+  const pages = [...helpSource.getPages()].map((page) => {
+    const docData = page.data as {
+      title?: string
+      guideSection?: unknown
+      guideOrder?: unknown
+    }
+
+    return {
+      page,
+      section: asGuideSection(docData.guideSection),
+      order: toGuideOrder(docData.guideOrder),
+    }
+  })
 
   const groupedPages = GUIDE_SECTION_ORDER.map((section) => ({
     section,
