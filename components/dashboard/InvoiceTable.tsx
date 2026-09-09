@@ -796,7 +796,7 @@ export function InvoiceTable({
               </p>
             )}
             <p>
-              PaidSoon will automatically start this invoice&apos;s reminder sequence when
+              InvoiceGuard will automatically start this invoice&apos;s reminder sequence when
               allowance becomes available. Sequences already in progress continue normally.
             </p>
           </div>

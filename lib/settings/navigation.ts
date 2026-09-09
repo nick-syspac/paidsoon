@@ -37,7 +37,7 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
 
 export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   { id: "general", label: "General", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "general") },
-  { id: "paidsoon", label: "PaidSoon", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "paidsoon") },
+  { id: "paidsoon", label: "InvoiceGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "paidsoon") },
   { id: "spendleak", label: "SpendLeak", items: [] },
   { id: "ownersdigest", label: "Owner's Digest", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "ownersdigest") },
   { id: "commitguard", label: "CommitGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "commitguard") },

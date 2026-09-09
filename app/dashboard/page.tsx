@@ -719,7 +719,7 @@ export default async function DashboardOverviewPage({
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Financial operations summary</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Receivables momentum from PaidSoon plus spend-side signals from SpendLeak.
+              Receivables momentum from InvoiceGuard plus spend-side signals from SpendLeak.
             </p>
           </div>
           <Link

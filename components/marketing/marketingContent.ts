@@ -81,7 +81,7 @@ export const MODULES: MarketingModuleDefinition[] = [
   {
     id: "paidsoon",
     href: "/paidsoon",
-    name: "PaidSoon",
+    name: "InvoiceGuard",
     statusLabel: "Available now",
     platformArea: "get-paid",
     question: "When will customers pay us?",
@@ -99,7 +99,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     workflow: [
       "Import invoices from Stripe, Xero, MYOB, or CSV",
       "Set reminder cadence and sender details",
-      "PaidSoon sends reminders and records outcomes",
+      "InvoiceGuard sends reminders and records outcomes",
       "Your team reviews exceptions, promises, and disputes",
     ],
     outcomes: [
@@ -109,8 +109,8 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     faq: [
       {
-        q: "Does PaidSoon guarantee payment?",
-        a: "No. It improves consistency and visibility so you can intervene earlier, but it does not guarantee customer payment.",
+        q: "Does InvoiceGuard guarantee payment?",
+        a: "No. InvoiceGuard improves consistency and visibility so you can intervene earlier, but it does not guarantee customer payment.",
       },
       {
         q: "Does it replace accounting software?",
