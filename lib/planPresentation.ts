@@ -75,6 +75,7 @@ export function planHighlights(tier: SubscriptionTier): string[] {
     case "starter":
       return [
         "PaidSoon receivables control",
+        "SpendLeak spend monitoring",
         "CommitGuard committed-cash visibility",
         "Tax Buffer reserve planning",
         allowanceLabel,
@@ -82,6 +83,7 @@ export function planHighlights(tier: SubscriptionTier): string[] {
     case "solo":
       return [
         "Everything in Essentials",
+        "SpendLeak spend monitoring",
         "Owner's Digest summary and history",
         "MarginGuard and RunwayGuard core views",
         allowanceLabel,
@@ -89,6 +91,7 @@ export function planHighlights(tier: SubscriptionTier): string[] {
     case "small_business":
       return [
         "Full public financial control suite",
+        "SpendLeak spend monitoring",
         "Advanced alerts, exports, and verified sender domain",
         "Owner's Digest email delivery",
         allowanceLabel,
@@ -96,6 +99,7 @@ export function planHighlights(tier: SubscriptionTier): string[] {
     case "business_pro":
       return [
         "Higher limits for growing teams",
+        "SpendLeak spend monitoring",
         "Advanced MarginGuard and RunwayGuard scenarios",
         "More connected sources and more tracked commitments",
         allowanceLabel,
