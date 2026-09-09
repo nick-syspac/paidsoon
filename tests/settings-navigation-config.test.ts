@@ -20,7 +20,7 @@ describe("settings navigation configuration", () => {
     })
 
     assert.deepEqual(groups[1], {
-      label: "PaidSoon",
+      label: "InvoiceGuard",
       items: ["Schedule", "Email", "Templates", "Import / Export"],
     })
 
