@@ -5,7 +5,12 @@ import {
   buildRunwaySnapshotRecord,
   calculateRunwayTrend,
 } from "@/lib/runwayGuard/foundation"
-import { runRunwaySnapshotSweep, getRunwayHistoryTrend } from "@/lib/runwayGuard/snapshotJob"
+import {
+  runRunwaySnapshotSweep,
+  getRunwayHistoryTrend,
+  type RunwaySnapshotClient,
+  type RunwaySnapshotRecordLike,
+} from "@/lib/runwayGuard/snapshotJob"
 
 test("buildRunwaySnapshotRecord creates a deterministic snapshot payload", () => {
   const snapshot = buildRunwaySnapshotRecord({
@@ -48,15 +53,20 @@ test("calculateRunwayTrend reports declining runway across snapshot history", ()
 })
 
 test("runRunwaySnapshotSweep upserts a single snapshot per tenant-at-timestamp", async () => {
-  const records = new Map<string, { userId: string; snapshotAt: Date; runwayDays: number; usableCashCents: number }>()
+  const records = new Map<string, RunwaySnapshotRecordLike>()
+  type RunwaySnapshotUpsertArgs = Parameters<RunwaySnapshotClient["runwayGuardSnapshot"]["upsert"]>[0]
 
-  const prisma: any = {
+  const prisma: RunwaySnapshotClient = {
     runwayGuardSetting: {
-      findMany: async () => [{ userId: "user-1", enabled: true }],
+      findMany: async (_args) => [{ userId: "user-1" }],
     },
     runwayGuardSnapshot: {
-      findMany: async () => Array.from(records.values()),
-      upsert: async ({ where, update, create }: any) => {
+      findMany: async (_args) =>
+        Array.from(records.values()).map((record) => ({
+          snapshotAt: record.snapshotAt,
+          runwayDays: record.runwayDays,
+        })),
+      upsert: async ({ where, update, create }: RunwaySnapshotUpsertArgs) => {
         const key = `${where.userId_snapshotAt.userId}:${where.userId_snapshotAt.snapshotAt.toISOString()}`
         const existing = records.get(key)
         const next = existing ? { ...existing, ...update } : { ...create }
@@ -96,17 +106,19 @@ test("runRunwaySnapshotSweep upserts a single snapshot per tenant-at-timestamp",
 })
 
 test("getRunwayHistoryTrend returns a trend summary from persisted snapshot history", async () => {
+  const prisma: Pick<RunwaySnapshotClient, "runwayGuardSnapshot"> = {
+    runwayGuardSnapshot: {
+      findMany: async (_args) => [
+        { snapshotAt: new Date("2026-08-01T00:00:00.000Z"), runwayDays: 120 },
+        { snapshotAt: new Date("2026-09-01T00:00:00.000Z"), runwayDays: 80 },
+      ],
+      upsert: async ({ create }) => create,
+    },
+  }
+
   const trend = await getRunwayHistoryTrend({
     userId: "user-2",
-    prisma: {
-      runwayGuardSnapshot: {
-        findMany: async () => [
-          { snapshotAt: new Date("2026-08-01T00:00:00.000Z"), runwayDays: 120 },
-          { snapshotAt: new Date("2026-09-01T00:00:00.000Z"), runwayDays: 80 },
-        ],
-        upsert: async () => ({}) as any,
-      },
-    } as any,
+    prisma,
   })
 
   assert.equal(trend.currentRunwayDays, 80)

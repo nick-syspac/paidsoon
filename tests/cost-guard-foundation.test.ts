@@ -5,7 +5,6 @@ import {
   BASELINE_WINDOWS,
   COST_GUARD_ALERT_EVENT_TYPES,
   type CostGuardAlertRecordInput,
-  type CostGuardDigestSummaryInput,
   buildCostGuardAlertEventRecord,
   buildCostGuardAlertEventTypeForStatus,
   buildCostGuardAlertLifecycleSummary,

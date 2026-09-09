@@ -1,10 +1,34 @@
 import assert from "node:assert/strict"
 import { before, beforeEach, describe, mock, test } from "node:test"
 
+interface MockRunwayGuardSettings {
+  enabled: boolean
+  horizonDays: number
+  warningThresholdDays: number
+  criticalThresholdDays: number
+  lowConfidenceWeight: number
+  minimumConfidence: number
+}
+
+interface MockRunwayGuardSettingUpsertArgs {
+  update: Partial<MockRunwayGuardSettings>
+  create: Partial<MockRunwayGuardSettings>
+}
+
+interface MockWithUserContextTx {
+  runwayGuardSnapshot: {
+    findMany: () => Promise<Array<{ snapshotAt: Date; runwayDays: number }>>
+  }
+  runwayGuardSetting: {
+    findUnique: () => Promise<MockRunwayGuardSettings>
+    upsert: (args: MockRunwayGuardSettingUpsertArgs) => Promise<MockRunwayGuardSettings>
+  }
+}
+
 let mockUser: { id: string } | null = { id: "user-123" }
 let mockCoreAccess = true
 let capturedInput: unknown = null
-let storedRunwaySettings = {
+let storedRunwaySettings: MockRunwayGuardSettings = {
   enabled: true,
   horizonDays: 180,
   warningThresholdDays: 90,
@@ -17,8 +41,7 @@ let mockHistoryRows: Array<{ snapshotAt: Date; runwayDays: number }> = [
   { snapshotAt: new Date("2026-09-01T00:00:00.000Z"), runwayDays: 80 },
 ]
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let summaryGET: any
+let summaryGET: (request: Request) => Promise<Response>
 
 describe("RunwayGuard summary route", () => {
   before(async () => {
@@ -66,14 +89,14 @@ describe("RunwayGuard summary route", () => {
 
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
-        withUserContext: async (_userId: string, fn: (tx: any) => Promise<any>) =>
+        withUserContext: async (_userId: string, fn: (tx: MockWithUserContextTx) => Promise<unknown>) =>
           fn({
             runwayGuardSnapshot: {
               findMany: async () => mockHistoryRows,
             },
             runwayGuardSetting: {
               findUnique: async () => storedRunwaySettings,
-              upsert: async ({ update, create }: any) => {
+              upsert: async ({ update, create }: MockRunwayGuardSettingUpsertArgs) => {
                 storedRunwaySettings = { ...storedRunwaySettings, ...create, ...update }
                 return storedRunwaySettings
               },
@@ -82,7 +105,8 @@ describe("RunwayGuard summary route", () => {
       },
     })
 
-    ;({ GET: summaryGET } = await import("@/app/api/runway-guard/summary/route"))
+    const summaryRouteModule = await import("@/app/api/runway-guard/summary/route")
+    summaryGET = summaryRouteModule.GET
   })
 
   beforeEach(() => {
