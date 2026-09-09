@@ -1,38 +1,20 @@
-# marketing-feature-claim-accuracy Specification
+## ADDED Requirements
 
-## Purpose
-Ensure marketing pages describe tier-gated features and billing capabilities using the actual plan catalog and implementation status, so prospects are never told a feature is available on a tier (or exists at all) when it isn't.
-## Requirements
-### Requirement: Tier-gated feature claims MUST name the tier that actually gates the feature
-Marketing copy that attributes a feature to a specific subscription tier SHALL name a tier that currently exists in the plan catalog (`starter`, `solo`, `small_business`, or `accountant_partner`) and SHALL match the tier at which `lib/subscriptionPlans.ts` actually enables that feature.
+### Requirement: Marketing module portfolio claims MUST distinguish public modules from planned capabilities
+Marketing portfolio surfaces SHALL describe a module as publicly available only when that module has a reachable public marketing destination and customer-facing product surface. If a page references related capabilities that are not yet implemented or are not yet public, it SHALL label them as planned or coming soon instead of presenting them as live module functionality.
 
-#### Scenario: AI rewrite is attributed to the correct tier
-- **WHEN** a marketing page describes AI-assisted reminder wording
-- **THEN** it attributes the feature to Solo and above, not to a retired "Business" tier name
+#### Scenario: Public module cards avoid planned-only claims
+- **WHEN** a marketing page highlights CommitGuard, Owner's Digest, Tax Buffer, MarginGuard, or RunwayGuard
+- **THEN** it describes only the customer-facing functionality that is currently implemented and publicly presented for that module
+- **AND** it does not bundle unimplemented adjacent capabilities into the live claim set
 
-#### Scenario: Custom sender name and custom domain are described separately
-- **WHEN** a marketing page describes custom "from" email capabilities
-- **THEN** it distinguishes custom sender name (Solo and above) from a verified custom sending domain (Small Business and above) rather than presenting both as available on the same set of tiers
+#### Scenario: Planned capability remains labelled as planned
+- **WHEN** a public module page mentions a related capability that is scaffolded, hidden, or not yet customer-ready
+- **THEN** the page labels that capability as planned, coming soon, or contact-only rather than describing it as currently available
 
-### Requirement: Marketing pages MUST NOT claim a customer-facing capability that has no implemented, customer-facing counterpart
-Marketing copy SHALL NOT describe a capability as available to customers unless a customer-facing implementation of that capability exists and is operational in the live production execution path.
+### Requirement: Marketing module discovery surfaces MUST NOT omit implemented public modules from the portfolio narrative
+Marketing navigation, homepage portfolio sections, platform overview sections, and product-discovery pages SHALL not present a reduced module list that implies the marketed platform consists only of an outdated subset once additional public modules have shipped.
 
-#### Scenario: Audit trail claim matches actual scope
-- **WHEN** a marketing page describes audit/activity logging
-- **THEN** it does not claim a customer-facing audit trail UI or export exists unless one has shipped, and instead describes only the internal event logging that actually exists
-
-#### Scenario: Weekly summary claim requires operational scheduler
-- **WHEN** weekly debtor summary execution depends on a scheduled job path
-- **THEN** customer-facing pages do not present weekly summary as available/live/included until a production scheduler path actively triggers weekly summary delivery
-
-### Requirement: Marketing claims about shipped billing capabilities MUST reflect current status
-Marketing copy describing a billing or account capability SHALL NOT describe a capability as planned or future-only once it has shipped in the product.
-
-#### Scenario: Free trial answer matches shipped trial
-- **WHEN** a user reads the `/faq` answer to "Is there a free trial?"
-- **THEN** the answer confirms the trial that is currently offered (duration and card requirement) rather than describing a trial as not yet offered
-
-#### Scenario: Cancellation answer matches shipped cancellation flow
-- **WHEN** a user reads the `/faq` answer to "Can I cancel at any time?"
-- **THEN** the answer confirms cancellation/downgrade is available in account settings today, rather than describing it as pending "public billing" being enabled
-
+#### Scenario: Navigation no longer implies a four-module product
+- **WHEN** a visitor opens the Product navigation, homepage portfolio section, or platform overview
+- **THEN** the module list reflects the current public platform portfolio instead of implying that only PaidSoon, SpendLeak, CostGuard, and CashPlan exist
