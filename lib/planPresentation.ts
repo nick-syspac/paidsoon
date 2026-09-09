@@ -38,7 +38,7 @@ export const PLAN_TAGLINE: Record<SubscriptionTier, string> = {
 }
 
 export function getPlanModuleCoverage(tier: SubscriptionTier): string[] {
-  const coverage = ["PaidSoon receivables control"]
+  const coverage = ["InvoiceGuard receivables control"]
 
   if (hasPlanFeature(tier, "commitguard_core")) {
     coverage.push("CommitGuard committed-cash visibility")
@@ -74,7 +74,7 @@ export function planHighlights(tier: SubscriptionTier): string[] {
   switch (tier) {
     case "starter":
       return [
-        "PaidSoon receivables control",
+        "InvoiceGuard receivables control",
         "SpendLeak spend monitoring",
         "CommitGuard committed-cash visibility",
         "Tax Buffer reserve planning",

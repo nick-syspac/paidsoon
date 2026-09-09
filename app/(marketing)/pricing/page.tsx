@@ -84,7 +84,7 @@ const comparisonRows: ComparisonRow[] = [
   limitRow("Invoices chased per month", (tier) => PLAN_CATALOG[tier].limits.chasedInvoicesPerMonth),
   limitRow("Internal users", (tier) => PLAN_CATALOG[tier].limits.userSeats, 1),
   limitRow("Connected invoice sources", (tier) => PLAN_CATALOG[tier].limits.connectedInvoiceSources),
-  featureRow("PaidSoon reminders", "basic_email_reminders"),
+  featureRow("InvoiceGuard reminders", "basic_email_reminders"),
   featureRow("Custom reminder timing", "email_reminder_sequence"),
   featureRow("Custom reminder templates", "custom_reminder_templates"),
   featureRow("Custom sender name", "custom_sender_name"),
@@ -115,7 +115,7 @@ export default function PricingPage() {
         <p className="mt-4 text-lg text-gray-500">
           {liveMode
             ? "Start your free trial. No credit card required. Cancel any time - no lock-in contracts."
-            : "Pricing is available now. Request early access to start using PaidSoon."}
+            : "Pricing is available now. Request early access to start using InvoiceGuard."}
         </p>
         <p className="mt-2 text-sm text-gray-400">All prices are in AUD and include GST.</p>
       </section>
