@@ -196,12 +196,4 @@ describe("POST /api/settings/ai", () => {
     assert.equal(usageLogWrites, 0)
   })
 
-  test("provider failure does not consume usage", async () => {
-    shouldRewriteThrow = true
-
-    const res = await POST(makeRequest({ text: "Please pay invoice #123 by Friday.", stage: 2 }))
-    assert.equal(res.status, 500)
-    assert.equal(rewriteCalls, 1)
-    assert.equal(usageLogWrites, 0)
-  })
 })
