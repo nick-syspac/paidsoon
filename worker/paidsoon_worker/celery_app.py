@@ -64,6 +64,10 @@ app.conf.beat_schedule = {
         "task": "dispatcher.dispatch_weekly_debtor_summary",
         "schedule": crontab(minute=0, hour=9, day_of_week="mon"),
     },
+    "dispatch-owners-digest": {
+        "task": "dispatcher.dispatch_owners_digest",
+        "schedule": crontab(minute=0),
+    },
     "recovery-sweep": {
         "task": "dispatcher.recovery_sweep",
         "schedule": schedule(

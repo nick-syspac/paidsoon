@@ -8,6 +8,7 @@ import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPla
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
 import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
+import { canAccessOwnersDigest } from "@/lib/dashboard/ownersDigestAccess"
 import { canAccessRunwayGuard } from "@/lib/dashboard/runwayGuardAccess"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
 import { UserMenu } from "@/components/dashboard/UserMenu"
@@ -187,6 +188,7 @@ export default async function DashboardLayout({
         </div>
       </nav>
       <DashboardMain
+        canViewOwnersDigest={canAccessOwnersDigest(tier)}
         canViewCommitGuard={hasPlanFeature(tier, "commitguard_core")}
         canViewSpendLeak={canAccessSpendLeak(tier)}
         canViewTaxBuffer={canAccessTaxBuffer(tier)}

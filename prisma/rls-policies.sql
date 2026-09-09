@@ -46,6 +46,12 @@ ALTER TABLE commit_guard_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commitments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commitment_detection_candidates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commitment_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_provider_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_guard_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_guard_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_classification_rules ENABLE ROW LEVEL SECURITY;
@@ -1019,6 +1025,120 @@ CREATE POLICY "users can insert own commitment events"
 DROP POLICY IF EXISTS "users can update own commitment events" ON commitment_events;
 CREATE POLICY "users can update own commitment events"
   ON commitment_events FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_settings
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest settings" ON owners_digest_settings;
+CREATE POLICY "users can view own owners digest settings"
+  ON owners_digest_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest settings" ON owners_digest_settings;
+CREATE POLICY "users can insert own owners digest settings"
+  ON owners_digest_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest settings" ON owners_digest_settings;
+CREATE POLICY "users can update own owners digest settings"
+  ON owners_digest_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_snapshots
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest snapshots" ON owners_digest_snapshots;
+CREATE POLICY "users can view own owners digest snapshots"
+  ON owners_digest_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest snapshots" ON owners_digest_snapshots;
+CREATE POLICY "users can insert own owners digest snapshots"
+  ON owners_digest_snapshots FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest snapshots" ON owners_digest_snapshots;
+CREATE POLICY "users can update own owners digest snapshots"
+  ON owners_digest_snapshots FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_items
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest items" ON owners_digest_items;
+CREATE POLICY "users can view own owners digest items"
+  ON owners_digest_items FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest items" ON owners_digest_items;
+CREATE POLICY "users can insert own owners digest items"
+  ON owners_digest_items FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest items" ON owners_digest_items;
+CREATE POLICY "users can update own owners digest items"
+  ON owners_digest_items FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_metrics
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest metrics" ON owners_digest_metrics;
+CREATE POLICY "users can view own owners digest metrics"
+  ON owners_digest_metrics FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest metrics" ON owners_digest_metrics;
+CREATE POLICY "users can insert own owners digest metrics"
+  ON owners_digest_metrics FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest metrics" ON owners_digest_metrics;
+CREATE POLICY "users can update own owners digest metrics"
+  ON owners_digest_metrics FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_provider_runs
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest provider runs" ON owners_digest_provider_runs;
+CREATE POLICY "users can view own owners digest provider runs"
+  ON owners_digest_provider_runs FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest provider runs" ON owners_digest_provider_runs;
+CREATE POLICY "users can insert own owners digest provider runs"
+  ON owners_digest_provider_runs FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest provider runs" ON owners_digest_provider_runs;
+CREATE POLICY "users can update own owners digest provider runs"
+  ON owners_digest_provider_runs FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_deliveries
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest deliveries" ON owners_digest_deliveries;
+CREATE POLICY "users can view own owners digest deliveries"
+  ON owners_digest_deliveries FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest deliveries" ON owners_digest_deliveries;
+CREATE POLICY "users can insert own owners digest deliveries"
+  ON owners_digest_deliveries FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest deliveries" ON owners_digest_deliveries;
+CREATE POLICY "users can update own owners digest deliveries"
+  ON owners_digest_deliveries FOR UPDATE
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 

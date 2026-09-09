@@ -8,6 +8,7 @@ import { DashboardNavRail } from "./DashboardNavRail"
 const WIDE_ROUTES = [
   "/dashboard/invoices",
   "/dashboard/resolved",
+  "/dashboard/owners-digest",
   "/dashboard/commitguard",
   "/dashboard/spendleak",
   "/dashboard/cost-guard",
@@ -18,6 +19,7 @@ const WIDE_ROUTES = [
 
 export function DashboardMain({
   children,
+  canViewOwnersDigest,
   canViewCommitGuard,
   canViewSpendLeak,
   canViewTaxBuffer,
@@ -25,6 +27,7 @@ export function DashboardMain({
   canViewRunwayGuard,
 }: {
   children: React.ReactNode
+  canViewOwnersDigest: boolean
   canViewCommitGuard: boolean
   canViewSpendLeak: boolean
   canViewTaxBuffer: boolean
@@ -38,6 +41,7 @@ export function DashboardMain({
     <main className={cn("mx-auto px-4 py-8", isWide ? "max-w-7xl" : "max-w-5xl")}>
       <div className="flex flex-col gap-6 md:flex-row">
         <DashboardNavRail
+          canViewOwnersDigest={canViewOwnersDigest}
           canViewCommitGuard={canViewCommitGuard}
           canViewSpendLeak={canViewSpendLeak}
           canViewTaxBuffer={canViewTaxBuffer}

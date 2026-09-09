@@ -182,6 +182,26 @@ manual setup.
 | Alerts | Open critical + acknowledged deterioration alerts | none (healthy baseline) |
 | Opportunities | Open pricing + classification opportunities with evidence/action hints | none (healthy baseline) |
 
+### New module fixtures (seeded)
+
+Both Business-tier tenants now include deterministic fixtures for the newer
+cashflow modules, so their dashboards, alerts, and list/detail views are usable
+immediately after `npm run db:seed`.
+
+- CashPlan: 13-week plan, base plus conservative scenarios, one override, one
+  alert, and one data-quality issue per Business-tier tenant.
+- RunwayGuard: settings, one snapshot, one threshold alert, and one alert event
+  per Business-tier tenant.
+- CostGuard: settings, one rule, one baseline, one monthly forecast, and one
+  alert plus event per Business-tier tenant.
+- TaxBuffer: configuration, GST plus PAYG reserve categories, obligations, one
+  override, one event, and one underfunded snapshot per Business-tier tenant.
+- CommitGuard: settings, one active commitment, one pending detection
+  candidate, and commitment event history per Business-tier tenant.
+- OwnersDigest: weekly digest settings, one snapshot, one surfaced item, one
+  key metric, provider-run records, and one sent delivery record per
+  Business-tier tenant.
+
 ---
 
 ## Safety: seeded data cannot cause real activity

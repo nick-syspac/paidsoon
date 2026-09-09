@@ -22,6 +22,7 @@ import Link from "next/link"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
+import { canAccessOwnersDigest } from "@/lib/dashboard/ownersDigestAccess"
 import { buildFinancialOperationsSummary } from "@/lib/dashboard/financialOperationsSummary"
 import { buildSpendLeakOverviewHref } from "@/lib/dashboard/spendleakNavigation"
 import { formatAudCents, getSpendLeakEvidenceSource } from "@/lib/dashboard/spendleakPresentation"
@@ -32,6 +33,7 @@ import { canAccessRunwayGuard } from "@/lib/dashboard/runwayGuardAccess"
 import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
 import { buildTaxBufferDigestSummary } from "@/lib/taxBuffer/engine"
 import { summarizeCommitGuard } from "@/lib/commitguard/service"
+import { getCurrentOwnersDigest } from "@/lib/ownersDigest/service"
 import {
   buildCashPlanForecast,
   buildCashPlanSummaryResponse,
@@ -52,6 +54,19 @@ const COMPONENT = "app/dashboard/page.tsx"
 
 function formatOptionalAudCents(value: number | null): string {
   return value === null ? "Not available" : formatAudCents(value)
+}
+
+function formatOwnersDigestStatus(status: "healthy" | "watch" | "action_required" | "critical"): string {
+  switch (status) {
+    case "healthy":
+      return "Healthy"
+    case "watch":
+      return "Watch"
+    case "action_required":
+      return "Action Required"
+    case "critical":
+      return "Critical"
+  }
 }
 
 export default async function DashboardOverviewPage({
@@ -121,6 +136,7 @@ export default async function DashboardOverviewPage({
   } = await loadDashboardOverview(user.id, traceContext, COMPONENT)
 
   const canViewSpendLeak = canAccessSpendLeak(profile?.subscriptionTier)
+  const canViewOwnersDigest = canAccessOwnersDigest(profile?.subscriptionTier)
   const canViewMarginGuard = canAccessMarginGuard(profile?.subscriptionTier)
   const canViewRunwayGuard = canAccessRunwayGuard(profile?.subscriptionTier)
   const canViewTaxBuffer = canAccessTaxBuffer(profile?.subscriptionTier)
@@ -180,6 +196,7 @@ export default async function DashboardOverviewPage({
         taxProtectedCashCents: taxBufferSummary?.totalRequiredReserveCents,
       })
     : null
+  const ownersDigestSummary = canViewOwnersDigest ? await getCurrentOwnersDigest(user.id) : null
   const topSpendLeakModule = spendLeakData?.modules
     .filter((module) => module.findingCount > 0)
     .sort((left, right) => right.estimatedAnnualCents - left.estimatedAnnualCents)[0]
@@ -612,6 +629,52 @@ export default async function DashboardOverviewPage({
           <p className="mt-3 text-xs text-gray-600">
             Renewal items requiring attention: {commitGuardSummary.renewals.filter((item) => item.severity !== "info").length}
           </p>
+        </section>
+      ) : null}
+
+      {ownersDigestSummary ? (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">Owner&apos;s Digest</p>
+              <h2 className="mt-1 text-lg font-semibold text-gray-900">{formatOwnersDigestStatus(ownersDigestSummary.status)}</h2>
+              <p className="mt-2 text-sm text-gray-600">{ownersDigestSummary.summary}</p>
+            </div>
+            <div className="flex gap-2">
+              <Link
+                href="/dashboard/settings/owners-digest"
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Open settings
+              </Link>
+              <Link
+                href="/dashboard/owners-digest"
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Open Owner&apos;s Digest
+              </Link>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Attention items</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">
+                {ownersDigestSummary.items.filter((item) => item.section === "needs_attention").length}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Positive changes</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">
+                {ownersDigestSummary.items.filter((item) => item.section === "positive_changes").length}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Data as of</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">
+                {ownersDigestSummary.dataAsOf ? ownersDigestSummary.dataAsOf.toLocaleDateString("en-AU") : "Pending"}
+              </p>
+            </div>
+          </div>
         </section>
       ) : null}
 

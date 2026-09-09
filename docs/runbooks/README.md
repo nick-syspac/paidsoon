@@ -100,6 +100,11 @@ CommitGuard rollout note: the CommitGuard module does **not** introduce any new
 environment variables. It uses existing auth, billing feature-gate, and database
 configuration inputs already listed in this matrix.
 
+Owner's Digest rollout note: the Owner's Digest module does **not** introduce any
+new environment variables. It reuses existing Resend delivery configuration,
+`SUPABASE_SECRET_KEY` for recipient lookup, and `INTERNAL_JOBS_SECRET` for the
+Railway worker's internal job calls.
+
 | Env var | Local (`.env.local`) | Vercel Preview | Vercel Production | Source runbook |
 |---|---|---|---|---|
 | `SUPABASE_PROJECT_REF` | `paidsoon-dev` 20-character project ref | `paidsoon-dev` project ref | `paidsoon-prod` project ref | [supabase.md §2](./supabase.md) |
@@ -234,7 +239,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `LIVE` | [lib/liveMode.ts](../../lib/liveMode.ts), [proxy.ts](../../proxy.ts), [app/layout.tsx](../../app/layout.tsx) |
 | `DEBUG` | [lib/diagnostics/server.ts](../../lib/diagnostics/server.ts) — server-side diagnostic tracing gate; browser code receives only non-secret trace IDs/debug response headers |
 | `CRON_SECRET` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts), [app/api/cron/sync-accounting/route.ts](../../app/api/cron/sync-accounting/route.ts), [app/api/cron/invoice-import-cleanup/route.ts](../../app/api/cron/invoice-import-cleanup/route.ts), [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts), [app/api/cron/margin-guard-snapshots/route.ts](../../app/api/cron/margin-guard-snapshots/route.ts), [app/api/cron/runway-guard-snapshots/route.ts](../../app/api/cron/runway-guard-snapshots/route.ts) |
-| `INTERNAL_JOBS_SECRET` | [app/api/internal/jobs/send-reminder/route.ts](../../app/api/internal/jobs/send-reminder/route.ts), [app/api/internal/jobs/sync-connection/route.ts](../../app/api/internal/jobs/sync-connection/route.ts), [app/api/internal/jobs/promise-arrangement-sweep/route.ts](../../app/api/internal/jobs/promise-arrangement-sweep/route.ts), [app/api/internal/jobs/catchup-snooze-sweep/route.ts](../../app/api/internal/jobs/catchup-snooze-sweep/route.ts) |
+| `INTERNAL_JOBS_SECRET` | [app/api/internal/jobs/send-reminder/route.ts](../../app/api/internal/jobs/send-reminder/route.ts), [app/api/internal/jobs/sync-connection/route.ts](../../app/api/internal/jobs/sync-connection/route.ts), [app/api/internal/jobs/promise-arrangement-sweep/route.ts](../../app/api/internal/jobs/promise-arrangement-sweep/route.ts), [app/api/internal/jobs/catchup-snooze-sweep/route.ts](../../app/api/internal/jobs/catchup-snooze-sweep/route.ts), [app/api/internal/jobs/send-owners-digest/route.ts](../../app/api/internal/jobs/send-owners-digest/route.ts) |
 | `RAILWAY_WORKER_URL` | [lib/providers/accounting/triggerSyncNow.ts](../../lib/providers/accounting/triggerSyncNow.ts) |
 | `WORKER_TRIGGER_SECRET` | [lib/providers/accounting/triggerSyncNow.ts](../../lib/providers/accounting/triggerSyncNow.ts) |
 | `OPS_ALERT_EMAIL` | [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts) |
@@ -248,7 +253,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `STRIPE_CONNECT_CLIENT_ID` | [app/api/stripe/connect/authorize/route.ts](../../app/api/stripe/connect/authorize/route.ts) |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | [app/api/webhooks/stripe-connect/route.ts](../../app/api/webhooks/stripe-connect/route.ts) |
-| `RESEND_API_KEY` | [lib/email/send.ts](../../lib/email/send.ts), [app/api/settings/email/route.ts](../../app/api/settings/email/route.ts) |
+| `RESEND_API_KEY` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendOwnersDigest.ts](../../lib/email/sendOwnersDigest.ts), [app/api/settings/email/route.ts](../../app/api/settings/email/route.ts) |
 | `RESEND_FROM_EMAIL` | [lib/email/send.ts](../../lib/email/send.ts), [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) |
 | `RESEND_FROM_NAME` | [lib/email/send.ts](../../lib/email/send.ts) |
 | `RESEND_WEBHOOK_SECRET` | [app/api/webhooks/resend/route.ts](../../app/api/webhooks/resend/route.ts) |

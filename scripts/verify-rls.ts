@@ -38,6 +38,12 @@ const PROBE_TAX_OBLIGATION_A = "rls-verify-tax-obligation-a"
 const PROBE_TAX_OBLIGATION_B = "rls-verify-tax-obligation-b"
 const PROBE_TAX_OVERRIDE_A = "RLS verify tax override A"
 const PROBE_TAX_OVERRIDE_B = "RLS verify tax override B"
+const PROBE_OWNERS_DIGEST_SUMMARY_A = "RLS verify owner's digest summary A"
+const PROBE_OWNERS_DIGEST_SUMMARY_B = "RLS verify owner's digest summary B"
+const PROBE_OWNERS_DIGEST_ITEM_A = "RLS verify owner's digest item A"
+const PROBE_OWNERS_DIGEST_ITEM_B = "RLS verify owner's digest item B"
+const PROBE_OWNERS_DIGEST_DELIVERY_KEY_A = "rls-verify-owners-digest-delivery-a"
+const PROBE_OWNERS_DIGEST_DELIVERY_KEY_B = "rls-verify-owners-digest-delivery-b"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -384,10 +390,252 @@ async function seed() {
       calculationInputs: { source: "verify-rls", sample: "B" },
     },
   })
+
+  await prismaAdmin.ownersDigestSetting.create({
+    data: {
+      userId: USER_A,
+      enabled: true,
+      emailEnabled: true,
+      frequency: "weekly",
+      deliveryDay: "monday",
+      deliveryTime: "07:00",
+      timezone: "Australia/Sydney",
+      maxActionItems: 5,
+      minimumMaterialityCents: 10_000,
+      recipientScope: "owner_only",
+    },
+  })
+
+  await prismaAdmin.ownersDigestSetting.create({
+    data: {
+      userId: USER_B,
+      enabled: true,
+      emailEnabled: false,
+      frequency: "weekly",
+      deliveryDay: "monday",
+      deliveryTime: "08:00",
+      timezone: "Australia/Sydney",
+      maxActionItems: 4,
+      minimumMaterialityCents: 12_000,
+      recipientScope: "owner_only",
+    },
+  })
+
+  const ownersDigestSnapshotA = await prismaAdmin.ownersDigestSnapshot.create({
+    data: {
+      userId: USER_A,
+      frequency: "weekly",
+      periodLabel: "RLS verify week A",
+      periodStart: new Date("2026-01-05T00:00:00.000Z"),
+      periodEnd: new Date("2026-01-11T23:59:59.000Z"),
+      status: "watch",
+      summary: PROBE_OWNERS_DIGEST_SUMMARY_A,
+      dataAsOf: new Date("2026-01-12T07:00:00.000Z"),
+      providerSuccessCount: 1,
+      topAttentionCount: 1,
+      completenessStatus: "complete",
+      statusReason: "Overdue invoices increased",
+      metadata: { source: "verify-rls", sample: "A" },
+    },
+  })
+
+  const ownersDigestSnapshotB = await prismaAdmin.ownersDigestSnapshot.create({
+    data: {
+      userId: USER_B,
+      frequency: "weekly",
+      periodLabel: "RLS verify week B",
+      periodStart: new Date("2026-01-12T00:00:00.000Z"),
+      periodEnd: new Date("2026-01-18T23:59:59.000Z"),
+      status: "healthy",
+      summary: PROBE_OWNERS_DIGEST_SUMMARY_B,
+      dataAsOf: new Date("2026-01-19T07:00:00.000Z"),
+      providerSuccessCount: 1,
+      positiveCount: 1,
+      completenessStatus: "complete",
+      statusReason: "No material issues",
+      metadata: { source: "verify-rls", sample: "B" },
+    },
+  })
+
+  await prismaAdmin.ownersDigestItem.create({
+    data: {
+      userId: USER_A,
+      snapshotId: ownersDigestSnapshotA.id,
+      source: "paidsoon",
+      signalType: "OVERDUE_INCREASE",
+      severity: "warning",
+      priorityScore: 75,
+      section: "needs_attention",
+      sortOrder: 1,
+      title: PROBE_OWNERS_DIGEST_ITEM_A,
+      summary: "Overdue invoices increased for tenant A",
+      whyItMatters: "Cash collection slowed for tenant A",
+      financialImpactCents: 15_000,
+      currentValue: 15_000,
+      previousValue: 8_000,
+      changeValue: 7_000,
+      changePercent: 87.5,
+      entityType: "invoice",
+      entityId: finA.id,
+      entityName: "Invoice A",
+      recommendedAction: "Review overdue invoices",
+      actionUrl: "/dashboard/invoices",
+      contributingSources: ["paidsoon"],
+      detectedAt: new Date("2026-01-12T07:00:00.000Z"),
+    },
+  })
+
+  await prismaAdmin.ownersDigestItem.create({
+    data: {
+      userId: USER_B,
+      snapshotId: ownersDigestSnapshotB.id,
+      source: "taxbuffer",
+      signalType: "RESERVE_FULLY_FUNDED",
+      severity: "positive",
+      priorityScore: 20,
+      section: "positive_changes",
+      sortOrder: 1,
+      title: PROBE_OWNERS_DIGEST_ITEM_B,
+      summary: "Tax reserve fully funded for tenant B",
+      whyItMatters: "Cash reserve target is covered for tenant B",
+      financialImpactCents: 21_000,
+      currentValue: 21_000,
+      previousValue: 15_000,
+      changeValue: 6_000,
+      changePercent: 40,
+      entityType: "tax_reserve",
+      entityName: "Reserve B",
+      recommendedAction: "Keep monitoring reserve levels",
+      actionUrl: "/dashboard/tax-buffer",
+      contributingSources: ["taxbuffer"],
+      detectedAt: new Date("2026-01-19T07:00:00.000Z"),
+    },
+  })
+
+  await prismaAdmin.ownersDigestMetric.create({
+    data: {
+      userId: USER_A,
+      snapshotId: ownersDigestSnapshotA.id,
+      metricKey: "overdue_invoices",
+      label: "Overdue invoices",
+      section: "key_numbers",
+      unit: "currency_cents",
+      displayValue: "$150",
+      numericValue: 150,
+      monetaryValueCents: 15_000,
+      previousNumericValue: 80,
+      previousMonetaryValueCents: 8_000,
+      changeNumericValue: 70,
+      changeMonetaryValueCents: 7_000,
+      changePercent: 87.5,
+      sortOrder: 1,
+      metadata: { source: "verify-rls", sample: "A" },
+    },
+  })
+
+  await prismaAdmin.ownersDigestMetric.create({
+    data: {
+      userId: USER_B,
+      snapshotId: ownersDigestSnapshotB.id,
+      metricKey: "tax_buffer_status",
+      label: "Tax buffer",
+      section: "key_numbers",
+      unit: "percent",
+      displayValue: "100%",
+      numericValue: 100,
+      previousNumericValue: 71,
+      changeNumericValue: 29,
+      changePercent: 40.8,
+      sortOrder: 1,
+      metadata: { source: "verify-rls", sample: "B" },
+    },
+  })
+
+  await prismaAdmin.ownersDigestProviderRun.create({
+    data: {
+      userId: USER_A,
+      snapshotId: ownersDigestSnapshotA.id,
+      source: "paidsoon",
+      status: "complete",
+      signalCount: 1,
+      surfacedCount: 1,
+      stale: false,
+      dataAsOf: new Date("2026-01-12T07:00:00.000Z"),
+      startedAt: new Date("2026-01-12T07:00:00.000Z"),
+      completedAt: new Date("2026-01-12T07:00:01.000Z"),
+      durationMs: 1000,
+      metadata: { source: "verify-rls", sample: "A" },
+    },
+  })
+
+  await prismaAdmin.ownersDigestProviderRun.create({
+    data: {
+      userId: USER_B,
+      snapshotId: ownersDigestSnapshotB.id,
+      source: "taxbuffer",
+      status: "complete",
+      signalCount: 1,
+      surfacedCount: 1,
+      stale: false,
+      dataAsOf: new Date("2026-01-19T07:00:00.000Z"),
+      startedAt: new Date("2026-01-19T07:00:00.000Z"),
+      completedAt: new Date("2026-01-19T07:00:01.000Z"),
+      durationMs: 1000,
+      metadata: { source: "verify-rls", sample: "B" },
+    },
+  })
+
+  await prismaAdmin.ownersDigestDelivery.create({
+    data: {
+      userId: USER_A,
+      snapshotId: ownersDigestSnapshotA.id,
+      deliveryScope: "owner_only",
+      channel: "email",
+      status: "sent",
+      recipientCount: 1,
+      deliveryKey: PROBE_OWNERS_DIGEST_DELIVERY_KEY_A,
+      messageId: "owners-digest-message-a",
+      sentAt: new Date("2026-01-12T07:01:00.000Z"),
+      metadata: { source: "verify-rls", sample: "A" },
+    },
+  })
+
+  await prismaAdmin.ownersDigestDelivery.create({
+    data: {
+      userId: USER_B,
+      snapshotId: ownersDigestSnapshotB.id,
+      deliveryScope: "owner_only",
+      channel: "email",
+      status: "sent",
+      recipientCount: 1,
+      deliveryKey: PROBE_OWNERS_DIGEST_DELIVERY_KEY_B,
+      messageId: "owners-digest-message-b",
+      sentAt: new Date("2026-01-19T07:01:00.000Z"),
+      metadata: { source: "verify-rls", sample: "B" },
+    },
+  })
 }
 
 async function cleanup() {
   // Delete in FK-safe order: workflow + children first, then canonical records.
+  await prismaAdmin.ownersDigestDelivery.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.ownersDigestProviderRun.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.ownersDigestMetric.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.ownersDigestItem.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.ownersDigestSnapshot.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.ownersDigestSetting.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
   await prismaAdmin.customer.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
   })
@@ -723,6 +971,70 @@ async function main() {
     fail("expected USER_B Tax Buffer configuration to remain unchanged")
   }
   console.log("  ✓ Tax Buffer configuration updates are tenant-scoped")
+
+  console.log("\nCheck 14: withUserContext(USER_A) sees only A's Owner's Digest snapshot")
+  const ownersDigestSnapshots = await withUserContext(USER_A, (tx) =>
+    tx.ownersDigestSnapshot.findMany({
+      where: {
+        summary: { in: [PROBE_OWNERS_DIGEST_SUMMARY_A, PROBE_OWNERS_DIGEST_SUMMARY_B] },
+      },
+      orderBy: { generatedAt: "asc" },
+    }),
+  )
+  if (ownersDigestSnapshots.length !== 1 || ownersDigestSnapshots[0].summary !== PROBE_OWNERS_DIGEST_SUMMARY_A) {
+    await cleanup()
+    fail(`expected exactly A's Owner's Digest snapshot, got ${JSON.stringify(ownersDigestSnapshots.map((row) => row.summary))}`)
+  }
+  console.log("  ✓ saw only A's Owner's Digest snapshot")
+
+  console.log("\nCheck 15: withUserContext(USER_A) sees only A's Owner's Digest item")
+  const ownersDigestItems = await withUserContext(USER_A, (tx) =>
+    tx.ownersDigestItem.findMany({
+      where: {
+        title: { in: [PROBE_OWNERS_DIGEST_ITEM_A, PROBE_OWNERS_DIGEST_ITEM_B] },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  )
+  if (ownersDigestItems.length !== 1 || ownersDigestItems[0].title !== PROBE_OWNERS_DIGEST_ITEM_A) {
+    await cleanup()
+    fail(`expected exactly A's Owner's Digest item, got ${JSON.stringify(ownersDigestItems.map((row) => row.title))}`)
+  }
+  console.log("  ✓ saw only A's Owner's Digest item")
+
+  console.log("\nCheck 16: withUserContext(USER_A) sees only A's Owner's Digest delivery")
+  const ownersDigestDeliveries = await withUserContext(USER_A, (tx) =>
+    tx.ownersDigestDelivery.findMany({
+      where: {
+        deliveryKey: { in: [PROBE_OWNERS_DIGEST_DELIVERY_KEY_A, PROBE_OWNERS_DIGEST_DELIVERY_KEY_B] },
+      },
+      orderBy: { requestedAt: "asc" },
+    }),
+  )
+  if (ownersDigestDeliveries.length !== 1 || ownersDigestDeliveries[0].deliveryKey !== PROBE_OWNERS_DIGEST_DELIVERY_KEY_A) {
+    await cleanup()
+    fail(`expected exactly A's Owner's Digest delivery, got ${JSON.stringify(ownersDigestDeliveries.map((row) => row.deliveryKey))}`)
+  }
+  console.log("  ✓ saw only A's Owner's Digest delivery")
+
+  console.log("\nCheck 17: withUserContext(USER_A) can update only own Owner's Digest settings")
+  const ownersDigestSettingsUpdate = await withUserContext(USER_A, (tx) =>
+    tx.ownersDigestSetting.updateMany({
+      where: { userId: USER_A },
+      data: { maxActionItems: 6 },
+    }),
+  )
+  if (ownersDigestSettingsUpdate.count !== 1) {
+    await cleanup()
+    fail(`expected one Owner's Digest settings update for USER_A, got ${ownersDigestSettingsUpdate.count}`)
+  }
+
+  const ownersDigestSettingsB = await prismaAdmin.ownersDigestSetting.findUnique({ where: { userId: USER_B } })
+  if (!ownersDigestSettingsB || ownersDigestSettingsB.maxActionItems !== 4) {
+    await cleanup()
+    fail("expected USER_B Owner's Digest settings to remain unchanged")
+  }
+  console.log("  ✓ Owner's Digest settings updates are tenant-scoped")
 
   await cleanup()
   console.log("\nPASS: RLS is enforced.")

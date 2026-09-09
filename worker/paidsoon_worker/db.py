@@ -192,6 +192,52 @@ def claim_due_weekly_debtor_summaries() -> list[dict[str, Any]]:
         return claimed
 
 
+def claim_due_owners_digests() -> list[dict[str, Any]]:
+    """Claims Owner's Digest evaluations once per hour for eligible tenants.
+
+    The internal job applies user-specific cadence and delivery rules. The
+    hourly claim key keeps dispatch retries idempotent within the same hour.
+    """
+    hour_start = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+    with get_conn() as conn, conn.transaction():
+        rows = conn.execute(
+            """
+            SELECT s.user_id
+            FROM owners_digest_settings s
+            JOIN user_profiles u ON u."userId" = s.user_id
+            WHERE s.enabled = true
+              AND s.email_enabled = true
+              AND u."subscriptionTier" IN ('small_business', 'business_pro', 'accountant_partner')
+            ORDER BY s.user_id
+            """
+        ).fetchall()
+
+        claimed: list[dict[str, Any]] = []
+        for row in rows:
+            claim_key = _claim_key(row["user_id"], "owners_digest_email", hour_start)
+            inserted = conn.execute(
+                """
+                INSERT INTO scheduled_task_claims
+                    (id, workflow, claim_key, entity_id, user_id, status,
+                     scheduled_for, claimed_at, created_at, updated_at)
+                VALUES
+                    (gen_random_uuid()::text, 'owners_digest_email', %(claim_key)s,
+                     %(entity_id)s, %(user_id)s, 'queued', now(), now(), now(), now())
+                ON CONFLICT (claim_key) DO NOTHING
+                RETURNING id, entity_id, user_id
+                """,
+                {
+                    "claim_key": claim_key,
+                    "entity_id": row["user_id"],
+                    "user_id": row["user_id"],
+                },
+            ).fetchone()
+            if inserted:
+                claimed.append(inserted)
+        return claimed
+
+
 def claim_sweep_run(workflow: str) -> str | None:
     """Claims a single whole-run "sweep" slot for a scan-style workflow
     (catchup_and_snooze, promise_arrangement_sweep) — these operate on the
