@@ -12,16 +12,16 @@ import {
 } from "@/lib/integrationsCatalog"
 import {
   getCtaForLiveMode,
-  MODULE_HREF,
+  getPublicPlanSummary,
   MODULES,
-  PLATFORM_CYCLE,
+  PLATFORM_AREAS,
   PLATFORM_TAGLINE,
 } from "@/components/marketing/marketingContent"
 
 export const metadata: Metadata = {
   title: "PaidSoon - Financial Control for Australian Businesses",
   description:
-    "Your accounting software tells you what happened. PaidSoon helps you control what happens next across receivables, waste, costs, and cash planning.",
+    "Your accounting software tells you what happened. PaidSoon helps you control what happens next across receivables, waste, commitments, margins, tax, and runway.",
   alternates: { canonical: "/" },
   openGraph: {
     title: "PaidSoon - Financial Control for Australian Businesses",
@@ -41,6 +41,7 @@ const pricingPreview = getPublicPlans().map((plan) => ({
 }))
 
 const integrations = getIntegrations()
+const planSummary = getPublicPlanSummary()
 
 const customSenderNameTier = lowestTierWithFeature("custom_sender_name")
 const customSenderNameTierName = customSenderNameTier
@@ -91,8 +92,8 @@ export default function HomePage() {
     operatingSystem: "Web",
     offers: {
       "@type": "AggregateOffer",
-      lowPrice: "9",
-      highPrice: "99",
+      lowPrice: "15",
+      highPrice: "149",
       priceCurrency: "AUD",
     },
   }
@@ -136,11 +137,19 @@ export default function HomePage() {
             <p className="mt-3 text-sm text-gray-500">{cta.helper}</p>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-blue-50 to-slate-100 p-6">
-            <h2 className="text-lg font-semibold text-gray-900">Four-module control system</h2>
-            <div className="mt-4 grid gap-3">
+            <h2 className="text-lg font-semibold text-gray-900">{MODULES.length}-module financial control system</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Public modules now span receivables, spend, commitments, margin, tax, and runway control.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {MODULES.map((item) => (
-                <Link key={item.id} href={MODULE_HREF[item.id]} className="rounded-xl border border-white bg-white/80 p-4 hover:bg-white">
-                  <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                <Link key={item.id} href={item.href} className="rounded-xl border border-white bg-white/80 p-4 hover:bg-white">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+                      {item.statusLabel}
+                    </span>
+                  </div>
                   <p className="text-sm text-gray-600">{item.question}</p>
                 </Link>
               ))}
@@ -150,13 +159,18 @@ export default function HomePage() {
       </section>
 
       <section className="border-y border-gray-100 py-12">
-        <div className="mx-auto grid max-w-6xl gap-4 px-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto grid max-w-6xl gap-4 px-4 md:grid-cols-2 xl:grid-cols-3">
           {MODULES.map((item) => (
             <article key={item.id} className="rounded-xl border border-gray-200 p-5">
-              <p className="text-xs uppercase tracking-wide text-gray-400">{item.name}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs uppercase tracking-wide text-gray-400">{item.name}</p>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">
+                  {item.statusLabel}
+                </span>
+              </div>
               <h2 className="mt-2 text-lg font-semibold text-gray-900">{item.question}</h2>
               <p className="mt-2 text-sm text-gray-600">{item.summary}</p>
-              <Link href={MODULE_HREF[item.id]} className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
+              <Link href={item.href} className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
                 Learn more
               </Link>
             </article>
@@ -180,8 +194,8 @@ export default function HomePage() {
               <h3 className="text-lg font-semibold text-blue-900">PaidSoon platform</h3>
               <ul className="mt-3 space-y-2 text-blue-900">
                 <li>Shows what needs attention now</li>
-                <li>Flags waste and cost drift early</li>
-                <li>Models likely cash position ahead</li>
+                <li>Flags waste, margin pressure, and renewal risk early</li>
+                <li>Models cash, runway, and protected-tax decisions ahead</li>
               </ul>
             </article>
           </div>
@@ -209,11 +223,28 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center text-2xl font-semibold text-gray-900">How the modules work together</h2>
           <p className="mt-3 text-center text-gray-600">One operating rhythm for day-to-day financial control.</p>
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
-            {PLATFORM_CYCLE.map((step, index) => (
-              <article key={step} className="rounded-xl border border-gray-200 bg-white p-5 text-center">
+          <div className="mt-6 grid gap-4 lg:grid-cols-4">
+            {PLATFORM_AREAS.map((area, index) => (
+              <article key={area.id} className="rounded-xl border border-gray-200 bg-white p-5">
                 <p className="text-xs uppercase tracking-wide text-gray-400">Step {index + 1}</p>
-                <h3 className="mt-2 font-semibold text-gray-900">{step}</h3>
+                <h3 className="mt-2 font-semibold text-gray-900">{area.name}</h3>
+                <p className="mt-2 text-sm text-gray-600">{area.summary}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {area.moduleIds.map((moduleId) => {
+                    const moduleDef = MODULES.find((item) => item.id === moduleId)
+                    if (!moduleDef) return null
+
+                    return (
+                      <Link
+                        key={moduleDef.id}
+                        href={moduleDef.href}
+                        className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                      >
+                        {moduleDef.name}
+                      </Link>
+                    )
+                  })}
+                </div>
               </article>
             ))}
           </div>
@@ -241,7 +272,7 @@ export default function HomePage() {
                     <li key={capability}>{capability}</li>
                   ))}
                 </ul>
-                <Link href={MODULE_HREF[item.id]} className="mt-4 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
+                <Link href={item.href} className="mt-4 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
                   Visit {item.name}
                 </Link>
               </article>
@@ -257,8 +288,8 @@ export default function HomePage() {
             {[
               "Faster receivables follow-up with less manual chasing",
               "Clearer view of recurring spend and waste",
-              "Earlier visibility of cost pressure",
-              "More confidence in near-term cash decisions",
+              "Earlier visibility of commitments, margin pressure, and tax gaps",
+              "More confidence in near-term cash and runway decisions",
             ].map((benefit) => (
               <article key={benefit} className="rounded-xl border border-gray-200 bg-white p-5">
                 <p className="text-gray-700">{benefit}</p>
@@ -308,6 +339,7 @@ export default function HomePage() {
       <section className="py-12">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center text-2xl font-semibold text-gray-900">Pricing at a glance</h2>
+          <p className="mt-3 text-center text-sm text-gray-600">{planSummary.join(" • ")}</p>
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             {pricingPreview.map((plan) => (
               <article key={plan.id} className={`rounded-xl p-6 ${plan.featured ? "border-2 border-blue-700" : "border border-gray-200"}`}>

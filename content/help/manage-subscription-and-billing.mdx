@@ -1,0 +1,46 @@
+---
+title: Manage billing and subscription
+description: Upgrade, downgrade, or cancel your PaidSoon subscription from the subscription settings page.
+owner: help-content
+lastVerified: 2026-09-09
+guideSection: billing-subscription
+guideOrder: 1
+---
+
+Use subscription settings to manage your current plan, billing status, and renewal behavior.
+
+## Before you start
+
+- Sign in to PaidSoon and open **Settings → Subscription** (`/dashboard/settings/subscription`).
+- Have the billing owner role for your account so you can confirm plan changes.
+
+## Steps
+
+1. Review your **Current plan** card and billing status.
+2. Select another plan to start a change:
+   - **Upgrade** opens Stripe checkout to apply the change immediately.
+   - **Downgrade** schedules the change for your next renewal date.
+3. Use **Manage billing** to open the Stripe customer portal for card and invoice administration.
+4. If needed, choose **Cancel subscription** (or **End free trial**) and confirm on the cancellation flow.
+
+## What you'll see
+
+- Success messages after completed changes.
+- Scheduled downgrade notices showing the effective date.
+- Current status labels such as active, trialing, past due, or cancelled.
+
+## What happens next
+
+- Upgrades take effect immediately after successful Stripe checkout.
+- Downgrades apply at the next billing boundary unless cancelled before that date.
+- Cancellation schedules end-of-term access unless your flow states immediate trial end.
+
+## Common problems
+
+- **I cannot see upgrade options**: Confirm you are on the subscription page while signed in.
+- **Manage billing does not open**: Disable popup blockers and try again.
+- **Plan did not change yet**: Scheduled downgrades apply at renewal, not immediately.
+
+## Related tutorial
+
+[Update your account profile settings](/help/update-account-profile)

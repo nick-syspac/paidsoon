@@ -48,6 +48,27 @@ baselines, alert records, event audit trail, and forecast snapshots. The foundat
 read-only by design and is intentionally anchored to the shared financial layer rather than a
 parallel cost ledger.
 
+**Tax Buffer status:** the repository now includes a first-class Tax Buffer control layer that
+estimates required tax reserves (GST/PAYG/income tax/custom categories), tracks reserve gaps,
+and composes safe-to-spend cash using available cash and near-term commitments. It is exposed
+through dedicated dashboard/settings pages and a session-authenticated API surface, with
+tenant-scoped persistence and RLS policies across all Tax Buffer tables.
+
+**MarginGuard status:** the repository now includes a first-class margin intelligence layer with
+deterministic summary/trend/customer analytics, configurable targets and alerts, snapshot/alert/
+opportunity background sweeps, overview integration, and tenant-scoped CSV/XLSX export datasets.
+
+**RunwayGuard status:** the repository now includes a first-class runway-resilience layer that turns
+usable cash, protected cash, and commitment/cash-plan forecast signals into a simple runway summary,
+status band, confidence score, timeline, driver analysis, and scenario comparison. The module is
+exposure-gated by plan entitlement and includes tenant-scoped settings, snapshot history, and a
+background snapshot sweep for trend visibility.
+
+**Owner's Digest status:** the repository now includes a first-class executive digest layer that
+aggregates deterministic signals from the currently entitled FinOps modules, ranks them by severity
+and materiality, stores immutable period snapshots, exposes dashboard/settings/history routes, and
+delivers the briefing through the existing Resend and Railway internal-job path.
+
 **There is no multi-vertical platform.** PaidSoon is a single product, single
 tenant-type system (one freelancer = one tenant, keyed by Supabase
 `auth.users.id`). There are no organisations, workspaces, teams, RBAC roles,
@@ -212,6 +233,11 @@ what is actually present, and explicitly marks absent capabilities.
 | Email settings | Custom verified from-address | Implemented | `app/api/settings/email/route.ts`, `lib/email/send.ts` | `.../specs/email-settings/spec.md` | Resend domain verify polling |
 | Manual invoice actions | Pause / resume / snooze / resolve | Implemented | `app/api/invoices/[id]/**` | `.../specs/dashboard/spec.md` | RLS-scoped |
 | Dashboard | Overdue + resolved views, upsell | Implemented | `app/dashboard/page.tsx`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell/specs/...` | Feature-gated modules |
+| MarginGuard | Margin analytics, threshold alerts, opportunities, and exportable datasets | Implemented | `lib/marginguard/**`, `app/api/margin-guard/**`, `app/api/cron/margin-guard-snapshots/route.ts`, `app/dashboard/margin-guard/**`, `app/dashboard/settings/margin-guard/**` | `changes/implement-marginguard-finops-module` | Overview card on `/dashboard`; cross-module signal integration with SpendLeak, Cost Guard, CommitGuard, and CashPlan while preserving tax-reserve separation |
+| RunwayGuard | Cash-resilience summary, runway timeline, scenario simulation, and threshold-driven alerts | Implemented | `lib/runwayGuard/**`, `app/api/runway-guard/**`, `app/api/cron/runway-guard-snapshots/route.ts`, `app/dashboard/runway-guard/**`, `app/dashboard/settings/runway-guard/**` | `changes/implement-runwayguard-finops-module` | Uses usable cash, protected cash, and cash-plan assumptions to show runway risk, confidence, and exposure with tenant-scoped settings and history |
+| CommitGuard | Commitment registry, detection/review queue, horizon projection, and free-cash guardrails | Implemented | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | `changes/add-commitguard-module` | Bridges spend-side signals to planning by converting recurring commitments into deterministic outflow and free-cash signals |
+| Tax Buffer | Tax reserve control layer and safe-to-spend composition | Implemented | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | `changes/add-tax-buffer-module` | First-time setup suggestions, category-level methods, deduplicated reserve events |
+| Owner's Digest | Cross-module executive briefing, snapshot history, and scheduled email summary | Implemented | `lib/ownersDigest/**`, `app/api/owners-digest/**`, `app/api/internal/jobs/send-owners-digest/route.ts`, `app/dashboard/owners-digest/**`, `app/dashboard/settings/owners-digest/**` | `changes/add-owners-digest-module` | Sits above the FinOps modules, turning deterministic signals into a short prioritized owner briefing with immutable snapshots and deduplicated delivery state |
 | Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/restore-three-tier-pricing/specs/...` | 4 tiers: Starter A$9 / Solo A$19 / Small Business A$39 (public) / Accountant Partner (contact us, hidden) |
 | Live-mode gating | Pre-launch auth lockout + banner | Implemented | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | `changes/live-mode-auth-gate-banner/specs/...` | `LIVE` env var |
 | Templates | Read/write per-stage reminder templates | Implemented | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite`, `changes/templates-sidebar-help` | GET/PUT/DELETE; persists to `email_templates`; sidebar with variable chips |
@@ -226,6 +252,31 @@ what is actually present, and explicitly marks absent capabilities.
 | Workflow engine | Definitions/instances/nodes/tasks | **Not applicable** | — | — | The only "workflow" is the 3-stage email sequence |
 | Audit logging | Structured audit events | **Not present** | — | — | `email_logs` is the only persistent event trail |
 | Internal admin / platform settings | Operator console | **Not present** | — | — | Operators use Supabase/Stripe/Vercel dashboards |
+
+### FinOps progression: Cost Guard -> CommitGuard -> Tax Buffer -> CashPlan -> RunwayGuard -> Owner's Digest
+
+PaidSoon's spend-control flow now has a clear progression:
+
+1. **Cost Guard** establishes baseline drift/risk signals from spend history.
+2. **CommitGuard** translates recurring and contractual obligations into
+  explicit commitment outflows, renewal/notice severities, and free-cash risk.
+3. **Tax Buffer** reserves statutory cash and reports tax-protected balances.
+4. **CashPlan** consumes committed-outflow + protected-cash outputs to keep
+  planning projections aligned to real obligations.
+5. **RunwayGuard** interprets the resulting forecast as a forecasted runway: usable cash,
+  projected exhaustion, confidence, warning/critical bands, and scenario impacts.
+6. **Owner's Digest** aggregates the currently entitled signals from PaidSoon,
+  SpendLeak, Cost Guard, CashPlan, Tax Buffer, CommitGuard, MarginGuard, and
+  RunwayGuard into a short deterministic owner briefing.
+
+In implementation terms, Cost Guard alerts can deep-link into CommitGuard
+filtered commitment views, CommitGuard can consume Tax Buffer protected-cash
+inputs in its free-cash composition, CashPlan consumes CommitGuard's
+integration-safe cash projection contract (`/api/commitguard/cashplan`), and
+RunwayGuard consumes those forecast inputs to calculate the risk posture and
+driver narrative visible on the dashboard and module pages. Owner's Digest sits
+above those modules and persists the ranked cross-module summary as an immutable
+per-period snapshot that can be rendered in-product or delivered by email.
 
 ---
 

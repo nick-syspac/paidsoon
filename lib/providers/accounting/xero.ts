@@ -282,6 +282,8 @@ export class XeroProvider implements AccountingProvider {
           InvoiceNumber?: string
           Contact?: { ContactID: string; Name?: string; EmailAddress?: string }
           AmountDue?: number
+          TotalTax?: number
+          LineAmountTypes?: string
           CurrencyCode?: string
           DueDate?: string
           Status?: string
@@ -303,6 +305,11 @@ export class XeroProvider implements AccountingProvider {
           status: normaliseXeroStatus(inv.Status ?? ""),
           providerUpdatedAt: parseXeroDate(inv.UpdatedDateUTC),
           rawMetadata: inv as unknown as Record<string, unknown>,
+          taxMetadata: {
+            taxAmount: inv.TotalTax,
+            lineAmountType: inv.LineAmountTypes,
+            taxInclusive: inv.LineAmountTypes === "Inclusive",
+          },
         })
       }
 
@@ -423,6 +430,11 @@ export class XeroProvider implements AccountingProvider {
           status: normaliseXeroSpendBillStatus(bill.Status ?? ""),
           providerUpdatedAt: parseXeroDate(bill.UpdatedDateUTC),
           rawMetadata: bill as unknown as Record<string, unknown>,
+          taxMetadata: {
+            taxAmount: bill.TotalTax,
+            lineAmountType: bill.LineAmountTypes,
+            taxInclusive: bill.LineAmountTypes === "Inclusive",
+          },
         })
       }
 
@@ -491,6 +503,9 @@ export class XeroProvider implements AccountingProvider {
           transactionDate: parseXeroDate(tx.Date) ?? new Date(),
           providerUpdatedAt: parseXeroDate(tx.UpdatedDateUTC),
           rawMetadata: tx as unknown as Record<string, unknown>,
+          taxMetadata: {
+            lineAmountType: "Unknown",
+          },
         })
       }
 

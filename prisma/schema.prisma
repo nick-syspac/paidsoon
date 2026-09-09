@@ -56,6 +56,21 @@ model UserProfile {
   costGuardAlerts              CostGuardAlert[]
   costGuardAlertEvents         CostGuardAlertEvent[]
   costGuardForecasts           CostGuardForecast[]
+  marginGuardSettings          MarginGuardSetting[]
+  marginGuardTargets           MarginGuardTarget[]
+  marginCostClassifications    MarginCostClassification[]
+  marginClassificationRules    MarginClassificationRule[]
+  marginAlerts                 MarginAlert[]
+  marginAlertEvents            MarginAlertEvent[]
+  marginSnapshots              MarginSnapshot[]
+  marginScenarios              MarginScenario[]
+  marginOpportunities          MarginOpportunity[]
+  taxBufferConfigurations      TaxBufferConfiguration[]
+  taxReserveCategories         TaxReserveCategory[]
+  taxBufferObligations         TaxBufferObligation[]
+  taxBufferSnapshots           TaxBufferSnapshot[]
+  taxBufferOverrides           TaxBufferOverride[]
+  taxBufferEvents              TaxBufferEvent[]
   invoiceImportBatches         InvoiceImportBatch[]
   invoiceImportMappingProfiles InvoiceImportMappingProfile[]
   spendImportBatches           SpendImportBatch[]
@@ -63,6 +78,21 @@ model UserProfile {
   cashPlanSettings             CashPlanSetting[]
   cashPlanAlerts               CashPlanAlert[]
   cashPlanDataQualityIssues    CashPlanDataQualityIssue[]
+  runwayGuardSettings          RunwayGuardSetting[]
+  runwayGuardSnapshots         RunwayGuardSnapshot[]
+  runwayGuardAlerts            RunwayGuardAlert[]
+  runwayGuardAlertEvents       RunwayGuardAlertEvent[]
+  runwayGuardScenarios         RunwayGuardScenario[]
+  commitGuardSettings          CommitGuardSetting[]
+  commitments                  Commitment[]
+  commitmentDetectionCandidates CommitmentDetectionCandidate[]
+  commitmentEvents             CommitmentEvent[]
+  ownersDigestSettings         OwnersDigestSetting[]
+  ownersDigestSnapshots        OwnersDigestSnapshot[]
+  ownersDigestItems            OwnersDigestItem[]
+  ownersDigestMetrics          OwnersDigestMetric[]
+  ownersDigestProviderRuns     OwnersDigestProviderRun[]
+  ownersDigestDeliveries       OwnersDigestDelivery[]
 
   @@map("user_profiles")
 }
@@ -288,6 +318,8 @@ model FinancialInvoice {
   contact              FinancialContact?     @relation(fields: [contactId], references: [id])
   trackedInvoice       TrackedInvoice?
   financialPayments    FinancialPayment[]
+  marginCostClassifications MarginCostClassification[]
+  taxBufferObligations TaxBufferObligation[]
 
   @@unique([userId, sourceSystem, sourceId])
   @@index([userId, dueDate])
@@ -684,6 +716,8 @@ model ImportedBill {
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+  marginCostClassifications MarginCostClassification[]
+  taxBufferObligations TaxBufferObligation[]
 
   @@unique([accountingConnectionId, sourceId])
   @@index([userId, status, dueDate])
@@ -713,6 +747,8 @@ model ImportedBankTransaction {
 
   userProfile          UserProfile          @relation(fields: [userId], references: [userId])
   accountingConnection AccountingConnection @relation(fields: [accountingConnectionId], references: [id])
+  marginCostClassifications MarginCostClassification[]
+  taxBufferObligations TaxBufferObligation[]
 
   @@unique([accountingConnectionId, sourceId])
   @@index([userId, transactionDate])
@@ -1050,6 +1086,122 @@ model CashPlanDataQualityIssue {
 }
 
 // ---------------------------------------------------------------------------
+// RunwayGuard Foundation
+// ---------------------------------------------------------------------------
+
+model RunwayGuardSetting {
+  id                        String   @id @default(cuid())
+  userId                    String   @map("user_id")
+  enabled                   Boolean  @default(false)
+  horizonDays               Int      @default(180) @map("horizon_days")
+  warningThresholdDays      Int      @default(90) @map("warning_threshold_days")
+  criticalThresholdDays     Int      @default(45) @map("critical_threshold_days")
+  lowConfidenceWeight       Float    @default(0.6) @map("low_confidence_weight")
+  minimumConfidence         Float    @default(0.5) @map("minimum_confidence")
+  alertOnBreach             Boolean  @default(true) @map("alert_on_breach")
+  alertOnRecovery           Boolean  @default(true) @map("alert_on_recovery")
+  notificationDigestMode    String   @default("daily") @map("notification_digest_mode")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("runway_guard_settings")
+}
+
+model RunwayGuardSnapshot {
+  id                       String   @id @default(cuid())
+  userId                   String   @map("user_id")
+  snapshotAt               DateTime @default(now()) @map("snapshot_at")
+  openingCashCents         Int      @default(0) @map("opening_cash_cents")
+  protectedCashCents       Int      @default(0) @map("protected_cash_cents")
+  usableCashCents          Int      @default(0) @map("usable_cash_cents")
+  runwayDays               Int      @default(0) @map("runway_days")
+  projectedExhaustionDay   Int      @default(0) @map("projected_exhaustion_day")
+  status                   String   @default("watch")
+  source                   String   @default("cashplan")
+  confidence               Float    @default(0.5)
+  assumptions              Json?
+  explainability           Json?
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile       @relation(fields: [userId], references: [userId])
+  alerts      RunwayGuardAlert[]
+
+  @@unique([userId, snapshotAt])
+  @@index([userId, snapshotAt])
+  @@index([userId, status])
+  @@map("runway_guard_snapshots")
+}
+
+model RunwayGuardAlert {
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  runwaySnapshotId String?   @map("runway_snapshot_id")
+  alertType        String    @map("alert_type")
+  severity         String    @default("warning")
+  status           String    @default("open")
+  title            String
+  message          String
+  materialityCents Int       @default(0) @map("materiality_cents")
+  metadata         Json?
+  triggeredAt      DateTime  @default(now()) @map("triggered_at")
+  acknowledgedAt   DateTime? @map("acknowledged_at")
+  resolvedAt       DateTime? @map("resolved_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile          @relation(fields: [userId], references: [userId])
+  snapshot    RunwayGuardSnapshot? @relation(fields: [runwaySnapshotId], references: [id], onDelete: SetNull)
+  events      RunwayGuardAlertEvent[]
+
+  @@index([userId, status, severity])
+  @@index([userId, alertType, triggeredAt])
+  @@map("runway_guard_alerts")
+}
+
+model RunwayGuardAlertEvent {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  runwayAlertId String   @map("runway_alert_id")
+  eventType     String   @map("event_type")
+  actorId       String?  @map("actor_id")
+  oldStatus     String?  @map("old_status")
+  newStatus     String?  @map("new_status")
+  reason        String?
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile      @relation(fields: [userId], references: [userId])
+  alert       RunwayGuardAlert @relation(fields: [runwayAlertId], references: [id], onDelete: Cascade)
+
+  @@index([runwayAlertId, createdAt])
+  @@index([userId, createdAt])
+  @@map("runway_guard_alert_events")
+}
+
+model RunwayGuardScenario {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  name         String
+  scenarioType String   @map("scenario_type") // base | conservative | stress | custom
+  inputs       Json
+  outputs      Json
+  assumptions  Json?
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, scenarioType])
+  @@index([userId, createdAt])
+  @@map("runway_guard_scenarios")
+}
+
+// ---------------------------------------------------------------------------
 // Cost Guard Foundation
 // ---------------------------------------------------------------------------
 
@@ -1177,6 +1329,726 @@ model CostGuardForecast {
 
   @@index([userId, forecastMonth])
   @@map("cost_guard_forecasts")
+}
+
+// ---------------------------------------------------------------------------
+// MarginGuard Foundation
+// ---------------------------------------------------------------------------
+
+model MarginGuardSetting {
+  id                             String   @id @default(cuid())
+  userId                         String   @map("user_id")
+  enabled                        Boolean  @default(false)
+  defaultPeriod                  String   @default("30d") @map("default_period")
+  targetGrossMarginPercent       Float    @default(35) @map("target_gross_margin_percent")
+  warningGrossMarginPercent      Float    @default(30) @map("warning_gross_margin_percent")
+  criticalGrossMarginPercent     Float    @default(25) @map("critical_gross_margin_percent")
+  minCompletenessPercent         Float    @default(70) @map("min_completeness_percent")
+  highConfidencePercent          Float    @default(90) @map("high_confidence_percent")
+  mediumConfidencePercent        Float    @default(75) @map("medium_confidence_percent")
+  lowConfidencePercent           Float    @default(50) @map("low_confidence_percent")
+  alertBelowWarning              Boolean  @default(true) @map("alert_below_warning")
+  alertBelowCritical             Boolean  @default(true) @map("alert_below_critical")
+  alertDeterioration             Boolean  @default(true) @map("alert_deterioration")
+  alertNegativeMargin            Boolean  @default(true) @map("alert_negative_margin")
+  alertCustomerMarginWarning     Boolean  @default(true) @map("alert_customer_margin_warning")
+  alertCostIncrease              Boolean  @default(true) @map("alert_cost_increase")
+  alertDataQualityWarning        Boolean  @default(true) @map("alert_data_quality_warning")
+  alertDigestMode                String   @default("daily") @map("alert_digest_mode") // daily | weekly | monthly
+  createdAt                      DateTime @default(now()) @map("created_at")
+  updatedAt                      DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("margin_guard_settings")
+}
+
+model MarginGuardTarget {
+  id                         String    @id @default(cuid())
+  userId                     String    @map("user_id")
+  scopeType                  String    @map("scope_type") // organization | customer | product_service | category | project_job
+  scopeKey                   String?   @map("scope_key")
+  targetGrossMarginPercent   Float     @map("target_gross_margin_percent")
+  warningGrossMarginPercent  Float?    @map("warning_gross_margin_percent")
+  criticalGrossMarginPercent Float?    @map("critical_gross_margin_percent")
+  isActive                   Boolean   @default(true) @map("is_active")
+  createdBy                  String?   @map("created_by")
+  updatedBy                  String?   @map("updated_by")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId, scopeType, scopeKey])
+  @@index([userId, scopeType, isActive])
+  @@map("margin_guard_targets")
+}
+
+model MarginClassificationRule {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  name               String
+  ruleType           String   @map("rule_type") // supplier | category | account | text_match | recurring
+  classification     String // DIRECT_COST | VARIABLE_COST | OVERHEAD | EXCLUDED | UNCLASSIFIED
+  priority           Int      @default(100)
+  enabled            Boolean  @default(true)
+  matchConfig        Json     @map("match_config")
+  createdBy          String?  @map("created_by")
+  updatedBy          String?  @map("updated_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  userProfile          UserProfile                 @relation(fields: [userId], references: [userId])
+  marginClassifications MarginCostClassification[]
+
+  @@index([userId, enabled, priority])
+  @@index([userId, ruleType])
+  @@map("margin_classification_rules")
+}
+
+model MarginCostClassification {
+  id                        String    @id @default(cuid())
+  userId                    String    @map("user_id")
+  sourceType                String    @map("source_type") // imported_bill | imported_bank_transaction | financial_invoice
+  sourceRecordId            String    @map("source_record_id")
+  classification            String // DIRECT_COST | VARIABLE_COST | OVERHEAD | EXCLUDED | UNCLASSIFIED
+  classificationOrigin      String    @default("default") @map("classification_origin") // default | rule | manual
+  confidence                String    @default("medium")
+  overrideLocked            Boolean   @default(false) @map("override_locked")
+  marginClassificationRuleId String?  @map("margin_classification_rule_id")
+  importedBillId            String?   @map("imported_bill_id")
+  importedBankTransactionId String?   @map("imported_bank_transaction_id")
+  financialInvoiceId        String?   @map("financial_invoice_id")
+  metadata                  Json?
+  createdBy                 String?   @map("created_by")
+  updatedBy                 String?   @map("updated_by")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  userProfile            UserProfile              @relation(fields: [userId], references: [userId])
+  rule                   MarginClassificationRule? @relation(fields: [marginClassificationRuleId], references: [id], onDelete: SetNull)
+  importedBill           ImportedBill?            @relation(fields: [importedBillId], references: [id], onDelete: SetNull)
+  importedBankTransaction ImportedBankTransaction? @relation(fields: [importedBankTransactionId], references: [id], onDelete: SetNull)
+  financialInvoice       FinancialInvoice?        @relation(fields: [financialInvoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, sourceType, sourceRecordId])
+  @@index([userId, classification])
+  @@index([userId, sourceType])
+  @@index([marginClassificationRuleId])
+  @@map("margin_cost_classifications")
+}
+
+model MarginSnapshot {
+  id                        String   @id @default(cuid())
+  userId                    String   @map("user_id")
+  periodGranularity         String   @map("period_granularity") // daily | monthly | quarterly | yearly
+  periodStart               DateTime @map("period_start")
+  periodEnd                 DateTime @map("period_end")
+  currency                  String
+  revenueCents              Int      @default(0) @map("revenue_cents")
+  directCostCents           Int      @default(0) @map("direct_cost_cents")
+  variableCostCents         Int      @default(0) @map("variable_cost_cents")
+  grossProfitCents          Int      @default(0) @map("gross_profit_cents")
+  grossMarginPercent        Float?   @map("gross_margin_percent")
+  contributionMarginCents   Int?     @map("contribution_margin_cents")
+  contributionMarginPercent Float?   @map("contribution_margin_percent")
+  completenessPercent       Float    @default(0) @map("completeness_percent")
+  confidence                String   @default("insufficient_data") // high | medium | low | insufficient_data
+  status                    String   @default("insufficient_data") // healthy | watch | warning | critical | insufficient_data
+  assumptions               Json?
+  calculatedAt              DateTime @default(now()) @map("calculated_at")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  alerts      MarginAlert[]
+
+  @@unique([userId, periodGranularity, periodStart, periodEnd])
+  @@index([userId, periodStart])
+  @@index([userId, status])
+  @@map("margin_snapshots")
+}
+
+model MarginAlert {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  marginSnapshotId      String?   @map("margin_snapshot_id")
+  alertType             String    @map("alert_type")
+  scopeType             String    @map("scope_type") // organization | customer | product_service | category | invoice | project_job
+  scopeKey              String?   @map("scope_key")
+  severity              String    @default("warning") // info | warning | critical
+  status                String    @default("open") // open | acknowledged | resolved | dismissed
+  title                 String
+  message               String
+  evidence              Json?
+  estimatedImpactCents  Int?      @map("estimated_impact_cents")
+  confidence            String    @default("medium")
+  detectedAt            DateTime  @default(now()) @map("detected_at")
+  acknowledgedAt        DateTime? @map("acknowledged_at")
+  resolvedAt            DateTime? @map("resolved_at")
+  dismissedAt           DateTime? @map("dismissed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile    @relation(fields: [userId], references: [userId])
+  snapshot    MarginSnapshot? @relation(fields: [marginSnapshotId], references: [id], onDelete: SetNull)
+  events      MarginAlertEvent[]
+
+  @@index([userId, status, severity])
+  @@index([userId, alertType, detectedAt])
+  @@map("margin_alerts")
+}
+
+model MarginAlertEvent {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  marginAlertId String @map("margin_alert_id")
+  eventType   String   @map("event_type") // created | acknowledged | resolved | dismissed | reopened
+  actorId     String?  @map("actor_id")
+  oldStatus   String?  @map("old_status")
+  newStatus   String?  @map("new_status")
+  reason      String?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  alert       MarginAlert @relation(fields: [marginAlertId], references: [id], onDelete: Cascade)
+
+  @@index([marginAlertId, createdAt])
+  @@index([userId, createdAt])
+  @@map("margin_alert_events")
+}
+
+model MarginScenario {
+  id                    String   @id @default(cuid())
+  userId                String   @map("user_id")
+  name                  String
+  scenarioType          String   @map("scenario_type") // price_to_target | cost_change | mixed
+  inputs                Json
+  outputs               Json
+  assumptions           Json?
+  createdBy             String?  @map("created_by")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, scenarioType])
+  @@index([userId, createdAt])
+  @@map("margin_scenarios")
+}
+
+model MarginOpportunity {
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  opportunityType        String    @map("opportunity_type") // pricing | cost_reduction | classification | customer_mix | service_mix
+  scopeType              String    @map("scope_type")
+  scopeKey               String?   @map("scope_key")
+  severity               String    @default("warning") // info | warning | critical
+  status                 String    @default("open") // open | accepted | dismissed | resolved
+  title                  String
+  description            String
+  evidence               Json?
+  estimatedMonthlyCents  Int?      @map("estimated_monthly_cents")
+  estimatedAnnualCents   Int?      @map("estimated_annual_cents")
+  confidence             String    @default("medium")
+  detectedAt             DateTime  @default(now()) @map("detected_at")
+  resolvedAt             DateTime? @map("resolved_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, status, severity])
+  @@index([userId, opportunityType, detectedAt])
+  @@map("margin_opportunities")
+}
+
+// ---------------------------------------------------------------------------
+// Tax Buffer Foundation
+// ---------------------------------------------------------------------------
+
+model TaxBufferConfiguration {
+  id                          String   @id @default(cuid())
+  userId                      String   @map("user_id")
+  enabled                     Boolean  @default(false)
+  accountingBasis             String   @default("cash") @map("accounting_basis") // cash | accrual
+  businessType                String   @default("other") @map("business_type")
+  gstRegistered               Boolean  @default(false) @map("gst_registered")
+  gstFrequency                String   @default("quarterly") @map("gst_frequency") // monthly | quarterly | annually
+  reserveHealthWatchThreshold Float    @default(0.9) @map("reserve_health_watch_threshold")
+  reserveHealthCriticalThreshold Float @default(0.7) @map("reserve_health_critical_threshold")
+  reserveBalanceSource        String   @default("manual") @map("reserve_balance_source") // manual | connected_account
+  reserveBalanceCents         Int      @default(0) @map("reserve_balance_cents")
+  reserveAccountName          String?  @map("reserve_account_name")
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("tax_buffer_configurations")
+}
+
+model TaxReserveCategory {
+  id                      String    @id @default(cuid())
+  userId                  String    @map("user_id")
+  categoryType            String    @map("category_type") // gst | payg_withholding | payg_instalment | income_tax | custom
+  name                    String
+  description             String?
+  calculationMethod       String    @default("manual") @map("calculation_method") // integration | fixed_amount | percentage_profit | percentage_revenue | manual
+  recurrence              String    @default("quarterly") // weekly | fortnightly | monthly | quarterly | annually | one_off
+  enabled                 Boolean   @default(true)
+  ratePercent             Float?    @map("rate_percent")
+  fixedAmountCents        Int?      @map("fixed_amount_cents")
+  manualAmountCents       Int?      @map("manual_amount_cents")
+  nextDueDate             DateTime? @map("next_due_date")
+  sourcePreference        String    @default("auto") @map("source_preference")
+  confidenceOverride      String?   @map("confidence_override")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  userProfile        UserProfile          @relation(fields: [userId], references: [userId])
+  obligations        TaxBufferObligation[]
+  overrides          TaxBufferOverride[]
+
+  @@index([userId, categoryType])
+  @@index([userId, enabled])
+  @@map("tax_reserve_categories")
+}
+
+model TaxBufferObligation {
+  id                         String    @id @default(cuid())
+  userId                     String    @map("user_id")
+  reserveCategoryId          String    @map("reserve_category_id")
+  name                       String
+  periodStart                DateTime? @map("period_start")
+  periodEnd                  DateTime? @map("period_end")
+  dueDate                    DateTime  @map("due_date")
+  estimatedAmountCents       Int       @map("estimated_amount_cents")
+  reservedAmountCents        Int       @default(0) @map("reserved_amount_cents")
+  source                     String
+  sourceDetail               String?   @map("source_detail")
+  confidence                 String    @default("medium")
+  status                     String    @default("open") // open | covered | short | settled
+  calculatedAt               DateTime  @default(now()) @map("calculated_at")
+  financialInvoiceId         String?   @map("financial_invoice_id")
+  importedBillId             String?   @map("imported_bill_id")
+  importedBankTransactionId  String?   @map("imported_bank_transaction_id")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  userProfile             UserProfile            @relation(fields: [userId], references: [userId])
+  reserveCategory         TaxReserveCategory     @relation(fields: [reserveCategoryId], references: [id], onDelete: Cascade)
+  financialInvoice        FinancialInvoice?      @relation(fields: [financialInvoiceId], references: [id], onDelete: SetNull)
+  importedBill            ImportedBill?          @relation(fields: [importedBillId], references: [id], onDelete: SetNull)
+  importedBankTransaction ImportedBankTransaction? @relation(fields: [importedBankTransactionId], references: [id], onDelete: SetNull)
+  overrides               TaxBufferOverride[]
+
+  @@index([userId, dueDate])
+  @@index([userId, status])
+  @@index([reserveCategoryId])
+  @@map("tax_buffer_obligations")
+}
+
+model TaxBufferSnapshot {
+  id                      String   @id @default(cuid())
+  userId                  String   @map("user_id")
+  snapshotAt              DateTime @default(now()) @map("snapshot_at")
+  availableCashCents      Int?     @map("available_cash_cents")
+  totalRequiredCents      Int      @default(0) @map("total_required_cents")
+  totalReservedCents      Int      @default(0) @map("total_reserved_cents")
+  reserveGapCents         Int      @default(0) @map("reserve_gap_cents")
+  committedOutflowsCents  Int      @default(0) @map("committed_outflows_cents")
+  safeToSpendCents        Int?     @map("safe_to_spend_cents")
+  healthStatus            String   @default("unknown") @map("health_status")
+  warnings                Json?
+  calculationInputs       Json?    @map("calculation_inputs")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, snapshotAt])
+  @@map("tax_buffer_snapshots")
+}
+
+model TaxBufferOverride {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  reserveCategoryId     String?   @map("reserve_category_id")
+  obligationId          String?   @map("obligation_id")
+  calculatedValueCents  Int       @map("calculated_value_cents")
+  overrideValueCents    Int       @map("override_value_cents")
+  reason                String
+  basedOnAccountant     Boolean   @default(false) @map("based_on_accountant")
+  createdBy             String?   @map("created_by")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  userProfile      UserProfile          @relation(fields: [userId], references: [userId])
+  reserveCategory  TaxReserveCategory?  @relation(fields: [reserveCategoryId], references: [id], onDelete: SetNull)
+  obligation       TaxBufferObligation? @relation(fields: [obligationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([reserveCategoryId])
+  @@index([obligationId])
+  @@map("tax_buffer_overrides")
+}
+
+model TaxBufferEvent {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  eventType  String   @map("event_type")
+  severity   String   @default("info")
+  dedupeKey  String   @map("dedupe_key")
+  title      String
+  message    String
+  metadata   Json?
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, occurredAt])
+  @@map("tax_buffer_events")
+}
+
+// ---------------------------------------------------------------------------
+// CommitGuard Foundation
+// ---------------------------------------------------------------------------
+
+model CommitGuardSetting {
+  id                               String   @id @default(cuid())
+  userId                           String   @map("user_id")
+  enabled                          Boolean  @default(false)
+  defaultHorizonDays               Int      @default(30) @map("default_horizon_days")
+  safetyBufferMode                 String   @default("fixed_amount") @map("safety_buffer_mode") // fixed_amount | percentage_monthly_commitments | weeks_operating_expenses
+  safetyBufferFixedCents           Int      @default(0) @map("safety_buffer_fixed_cents")
+  safetyBufferPercent              Float?   @map("safety_buffer_percent")
+  safetyBufferWeeks                Float?   @map("safety_buffer_weeks")
+  detectRecurringCommitments       Boolean  @default(false) @map("detect_recurring_commitments")
+  detectionMinOccurrences          Int      @default(3) @map("detection_min_occurrences")
+  detectionAmountVariancePercent   Float    @default(12) @map("detection_amount_variance_percent")
+  detectionIntervalToleranceDays   Int      @default(3) @map("detection_interval_tolerance_days")
+  detectionConfidenceThreshold     String   @default("medium") @map("detection_confidence_threshold") // confirmed | high | medium | low
+  alertCommitmentDueSoon           Boolean  @default(true) @map("alert_commitment_due_soon")
+  alertRenewalApproaching          Boolean  @default(true) @map("alert_renewal_approaching")
+  alertNoticePeriodApproaching     Boolean  @default(true) @map("alert_notice_period_approaching")
+  alertCommitmentAmountChanged     Boolean  @default(true) @map("alert_commitment_amount_changed")
+  alertCommitmentBufferLow         Boolean  @default(true) @map("alert_commitment_buffer_low")
+  alertCommitmentShortfall         Boolean  @default(true) @map("alert_commitment_shortfall")
+  renewalWarningDays               Json?    @map("renewal_warning_days")
+  createdAt                        DateTime @default(now()) @map("created_at")
+  updatedAt                        DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("commit_guard_settings")
+}
+
+model Commitment {
+  id                      String    @id @default(cuid())
+  userId                  String    @map("user_id")
+  name                    String
+  description             String?
+  category                String
+  amountCents             Int       @map("amount_cents")
+  currency                String
+  frequency               String // one_off | weekly | fortnightly | monthly | quarterly | six_monthly | annual | custom
+  nextDueDate             DateTime? @map("next_due_date")
+  startDate               DateTime? @map("start_date")
+  endDate                 DateTime? @map("end_date")
+  recurrenceRule          Json?     @map("recurrence_rule")
+  supplierName            String?   @map("supplier_name")
+  supplierId              String?   @map("supplier_id")
+  accountId               String?   @map("account_id")
+  source                  String    @default("manual") // manual | accounting_integration | bank_transaction_pattern | spendleak | costguard | import | system_inferred
+  status                  String    @default("active") // active | upcoming | ending | cancelled | expired | paused | review
+  confidence              String    @default("confirmed") // confirmed | high | medium | low
+  noticePeriodDays        Int?      @map("notice_period_days")
+  renewalDate             DateTime? @map("renewal_date")
+  autoRenew               Boolean   @default(false) @map("auto_renew")
+  cancellable             Boolean   @default(true)
+  essentiality            String    @default("operational") // critical | essential | operational | discretionary
+  notes                   String?
+  linkedSpendInsightId    String?   @map("linked_spend_insight_id")
+  linkedCostGuardAlertId  String?   @map("linked_cost_guard_alert_id")
+  pausedAt                DateTime? @map("paused_at")
+  cancelledAt             DateTime? @map("cancelled_at")
+  expiredAt               DateTime? @map("expired_at")
+  archivedAt              DateTime? @map("archived_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  events      CommitmentEvent[]
+
+  @@index([userId, nextDueDate])
+  @@index([userId, status])
+  @@index([userId, renewalDate])
+  @@index([userId, source])
+  @@index([userId, confidence])
+  @@index([userId, supplierId])
+  @@map("commitments")
+}
+
+model CommitmentDetectionCandidate {
+  id                           String    @id @default(cuid())
+  userId                       String    @map("user_id")
+  name                         String
+  supplierName                 String?   @map("supplier_name")
+  supplierId                   String?   @map("supplier_id")
+  category                     String
+  frequency                    String // one_off | weekly | fortnightly | monthly | quarterly | six_monthly | annual | custom
+  typicalAmountCents           Int       @map("typical_amount_cents")
+  currency                     String
+  source                       String    @default("system_inferred")
+  confidence                   String    @default("medium") // confirmed | high | medium | low
+  confidenceScore              Float     @default(0) @map("confidence_score")
+  status                       String    @default("pending") // pending | confirmed | ignored | not_a_commitment | converted
+  evidence                     Json?
+  evidenceFingerprint          String?   @map("evidence_fingerprint")
+  rejectionEvidenceFingerprint String?   @map("rejection_evidence_fingerprint")
+  firstDetectedAt              DateTime  @default(now()) @map("first_detected_at")
+  lastDetectedAt               DateTime  @default(now()) @map("last_detected_at")
+  nextSuggestedAt              DateTime? @map("next_suggested_at")
+  reviewNote                   String?   @map("review_note")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+  events      CommitmentEvent[]
+
+  @@index([userId, status, lastDetectedAt])
+  @@index([userId, source])
+  @@index([userId, supplierId])
+  @@map("commitment_detection_candidates")
+}
+
+model CommitmentEvent {
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  commitmentId         String?   @map("commitment_id")
+  detectionCandidateId String?   @map("detection_candidate_id")
+  eventType            String    @map("event_type")
+  severity             String    @default("info")
+  dedupeKey            String?   @map("dedupe_key")
+  title                String
+  message              String
+  actorId              String?   @map("actor_id")
+  metadata             Json?
+  occurredAt           DateTime  @default(now()) @map("occurred_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  userProfile         UserProfile                   @relation(fields: [userId], references: [userId])
+  commitment         Commitment?                   @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  detectionCandidate CommitmentDetectionCandidate? @relation(fields: [detectionCandidateId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, occurredAt])
+  @@index([commitmentId, occurredAt])
+  @@index([detectionCandidateId, occurredAt])
+  @@map("commitment_events")
+}
+
+// ---------------------------------------------------------------------------
+// Owner's Digest Foundation
+// ---------------------------------------------------------------------------
+
+model OwnersDigestSetting {
+  id                     String   @id @default(cuid())
+  userId                 String   @map("user_id")
+  enabled                Boolean  @default(false)
+  emailEnabled           Boolean  @default(false) @map("email_enabled")
+  frequency              String   @default("weekly")
+  deliveryDay            String   @default("monday") @map("delivery_day")
+  deliveryTime           String   @default("07:00") @map("delivery_time")
+  timezone               String   @default("Australia/Sydney")
+  includeNeedsAttention  Boolean  @default(true) @map("include_needs_attention")
+  includeOpportunities   Boolean  @default(true) @map("include_opportunities")
+  includePositiveChanges Boolean  @default(true) @map("include_positive_changes")
+  includeKeyNumbers      Boolean  @default(true) @map("include_key_numbers")
+  maxActionItems         Int      @default(5) @map("max_action_items")
+  minimumMaterialityCents Int     @default(10000) @map("minimum_materiality_cents")
+  sendWhenEmpty          Boolean  @default(true) @map("send_when_empty")
+  recipientScope         String   @default("owner_only") @map("recipient_scope")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("owners_digest_settings")
+}
+
+model OwnersDigestSnapshot {
+  id                      String    @id @default(cuid())
+  userId                  String    @map("user_id")
+  frequency               String
+  periodLabel             String?   @map("period_label")
+  periodStart             DateTime  @map("period_start")
+  periodEnd               DateTime  @map("period_end")
+  status                  String
+  summary                 String
+  summaryMode             String    @default("deterministic") @map("summary_mode")
+  dataAsOf                DateTime? @map("data_as_of")
+  generatedAt             DateTime  @default(now()) @map("generated_at")
+  lastRegeneratedAt       DateTime? @map("last_regenerated_at")
+  generationSource        String    @default("scheduled") @map("generation_source")
+  generationState         String    @default("complete") @map("generation_state")
+  providerSuccessCount    Int       @default(0) @map("provider_success_count")
+  providerFailureCount    Int       @default(0) @map("provider_failure_count")
+  providerStaleCount      Int       @default(0) @map("provider_stale_count")
+  topAttentionCount       Int       @default(0) @map("top_attention_count")
+  opportunityCount        Int       @default(0) @map("opportunity_count")
+  positiveCount           Int       @default(0) @map("positive_count")
+  infoCount               Int       @default(0) @map("info_count")
+  completenessStatus      String    @default("complete") @map("completeness_status")
+  completenessSummary     String?   @map("completeness_summary")
+  statusReason            String?   @map("status_reason")
+  metadata                Json?
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  userProfile   UserProfile              @relation(fields: [userId], references: [userId])
+  items         OwnersDigestItem[]
+  metrics       OwnersDigestMetric[]
+  providerRuns  OwnersDigestProviderRun[]
+  deliveries    OwnersDigestDelivery[]
+
+  @@unique([userId, frequency, periodStart, periodEnd])
+  @@index([userId, generatedAt])
+  @@index([userId, status, generatedAt])
+  @@map("owners_digest_snapshots")
+}
+
+model OwnersDigestItem {
+  id                    String   @id @default(cuid())
+  userId                String   @map("user_id")
+  snapshotId            String   @map("snapshot_id")
+  source                String
+  signalType            String   @map("signal_type")
+  severity              String
+  priorityScore         Int      @default(0) @map("priority_score")
+  section               String
+  sortOrder             Int      @default(0) @map("sort_order")
+  title                 String
+  summary               String
+  whyItMatters          String?  @map("why_it_matters")
+  financialImpactCents  Int?     @map("financial_impact_cents")
+  currentValue          Float?   @map("current_value")
+  previousValue         Float?   @map("previous_value")
+  changeValue           Float?   @map("change_value")
+  changePercent         Float?   @map("change_percent")
+  entityType            String?  @map("entity_type")
+  entityId              String?  @map("entity_id")
+  entityName            String?  @map("entity_name")
+  recommendedAction     String?  @map("recommended_action")
+  actionUrl             String?  @map("action_url")
+  contributingSources   Json?    @map("contributing_sources")
+  metadata              Json?
+  detectedAt            DateTime @map("detected_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile          @relation(fields: [userId], references: [userId])
+  snapshot    OwnersDigestSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, section, sortOrder])
+  @@index([userId, source, severity])
+  @@index([snapshotId, priorityScore])
+  @@map("owners_digest_items")
+}
+
+model OwnersDigestMetric {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  snapshotId      String   @map("snapshot_id")
+  metricKey       String   @map("metric_key")
+  label           String
+  section         String?  
+  unit            String
+  displayValue    String   @map("display_value")
+  numericValue    Float?   @map("numeric_value")
+  monetaryValueCents Int?  @map("monetary_value_cents")
+  previousNumericValue Float? @map("previous_numeric_value")
+  previousMonetaryValueCents Int? @map("previous_monetary_value_cents")
+  changeNumericValue Float? @map("change_numeric_value")
+  changeMonetaryValueCents Int? @map("change_monetary_value_cents")
+  changePercent   Float?   @map("change_percent")
+  sortOrder       Int      @default(0) @map("sort_order")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile          @relation(fields: [userId], references: [userId])
+  snapshot    OwnersDigestSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, metricKey])
+  @@index([userId, metricKey])
+  @@index([snapshotId, sortOrder])
+  @@map("owners_digest_metrics")
+}
+
+model OwnersDigestProviderRun {
+  id                 String    @id @default(cuid())
+  userId             String    @map("user_id")
+  snapshotId         String    @map("snapshot_id")
+  source             String
+  status             String
+  signalCount        Int       @default(0) @map("signal_count")
+  surfacedCount      Int       @default(0) @map("surfaced_count")
+  stale              Boolean   @default(false)
+  entitled           Boolean   @default(true)
+  configured         Boolean   @default(true)
+  available          Boolean   @default(true)
+  dataAsOf           DateTime? @map("data_as_of")
+  startedAt          DateTime? @map("started_at")
+  completedAt        DateTime? @map("completed_at")
+  durationMs         Int?      @map("duration_ms")
+  errorCode          String?   @map("error_code")
+  errorSummary       String?   @map("error_summary")
+  metadata           Json?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile          @relation(fields: [userId], references: [userId])
+  snapshot    OwnersDigestSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, source])
+  @@index([userId, source, status])
+  @@map("owners_digest_provider_runs")
+}
+
+model OwnersDigestDelivery {
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  snapshotId       String    @map("snapshot_id")
+  deliveryScope    String    @map("delivery_scope")
+  channel          String    @default("email")
+  status           String    @default("pending")
+  recipientCount   Int       @default(0) @map("recipient_count")
+  deliveryKey      String    @map("delivery_key")
+  messageId        String?   @map("message_id")
+  requestedAt      DateTime  @default(now()) @map("requested_at")
+  sentAt           DateTime? @map("sent_at")
+  failedAt         DateTime? @map("failed_at")
+  errorCode        String?   @map("error_code")
+  errorSummary     String?   @map("error_summary")
+  metadata         Json?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile          @relation(fields: [userId], references: [userId])
+  snapshot    OwnersDigestSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deliveryKey])
+  @@index([snapshotId, status])
+  @@index([userId, status, requestedAt])
+  @@map("owners_digest_deliveries")
 }
 
 // ---------------------------------------------------------------------------

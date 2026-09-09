@@ -68,6 +68,16 @@ export function getUserSeatLimitForTier(tier?: string | null): number {
   return limit === -1 ? Number.MAX_SAFE_INTEGER : limit
 }
 
+export function getCommitmentLimitForTier(tier?: string | null): number {
+  const limit = getPlanByTier(tier).limits.commitmentsTracked
+  return limit === -1 ? Number.MAX_SAFE_INTEGER : limit
+}
+
+export function getCommitmentDetectionCandidateLimitForTier(tier?: string | null): number {
+  const limit = getPlanByTier(tier).limits.commitmentDetectionCandidatesPerCycle
+  return limit === -1 ? Number.MAX_SAFE_INTEGER : limit
+}
+
 export const DEFAULT_INVOICE_LIMIT =
   getPlanByTier(DEFAULT_SUBSCRIPTION_TIER).limits.chasedInvoicesPerMonth
 

@@ -12,10 +12,11 @@ from .celery_app import app
 from .config import Config
 from .tasks import (
     catchup_snooze_sweep_task,
+    owners_digest_task,
     promise_arrangement_sweep_task,
-    weekly_debtor_summary_task,
     send_reminder_task,
     sync_connection_task,
+    weekly_debtor_summary_task,
 )
 
 logger = get_task_logger(__name__)
@@ -64,6 +65,15 @@ def dispatch_weekly_debtor_summary() -> int:
     return len(claims)
 
 
+@app.task(name="dispatcher.dispatch_owners_digest")
+def dispatch_owners_digest() -> int:
+    claims = db.claim_due_owners_digests()
+    for claim in claims:
+        owners_digest_task.delay(claim["id"], claim["user_id"])
+    logger.info("dispatch_owners_digest claimed %d", len(claims))
+    return len(claims)
+
+
 @app.task(name="dispatcher.recovery_sweep")
 def recovery_sweep() -> int:
     """Reclaims claims stuck in 'processing'/'started' past the expected
@@ -89,6 +99,8 @@ def _reenqueue(row: dict) -> None:
         promise_arrangement_sweep_task.delay(row["id"])
     elif workflow == "debtor_summary":
         weekly_debtor_summary_task.delay(row["id"], row["user_id"])
+    elif workflow == "owners_digest_email":
+        owners_digest_task.delay(row["id"], row["user_id"])
     else:
         logger.error(
             "recovery_sweep: unknown workflow %r for claim %s", workflow, row["id"]

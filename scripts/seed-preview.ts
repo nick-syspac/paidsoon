@@ -979,6 +979,52 @@ async function cleanup(userIds: string[]): Promise<void> {
       OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
     },
   })
+  await prismaAdmin.ownersDigestDelivery.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.ownersDigestProviderRun.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.ownersDigestMetric.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.ownersDigestItem.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.ownersDigestSnapshot.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.ownersDigestSetting.deleteMany({ where: { userId: { in: userIds } } })
+
+  await prismaAdmin.commitmentEvent.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.commitmentDetectionCandidate.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.commitment.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.commitGuardSetting.deleteMany({ where: { userId: { in: userIds } } })
+
+  await prismaAdmin.runwayGuardAlertEvent.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.runwayGuardAlert.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.runwayGuardSnapshot.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.runwayGuardScenario.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.runwayGuardSetting.deleteMany({ where: { userId: { in: userIds } } })
+
+  await prismaAdmin.costGuardAlertEvent.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.costGuardAlert.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.costGuardForecast.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.costGuardBaseline.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.costGuardRule.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.costGuardSetting.deleteMany({ where: { userId: { in: userIds } } })
+
+  await prismaAdmin.taxBufferEvent.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.taxBufferOverride.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.taxBufferSnapshot.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.taxBufferObligation.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.taxReserveCategory.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.taxBufferConfiguration.deleteMany({ where: { userId: { in: userIds } } })
+
+  await prismaAdmin.cashPlanDataQualityIssue.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.cashPlanAlert.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.cashPlanSetting.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.cashPlan.deleteMany({ where: { userId: { in: userIds } } })
+
+  await prismaAdmin.marginAlertEvent.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginAlert.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginOpportunity.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginSnapshot.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginScenario.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginCostClassification.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginClassificationRule.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginGuardTarget.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.marginGuardSetting.deleteMany({ where: { userId: { in: userIds } } })
   await prismaAdmin.cashForecastSnapshot.deleteMany({
     where: {
       OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
@@ -1046,6 +1092,23 @@ interface SeedCounters {
   spendSuppliers: number
   spendInsights: number
   cashSnapshots: number
+  marginSnapshots: number
+  marginAlerts: number
+  marginOpportunities: number
+  cashPlans: number
+  cashPlanAlerts: number
+  runwaySnapshots: number
+  runwayAlerts: number
+  costGuardForecasts: number
+  costGuardAlerts: number
+  taxCategories: number
+  taxObligations: number
+  taxEvents: number
+  taxSnapshots: number
+  commitments: number
+  commitmentCandidates: number
+  ownersDigestSnapshots: number
+  ownersDigestItems: number
 }
 
 /** Deterministic, obviously-fake token (never a real credential). */
@@ -1435,6 +1498,1028 @@ async function seedSpendLeakFoundation(
     },
   })
   counters.cashSnapshots += 1
+}
+
+async function seedMarginGuardFoundation(
+  userId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  await prismaAdmin.marginGuardSetting.create({
+    data: {
+      userId,
+      enabled: true,
+      defaultPeriod: "3m",
+      targetGrossMarginPercent: profile === "coastline" ? 38 : 35,
+      warningGrossMarginPercent: profile === "coastline" ? 33 : 31,
+      criticalGrossMarginPercent: profile === "coastline" ? 28 : 27,
+      minCompletenessPercent: 70,
+      alertDigestMode: "weekly",
+    },
+  })
+
+  await prismaAdmin.marginGuardTarget.create({
+    data: {
+      userId,
+      scopeType: "organization",
+      scopeKey: null,
+      targetGrossMarginPercent: profile === "coastline" ? 38 : 35,
+      warningGrossMarginPercent: profile === "coastline" ? 33 : 31,
+      criticalGrossMarginPercent: profile === "coastline" ? 28 : 27,
+      createdBy: "seed-preview",
+      updatedBy: "seed-preview",
+    },
+  })
+
+  const focusEmails = profile === "coastline"
+    ? [
+        "accounts@camberwellstrata.example.test",
+        "ap@docklandsfm.example.test",
+        "accounts@sunshinemetalworks.example.test",
+      ]
+    : [
+        "accounts@healesvilleretreat.example.test",
+        "finance@warburtonadventure.example.test",
+      ]
+
+  const contacts = await prismaAdmin.financialContact.findMany({
+    where: {
+      userId,
+      emailLower: { in: focusEmails },
+    },
+    select: { id: true, emailLower: true },
+  })
+
+  const byEmail = new Map(contacts.map((contact) => [contact.emailLower ?? "", contact.id]))
+
+  const scopedTargets = profile === "coastline"
+    ? [
+        { email: "accounts@camberwellstrata.example.test", target: 42, warning: 37, critical: 32 },
+        { email: "ap@docklandsfm.example.test", target: 36, warning: 31, critical: 27 },
+        { email: "accounts@sunshinemetalworks.example.test", target: 34, warning: 28, critical: 24 },
+      ]
+    : [
+        { email: "accounts@healesvilleretreat.example.test", target: 37, warning: 32, critical: 28 },
+        { email: "finance@warburtonadventure.example.test", target: 35, warning: 30, critical: 26 },
+      ]
+
+  for (const target of scopedTargets) {
+    const contactId = byEmail.get(target.email)
+    if (!contactId) continue
+
+    await prismaAdmin.marginGuardTarget.create({
+      data: {
+        userId,
+        scopeType: "customer",
+        scopeKey: contactId,
+        targetGrossMarginPercent: target.target,
+        warningGrossMarginPercent: target.warning,
+        criticalGrossMarginPercent: target.critical,
+        createdBy: "seed-preview",
+        updatedBy: "seed-preview",
+      },
+    })
+  }
+
+  const snapshotRows = profile === "coastline"
+    ? [
+        {
+          periodStart: clock.startOfDay(-90),
+          periodEnd: clock.endOfDay(-61),
+          revenueCents: 1_320_000,
+          directCostCents: 765_000,
+          variableCostCents: 132_000,
+          grossProfitCents: 555_000,
+          grossMarginPercent: 42,
+          completenessPercent: 92,
+          confidence: "high",
+          status: "healthy",
+        },
+        {
+          periodStart: clock.startOfDay(-60),
+          periodEnd: clock.endOfDay(-31),
+          revenueCents: 1_410_000,
+          directCostCents: 965_000,
+          variableCostCents: 151_000,
+          grossProfitCents: 445_000,
+          grossMarginPercent: 31.56,
+          completenessPercent: 84,
+          confidence: "medium",
+          status: "watch",
+        },
+        {
+          periodStart: clock.startOfDay(-30),
+          periodEnd: clock.endOfDay(-1),
+          revenueCents: 1_370_000,
+          directCostCents: 975_000,
+          variableCostCents: 179_000,
+          grossProfitCents: 395_000,
+          grossMarginPercent: 28.83,
+          completenessPercent: 74,
+          confidence: "medium",
+          status: "critical",
+        },
+      ]
+    : [
+        {
+          periodStart: clock.startOfDay(-30),
+          periodEnd: clock.endOfDay(-1),
+          revenueCents: 486_000,
+          directCostCents: 296_000,
+          variableCostCents: 44_000,
+          grossProfitCents: 190_000,
+          grossMarginPercent: 39.09,
+          completenessPercent: 88,
+          confidence: "high",
+          status: "healthy",
+        },
+      ]
+
+  const createdSnapshots = [] as Array<{ id: string; status: string }>
+  for (const row of snapshotRows) {
+    const snapshot = await prismaAdmin.marginSnapshot.create({
+      data: {
+        userId,
+        periodGranularity: "monthly",
+        periodStart: row.periodStart,
+        periodEnd: row.periodEnd,
+        currency: CURRENCY,
+        revenueCents: row.revenueCents,
+        directCostCents: row.directCostCents,
+        variableCostCents: row.variableCostCents,
+        grossProfitCents: row.grossProfitCents,
+        grossMarginPercent: row.grossMarginPercent,
+        contributionMarginCents: row.revenueCents - row.variableCostCents,
+        contributionMarginPercent: Number((((row.revenueCents - row.variableCostCents) / row.revenueCents) * 100).toFixed(2)),
+        completenessPercent: row.completenessPercent,
+        confidence: row.confidence,
+        status: row.status,
+        assumptions: {
+          source: "seed-preview",
+          profile,
+          includesDeteriorationSeries: profile === "coastline",
+        },
+        calculatedAt: row.periodEnd,
+      },
+    })
+    createdSnapshots.push({ id: snapshot.id, status: row.status })
+    counters.marginSnapshots += 1
+  }
+
+  await prismaAdmin.marginCostClassification.createMany({
+    data: [
+      {
+        userId,
+        sourceType: "imported_bill",
+        sourceRecordId: `${profile}-marginguard-uncategorized-bill-1`,
+        classification: "UNCLASSIFIED",
+        classificationOrigin: "default",
+        confidence: "low",
+        metadata: {
+          source: "seed-preview",
+          reason: "awaiting category review",
+        } as Prisma.InputJsonValue,
+      },
+      {
+        userId,
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: `${profile}-marginguard-uncategorized-txn-1`,
+        classification: "UNCLASSIFIED",
+        classificationOrigin: "default",
+        confidence: "low",
+        metadata: {
+          source: "seed-preview",
+          reason: "counterparty mapping missing",
+        } as Prisma.InputJsonValue,
+      },
+      {
+        userId,
+        sourceType: "imported_bill",
+        sourceRecordId: `${profile}-marginguard-directcost-bill-1`,
+        classification: "DIRECT_COST",
+        classificationOrigin: "rule",
+        confidence: "high",
+        metadata: {
+          source: "seed-preview",
+          ruleName: "Material and freight baseline",
+        } as Prisma.InputJsonValue,
+      },
+    ],
+  })
+
+  const latestSnapshot = createdSnapshots[createdSnapshots.length - 1]
+  if (latestSnapshot && profile === "coastline") {
+    const criticalAlert = await prismaAdmin.marginAlert.create({
+      data: {
+        userId,
+        marginSnapshotId: latestSnapshot.id,
+        alertType: "margin.below_critical",
+        scopeType: "organization",
+        scopeKey: null,
+        severity: "critical",
+        status: "open",
+        title: "Gross margin below critical threshold",
+        message: "Monthly gross margin has dropped below the configured critical threshold.",
+        evidence: {
+          source: "seed-preview",
+          profile,
+          grossMarginPercent: 28.83,
+          criticalThreshold: 28,
+        } as Prisma.InputJsonValue,
+        estimatedImpactCents: 124_000,
+        confidence: "medium",
+        detectedAt: clock.daysAgo(2),
+      },
+    })
+
+    await prismaAdmin.marginAlertEvent.create({
+      data: {
+        userId,
+        marginAlertId: criticalAlert.id,
+        eventType: "created",
+        actorId: "seed-preview",
+        newStatus: "open",
+        metadata: {
+          source: "seed-preview",
+        } as Prisma.InputJsonValue,
+      },
+    })
+
+    await prismaAdmin.marginAlert.create({
+      data: {
+        userId,
+        marginSnapshotId: latestSnapshot.id,
+        alertType: "margin.deterioration",
+        scopeType: "organization",
+        scopeKey: null,
+        severity: "warning",
+        status: "acknowledged",
+        title: "Gross margin deteriorating period-over-period",
+        message: "Gross margin has fallen for two consecutive monthly snapshots.",
+        evidence: {
+          source: "seed-preview",
+          profile,
+          trend: [42, 31.56, 28.83],
+        } as Prisma.InputJsonValue,
+        confidence: "medium",
+        detectedAt: clock.daysAgo(4),
+        acknowledgedAt: clock.daysAgo(3),
+      },
+    })
+
+    counters.marginAlerts += 2
+
+    await prismaAdmin.marginOpportunity.createMany({
+      data: [
+        {
+          userId,
+          opportunityType: "pricing",
+          scopeType: "customer",
+          scopeKey: byEmail.get("accounts@sunshinemetalworks.example.test") ?? null,
+          severity: "critical",
+          status: "open",
+          title: "Reprice high-effort fixed-fee work",
+          description: "Sunshine Metal Works jobs are consuming disproportionate direct costs compared to billed revenue.",
+          evidence: {
+            source: "seed-preview",
+            customerStatus: "critical",
+            action: "price review before next quote",
+          } as Prisma.InputJsonValue,
+          estimatedMonthlyCents: 45_000,
+          estimatedAnnualCents: 540_000,
+          confidence: "medium",
+          detectedAt: clock.daysAgo(2),
+        },
+        {
+          userId,
+          opportunityType: "classification",
+          scopeType: "organization",
+          scopeKey: null,
+          severity: "warning",
+          status: "open",
+          title: "Classify remaining spend records",
+          description: "Unclassified spend items are lowering confidence in margin attribution.",
+          evidence: {
+            source: "seed-preview",
+            unclassifiedCount: 2,
+            action: "apply supplier rules",
+          } as Prisma.InputJsonValue,
+          estimatedMonthlyCents: null,
+          estimatedAnnualCents: null,
+          confidence: "medium",
+          detectedAt: clock.daysAgo(1),
+        },
+      ],
+    })
+    counters.marginOpportunities += 2
+  }
+}
+
+async function seedCashPlanFoundation(
+  userId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  const plan = await prismaAdmin.cashPlan.create({
+    data: {
+      userId,
+      name: profile === "coastline" ? "Operating cash plan" : "Studio operating cash plan",
+      currency: CURRENCY,
+      timezone: SEED_TIME_ZONE,
+      horizonWeeks: 13,
+      bufferTargetCents: profile === "coastline" ? 180_000 : 120_000,
+      status: profile === "coastline" ? "active" : "preliminary",
+    },
+  })
+  counters.cashPlans += 1
+
+  await prismaAdmin.cashPlanSetting.create({
+    data: {
+      userId,
+      planId: plan.id,
+      currency: CURRENCY,
+      timezone: SEED_TIME_ZONE,
+      horizonWeeks: 13,
+      bufferTargetCents: profile === "coastline" ? 180_000 : 120_000,
+      alertThresholdCents: profile === "coastline" ? 60_000 : 40_000,
+      reviewRole: "owner",
+    },
+  })
+
+  const baseScenario = await prismaAdmin.cashPlanScenario.create({
+    data: {
+      planId: plan.id,
+      name: "Base",
+      kind: "base",
+      delta: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+      isActive: true,
+    },
+  })
+
+  await prismaAdmin.cashPlanScenario.create({
+    data: {
+      planId: plan.id,
+      name: profile === "coastline" ? "Collections slip" : "Seasonal softness",
+      kind: "conservative",
+      delta:
+        profile === "coastline"
+          ? ({ receivablesCollectionDelayDays: 14, variableSpendLiftPercent: 9 } as Prisma.InputJsonValue)
+          : ({ receivablesCollectionDelayDays: 8, variableSpendLiftPercent: 6 } as Prisma.InputJsonValue),
+      isActive: false,
+    },
+  })
+
+  await prismaAdmin.cashPlanSnapshot.create({
+    data: {
+      planId: plan.id,
+      scenarioId: baseScenario.id,
+      inputHash: `seed-${profile}-cashplan-base`,
+      engineVersion: "seed-v1",
+      confidence: profile === "coastline" ? 86 : 82,
+      status: profile === "coastline" ? "active" : "preliminary",
+      lowestClosingCashCents: profile === "coastline" ? 165_000 : 101_000,
+      bufferGapCents: profile === "coastline" ? 15_000 : 19_000,
+      weeks:
+        profile === "coastline"
+          ? ([
+              { week: 1, closingCashCents: 358_000 },
+              { week: 6, closingCashCents: 248_000 },
+              { week: 13, closingCashCents: 165_000 },
+            ] as Prisma.InputJsonValue)
+          : ([
+              { week: 1, closingCashCents: 218_000 },
+              { week: 6, closingCashCents: 154_000 },
+              { week: 13, closingCashCents: 101_000 },
+            ] as Prisma.InputJsonValue),
+      createdAt: clock.daysAgo(1),
+    },
+  })
+
+  await prismaAdmin.cashPlanOverride.create({
+    data: {
+      planId: plan.id,
+      entityType: "outflow",
+      entityId: `${profile}-cashplan-override-rent`,
+      amountCents: profile === "coastline" ? 42_000 : 28_000,
+      reason: "Known seasonal spend uplift included in forecast",
+      owner: "seed-preview",
+      effectiveFrom: clock.daysAgo(10),
+      expiresAt: clock.daysFromNow(30),
+      sourceType: "manual",
+      createdBy: "seed-preview",
+    },
+  })
+
+  await prismaAdmin.cashPlanAlert.create({
+    data: {
+      userId,
+      planId: plan.id,
+      alertType: "buffer_gap",
+      severity: profile === "coastline" ? "medium" : "low",
+      title: "Projected cash buffer below target",
+      description: "Projected weekly closing cash drops below the configured buffer target.",
+      status: profile === "coastline" ? "open" : "acknowledged",
+      materialityCents: profile === "coastline" ? 15_000 : 19_000,
+      triggeredAt: clock.daysAgo(2),
+      acknowledgedAt: profile === "coastline" ? null : clock.daysAgo(1),
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+    },
+  })
+  counters.cashPlanAlerts += 1
+
+  await prismaAdmin.cashPlanDataQualityIssue.create({
+    data: {
+      userId,
+      planId: plan.id,
+      issueType: "missing_commitments",
+      severity: "low",
+      message: "Some recurring commitments are inferred but not yet confirmed.",
+      status: "open",
+      weekIndex: 4,
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+    },
+  })
+}
+
+async function seedRunwayGuardFoundation(
+  userId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  await prismaAdmin.runwayGuardSetting.create({
+    data: {
+      userId,
+      enabled: true,
+      horizonDays: 180,
+      warningThresholdDays: profile === "coastline" ? 75 : 60,
+      criticalThresholdDays: profile === "coastline" ? 45 : 35,
+      lowConfidenceWeight: 0.6,
+      minimumConfidence: 0.5,
+      notificationDigestMode: "daily",
+    },
+  })
+
+  const snapshot = await prismaAdmin.runwayGuardSnapshot.create({
+    data: {
+      userId,
+      snapshotAt: clock.daysAgo(1),
+      openingCashCents: profile === "coastline" ? 412_000 : 236_000,
+      protectedCashCents: profile === "coastline" ? 180_000 : 120_000,
+      usableCashCents: profile === "coastline" ? 232_000 : 116_000,
+      runwayDays: profile === "coastline" ? 59 : 41,
+      projectedExhaustionDay: profile === "coastline" ? 59 : 41,
+      status: profile === "coastline" ? "watch" : "critical",
+      source: "cashplan",
+      confidence: profile === "coastline" ? 0.82 : 0.68,
+      assumptions: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+      explainability:
+        profile === "coastline"
+          ? ({ dominantDriver: "receivables timing", fixedCostsCoverageDays: 63 } as Prisma.InputJsonValue)
+          : ({ dominantDriver: "contractor outflows", fixedCostsCoverageDays: 44 } as Prisma.InputJsonValue),
+    },
+  })
+  counters.runwaySnapshots += 1
+
+  const alert = await prismaAdmin.runwayGuardAlert.create({
+    data: {
+      userId,
+      runwaySnapshotId: snapshot.id,
+      alertType: "runway_threshold_breach",
+      severity: profile === "coastline" ? "warning" : "critical",
+      status: profile === "coastline" ? "open" : "acknowledged",
+      title: "Projected runway near threshold",
+      message:
+        profile === "coastline"
+          ? "Runway is trending toward the warning threshold within the current horizon."
+          : "Runway is below the critical threshold and needs immediate action.",
+      materialityCents: profile === "coastline" ? 80_000 : 62_000,
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+      triggeredAt: clock.daysAgo(1),
+      acknowledgedAt: profile === "coastline" ? null : clock.daysAgo(1),
+    },
+  })
+  counters.runwayAlerts += 1
+
+  await prismaAdmin.runwayGuardAlertEvent.create({
+    data: {
+      userId,
+      runwayAlertId: alert.id,
+      eventType: "created",
+      actorId: "seed-preview",
+      newStatus: profile === "coastline" ? "open" : "acknowledged",
+      reason: null,
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+    },
+  })
+}
+
+async function seedCostGuardFoundation(
+  userId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  await prismaAdmin.costGuardSetting.create({
+    data: {
+      userId,
+      defaultLookbackDays: 180,
+      materialityPercent: 20,
+      materialityCents: profile === "coastline" ? 12_000 : 9_000,
+      alertDigestMode: "daily",
+    },
+  })
+
+  await prismaAdmin.costGuardRule.create({
+    data: {
+      userId,
+      name: profile === "coastline" ? "Supplier spike monitor" : "Category spend monitor",
+      ruleType: profile === "coastline" ? "supplier_increase" : "category_increase",
+      percentageThreshold: profile === "coastline" ? 18 : 16,
+      absoluteThresholdCents: profile === "coastline" ? 15_000 : 10_000,
+      severity: "warning",
+      enabled: true,
+      createdBy: "seed-preview",
+    },
+  })
+
+  await prismaAdmin.costGuardBaseline.create({
+    data: {
+      userId,
+      baselineType: "supplier",
+      supplierId: `${profile}-supplier-baseline-1`,
+      categoryId: null,
+      periodMonths: 6,
+      averageAmountCents: profile === "coastline" ? 96_000 : 72_000,
+      medianAmountCents: profile === "coastline" ? 94_000 : 70_000,
+      minAmountCents: profile === "coastline" ? 75_000 : 58_000,
+      maxAmountCents: profile === "coastline" ? 121_000 : 88_000,
+      sampleCount: 18,
+      confidence: profile === "coastline" ? 0.79 : 0.74,
+      calculatedAt: clock.daysAgo(2),
+    },
+  })
+
+  await prismaAdmin.costGuardForecast.create({
+    data: {
+      userId,
+      forecastMonth: clock.startOfDay(0),
+      actualSpendCents: profile === "coastline" ? 211_000 : 139_000,
+      recurringCommitmentsCents: profile === "coastline" ? 87_000 : 63_000,
+      expectedVariableSpendCents: profile === "coastline" ? 92_000 : 61_000,
+      projectedMonthEndCents: profile === "coastline" ? 303_000 : 200_000,
+      varianceAmountCents: profile === "coastline" ? 38_000 : 24_000,
+      variancePercent: profile === "coastline" ? 14.3 : 13.6,
+      confidence: profile === "coastline" ? 76 : 72,
+      assumptions: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+    },
+  })
+  counters.costGuardForecasts += 1
+
+  const alert = await prismaAdmin.costGuardAlert.create({
+    data: {
+      userId,
+      alertType: "supplier_spike",
+      supplierId: `${profile}-supplier-baseline-1`,
+      categoryId: null,
+      transactionId: null,
+      severity: profile === "coastline" ? "warning" : "critical",
+      score: profile === "coastline" ? 71 : 83,
+      confidence: profile === "coastline" ? 0.74 : 0.69,
+      title: "Spend variance above threshold",
+      description: "Projected spend exceeds the configured baseline threshold.",
+      baselineAmountCents: profile === "coastline" ? 96_000 : 72_000,
+      actualAmountCents: profile === "coastline" ? 129_000 : 102_000,
+      varianceAmountCents: profile === "coastline" ? 33_000 : 30_000,
+      variancePercent: profile === "coastline" ? 34.38 : 41.67,
+      status: "new",
+      detectedAt: clock.daysAgo(1),
+    },
+  })
+  counters.costGuardAlerts += 1
+
+  await prismaAdmin.costGuardAlertEvent.create({
+    data: {
+      userId,
+      alertId: alert.id,
+      eventType: "created",
+      actorId: "seed-preview",
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+      createdAt: clock.daysAgo(1),
+    },
+  })
+}
+
+async function seedTaxBufferFoundation(
+  userId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  await prismaAdmin.taxBufferConfiguration.create({
+    data: {
+      userId,
+      enabled: true,
+      accountingBasis: "cash",
+      businessType: profile === "coastline" ? "company" : "sole_trader",
+      gstRegistered: true,
+      gstFrequency: "quarterly",
+      reserveHealthWatchThreshold: 0.9,
+      reserveHealthCriticalThreshold: 0.7,
+      reserveBalanceSource: "manual",
+      reserveBalanceCents: profile === "coastline" ? 118_000 : 76_000,
+      reserveAccountName: "Tax reserve",
+    },
+  })
+
+  const gstCategory = await prismaAdmin.taxReserveCategory.create({
+    data: {
+      userId,
+      categoryType: "gst",
+      name: "GST reserve",
+      description: "GST obligations based on current invoice and payment mix.",
+      calculationMethod: "manual",
+      recurrence: "quarterly",
+      enabled: true,
+      manualAmountCents: profile === "coastline" ? 43_000 : 26_000,
+      sourcePreference: "manual",
+      confidenceOverride: "medium",
+      nextDueDate: clock.daysFromNow(27),
+    },
+  })
+
+  const paygCategory = await prismaAdmin.taxReserveCategory.create({
+    data: {
+      userId,
+      categoryType: "payg_withholding",
+      name: "PAYG withholding reserve",
+      calculationMethod: "manual",
+      recurrence: "monthly",
+      enabled: true,
+      manualAmountCents: profile === "coastline" ? 18_000 : 12_000,
+      sourcePreference: "manual",
+      nextDueDate: clock.daysFromNow(21),
+    },
+  })
+  counters.taxCategories += 2
+
+  const gstObligation = await prismaAdmin.taxBufferObligation.create({
+    data: {
+      userId,
+      reserveCategoryId: gstCategory.id,
+      name: "Quarterly BAS payment",
+      periodStart: clock.startOfDay(-90),
+      periodEnd: clock.endOfDay(-1),
+      dueDate: clock.daysFromNow(27),
+      estimatedAmountCents: profile === "coastline" ? 48_000 : 29_000,
+      reservedAmountCents: profile === "coastline" ? 38_000 : 22_000,
+      source: "seed-preview",
+      sourceDetail: "manual fixture",
+      confidence: "medium",
+      status: "short",
+      calculatedAt: clock.daysAgo(1),
+    },
+  })
+
+  await prismaAdmin.taxBufferObligation.create({
+    data: {
+      userId,
+      reserveCategoryId: paygCategory.id,
+      name: "Monthly PAYG withholding",
+      dueDate: clock.daysFromNow(21),
+      estimatedAmountCents: profile === "coastline" ? 17_000 : 11_000,
+      reservedAmountCents: profile === "coastline" ? 17_000 : 11_000,
+      source: "seed-preview",
+      sourceDetail: "manual fixture",
+      confidence: "high",
+      status: "covered",
+      calculatedAt: clock.daysAgo(1),
+    },
+  })
+  counters.taxObligations += 2
+
+  await prismaAdmin.taxBufferOverride.create({
+    data: {
+      userId,
+      reserveCategoryId: gstCategory.id,
+      obligationId: gstObligation.id,
+      calculatedValueCents: profile === "coastline" ? 48_000 : 29_000,
+      overrideValueCents: profile === "coastline" ? 45_000 : 27_000,
+      reason: "Accountant estimate for accrued credits",
+      basedOnAccountant: true,
+      createdBy: "seed-preview",
+    },
+  })
+
+  await prismaAdmin.taxBufferEvent.create({
+    data: {
+      userId,
+      eventType: "tax_buffer_below_target",
+      severity: profile === "coastline" ? "warning" : "critical",
+      dedupeKey: `seed-${profile}-tax-below-target`,
+      title: "Tax reserve below target",
+      message: "Projected reserve is below required coverage for upcoming obligations.",
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+      occurredAt: clock.daysAgo(1),
+    },
+  })
+  counters.taxEvents += 1
+
+  await prismaAdmin.taxBufferSnapshot.create({
+    data: {
+      userId,
+      snapshotAt: clock.daysAgo(1),
+      availableCashCents: profile === "coastline" ? 412_000 : 236_000,
+      totalRequiredCents: profile === "coastline" ? 65_000 : 40_000,
+      totalReservedCents: profile === "coastline" ? 55_000 : 33_000,
+      reserveGapCents: profile === "coastline" ? 10_000 : 7_000,
+      committedOutflowsCents: profile === "coastline" ? 28_000 : 19_000,
+      safeToSpendCents: profile === "coastline" ? 329_000 : 177_000,
+      healthStatus: "underfunded",
+      warnings:
+        profile === "coastline"
+          ? (["GST reserve is below target"] as Prisma.InputJsonValue)
+          : (["PAYG reserve coverage is thin"] as Prisma.InputJsonValue),
+      calculationInputs: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+    },
+  })
+  counters.taxSnapshots += 1
+}
+
+async function seedCommitGuardFoundation(
+  userId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  await prismaAdmin.commitGuardSetting.create({
+    data: {
+      userId,
+      enabled: true,
+      defaultHorizonDays: 30,
+      safetyBufferMode: "fixed_amount",
+      safetyBufferFixedCents: profile === "coastline" ? 90_000 : 55_000,
+      detectRecurringCommitments: true,
+      detectionMinOccurrences: 3,
+      detectionAmountVariancePercent: 12,
+      detectionIntervalToleranceDays: 3,
+      detectionConfidenceThreshold: "medium",
+      alertCommitmentDueSoon: true,
+      alertRenewalApproaching: true,
+      alertNoticePeriodApproaching: true,
+      alertCommitmentAmountChanged: true,
+      alertCommitmentBufferLow: true,
+      alertCommitmentShortfall: true,
+      renewalWarningDays: [30, 14, 7] as Prisma.InputJsonValue,
+    },
+  })
+
+  const commitment = await prismaAdmin.commitment.create({
+    data: {
+      userId,
+      name: profile === "coastline" ? "Vehicle lease" : "Cloud hosting retainer",
+      description: "Deterministic commitment fixture for seed environments.",
+      category: "operations",
+      amountCents: profile === "coastline" ? 24_900 : 16_500,
+      currency: CURRENCY,
+      frequency: "monthly",
+      nextDueDate: clock.daysFromNow(8),
+      startDate: clock.daysAgo(210),
+      supplierName: profile === "coastline" ? "Fleet lease partner" : "CloudHost Managed Services",
+      source: "system_inferred",
+      status: "active",
+      confidence: "high",
+      noticePeriodDays: 30,
+      renewalDate: clock.daysFromNow(95),
+      autoRenew: true,
+      cancellable: true,
+      essentiality: "operational",
+    },
+  })
+  counters.commitments += 1
+
+  const candidate = await prismaAdmin.commitmentDetectionCandidate.create({
+    data: {
+      userId,
+      name: profile === "coastline" ? "Workshop software stack" : "Contractor toolkit subscription",
+      supplierName: profile === "coastline" ? "Metro SaaS Systems" : "Valley Contract Developers",
+      category: "software",
+      frequency: "monthly",
+      typicalAmountCents: profile === "coastline" ? 13_800 : 9_400,
+      currency: CURRENCY,
+      source: "system_inferred",
+      confidence: "medium",
+      confidenceScore: profile === "coastline" ? 0.72 : 0.67,
+      status: "pending",
+      evidence: { source: "seed-preview", profile, samples: 4 } as Prisma.InputJsonValue,
+      evidenceFingerprint: `seed-${profile}-commit-candidate-1`,
+      firstDetectedAt: clock.daysAgo(16),
+      lastDetectedAt: clock.daysAgo(2),
+      nextSuggestedAt: clock.daysFromNow(7),
+    },
+  })
+  counters.commitmentCandidates += 1
+
+  await prismaAdmin.commitmentEvent.createMany({
+    data: [
+      {
+        userId,
+        commitmentId: commitment.id,
+        detectionCandidateId: null,
+        eventType: "commitment_due_soon",
+        severity: "warning",
+        dedupeKey: `seed-${profile}-commitment-due-soon`,
+        title: "Commitment due soon",
+        message: "A recurring commitment is due within 10 days.",
+        actorId: "seed-preview",
+        metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+        occurredAt: clock.daysAgo(1),
+      },
+      {
+        userId,
+        commitmentId: null,
+        detectionCandidateId: candidate.id,
+        eventType: "detection_candidate_created",
+        severity: "info",
+        dedupeKey: `seed-${profile}-candidate-created`,
+        title: "Recurring commitment candidate detected",
+        message: "A recurring spend pattern is ready for review.",
+        actorId: "seed-preview",
+        metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+        occurredAt: clock.daysAgo(2),
+      },
+    ],
+  })
+}
+
+async function seedOwnersDigestFoundation(
+  userId: string,
+  profile: "coastline" | "yarra",
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  await prismaAdmin.ownersDigestSetting.create({
+    data: {
+      userId,
+      enabled: true,
+      emailEnabled: true,
+      frequency: "weekly",
+      deliveryDay: "monday",
+      deliveryTime: profile === "coastline" ? "07:00" : "08:00",
+      timezone: SEED_TIME_ZONE,
+      includeNeedsAttention: true,
+      includeOpportunities: true,
+      includePositiveChanges: true,
+      includeKeyNumbers: true,
+      maxActionItems: 5,
+      minimumMaterialityCents: profile === "coastline" ? 10_000 : 8_000,
+      sendWhenEmpty: true,
+      recipientScope: "owner_only",
+    },
+  })
+
+  const snapshot = await prismaAdmin.ownersDigestSnapshot.create({
+    data: {
+      userId,
+      frequency: "weekly",
+      periodLabel: profile === "coastline" ? "Collections pressure" : "Stability check",
+      periodStart: clock.startOfDay(-7),
+      periodEnd: clock.endOfDay(-1),
+      status: profile === "coastline" ? "watch" : "healthy",
+      summary:
+        profile === "coastline"
+          ? "Receivables remain healthy overall, but collections risk has increased for one high-value customer."
+          : "Cash runway remains stable and tax buffer obligations are near target.",
+      summaryMode: "deterministic",
+      dataAsOf: clock.hoursAgo(8),
+      generatedAt: clock.hoursAgo(8),
+      generationSource: "scheduled",
+      generationState: "complete",
+      providerSuccessCount: 3,
+      providerFailureCount: 0,
+      providerStaleCount: 0,
+      topAttentionCount: profile === "coastline" ? 2 : 1,
+      opportunityCount: profile === "coastline" ? 2 : 1,
+      positiveCount: profile === "coastline" ? 1 : 2,
+      infoCount: 1,
+      completenessStatus: "complete",
+      completenessSummary: "All configured providers returned current data.",
+      statusReason: profile === "coastline" ? "Margin deterioration trend" : "No critical issues",
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+    },
+  })
+  counters.ownersDigestSnapshots += 1
+
+  await prismaAdmin.ownersDigestItem.create({
+    data: {
+      userId,
+      snapshotId: snapshot.id,
+      source: "marginguard",
+      signalType: "MARGIN_TREND",
+      severity: profile === "coastline" ? "warning" : "info",
+      priorityScore: profile === "coastline" ? 81 : 38,
+      section: "needs_attention",
+      sortOrder: 1,
+      title:
+        profile === "coastline"
+          ? "Margin deterioration needs pricing review"
+          : "Runway watchlist remains manageable",
+      summary:
+        profile === "coastline"
+          ? "Two monthly periods show lower gross margin than target."
+          : "Runway remains above the immediate critical floor but should be monitored.",
+      whyItMatters: "Cash confidence is directly affected by sustained margin pressure.",
+      financialImpactCents: profile === "coastline" ? 124_000 : 41_000,
+      currentValue: profile === "coastline" ? 28.83 : 41,
+      previousValue: profile === "coastline" ? 31.56 : 47,
+      changeValue: profile === "coastline" ? -2.73 : -6,
+      changePercent: profile === "coastline" ? -8.65 : -12.77,
+      entityType: "organization",
+      entityId: userId,
+      entityName: profile === "coastline" ? "Coastline Plumbing & Gas" : "Yarra Valley Web Studio",
+      recommendedAction: "Review top cost drivers and pricing assumptions this week.",
+      actionUrl: "/dashboard/marginguard",
+      contributingSources: ["marginguard", "cashplan"] as Prisma.InputJsonValue,
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+      detectedAt: clock.daysAgo(1),
+    },
+  })
+  counters.ownersDigestItems += 1
+
+  await prismaAdmin.ownersDigestMetric.create({
+    data: {
+      userId,
+      snapshotId: snapshot.id,
+      metricKey: "runway_days",
+      label: "Runway",
+      section: "key_numbers",
+      unit: "days",
+      displayValue: profile === "coastline" ? "59 days" : "41 days",
+      numericValue: profile === "coastline" ? 59 : 41,
+      previousNumericValue: profile === "coastline" ? 63 : 45,
+      changeNumericValue: -4,
+      changePercent: profile === "coastline" ? -6.35 : -8.89,
+      sortOrder: 1,
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+    },
+  })
+
+  await prismaAdmin.ownersDigestProviderRun.createMany({
+    data: [
+      {
+        userId,
+        snapshotId: snapshot.id,
+        source: "cashplan",
+        status: "complete",
+        signalCount: 2,
+        surfacedCount: 1,
+        stale: false,
+        entitled: true,
+        configured: true,
+        available: true,
+        dataAsOf: clock.hoursAgo(8),
+        startedAt: clock.hoursAgo(8),
+        completedAt: clock.hoursAgo(8),
+        durationMs: 780,
+        metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+      },
+      {
+        userId,
+        snapshotId: snapshot.id,
+        source: "taxbuffer",
+        status: "complete",
+        signalCount: 1,
+        surfacedCount: 1,
+        stale: false,
+        entitled: true,
+        configured: true,
+        available: true,
+        dataAsOf: clock.hoursAgo(8),
+        startedAt: clock.hoursAgo(8),
+        completedAt: clock.hoursAgo(8),
+        durationMs: 620,
+        metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+      },
+    ],
+  })
+
+  await prismaAdmin.ownersDigestDelivery.create({
+    data: {
+      userId,
+      snapshotId: snapshot.id,
+      deliveryScope: "owner_only",
+      channel: "email",
+      status: "sent",
+      recipientCount: 1,
+      deliveryKey: `seed-${profile}-owners-digest-${clock.startOfDay(-7).toISOString().slice(0, 10)}`,
+      messageId: `seed-${profile}-owners-digest-msg`,
+      requestedAt: clock.hoursAgo(8),
+      sentAt: clock.hoursAgo(8),
+      metadata: { source: "seed-preview", profile } as Prisma.InputJsonValue,
+    },
+  })
 }
 
 async function createInvoices(
@@ -1850,6 +2935,13 @@ async function seedCoastline(
   counters.syncRuns++
 
   await seedSpendLeakFoundation(userId, myobConnection.id, "coastline", clock, counters)
+  await seedMarginGuardFoundation(userId, "coastline", clock, counters)
+  await seedCashPlanFoundation(userId, "coastline", clock, counters)
+  await seedRunwayGuardFoundation(userId, "coastline", clock, counters)
+  await seedCostGuardFoundation(userId, "coastline", clock, counters)
+  await seedTaxBufferFoundation(userId, "coastline", clock, counters)
+  await seedCommitGuardFoundation(userId, "coastline", clock, counters)
+  await seedOwnersDigestFoundation(userId, "coastline", clock, counters)
 
   await prismaAdmin.accountingSyncRun.create({
     data: {
@@ -1939,7 +3031,7 @@ async function seedCoastline(
   })
 
   console.log(
-    `  ✓ ${COASTLINE_INVOICES.length} invoices, 4 promises, 4 arrangements, MYOB connection and SpendLeak fixtures`,
+    `  ✓ ${COASTLINE_INVOICES.length} invoices, 4 promises, 4 arrangements, MYOB connection, SpendLeak/MarginGuard/CashPlan/RunwayGuard/CostGuard/TaxBuffer/CommitGuard/OwnersDigest fixtures`,
   )
 }
 
@@ -2095,6 +3187,13 @@ async function seedYarraValley(
   counters.syncRuns++
 
   await seedSpendLeakFoundation(userId, xeroConnection.id, "yarra", clock, counters)
+  await seedMarginGuardFoundation(userId, "yarra", clock, counters)
+  await seedCashPlanFoundation(userId, "yarra", clock, counters)
+  await seedRunwayGuardFoundation(userId, "yarra", clock, counters)
+  await seedCostGuardFoundation(userId, "yarra", clock, counters)
+  await seedTaxBufferFoundation(userId, "yarra", clock, counters)
+  await seedCommitGuardFoundation(userId, "yarra", clock, counters)
+  await seedOwnersDigestFoundation(userId, "yarra", clock, counters)
 
   await prismaAdmin.accountingSyncRun.create({
     data: {
@@ -2141,7 +3240,9 @@ async function seedYarraValley(
     counters.mappings += 1
   }
 
-  console.log(`  ✓ ${YARRA_VALLEY_INVOICES.length} invoices, 1 promise, Xero connection and SpendLeak fixtures`)
+  console.log(
+    `  ✓ ${YARRA_VALLEY_INVOICES.length} invoices, 1 promise, Xero connection, SpendLeak/MarginGuard/CashPlan/RunwayGuard/CostGuard/TaxBuffer/CommitGuard/OwnersDigest fixtures`,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -2203,6 +3304,23 @@ async function main(): Promise<void> {
     spendSuppliers: 0,
     spendInsights: 0,
     cashSnapshots: 0,
+    marginSnapshots: 0,
+    marginAlerts: 0,
+    marginOpportunities: 0,
+    cashPlans: 0,
+    cashPlanAlerts: 0,
+    runwaySnapshots: 0,
+    runwayAlerts: 0,
+    costGuardForecasts: 0,
+    costGuardAlerts: 0,
+    taxCategories: 0,
+    taxObligations: 0,
+    taxEvents: 0,
+    taxSnapshots: 0,
+    commitments: 0,
+    commitmentCandidates: 0,
+    ownersDigestSnapshots: 0,
+    ownersDigestItems: 0,
   }
 
   await seedCoastline(byKey.get("owner")!, clock, counters)
@@ -2224,6 +3342,23 @@ async function main(): Promise<void> {
   console.log(`  SpendLeak suppliers:  ${counters.spendSuppliers}`)
   console.log(`  SpendLeak findings:   ${counters.spendInsights}`)
   console.log(`  Cash snapshots:       ${counters.cashSnapshots}`)
+  console.log(`  Margin snapshots:     ${counters.marginSnapshots}`)
+  console.log(`  Margin alerts:        ${counters.marginAlerts}`)
+  console.log(`  Margin opportunities: ${counters.marginOpportunities}`)
+  console.log(`  Cash plans:           ${counters.cashPlans}`)
+  console.log(`  Cash plan alerts:     ${counters.cashPlanAlerts}`)
+  console.log(`  Runway snapshots:     ${counters.runwaySnapshots}`)
+  console.log(`  Runway alerts:        ${counters.runwayAlerts}`)
+  console.log(`  Cost guard forecasts: ${counters.costGuardForecasts}`)
+  console.log(`  Cost guard alerts:    ${counters.costGuardAlerts}`)
+  console.log(`  Tax categories:       ${counters.taxCategories}`)
+  console.log(`  Tax obligations:      ${counters.taxObligations}`)
+  console.log(`  Tax events:           ${counters.taxEvents}`)
+  console.log(`  Tax snapshots:        ${counters.taxSnapshots}`)
+  console.log(`  Commitments:          ${counters.commitments}`)
+  console.log(`  Commitment candidates:${counters.commitmentCandidates}`)
+  console.log(`  Owners digest snaps:  ${counters.ownersDigestSnapshots}`)
+  console.log(`  Owners digest items:  ${counters.ownersDigestItems}`)
 
   console.log("\nDevelopment sign-in (development environments only):")
   for (const account of Object.values(ACCOUNTS)) {

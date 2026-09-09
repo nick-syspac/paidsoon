@@ -26,6 +26,22 @@ export type SubscriptionFeature =
   | "payment_status_dashboard"
   | "overdue_invoice_dashboard"
   | "accounting_integrations"
+  | "tax_buffer_basic"
+  | "tax_buffer_automation"
+  | "tax_buffer_custom_reserves"
+  | "commitguard_core"
+  | "commitguard_detection"
+  | "commitguard_advanced_alerts"
+  | "marginguard_core"
+  | "marginguard_customer_analysis"
+  | "marginguard_alerts"
+  | "marginguard_scenarios"
+  | "marginguard_historical_analytics"
+  | "runwayguard_core"
+  | "runwayguard_scenarios"
+  | "owners_digest_core"
+  | "owners_digest_email"
+  | "owners_digest_history"
   | "promise_to_pay_tracking"
   | "dispute_pause"
   | "weekly_summary_email"
@@ -69,6 +85,10 @@ export interface PlanLimits {
   /** Connected invoice sources (Stripe Connect accounts and accounting
    * connections, combined). -1 = unlimited. */
   connectedInvoiceSources: number
+  /** Maximum tracked commitments in CommitGuard. -1 = unlimited. */
+  commitmentsTracked: number
+  /** Maximum open detection candidates surfaced per detection cycle. -1 = unlimited. */
+  commitmentDetectionCandidatesPerCycle: number
 }
 
 export interface PlanDefinition {
@@ -91,13 +111,15 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   starter: {
     id: "starter",
     name: "Essentials",
-    monthlyPriceAud: 9,
+    monthlyPriceAud: 15,
     visibility: "public",
-    tagline: "Automate day-to-day cash control.",
+    tagline: "A focused entry point for a growing cash-control workflow.",
     limits: {
       chasedInvoicesPerMonth: 10,
       userSeats: 1,
       connectedInvoiceSources: 1,
+      commitmentsTracked: 25,
+      commitmentDetectionCandidatesPerCycle: 25,
     },
     features: {
       basic_email_reminders: true,
@@ -115,6 +137,22 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: false,
+      tax_buffer_custom_reserves: false,
+      commitguard_core: true,
+      commitguard_detection: false,
+      commitguard_advanced_alerts: false,
+      marginguard_core: false,
+      marginguard_customer_analysis: false,
+      marginguard_alerts: false,
+      marginguard_scenarios: false,
+      marginguard_historical_analytics: false,
+      runwayguard_core: false,
+      runwayguard_scenarios: false,
+      owners_digest_core: false,
+      owners_digest_email: false,
+      owners_digest_history: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -128,13 +166,15 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   solo: {
     id: "solo",
     name: "Solo",
-    monthlyPriceAud: 19,
+    monthlyPriceAud: 29,
     visibility: "public",
-    tagline: "Get paid and understand your cash.",
+    tagline: "The first complete control layer for a solo operation.",
     limits: {
       chasedInvoicesPerMonth: 50,
       userSeats: 1,
       connectedInvoiceSources: 1,
+      commitmentsTracked: 150,
+      commitmentDetectionCandidatesPerCycle: 75,
     },
     features: {
       basic_email_reminders: true,
@@ -152,6 +192,22 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: true,
+      tax_buffer_custom_reserves: false,
+      commitguard_core: true,
+      commitguard_detection: true,
+      commitguard_advanced_alerts: false,
+      marginguard_core: true,
+      marginguard_customer_analysis: false,
+      marginguard_alerts: false,
+      marginguard_scenarios: false,
+      marginguard_historical_analytics: false,
+      runwayguard_core: true,
+      runwayguard_scenarios: false,
+      owners_digest_core: true,
+      owners_digest_email: false,
+      owners_digest_history: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -165,14 +221,16 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   small_business: {
     id: "small_business",
     name: "Small Business",
-    monthlyPriceAud: 39,
+    monthlyPriceAud: 69,
     visibility: "public",
     popular: true,
-    tagline: "Give the team control over spending and cash flow.",
+    tagline: "The recommended plan for a growing small business team.",
     limits: {
-      chasedInvoicesPerMonth: 200,
+      chasedInvoicesPerMonth: 250,
       userSeats: 3,
       connectedInvoiceSources: 1,
+      commitmentsTracked: 500,
+      commitmentDetectionCandidatesPerCycle: 250,
     },
     features: {
       basic_email_reminders: true,
@@ -190,6 +248,22 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: true,
+      tax_buffer_custom_reserves: true,
+      commitguard_core: true,
+      commitguard_detection: true,
+      commitguard_advanced_alerts: true,
+      marginguard_core: true,
+      marginguard_customer_analysis: true,
+      marginguard_alerts: true,
+      marginguard_scenarios: true,
+      marginguard_historical_analytics: true,
+      runwayguard_core: true,
+      runwayguard_scenarios: true,
+      owners_digest_core: true,
+      owners_digest_email: true,
+      owners_digest_history: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -203,13 +277,15 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   business_pro: {
     id: "business_pro",
     name: "Business Pro",
-    monthlyPriceAud: 99,
+    monthlyPriceAud: 149,
     visibility: "public",
-    tagline: "Manage complex businesses with governance and forecasting.",
+    tagline: "Advanced governance, multi-entity visibility, and cash forecasting.",
     limits: {
       chasedInvoicesPerMonth: 1000,
       userSeats: 10,
-      connectedInvoiceSources: 1,
+      connectedInvoiceSources: 3,
+      commitmentsTracked: 2000,
+      commitmentDetectionCandidatesPerCycle: 1000,
     },
     features: {
       basic_email_reminders: true,
@@ -227,6 +303,22 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: true,
+      tax_buffer_custom_reserves: true,
+      commitguard_core: true,
+      commitguard_detection: true,
+      commitguard_advanced_alerts: true,
+      marginguard_core: true,
+      marginguard_customer_analysis: true,
+      marginguard_alerts: true,
+      marginguard_scenarios: true,
+      marginguard_historical_analytics: true,
+      runwayguard_core: true,
+      runwayguard_scenarios: true,
+      owners_digest_core: true,
+      owners_digest_email: true,
+      owners_digest_history: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -247,6 +339,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       chasedInvoicesPerMonth: -1, // unlimited
       userSeats: -1, // unlimited
       connectedInvoiceSources: -1, // unlimited — exempt from the one-source limit
+      commitmentsTracked: -1, // unlimited
+      commitmentDetectionCandidatesPerCycle: -1, // unlimited
     },
     features: {
       basic_email_reminders: true,
@@ -264,6 +358,22 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       payment_status_dashboard: true,
       overdue_invoice_dashboard: true,
       accounting_integrations: true,
+      tax_buffer_basic: true,
+      tax_buffer_automation: true,
+      tax_buffer_custom_reserves: true,
+      commitguard_core: true,
+      commitguard_detection: true,
+      commitguard_advanced_alerts: true,
+      marginguard_core: true,
+      marginguard_customer_analysis: true,
+      marginguard_alerts: true,
+      marginguard_scenarios: true,
+      marginguard_historical_analytics: true,
+      runwayguard_core: true,
+      runwayguard_scenarios: true,
+      owners_digest_core: true,
+      owners_digest_email: true,
+      owners_digest_history: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -435,6 +545,22 @@ function featureToLabel(feature: SubscriptionFeature): string {
       return "Payment status dashboard"
     case "overdue_invoice_dashboard":
       return "Overdue invoice dashboard"
+    case "tax_buffer_basic":
+      return "Tax Buffer"
+    case "tax_buffer_automation":
+      return "Tax Buffer automation"
+    case "tax_buffer_custom_reserves":
+      return "Custom tax reserves"
+    case "runwayguard_core":
+      return "RunwayGuard"
+    case "runwayguard_scenarios":
+      return "RunwayGuard scenarios"
+    case "owners_digest_core":
+      return "Owner's Digest"
+    case "owners_digest_email":
+      return "Owner's Digest email"
+    case "owners_digest_history":
+      return "Owner's Digest history"
     case "basic_email_reminders":
       return "Basic email reminders"
     case "team_seats":

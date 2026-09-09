@@ -36,6 +36,31 @@ ALTER TABLE promise_to_pay ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promise_escalation_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arrangements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arrangement_invoice_coverages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_configurations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_reserve_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_obligations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_overrides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_buffer_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commit_guard_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commitments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commitment_detection_candidates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commitment_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_provider_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners_digest_deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_guard_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_guard_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_classification_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_cost_classifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_alert_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_scenarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margin_opportunities ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles
@@ -317,6 +342,163 @@ CREATE POLICY "users can delete own oauth states"
   USING (auth.uid()::text = "userId");
 
 -- ---------------------------------------------------------------------------
+-- MarginGuard foundation tables
+-- ---------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS "users can view own margin guard settings" ON margin_guard_settings;
+CREATE POLICY "users can view own margin guard settings"
+  ON margin_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin guard settings" ON margin_guard_settings;
+CREATE POLICY "users can insert own margin guard settings"
+  ON margin_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin guard settings" ON margin_guard_settings;
+CREATE POLICY "users can update own margin guard settings"
+  ON margin_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin guard targets" ON margin_guard_targets;
+CREATE POLICY "users can view own margin guard targets"
+  ON margin_guard_targets FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin guard targets" ON margin_guard_targets;
+CREATE POLICY "users can insert own margin guard targets"
+  ON margin_guard_targets FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin guard targets" ON margin_guard_targets;
+CREATE POLICY "users can update own margin guard targets"
+  ON margin_guard_targets FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin classification rules" ON margin_classification_rules;
+CREATE POLICY "users can view own margin classification rules"
+  ON margin_classification_rules FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin classification rules" ON margin_classification_rules;
+CREATE POLICY "users can insert own margin classification rules"
+  ON margin_classification_rules FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin classification rules" ON margin_classification_rules;
+CREATE POLICY "users can update own margin classification rules"
+  ON margin_classification_rules FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own margin classification rules" ON margin_classification_rules;
+CREATE POLICY "users can delete own margin classification rules"
+  ON margin_classification_rules FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin cost classifications" ON margin_cost_classifications;
+CREATE POLICY "users can view own margin cost classifications"
+  ON margin_cost_classifications FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin cost classifications" ON margin_cost_classifications;
+CREATE POLICY "users can insert own margin cost classifications"
+  ON margin_cost_classifications FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin cost classifications" ON margin_cost_classifications;
+CREATE POLICY "users can update own margin cost classifications"
+  ON margin_cost_classifications FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own margin cost classifications" ON margin_cost_classifications;
+CREATE POLICY "users can delete own margin cost classifications"
+  ON margin_cost_classifications FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin alerts" ON margin_alerts;
+CREATE POLICY "users can view own margin alerts"
+  ON margin_alerts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin alerts" ON margin_alerts;
+CREATE POLICY "users can insert own margin alerts"
+  ON margin_alerts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin alerts" ON margin_alerts;
+CREATE POLICY "users can update own margin alerts"
+  ON margin_alerts FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin alert events" ON margin_alert_events;
+CREATE POLICY "users can view own margin alert events"
+  ON margin_alert_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin alert events" ON margin_alert_events;
+CREATE POLICY "users can insert own margin alert events"
+  ON margin_alert_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin snapshots" ON margin_snapshots;
+CREATE POLICY "users can view own margin snapshots"
+  ON margin_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin snapshots" ON margin_snapshots;
+CREATE POLICY "users can insert own margin snapshots"
+  ON margin_snapshots FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin snapshots" ON margin_snapshots;
+CREATE POLICY "users can update own margin snapshots"
+  ON margin_snapshots FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin scenarios" ON margin_scenarios;
+CREATE POLICY "users can view own margin scenarios"
+  ON margin_scenarios FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin scenarios" ON margin_scenarios;
+CREATE POLICY "users can insert own margin scenarios"
+  ON margin_scenarios FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin scenarios" ON margin_scenarios;
+CREATE POLICY "users can update own margin scenarios"
+  ON margin_scenarios FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own margin scenarios" ON margin_scenarios;
+CREATE POLICY "users can delete own margin scenarios"
+  ON margin_scenarios FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own margin opportunities" ON margin_opportunities;
+CREATE POLICY "users can view own margin opportunities"
+  ON margin_opportunities FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own margin opportunities" ON margin_opportunities;
+CREATE POLICY "users can insert own margin opportunities"
+  ON margin_opportunities FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own margin opportunities" ON margin_opportunities;
+CREATE POLICY "users can update own margin opportunities"
+  ON margin_opportunities FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
 -- imported_bills
 -- Users can read their own imported bills. Writes are performed by sync code
 -- via prismaAdmin.
@@ -531,6 +713,433 @@ CREATE POLICY "users can view own cost guard forecasts"
 DROP POLICY IF EXISTS "users can insert own cost guard forecasts" ON cost_guard_forecasts;
 CREATE POLICY "users can insert own cost guard forecasts"
   ON cost_guard_forecasts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_settings
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard settings" ON runway_guard_settings;
+CREATE POLICY "users can view own runway guard settings"
+  ON runway_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard settings" ON runway_guard_settings;
+CREATE POLICY "users can insert own runway guard settings"
+  ON runway_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own runway guard settings" ON runway_guard_settings;
+CREATE POLICY "users can update own runway guard settings"
+  ON runway_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_snapshots
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_snapshots ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard snapshots" ON runway_guard_snapshots;
+CREATE POLICY "users can view own runway guard snapshots"
+  ON runway_guard_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard snapshots" ON runway_guard_snapshots;
+CREATE POLICY "users can insert own runway guard snapshots"
+  ON runway_guard_snapshots FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own runway guard snapshots" ON runway_guard_snapshots;
+CREATE POLICY "users can update own runway guard snapshots"
+  ON runway_guard_snapshots FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_alerts
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_alerts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard alerts" ON runway_guard_alerts;
+CREATE POLICY "users can view own runway guard alerts"
+  ON runway_guard_alerts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard alerts" ON runway_guard_alerts;
+CREATE POLICY "users can insert own runway guard alerts"
+  ON runway_guard_alerts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own runway guard alerts" ON runway_guard_alerts;
+CREATE POLICY "users can update own runway guard alerts"
+  ON runway_guard_alerts FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_alert_events
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_alert_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard alert events" ON runway_guard_alert_events;
+CREATE POLICY "users can view own runway guard alert events"
+  ON runway_guard_alert_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard alert events" ON runway_guard_alert_events;
+CREATE POLICY "users can insert own runway guard alert events"
+  ON runway_guard_alert_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_scenarios
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_scenarios ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard scenarios" ON runway_guard_scenarios;
+CREATE POLICY "users can view own runway guard scenarios"
+  ON runway_guard_scenarios FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard scenarios" ON runway_guard_scenarios;
+CREATE POLICY "users can insert own runway guard scenarios"
+  ON runway_guard_scenarios FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own runway guard scenarios" ON runway_guard_scenarios;
+CREATE POLICY "users can update own runway guard scenarios"
+  ON runway_guard_scenarios FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own runway guard scenarios" ON runway_guard_scenarios;
+CREATE POLICY "users can delete own runway guard scenarios"
+  ON runway_guard_scenarios FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_configurations
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer configurations" ON tax_buffer_configurations;
+CREATE POLICY "users can view own tax buffer configurations"
+  ON tax_buffer_configurations FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer configurations" ON tax_buffer_configurations;
+CREATE POLICY "users can insert own tax buffer configurations"
+  ON tax_buffer_configurations FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax buffer configurations" ON tax_buffer_configurations;
+CREATE POLICY "users can update own tax buffer configurations"
+  ON tax_buffer_configurations FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_reserve_categories
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax reserve categories" ON tax_reserve_categories;
+CREATE POLICY "users can view own tax reserve categories"
+  ON tax_reserve_categories FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax reserve categories" ON tax_reserve_categories;
+CREATE POLICY "users can insert own tax reserve categories"
+  ON tax_reserve_categories FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax reserve categories" ON tax_reserve_categories;
+CREATE POLICY "users can update own tax reserve categories"
+  ON tax_reserve_categories FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own tax reserve categories" ON tax_reserve_categories;
+CREATE POLICY "users can delete own tax reserve categories"
+  ON tax_reserve_categories FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_obligations
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer obligations" ON tax_buffer_obligations;
+CREATE POLICY "users can view own tax buffer obligations"
+  ON tax_buffer_obligations FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer obligations" ON tax_buffer_obligations;
+CREATE POLICY "users can insert own tax buffer obligations"
+  ON tax_buffer_obligations FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax buffer obligations" ON tax_buffer_obligations;
+CREATE POLICY "users can update own tax buffer obligations"
+  ON tax_buffer_obligations FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own tax buffer obligations" ON tax_buffer_obligations;
+CREATE POLICY "users can delete own tax buffer obligations"
+  ON tax_buffer_obligations FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_snapshots
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer snapshots" ON tax_buffer_snapshots;
+CREATE POLICY "users can view own tax buffer snapshots"
+  ON tax_buffer_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer snapshots" ON tax_buffer_snapshots;
+CREATE POLICY "users can insert own tax buffer snapshots"
+  ON tax_buffer_snapshots FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_overrides
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer overrides" ON tax_buffer_overrides;
+CREATE POLICY "users can view own tax buffer overrides"
+  ON tax_buffer_overrides FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer overrides" ON tax_buffer_overrides;
+CREATE POLICY "users can insert own tax buffer overrides"
+  ON tax_buffer_overrides FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax buffer overrides" ON tax_buffer_overrides;
+CREATE POLICY "users can update own tax buffer overrides"
+  ON tax_buffer_overrides FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own tax buffer overrides" ON tax_buffer_overrides;
+CREATE POLICY "users can delete own tax buffer overrides"
+  ON tax_buffer_overrides FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- tax_buffer_events
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own tax buffer events" ON tax_buffer_events;
+CREATE POLICY "users can view own tax buffer events"
+  ON tax_buffer_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own tax buffer events" ON tax_buffer_events;
+CREATE POLICY "users can insert own tax buffer events"
+  ON tax_buffer_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own tax buffer events" ON tax_buffer_events;
+CREATE POLICY "users can update own tax buffer events"
+  ON tax_buffer_events FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- commit_guard_settings
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own commit guard settings" ON commit_guard_settings;
+CREATE POLICY "users can view own commit guard settings"
+  ON commit_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own commit guard settings" ON commit_guard_settings;
+CREATE POLICY "users can insert own commit guard settings"
+  ON commit_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own commit guard settings" ON commit_guard_settings;
+CREATE POLICY "users can update own commit guard settings"
+  ON commit_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- commitments
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own commitments" ON commitments;
+CREATE POLICY "users can view own commitments"
+  ON commitments FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own commitments" ON commitments;
+CREATE POLICY "users can insert own commitments"
+  ON commitments FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own commitments" ON commitments;
+CREATE POLICY "users can update own commitments"
+  ON commitments FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own commitments" ON commitments;
+CREATE POLICY "users can delete own commitments"
+  ON commitments FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- commitment_detection_candidates
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own commitment detection candidates" ON commitment_detection_candidates;
+CREATE POLICY "users can view own commitment detection candidates"
+  ON commitment_detection_candidates FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own commitment detection candidates" ON commitment_detection_candidates;
+CREATE POLICY "users can insert own commitment detection candidates"
+  ON commitment_detection_candidates FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own commitment detection candidates" ON commitment_detection_candidates;
+CREATE POLICY "users can update own commitment detection candidates"
+  ON commitment_detection_candidates FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own commitment detection candidates" ON commitment_detection_candidates;
+CREATE POLICY "users can delete own commitment detection candidates"
+  ON commitment_detection_candidates FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- commitment_events
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own commitment events" ON commitment_events;
+CREATE POLICY "users can view own commitment events"
+  ON commitment_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own commitment events" ON commitment_events;
+CREATE POLICY "users can insert own commitment events"
+  ON commitment_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own commitment events" ON commitment_events;
+CREATE POLICY "users can update own commitment events"
+  ON commitment_events FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_settings
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest settings" ON owners_digest_settings;
+CREATE POLICY "users can view own owners digest settings"
+  ON owners_digest_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest settings" ON owners_digest_settings;
+CREATE POLICY "users can insert own owners digest settings"
+  ON owners_digest_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest settings" ON owners_digest_settings;
+CREATE POLICY "users can update own owners digest settings"
+  ON owners_digest_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_snapshots
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest snapshots" ON owners_digest_snapshots;
+CREATE POLICY "users can view own owners digest snapshots"
+  ON owners_digest_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest snapshots" ON owners_digest_snapshots;
+CREATE POLICY "users can insert own owners digest snapshots"
+  ON owners_digest_snapshots FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest snapshots" ON owners_digest_snapshots;
+CREATE POLICY "users can update own owners digest snapshots"
+  ON owners_digest_snapshots FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_items
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest items" ON owners_digest_items;
+CREATE POLICY "users can view own owners digest items"
+  ON owners_digest_items FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest items" ON owners_digest_items;
+CREATE POLICY "users can insert own owners digest items"
+  ON owners_digest_items FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest items" ON owners_digest_items;
+CREATE POLICY "users can update own owners digest items"
+  ON owners_digest_items FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_metrics
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest metrics" ON owners_digest_metrics;
+CREATE POLICY "users can view own owners digest metrics"
+  ON owners_digest_metrics FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest metrics" ON owners_digest_metrics;
+CREATE POLICY "users can insert own owners digest metrics"
+  ON owners_digest_metrics FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest metrics" ON owners_digest_metrics;
+CREATE POLICY "users can update own owners digest metrics"
+  ON owners_digest_metrics FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_provider_runs
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest provider runs" ON owners_digest_provider_runs;
+CREATE POLICY "users can view own owners digest provider runs"
+  ON owners_digest_provider_runs FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest provider runs" ON owners_digest_provider_runs;
+CREATE POLICY "users can insert own owners digest provider runs"
+  ON owners_digest_provider_runs FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest provider runs" ON owners_digest_provider_runs;
+CREATE POLICY "users can update own owners digest provider runs"
+  ON owners_digest_provider_runs FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- owners_digest_deliveries
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own owners digest deliveries" ON owners_digest_deliveries;
+CREATE POLICY "users can view own owners digest deliveries"
+  ON owners_digest_deliveries FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own owners digest deliveries" ON owners_digest_deliveries;
+CREATE POLICY "users can insert own owners digest deliveries"
+  ON owners_digest_deliveries FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own owners digest deliveries" ON owners_digest_deliveries;
+CREATE POLICY "users can update own owners digest deliveries"
+  ON owners_digest_deliveries FOR UPDATE
+  USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------

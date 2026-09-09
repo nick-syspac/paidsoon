@@ -10,6 +10,16 @@ import type { SpendInsight } from "@/lib/generated/prisma/client"
 
 function makeInsight(overrides: Partial<SpendInsight> & { id: string; findingType: string }): SpendInsight {
   const { id, findingType, ...rest } = overrides
+  const normalizedRest = {
+    ...rest,
+    reviewAction: rest.reviewAction ?? null,
+    reviewActionAt: rest.reviewActionAt ?? null,
+    reviewActionBy: rest.reviewActionBy ?? null,
+    reviewNote: rest.reviewNote ?? null,
+    evidenceFingerprint: rest.evidenceFingerprint ?? null,
+    resolvedAt: rest.resolvedAt ?? null,
+  }
+
   return {
     id,
     userId: "user-1",
@@ -23,10 +33,9 @@ function makeInsight(overrides: Partial<SpendInsight> & { id: string; findingTyp
     estimatedAnnualCents: null,
     evidence: {},
     detectedAt: new Date("2026-09-01T00:00:00.000Z"),
-    resolvedAt: null,
     createdAt: new Date("2026-09-01T00:00:00.000Z"),
     updatedAt: new Date("2026-09-01T00:00:00.000Z"),
-    ...rest,
+    ...normalizedRest,
   }
 }
 

@@ -70,7 +70,7 @@ describe("upsertSpendFindings suppression behavior", () => {
       userId: "user-1",
       accountingConnectionId: "conn-1",
       findings: [detectedFinding],
-      spendInsightDelegate: delegate,
+      spendInsightDelegate: delegate as never,
     })
 
     assert.equal(createdOrUpdated.length, 1)
@@ -102,7 +102,7 @@ describe("upsertSpendFindings suppression behavior", () => {
       userId: "user-1",
       accountingConnectionId: "conn-1",
       findings: [makeFinding({ supplier: "Acme", amountCents: 12500 })],
-      spendInsightDelegate: delegate,
+      spendInsightDelegate: delegate as never,
     })
 
     assert.equal(updates.length, 1)

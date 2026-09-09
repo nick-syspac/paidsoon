@@ -5,7 +5,6 @@ import {
   BASELINE_WINDOWS,
   COST_GUARD_ALERT_EVENT_TYPES,
   type CostGuardAlertRecordInput,
-  type CostGuardDigestSummaryInput,
   buildCostGuardAlertEventRecord,
   buildCostGuardAlertEventTypeForStatus,
   buildCostGuardAlertLifecycleSummary,
@@ -296,7 +295,8 @@ test("alert records and rule change events use the schema contract for persisten
   assert.equal(ruleEvent.eventType, COST_GUARD_ALERT_EVENT_TYPES.RULE_CHANGED)
   assert.equal(ruleEvent.metadata.ruleId, "rule-22")
   assert.equal(ruleEvent.metadata.action, "update")
-  assert.equal(ruleEvent.metadata.after.percentageThreshold, 25)
+  const after = (ruleEvent.metadata.after ?? null) as { percentageThreshold?: number } | null
+  assert.equal(after?.percentageThreshold, 25)
 })
 
 test("alert summaries expose a safe API contract for list and detail views", () => {
@@ -362,7 +362,16 @@ test("SpendLeak recurring spend findings become the recurring baseline for cost 
 })
 
 test("critical alerts are sent immediately while warning and watch alerts are grouped into digest buckets", () => {
-  const alerts: CostGuardDigestSummaryInput["alerts"] = [
+  const alerts: Array<{
+    id: string
+    alertType: string
+    severity: "critical" | "warning" | "watch" | "info"
+    status: string
+    title: string
+    description: string
+    varianceAmountCents: number
+    variancePercent: number
+  }> = [
     {
       id: "alert-critical",
       alertType: "forecast_overrun",
@@ -441,7 +450,7 @@ test("repeated syncs reuse the same alert record for the same supplier drift sig
   type AlertTx = Parameters<typeof upsertCostGuardAlertRecord>[0]["tx"]
 
   const alerts: AlertRow[] = []
-  const tx: AlertTx = {
+  const tx = {
     costGuardAlert: {
       findFirst: async ({ where }: { where: Record<string, unknown> }) => {
         return alerts.find((alert) => {
@@ -479,7 +488,7 @@ test("repeated syncs reuse the same alert record for the same supplier drift sig
         return row
       },
     },
-  }
+  } as unknown as AlertTx
 
   const first = await upsertCostGuardAlertRecord({
     tx,

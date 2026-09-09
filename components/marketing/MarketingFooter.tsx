@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { PRODUCT_LINKS } from "@/components/marketing/marketingContent"
 
 const footerLinks = {
   Company: [
@@ -6,15 +7,10 @@ const footerLinks = {
     { label: "Contact", href: "/contact" },
     { label: "Careers", href: "/careers" },
   ],
-  Product: [
-    { label: "PaidSoon", href: "/paidsoon" },
-    { label: "SpendLeak", href: "/spendleak" },
-    { label: "CostGuard", href: "/costguard" },
-    { label: "CashPlan", href: "/cashplan" },
-    { label: "Platform Overview", href: "/platform" },
-    { label: "Pricing", href: "/pricing" },
-    { label: "Integrations", href: "/integrations" },
-  ],
+  Product: PRODUCT_LINKS.map((link) => ({
+    label: link.label === "Platform overview" ? "Platform Overview" : link.label,
+    href: link.href,
+  })),
   Support: [
     { label: "Help Centre", href: "/help" },
     { label: "FAQ", href: "/faq" },

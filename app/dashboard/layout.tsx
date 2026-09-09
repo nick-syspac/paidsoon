@@ -4,8 +4,12 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
-import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
+import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
+import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
+import { canAccessOwnersDigest } from "@/lib/dashboard/ownersDigestAccess"
+import { canAccessRunwayGuard } from "@/lib/dashboard/runwayGuardAccess"
 import { TrialBanner } from "@/components/dashboard/TrialBanner"
 import { UserMenu } from "@/components/dashboard/UserMenu"
 import { SupportBanner } from "@/components/dashboard/SupportBanner"
@@ -183,7 +187,16 @@ export default async function DashboardLayout({
           </div>
         </div>
       </nav>
-      <DashboardMain canViewSpendLeak={canAccessSpendLeak(tier)}>{children}</DashboardMain>
+      <DashboardMain
+        canViewOwnersDigest={canAccessOwnersDigest(tier)}
+        canViewCommitGuard={hasPlanFeature(tier, "commitguard_core")}
+        canViewSpendLeak={canAccessSpendLeak(tier)}
+        canViewTaxBuffer={canAccessTaxBuffer(tier)}
+        canViewMarginGuard={canAccessMarginGuard(tier)}
+        canViewRunwayGuard={canAccessRunwayGuard(tier)}
+      >
+        {children}
+      </DashboardMain>
     </div>
   )
 }

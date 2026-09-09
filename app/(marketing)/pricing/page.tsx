@@ -9,8 +9,17 @@ import {
   type SubscriptionFeature,
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans"
-import { formatPlanPrice, planHighlights, PLAN_TAGLINE } from "@/lib/planPresentation"
+import {
+  formatPlanPrice,
+  getPlanModuleCoverage,
+  planHighlights,
+  PLAN_TAGLINE,
+} from "@/lib/planPresentation"
 import { isLiveMode } from "@/lib/liveMode"
+import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
+import { canAccessOwnersDigest } from "@/lib/dashboard/ownersDigestAccess"
+import { canAccessRunwayGuard } from "@/lib/dashboard/runwayGuardAccess"
+import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
 
 const publicPlans = getPublicPlans()
 
@@ -23,7 +32,7 @@ export const metadata: Metadata = {
     openGraph: {
       title: "Pricing - PaidSoon",
       description:
-        "Compare Solo, Essentials, Small Business, and Business Pro plans. Transparent AUD pricing and a free trial.",
+        "Compare Essentials, Solo, Small Business, and Business Pro plans across receivables, commitments, tax, margin, digest, and runway controls.",
       url: "/pricing",
       type: "website",
     },
@@ -67,24 +76,29 @@ function featureRow(label: string, feature: SubscriptionFeature): ComparisonRow 
   }
 }
 
+function customRow(label: string, values: (tier: SubscriptionTier) => string): ComparisonRow {
+  return { label, values }
+}
+
 const comparisonRows: ComparisonRow[] = [
   limitRow("Invoices chased per month", (tier) => PLAN_CATALOG[tier].limits.chasedInvoicesPerMonth),
   limitRow("Internal users", (tier) => PLAN_CATALOG[tier].limits.userSeats, 1),
   limitRow("Connected invoice sources", (tier) => PLAN_CATALOG[tier].limits.connectedInvoiceSources),
-  featureRow("Automated reminder sequence", "basic_email_reminders"),
+  featureRow("PaidSoon reminders", "basic_email_reminders"),
   featureRow("Custom reminder timing", "email_reminder_sequence"),
-  featureRow("Customer-specific sequences", "customer_specific_sequences"),
-  featureRow("Fully editable templates", "custom_reminder_templates"),
-  featureRow("Multiple templates & customer wording", "multi_template_customer_wording"),
+  featureRow("Custom reminder templates", "custom_reminder_templates"),
   featureRow("Custom sender name", "custom_sender_name"),
   featureRow("Verified custom from-address", "verified_from_domain"),
   featureRow("AI-assisted reminder wording", "ai_rewrite"),
   featureRow("Promise-to-pay tracking", "promise_to_pay_tracking"),
   featureRow("Dispute pause", "dispute_pause"),
-  featureRow("Weekly debtor summary email", "weekly_summary_email"),
+  customRow("CommitGuard", (tier) => (PLAN_CATALOG[tier].features.commitguard_core ? "Included" : "—")),
+  customRow("Tax Buffer", (tier) => (canAccessTaxBuffer(tier) ? "Included" : "—")),
+  customRow("Owner's Digest", (tier) => (canAccessOwnersDigest(tier) ? "Included" : "—")),
+  customRow("MarginGuard", (tier) => (canAccessMarginGuard(tier) ? "Included" : "—")),
+  customRow("RunwayGuard", (tier) => (canAccessRunwayGuard(tier) ? "Included" : "—")),
+  featureRow("Owner's Digest email delivery", "owners_digest_email"),
   featureRow("CSV export", "csv_export"),
-  featureRow("Approval mode", "approval_mode"),
-  featureRow("Customer suppression / do-not-contact", "contact_suppression"),
   featureRow("Accounting integrations (MYOB, Xero)", "accounting_integrations"),
 ]
 
@@ -138,6 +152,14 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Module coverage</p>
+                <ul className="mt-2 space-y-1 text-sm text-gray-600">
+                  {getPlanModuleCoverage(plan.id).map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
               <PricingCTA
                 tier={plan.id}
                 label={liveMode ? PLAN_CTA_LABEL[plan.id] : `Request access for ${plan.name}`}
@@ -173,6 +195,9 @@ export default function PricingPage() {
       {/* Feature comparison */}
       <section className="max-w-5xl mx-auto px-4 py-16">
         <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Compare plans</h2>
+        <p className="mx-auto mb-6 max-w-3xl text-center text-sm text-gray-600">
+          Public plan coverage is shown from the current plan catalog and entitlement model. Contact us for Accountant Partner when you need a managed multi-client setup.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

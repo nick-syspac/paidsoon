@@ -1,22 +1,32 @@
 ---
 title: Export your invoices to CSV or XLSX
 description: How to download a filtered CSV or XLSX export of your invoices — available on the Small Business plan and above.
-lastVerified: 2026-08-02
+owner: help-content
+lastVerified: 2026-09-09
+guideSection: invoice-workflows
+guideOrder: 7
 ---
 
 Invoice export lets you download your invoice data as a CSV or XLSX file for use in a spreadsheet
 or accounting tool. It's available on the **Small Business** plan and above.
 
-## Quick export from the dashboard
+## Before you start
+
+- Confirm your plan includes invoice export.
+- Decide whether you need a quick export from the invoice screen or filtered export from settings.
+
+## Steps
+
+### Quick export from the dashboard
 
 1. Go to your **Invoices** dashboard.
 2. Click **Export CSV** or **Export XLSX** in the toolbar next to **Import invoices**.
 3. The file downloads with the invoices currently shown (matching the active status/overview-card
    filter).
 
-## Advanced export from Settings
+### Advanced export from Settings
 
-1. Go to **Settings → Invoice exports**.
+1. Go to **Settings → Import / Export** (`/dashboard/settings/import-export`).
 2. Choose a format (CSV or XLSX).
 3. Optionally filter by status, customer, or accounting source, or turn on **Filter by date
    range** to filter by due date or created date.
@@ -24,14 +34,30 @@ or accounting tool. It's available on the **Small Business** plan and above.
 
 If no invoices match your filters, you'll see a message instead of an empty file.
 
-## What's in the file
+## What you'll see
 
-Each row includes the invoice reference, customer name and email, due date, original amount,
-outstanding balance, currency, status, paid date, promise-to-pay status/date, dispute status,
-reminder stage, accounting source, and created/updated timestamps. Invoice date is only populated
-for invoices imported from a spreadsheet.
+- Exported files include invoice reference, customer details, due date, amounts, currency,
+  status, promise/dispute/reminder fields, source, and timestamps.
+- `invoice_date` is only populated for spreadsheet-imported invoices.
+- If filters match zero rows, the UI shows a "No invoices match" message instead of downloading
+  an empty file.
+
+## What happens next
+
+Use the file in spreadsheets or operational reporting. Refine filters and regenerate exports when
+you need a narrower subset.
+
+## Common problems
+
+- **No export buttons available** — your current plan does not include invoice export.
+- **No file downloaded** — check if the result set was empty or if your browser blocked download.
+- **Too many rows** — narrow filters if export size exceeds platform limits.
 
 ## A note on the XLSX file
 
 The XLSX file includes column filters (autofilter) and sensible column widths. The header row is
 not frozen — this is a known limitation of the spreadsheet library PaidSoon uses, not a bug.
+
+## Related tutorial
+
+[Read your dashboard's collection metrics](/help/dashboard-collection-metrics)

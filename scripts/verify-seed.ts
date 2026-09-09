@@ -324,6 +324,68 @@ async function main(): Promise<void> {
     secondSpendSync instanceof Date && isSpendLeakDataStale(secondSpendSync, now),
   )
 
+  section("New module foundations")
+  const bookkeeperUserId = emailToUserId.get(BOOKKEEPER_EMAIL)
+  const businessUserIds = [primaryUserId, secondTenantUserId].filter((id): id is string => Boolean(id))
+
+  const [
+    cashPlans,
+    runwaySnapshots,
+    costGuardForecasts,
+    taxConfigs,
+    commitments,
+    ownersDigestSnapshots,
+  ] = await Promise.all([
+    prismaAdmin.cashPlan.findMany({ where: { userId: { in: businessUserIds } } }),
+    prismaAdmin.runwayGuardSnapshot.findMany({ where: { userId: { in: businessUserIds } } }),
+    prismaAdmin.costGuardForecast.findMany({ where: { userId: { in: businessUserIds } } }),
+    prismaAdmin.taxBufferConfiguration.findMany({ where: { userId: { in: businessUserIds } } }),
+    prismaAdmin.commitment.findMany({ where: { userId: { in: businessUserIds } } }),
+    prismaAdmin.ownersDigestSnapshot.findMany({ where: { userId: { in: businessUserIds } } }),
+  ])
+
+  check("CashPlan fixtures exist for Business-tier tenants", cashPlans.length >= 2, `found ${cashPlans.length}`)
+  check(
+    "RunwayGuard fixtures exist for Business-tier tenants",
+    runwaySnapshots.length >= 2,
+    `found ${runwaySnapshots.length}`,
+  )
+  check(
+    "CostGuard fixtures exist for Business-tier tenants",
+    costGuardForecasts.length >= 2,
+    `found ${costGuardForecasts.length}`,
+  )
+  check(
+    "TaxBuffer fixtures exist for Business-tier tenants",
+    taxConfigs.length >= 2,
+    `found ${taxConfigs.length}`,
+  )
+  check(
+    "CommitGuard fixtures exist for Business-tier tenants",
+    commitments.length >= 2,
+    `found ${commitments.length}`,
+  )
+  check(
+    "OwnersDigest fixtures exist for Business-tier tenants",
+    ownersDigestSnapshots.length >= 2,
+    `found ${ownersDigestSnapshots.length}`,
+  )
+
+  if (bookkeeperUserId) {
+    const [starterCashPlans, starterTaxConfigs, starterOwnersDigest] = await Promise.all([
+      prismaAdmin.cashPlan.count({ where: { userId: bookkeeperUserId } }),
+      prismaAdmin.taxBufferConfiguration.count({ where: { userId: bookkeeperUserId } }),
+      prismaAdmin.ownersDigestSnapshot.count({ where: { userId: bookkeeperUserId } }),
+    ])
+    check("Starter tenant has no CashPlan fixtures", starterCashPlans === 0, `found ${starterCashPlans}`)
+    check("Starter tenant has no TaxBuffer fixtures", starterTaxConfigs === 0, `found ${starterTaxConfigs}`)
+    check(
+      "Starter tenant has no OwnersDigest snapshots",
+      starterOwnersDigest === 0,
+      `found ${starterOwnersDigest}`,
+    )
+  }
+
   section("Tenant isolation")
   const primaryInvoiceIds = new Set(invoiceFacts.filter((i) => i.userId === primaryUserId).map((i) => i.id))
   const secondInvoiceIds = new Set(invoiceFacts.filter((i) => i.userId === secondTenantUserId).map((i) => i.id))

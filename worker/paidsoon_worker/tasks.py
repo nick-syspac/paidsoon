@@ -105,3 +105,21 @@ def weekly_debtor_summary_task(self, claim_id: str, user_id: str):
     if result.get("status") == "failed":
         raise RuntimeError(result.get("reason", "weekly_summary_failed"))
     return result
+
+
+@app.task(
+    name="tasks.owners_digest",
+    bind=True,
+    base=ClaimTrackingTask,
+    **RETRY_KWARGS,
+)
+def owners_digest_task(self, claim_id: str, user_id: str):
+    db.mark_started(claim_id)
+    db.mark_processing(claim_id)
+    result = call_internal_job(
+        "/api/internal/jobs/send-owners-digest",
+        {"userId": user_id},
+    )
+    if result.get("status") == "failed":
+        raise RuntimeError(result.get("reason", "owners_digest_failed"))
+    return result

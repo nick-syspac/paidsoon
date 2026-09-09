@@ -121,7 +121,11 @@ export default async function SpendLeakDashboardPage({
             </Link>
           )}
         </div>
-        <SpendLeakFindingsTable findings={data.findings} selectedModule={selectedModule} />
+        <SpendLeakFindingsTable
+          findings={data.findings}
+          selectedModule={selectedModule}
+          linkedCommitmentCountsByFindingId={data.linkedCommitmentCountsByFindingId}
+        />
       </section>
     </div>
   )

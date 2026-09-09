@@ -7,14 +7,40 @@ const TABS = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/invoices", label: "Invoices" },
   { href: "/dashboard/resolved", label: "Resolved Invoices" },
+  { href: "/dashboard/owners-digest", label: "Owner's Digest" },
+  { href: "/dashboard/commitguard", label: "CommitGuard" },
   { href: "/dashboard/cost-guard", label: "Cost Guard" },
+  { href: "/dashboard/margin-guard", label: "MarginGuard" },
+  { href: "/dashboard/runway-guard", label: "RunwayGuard" },
 ]
 
-export function DashboardNavRail({ canViewSpendLeak }: { canViewSpendLeak: boolean }) {
+export function DashboardNavRail({
+  canViewOwnersDigest,
+  canViewCommitGuard,
+  canViewSpendLeak,
+  canViewTaxBuffer,
+  canViewMarginGuard,
+  canViewRunwayGuard,
+}: {
+  canViewOwnersDigest: boolean
+  canViewCommitGuard: boolean
+  canViewSpendLeak: boolean
+  canViewTaxBuffer: boolean
+  canViewMarginGuard: boolean
+  canViewRunwayGuard: boolean
+}) {
   const pathname = usePathname()
-  const tabs = canViewSpendLeak
-    ? [...TABS, { href: "/dashboard/spendleak", label: "SpendLeak" }]
-    : TABS
+  const tabs = [
+    ...TABS.filter((tab) => {
+      if (tab.href === "/dashboard/owners-digest") return canViewOwnersDigest
+      if (tab.href === "/dashboard/commitguard") return canViewCommitGuard
+      if (tab.href === "/dashboard/margin-guard") return canViewMarginGuard
+      if (tab.href === "/dashboard/runway-guard") return canViewRunwayGuard
+      return true
+    }),
+    ...(canViewTaxBuffer ? [{ href: "/dashboard/tax-buffer", label: "Tax Buffer" }] : []),
+    ...(canViewSpendLeak ? [{ href: "/dashboard/spendleak", label: "SpendLeak" }] : []),
+  ]
 
   return (
     <nav

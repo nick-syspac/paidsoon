@@ -1,3 +1,5 @@
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
+
 export interface SettingsNavItem {
   href: string
   label: string
@@ -24,17 +26,37 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { href: "/dashboard/settings/email", label: "Email", group: "paidsoon", order: 2 },
   { href: "/dashboard/settings/templates", label: "Templates", group: "paidsoon", order: 3 },
   { href: "/dashboard/settings/import-export", label: "Import / Export", group: "paidsoon", order: 4 },
-  { href: "/dashboard/settings/cost-guard", label: "Cost Guard", group: "costguard", order: 1 },
-  { href: "/dashboard/settings/cash-plan", label: "Forecast settings", group: "cashplan", order: 1 },
+  { href: "/dashboard/settings/owners-digest", label: "Owner's Digest", group: "ownersdigest", order: 1, requiresFeature: "owners_digest_core" },
+  { href: "/dashboard/settings/commitguard", label: "CommitGuard", group: "commitguard", order: 1, requiresFeature: "commitguard_core" },
+  { href: "/dashboard/settings/cost-guard", label: "Cost Guard", group: "costguard", order: 1, requiresFeature: "accounting_integrations" },
+  { href: "/dashboard/settings/margin-guard", label: "MarginGuard", group: "marginguard", order: 1, requiresFeature: "marginguard_core" },
+  { href: "/dashboard/settings/runway-guard", label: "RunwayGuard", group: "runwayguard", order: 1, requiresFeature: "runwayguard_core" },
+  { href: "/dashboard/settings/tax-buffer", label: "Tax Buffer", group: "taxbuffer", order: 1, requiresFeature: "tax_buffer_basic" },
+  { href: "/dashboard/settings/cash-plan", label: "Forecast settings", group: "cashplan", order: 1, requiresFeature: "accounting_integrations" },
 ]
 
 export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   { id: "general", label: "General", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "general") },
   { id: "paidsoon", label: "PaidSoon", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "paidsoon") },
   { id: "spendleak", label: "SpendLeak", items: [] },
+  { id: "ownersdigest", label: "Owner's Digest", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "ownersdigest") },
+  { id: "commitguard", label: "CommitGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "commitguard") },
   { id: "costguard", label: "CostGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "costguard") },
+  { id: "marginguard", label: "MarginGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "marginguard") },
+  { id: "runwayguard", label: "RunwayGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "runwayguard") },
+  { id: "taxbuffer", label: "TaxBuffer", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "taxbuffer") },
   { id: "cashplan", label: "CashPlan", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "cashplan") },
 ]
+
+export function getVisibleSettingsNavGroups(tier: string | null | undefined): SettingsNavGroup[] {
+  return SETTINGS_NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      if (!item.requiresFeature) return true
+      return hasPlanFeature(tier, item.requiresFeature as never)
+    }),
+  })).filter((group) => group.items.length > 0 || group.id === "spendleak")
+}
 
 export function isSettingsItemActive(currentUrl: string, href: string): boolean {
   const current = currentUrl.split("?")[0]

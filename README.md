@@ -2,6 +2,13 @@
 
 Next.js app that follows up on overdue invoices on behalf of freelancers. Connects to Stripe (Connect) to read invoices, sends reminder emails on a configurable schedule via Resend, runs on Vercel with Supabase as the database + auth layer.
 
+The FinOps modules are layered to protect cash flow:
+
+- Cost Guard highlights baseline spend drift and materiality risks.
+- CommitGuard tracks recurring commitments, projects horizon outflows (7/30/60/90), and computes free-cash pressure with configurable safety buffers.
+- Tax Buffer protects statutory reserve cash so free-cash calculations do not spend through tax obligations.
+- CashPlan consumes CommitGuard committed-outflow and free-cash signals for forecast planning.
+
 ## Setting up an environment
 
 All operator setup (Supabase, Stripe, Vercel, Resend) lives in **[docs/runbooks/](docs/runbooks/README.md)**. Start there for:
