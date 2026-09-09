@@ -1,0 +1,45 @@
+---
+title: Connect PaidSoon to Stripe
+description: Connect your Stripe account so PaidSoon can import overdue invoices and keep reminders in sync.
+owner: help-content
+lastVerified: 2026-09-09
+guideSection: integrations
+guideOrder: 1
+---
+
+Connecting Stripe lets PaidSoon detect overdue invoices and include Stripe-hosted payment links in reminder emails.
+
+## Before you start
+
+- You need a Stripe account with permission to authorise connections.
+- You must be signed in to PaidSoon.
+- Each plan has a limit on connected invoice sources (Stripe plus accounting connections combined).
+
+## Steps
+
+1. Go to **Settings → Connections** (`/dashboard/settings/connections`).
+2. In the **Stripe** card, click **Connect Stripe**.
+3. Complete the Stripe OAuth flow and approve access.
+4. You are returned to **Settings → Connections** after authorisation.
+
+## What you'll see
+
+- A success banner appears on return.
+- The Stripe card shows the account as connected.
+- PaidSoon starts importing overdue invoices for that connected source.
+
+## What happens next
+
+- Imported overdue invoices appear in your dashboard and enter your reminder workflow.
+- Reminder emails for Stripe-sourced invoices include a direct payment link when Stripe provides one.
+- You can disconnect Stripe later from the same settings page.
+
+## Common problems
+
+- **Connection was cancelled**: Start the flow again and complete Stripe authorisation.
+- **Connection limit reached**: Disconnect an unused source or upgrade your plan.
+- **No invoices appear yet**: Wait for the initial import, then refresh and review your dashboard.
+
+## Related tutorial
+
+[Import your outstanding invoices](/help/import-outstanding-invoices)
