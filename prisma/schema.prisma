@@ -78,6 +78,11 @@ model UserProfile {
   cashPlanSettings             CashPlanSetting[]
   cashPlanAlerts               CashPlanAlert[]
   cashPlanDataQualityIssues    CashPlanDataQualityIssue[]
+  runwayGuardSettings          RunwayGuardSetting[]
+  runwayGuardSnapshots         RunwayGuardSnapshot[]
+  runwayGuardAlerts            RunwayGuardAlert[]
+  runwayGuardAlertEvents       RunwayGuardAlertEvent[]
+  runwayGuardScenarios         RunwayGuardScenario[]
   commitGuardSettings          CommitGuardSetting[]
   commitments                  Commitment[]
   commitmentDetectionCandidates CommitmentDetectionCandidate[]
@@ -1072,6 +1077,122 @@ model CashPlanDataQualityIssue {
 
   @@index([planId, status, severity])
   @@map("cash_plan_data_quality_issues")
+}
+
+// ---------------------------------------------------------------------------
+// RunwayGuard Foundation
+// ---------------------------------------------------------------------------
+
+model RunwayGuardSetting {
+  id                        String   @id @default(cuid())
+  userId                    String   @map("user_id")
+  enabled                   Boolean  @default(false)
+  horizonDays               Int      @default(180) @map("horizon_days")
+  warningThresholdDays      Int      @default(90) @map("warning_threshold_days")
+  criticalThresholdDays     Int      @default(45) @map("critical_threshold_days")
+  lowConfidenceWeight       Float    @default(0.6) @map("low_confidence_weight")
+  minimumConfidence         Float    @default(0.5) @map("minimum_confidence")
+  alertOnBreach             Boolean  @default(true) @map("alert_on_breach")
+  alertOnRecovery           Boolean  @default(true) @map("alert_on_recovery")
+  notificationDigestMode    String   @default("daily") @map("notification_digest_mode")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("runway_guard_settings")
+}
+
+model RunwayGuardSnapshot {
+  id                       String   @id @default(cuid())
+  userId                   String   @map("user_id")
+  snapshotAt               DateTime @default(now()) @map("snapshot_at")
+  openingCashCents         Int      @default(0) @map("opening_cash_cents")
+  protectedCashCents       Int      @default(0) @map("protected_cash_cents")
+  usableCashCents          Int      @default(0) @map("usable_cash_cents")
+  runwayDays               Int      @default(0) @map("runway_days")
+  projectedExhaustionDay   Int      @default(0) @map("projected_exhaustion_day")
+  status                   String   @default("watch")
+  source                   String   @default("cashplan")
+  confidence               Float    @default(0.5)
+  assumptions              Json?
+  explainability           Json?
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile       @relation(fields: [userId], references: [userId])
+  alerts      RunwayGuardAlert[]
+
+  @@unique([userId, snapshotAt])
+  @@index([userId, snapshotAt])
+  @@index([userId, status])
+  @@map("runway_guard_snapshots")
+}
+
+model RunwayGuardAlert {
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  runwaySnapshotId String?   @map("runway_snapshot_id")
+  alertType        String    @map("alert_type")
+  severity         String    @default("warning")
+  status           String    @default("open")
+  title            String
+  message          String
+  materialityCents Int       @default(0) @map("materiality_cents")
+  metadata         Json?
+  triggeredAt      DateTime  @default(now()) @map("triggered_at")
+  acknowledgedAt   DateTime? @map("acknowledged_at")
+  resolvedAt       DateTime? @map("resolved_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile          @relation(fields: [userId], references: [userId])
+  snapshot    RunwayGuardSnapshot? @relation(fields: [runwaySnapshotId], references: [id], onDelete: SetNull)
+  events      RunwayGuardAlertEvent[]
+
+  @@index([userId, status, severity])
+  @@index([userId, alertType, triggeredAt])
+  @@map("runway_guard_alerts")
+}
+
+model RunwayGuardAlertEvent {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  runwayAlertId String   @map("runway_alert_id")
+  eventType     String   @map("event_type")
+  actorId       String?  @map("actor_id")
+  oldStatus     String?  @map("old_status")
+  newStatus     String?  @map("new_status")
+  reason        String?
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  userProfile UserProfile      @relation(fields: [userId], references: [userId])
+  alert       RunwayGuardAlert @relation(fields: [runwayAlertId], references: [id], onDelete: Cascade)
+
+  @@index([runwayAlertId, createdAt])
+  @@index([userId, createdAt])
+  @@map("runway_guard_alert_events")
+}
+
+model RunwayGuardScenario {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  name         String
+  scenarioType String   @map("scenario_type") // base | conservative | stress | custom
+  inputs       Json
+  outputs      Json
+  assumptions  Json?
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@index([userId, scenarioType])
+  @@index([userId, createdAt])
+  @@map("runway_guard_scenarios")
 }
 
 // ---------------------------------------------------------------------------

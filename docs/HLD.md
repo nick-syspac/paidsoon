@@ -58,6 +58,12 @@ tenant-scoped persistence and RLS policies across all Tax Buffer tables.
 deterministic summary/trend/customer analytics, configurable targets and alerts, snapshot/alert/
 opportunity background sweeps, overview integration, and tenant-scoped CSV/XLSX export datasets.
 
+**RunwayGuard status:** the repository now includes a first-class runway-resilience layer that turns
+usable cash, protected cash, and commitment/cash-plan forecast signals into a simple runway summary,
+status band, confidence score, timeline, driver analysis, and scenario comparison. The module is
+exposure-gated by plan entitlement and includes tenant-scoped settings, snapshot history, and a
+background snapshot sweep for trend visibility.
+
 **There is no multi-vertical platform.** PaidSoon is a single product, single
 tenant-type system (one freelancer = one tenant, keyed by Supabase
 `auth.users.id`). There are no organisations, workspaces, teams, RBAC roles,
@@ -223,6 +229,7 @@ what is actually present, and explicitly marks absent capabilities.
 | Manual invoice actions | Pause / resume / snooze / resolve | Implemented | `app/api/invoices/[id]/**` | `.../specs/dashboard/spec.md` | RLS-scoped |
 | Dashboard | Overdue + resolved views, upsell | Implemented | `app/dashboard/page.tsx`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell/specs/...` | Feature-gated modules |
 | MarginGuard | Margin analytics, threshold alerts, opportunities, and exportable datasets | Implemented | `lib/marginguard/**`, `app/api/margin-guard/**`, `app/api/cron/margin-guard-snapshots/route.ts`, `app/dashboard/margin-guard/**`, `app/dashboard/settings/margin-guard/**` | `changes/implement-marginguard-finops-module` | Overview card on `/dashboard`; cross-module signal integration with SpendLeak, Cost Guard, CommitGuard, and CashPlan while preserving tax-reserve separation |
+| RunwayGuard | Cash-resilience summary, runway timeline, scenario simulation, and threshold-driven alerts | Implemented | `lib/runwayGuard/**`, `app/api/runway-guard/**`, `app/api/cron/runway-guard-snapshots/route.ts`, `app/dashboard/runway-guard/**`, `app/dashboard/settings/runway-guard/**` | `changes/implement-runwayguard-finops-module` | Uses usable cash, protected cash, and cash-plan assumptions to show runway risk, confidence, and exposure with tenant-scoped settings and history |
 | CommitGuard | Commitment registry, detection/review queue, horizon projection, and free-cash guardrails | Implemented | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | `changes/add-commitguard-module` | Bridges spend-side signals to planning by converting recurring commitments into deterministic outflow and free-cash signals |
 | Tax Buffer | Tax reserve control layer and safe-to-spend composition | Implemented | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | `changes/add-tax-buffer-module` | First-time setup suggestions, category-level methods, deduplicated reserve events |
 | Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/restore-three-tier-pricing/specs/...` | 4 tiers: Starter A$9 / Solo A$19 / Small Business A$39 (public) / Accountant Partner (contact us, hidden) |
@@ -240,7 +247,7 @@ what is actually present, and explicitly marks absent capabilities.
 | Audit logging | Structured audit events | **Not present** | — | — | `email_logs` is the only persistent event trail |
 | Internal admin / platform settings | Operator console | **Not present** | — | — | Operators use Supabase/Stripe/Vercel dashboards |
 
-### FinOps progression: Cost Guard -> CommitGuard -> Tax Buffer -> CashPlan
+### FinOps progression: Cost Guard -> CommitGuard -> Tax Buffer -> CashPlan -> RunwayGuard
 
 PaidSoon's spend-control flow now has a clear progression:
 
@@ -250,11 +257,15 @@ PaidSoon's spend-control flow now has a clear progression:
 3. **Tax Buffer** reserves statutory cash and reports tax-protected balances.
 4. **CashPlan** consumes committed-outflow + protected-cash outputs to keep
   planning projections aligned to real obligations.
+5. **RunwayGuard** interprets the resulting forecast as a forecasted runway: usable cash,
+  projected exhaustion, confidence, warning/critical bands, and scenario impacts.
 
 In implementation terms, Cost Guard alerts can deep-link into CommitGuard
 filtered commitment views, CommitGuard can consume Tax Buffer protected-cash
-inputs in its free-cash composition, and CashPlan consumes CommitGuard's
-integration-safe cash projection contract (`/api/commitguard/cashplan`).
+inputs in its free-cash composition, CashPlan consumes CommitGuard's
+integration-safe cash projection contract (`/api/commitguard/cashplan`), and
+RunwayGuard consumes those forecast inputs to calculate the risk posture and
+driver narrative visible on the dashboard and module pages.
 
 ---
 

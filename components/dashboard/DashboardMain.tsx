@@ -13,6 +13,7 @@ const WIDE_ROUTES = [
   "/dashboard/cost-guard",
   "/dashboard/tax-buffer",
   "/dashboard/margin-guard",
+  "/dashboard/runway-guard",
 ]
 
 export function DashboardMain({
@@ -21,12 +22,14 @@ export function DashboardMain({
   canViewSpendLeak,
   canViewTaxBuffer,
   canViewMarginGuard,
+  canViewRunwayGuard,
 }: {
   children: React.ReactNode
   canViewCommitGuard: boolean
   canViewSpendLeak: boolean
   canViewTaxBuffer: boolean
   canViewMarginGuard: boolean
+  canViewRunwayGuard: boolean
 }) {
   const pathname = usePathname()
   const isWide = WIDE_ROUTES.some((route) => pathname.startsWith(route))
@@ -39,6 +42,7 @@ export function DashboardMain({
           canViewSpendLeak={canViewSpendLeak}
           canViewTaxBuffer={canViewTaxBuffer}
           canViewMarginGuard={canViewMarginGuard}
+          canViewRunwayGuard={canViewRunwayGuard}
         />
         <div className="min-w-0 flex-1">{children}</div>
       </div>

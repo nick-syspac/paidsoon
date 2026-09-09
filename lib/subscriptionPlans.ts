@@ -37,6 +37,8 @@ export type SubscriptionFeature =
   | "marginguard_alerts"
   | "marginguard_scenarios"
   | "marginguard_historical_analytics"
+  | "runwayguard_core"
+  | "runwayguard_scenarios"
   | "promise_to_pay_tracking"
   | "dispute_pause"
   | "weekly_summary_email"
@@ -143,6 +145,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       marginguard_alerts: false,
       marginguard_scenarios: false,
       marginguard_historical_analytics: false,
+      runwayguard_core: false,
+      runwayguard_scenarios: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -193,6 +197,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       marginguard_alerts: false,
       marginguard_scenarios: false,
       marginguard_historical_analytics: false,
+      runwayguard_core: true,
+      runwayguard_scenarios: false,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: false,
@@ -244,6 +250,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       marginguard_alerts: true,
       marginguard_scenarios: true,
       marginguard_historical_analytics: true,
+      runwayguard_core: true,
+      runwayguard_scenarios: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -294,6 +302,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       marginguard_alerts: true,
       marginguard_scenarios: true,
       marginguard_historical_analytics: true,
+      runwayguard_core: true,
+      runwayguard_scenarios: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -344,6 +354,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       marginguard_alerts: true,
       marginguard_scenarios: true,
       marginguard_historical_analytics: true,
+      runwayguard_core: true,
+      runwayguard_scenarios: true,
       promise_to_pay_tracking: true,
       dispute_pause: true,
       weekly_summary_email: true,
@@ -521,6 +533,10 @@ function featureToLabel(feature: SubscriptionFeature): string {
       return "Tax Buffer automation"
     case "tax_buffer_custom_reserves":
       return "Custom tax reserves"
+    case "runwayguard_core":
+      return "RunwayGuard"
+    case "runwayguard_scenarios":
+      return "RunwayGuard scenarios"
     case "basic_email_reminders":
       return "Basic email reminders"
     case "team_seats":

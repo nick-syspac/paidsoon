@@ -710,6 +710,110 @@ CREATE POLICY "users can insert own cost guard forecasts"
   WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
+-- runway_guard_settings
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard settings" ON runway_guard_settings;
+CREATE POLICY "users can view own runway guard settings"
+  ON runway_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard settings" ON runway_guard_settings;
+CREATE POLICY "users can insert own runway guard settings"
+  ON runway_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own runway guard settings" ON runway_guard_settings;
+CREATE POLICY "users can update own runway guard settings"
+  ON runway_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_snapshots
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_snapshots ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard snapshots" ON runway_guard_snapshots;
+CREATE POLICY "users can view own runway guard snapshots"
+  ON runway_guard_snapshots FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard snapshots" ON runway_guard_snapshots;
+CREATE POLICY "users can insert own runway guard snapshots"
+  ON runway_guard_snapshots FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own runway guard snapshots" ON runway_guard_snapshots;
+CREATE POLICY "users can update own runway guard snapshots"
+  ON runway_guard_snapshots FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_alerts
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_alerts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard alerts" ON runway_guard_alerts;
+CREATE POLICY "users can view own runway guard alerts"
+  ON runway_guard_alerts FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard alerts" ON runway_guard_alerts;
+CREATE POLICY "users can insert own runway guard alerts"
+  ON runway_guard_alerts FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own runway guard alerts" ON runway_guard_alerts;
+CREATE POLICY "users can update own runway guard alerts"
+  ON runway_guard_alerts FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_alert_events
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_alert_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard alert events" ON runway_guard_alert_events;
+CREATE POLICY "users can view own runway guard alert events"
+  ON runway_guard_alert_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard alert events" ON runway_guard_alert_events;
+CREATE POLICY "users can insert own runway guard alert events"
+  ON runway_guard_alert_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- runway_guard_scenarios
+-- ---------------------------------------------------------------------------
+ALTER TABLE runway_guard_scenarios ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users can view own runway guard scenarios" ON runway_guard_scenarios;
+CREATE POLICY "users can view own runway guard scenarios"
+  ON runway_guard_scenarios FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own runway guard scenarios" ON runway_guard_scenarios;
+CREATE POLICY "users can insert own runway guard scenarios"
+  ON runway_guard_scenarios FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own runway guard scenarios" ON runway_guard_scenarios;
+CREATE POLICY "users can update own runway guard scenarios"
+  ON runway_guard_scenarios FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own runway guard scenarios" ON runway_guard_scenarios;
+CREATE POLICY "users can delete own runway guard scenarios"
+  ON runway_guard_scenarios FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
 -- tax_buffer_configurations
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "users can view own tax buffer configurations" ON tax_buffer_configurations;

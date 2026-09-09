@@ -45,11 +45,16 @@ describe("settings navigation configuration", () => {
     })
 
     assert.deepEqual(groups[6], {
+      label: "RunwayGuard",
+      items: ["RunwayGuard"],
+    })
+
+    assert.deepEqual(groups[7], {
       label: "TaxBuffer",
       items: ["Tax Buffer"],
     })
 
-    assert.deepEqual(groups[7], {
+    assert.deepEqual(groups[8], {
       label: "CashPlan",
       items: ["Forecast settings"],
     })

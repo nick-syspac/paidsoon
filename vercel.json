@@ -19,6 +19,10 @@
     {
       "path": "/api/cron/margin-guard-snapshots",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/runway-guard-snapshots",
+      "schedule": "0 5 * * *"
     }
   ]
 }
