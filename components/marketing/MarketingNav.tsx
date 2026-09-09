@@ -4,17 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRef, useState } from "react"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
-import { getCtaForLiveMode } from "@/components/marketing/marketingContent"
-
-const productLinks = [
-  { label: "PaidSoon", href: "/paidsoon" },
-  { label: "SpendLeak", href: "/spendleak" },
-  { label: "CostGuard", href: "/costguard" },
-  { label: "CashPlan", href: "/cashplan" },
-  { label: "Platform overview", href: "/platform" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Integrations", href: "/integrations" },
-]
+import { getCtaForLiveMode, PRODUCT_LINKS } from "@/components/marketing/marketingContent"
 
 const topLinks = [
   { label: "Resources", href: "/resources" },
@@ -68,7 +58,7 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
             </button>
             {productOpen ? (
               <div className="absolute left-0 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
-                {productLinks.map((link) => (
+                {PRODUCT_LINKS.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
@@ -137,7 +127,7 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
           aria-label="Mobile navigation"
         >
           <p className="text-xs uppercase tracking-wide text-gray-400 px-1">Product</p>
-          {productLinks.map((link) => (
+          {PRODUCT_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}

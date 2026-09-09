@@ -6,9 +6,8 @@ import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageVi
 import {
   getCtaForLiveMode,
   getModuleById,
+  getRelatedModules,
   type MarketingModuleId,
-  MODULE_HREF,
-  PLATFORM_CYCLE,
 } from "@/components/marketing/marketingContent"
 
 export function moduleMetadata(id: MarketingModuleId): Metadata {
@@ -18,11 +17,11 @@ export function moduleMetadata(id: MarketingModuleId): Metadata {
   return {
     title,
     description: `${moduleDef.summary} ${moduleDef.tagline}`,
-    alternates: { canonical: MODULE_HREF[id] },
+    alternates: { canonical: moduleDef.href },
     openGraph: {
       title,
       description: `${moduleDef.summary} ${moduleDef.tagline}`,
-      url: MODULE_HREF[id],
+      url: moduleDef.href,
       type: "website",
     },
   }
@@ -32,11 +31,7 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
   const moduleDef = getModuleById(id)
   const liveMode = isLiveMode()
   const cta = getCtaForLiveMode(liveMode)
-
-  const related = PLATFORM_CYCLE.map((label, index) => ({
-    label,
-    href: Object.values(MODULE_HREF)[index],
-  }))
+  const related = getRelatedModules(id)
 
   return (
     <div className="min-h-screen bg-white">
@@ -44,7 +39,12 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
 
       <section className="mx-auto max-w-5xl px-4 pt-16 pb-12">
         <div className={`rounded-2xl border p-8 md:p-10 ${moduleDef.accentClass}`}>
-          <p className="text-xs uppercase tracking-[0.16em] font-semibold">Module</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs uppercase tracking-[0.16em] font-semibold">Module</p>
+            <span className="rounded-full border border-current/20 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide">
+              {moduleDef.statusLabel}
+            </span>
+          </div>
           <h1 className="mt-3 text-3xl md:text-4xl font-bold">{moduleDef.question}</h1>
           <p className="mt-4 text-base md:text-lg max-w-3xl">{moduleDef.tagline}</p>
           <p className="mt-4 text-sm md:text-base max-w-3xl">{moduleDef.summary}</p>
@@ -115,14 +115,15 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
           <p className="mt-3 text-gray-600">
             {moduleDef.name} is one part of a connected financial control system: get paid, stop waste, control costs, and plan ahead.
           </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((item) => (
               <Link
-                key={item.href}
+                key={item.id}
                 href={item.href}
-                className={`rounded-lg border p-4 text-sm font-medium hover:bg-white ${item.href === MODULE_HREF[id] ? "border-gray-900 bg-white text-gray-900" : "border-gray-200 text-gray-600"}`}
+                className="rounded-lg border border-gray-200 p-4 text-sm font-medium text-gray-600 hover:bg-white"
               >
-                {item.label}
+                <span className="block text-gray-900">{item.name}</span>
+                <span className="mt-1 block text-xs text-gray-500">{item.question}</span>
               </Link>
             ))}
           </div>
