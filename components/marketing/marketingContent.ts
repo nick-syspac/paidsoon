@@ -14,11 +14,23 @@ export type MarketingModuleId =
 
 export type MarketingPlatformAreaId = "get-paid" | "stop-waste" | "control-costs" | "plan-ahead"
 
+export type MarketingCtaStage =
+  | "hero"
+  | "after-problem"
+  | "after-cycle"
+  | "after-modules"
+  | "after-pricing"
+  | "footer"
+
+export type MarketingAvailabilityStatus = "private_beta" | "selected_early_access" | "coming_soon"
+
 export interface MarketingModuleDefinition {
   id: MarketingModuleId
   href: string
   name: string
+  headline: string
   statusLabel: string
+  availabilityStatus: MarketingAvailabilityStatus
   platformArea: MarketingPlatformAreaId
   question: string
   tagline: string
@@ -43,12 +55,101 @@ export interface MarketingPlatformArea {
 export const PLATFORM_TAGLINE =
   "Your accounting software tells you what happened. PaidSoon helps you control what happens next."
 
+export const HOMEPAGE_JOURNEY_ORDER = [
+  "problem",
+  "outcome",
+  "how-it-works",
+  "relevant-modules",
+  "proof",
+  "pricing",
+  "cta",
+] as const
+
+export const AVAILABILITY_STATUS_LABELS: Record<MarketingAvailabilityStatus, string> = {
+  private_beta: "Available in private beta",
+  selected_early_access: "Included in selected early-access plans",
+  coming_soon: "Coming soon",
+}
+
+export const PRIVATE_BETA_POSITIONING =
+  "PaidSoon is in private beta. The platform is functional and available to selected Australian businesses. Public signup is opening soon."
+
+export const MARKETING_CTA_BY_STAGE: Record<MarketingCtaStage, string> = {
+  hero: "Request early access",
+  "after-problem": "See how PaidSoon works",
+  "after-cycle": "Explore the platform",
+  "after-modules": "Find your starting point",
+  "after-pricing": "Request early access",
+  footer: "Talk to us about your business",
+}
+
 export const PLATFORM_CYCLE = [
   "Get paid",
   "Stop waste",
-  "Control costs",
+  "Protect margins",
   "Plan ahead",
 ]
+
+export const SOLUTION_GROUPS = [
+  {
+    id: "get-paid",
+    label: "Get paid",
+    href: "/platform#get-paid",
+  },
+  {
+    id: "stop-waste",
+    label: "Stop waste",
+    href: "/platform#stop-waste",
+  },
+  {
+    id: "control-costs",
+    label: "Control costs",
+    href: "/platform#control-costs",
+  },
+  {
+    id: "plan-cash",
+    label: "Plan cash",
+    href: "/platform#plan-cash",
+  },
+] as const
+
+export const PRACTICAL_CONTROL_GROUPS = [
+  {
+    id: "cash-coming-in",
+    label: "Cash coming in",
+    question: "Which overdue invoices need action this week?",
+    benefit: "Automate respectful follow-ups so receivables move without manual chasing.",
+    moduleIds: ["paidsoon"] as MarketingModuleId[],
+  },
+  {
+    id: "money-going-out",
+    label: "Money going out",
+    question: "Where is avoidable spend draining cash?",
+    benefit: "Surface recurring waste and cost drift before they harden into normal spend.",
+    moduleIds: ["spendleak", "costguard"] as MarketingModuleId[],
+  },
+  {
+    id: "profit-and-commitments",
+    label: "Profit and commitments",
+    question: "Are commitments and margin pressure getting ahead of us?",
+    benefit: "Track obligations and margin deterioration early enough to change decisions.",
+    moduleIds: ["margin-guard", "commitguard"] as MarketingModuleId[],
+  },
+  {
+    id: "cash-planning",
+    label: "Cash planning",
+    question: "Will upcoming bills leave us short of cash?",
+    benefit: "Model near-term cash pressure and protect tax reserves before deadlines become urgent.",
+    moduleIds: ["cashplan", "tax-buffer", "runway-guard"] as MarketingModuleId[],
+  },
+  {
+    id: "business-visibility",
+    label: "Business visibility",
+    question: "What should owners focus on first this week?",
+    benefit: "Summarise the most material cross-module signals into one action-oriented digest.",
+    moduleIds: ["owners-digest"] as MarketingModuleId[],
+  },
+] as const
 
 export const PLATFORM_AREAS: MarketingPlatformArea[] = [
   {
@@ -81,8 +182,10 @@ export const MODULES: MarketingModuleDefinition[] = [
   {
     id: "paidsoon",
     href: "/paidsoon",
-    name: "InvoiceGuard",
-    statusLabel: "Available now",
+    name: "PaidSoon",
+    headline: "Stop chasing overdue invoices manually.",
+    statusLabel: "Available in private beta",
+    availabilityStatus: "private_beta",
     platformArea: "get-paid",
     question: "When will customers pay us?",
     tagline: "Stop chasing invoices. Start managing when you get paid.",
@@ -124,7 +227,9 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "spendleak",
     href: "/spendleak",
     name: "SpendLeak",
-    statusLabel: "Available now",
+    headline: "Find recurring costs quietly draining your business.",
+    statusLabel: "Available in private beta",
+    availabilityStatus: "private_beta",
     platformArea: "stop-waste",
     question: "Where are we wasting money?",
     tagline: "Small expenses become expensive when nobody is watching.",
@@ -166,7 +271,9 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "costguard",
     href: "/costguard",
     name: "CostGuard",
-    statusLabel: "Available now",
+    headline: "Spot cost drift before it erodes your margins.",
+    statusLabel: "Available in private beta",
+    availabilityStatus: "private_beta",
     platformArea: "control-costs",
     question: "Are our costs getting out of control?",
     tagline: "Know when costs are drifting before they damage your margin.",
@@ -208,7 +315,9 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "cashplan",
     href: "/cashplan",
     name: "CashPlan",
-    statusLabel: "Available now",
+    headline: "See whether upcoming bills will leave you short of cash.",
+    statusLabel: "Available in private beta",
+    availabilityStatus: "private_beta",
     platformArea: "plan-ahead",
     question: "Will we have enough cash for what comes next?",
     tagline: "See the cash squeeze before you feel it.",
@@ -251,7 +360,9 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "commitguard",
     href: "/commitguard",
     name: "CommitGuard",
-    statusLabel: "Available now",
+    headline: "Track committed cash before renewals become expensive surprises.",
+    statusLabel: "Included in selected early-access plans",
+    availabilityStatus: "selected_early_access",
     platformArea: "control-costs",
     question: "How much cash is already committed?",
     tagline: "See your committed cash before a renewal, contract, or reserve catches you late.",
@@ -293,7 +404,9 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "owners-digest",
     href: "/owners-digest",
     name: "Owner's Digest",
-    statusLabel: "Available now",
+    headline: "See the week in one owner-level financial briefing.",
+    statusLabel: "Included in selected early-access plans",
+    availabilityStatus: "selected_early_access",
     platformArea: "stop-waste",
     question: "What matters most this week?",
     tagline: "One owner-level briefing across receivables, spend, margin, runway, and risk.",
@@ -335,7 +448,9 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "tax-buffer",
     href: "/tax-buffer",
     name: "Tax Buffer",
-    statusLabel: "Available now",
+    headline: "Protect tax reserves before they get spent elsewhere.",
+    statusLabel: "Included in selected early-access plans",
+    availabilityStatus: "selected_early_access",
     platformArea: "plan-ahead",
     question: "How much cash should stay reserved for tax?",
     tagline: "Protect the tax cash before it is accidentally spent somewhere else.",
@@ -378,7 +493,9 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "margin-guard",
     href: "/margin-guard",
     name: "MarginGuard",
-    statusLabel: "Available now",
+    headline: "Catch margin erosion before it becomes a cash-flow problem.",
+    statusLabel: "Included in selected early-access plans",
+    availabilityStatus: "selected_early_access",
     platformArea: "control-costs",
     question: "Are we still making enough on the work we win?",
     tagline: "Spot margin erosion before it turns into a cash-flow problem.",
@@ -420,7 +537,9 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "runway-guard",
     href: "/runway-guard",
     name: "RunwayGuard",
-    statusLabel: "Available now",
+    headline: "Keep runway pressure visible before urgency takes over.",
+    statusLabel: "Included in selected early-access plans",
+    availabilityStatus: "selected_early_access",
     platformArea: "plan-ahead",
     question: "How much runway do we really have?",
     tagline: "Keep your cash runway visible before pressure becomes urgent.",
@@ -461,6 +580,10 @@ export const MODULES: MarketingModuleDefinition[] = [
   },
 ]
 
+export function getMarketingModuleLabel(module: Pick<MarketingModuleDefinition, "id" | "name">): string {
+  return module.id === "paidsoon" ? "InvoiceGuard" : module.name
+}
+
 export const MODULE_HREF: Record<MarketingModuleId, string> = {
   paidsoon: "/paidsoon",
   spendleak: "/spendleak",
@@ -477,7 +600,7 @@ export const PRODUCT_LINKS = MODULES.map((moduleDef) => ({
   label: moduleDef.name,
   href: moduleDef.href,
 })).concat([
-  { label: "Platform overview", href: "/platform" },
+  { label: "Platform", href: "/platform" },
   { label: "Pricing", href: "/pricing" },
   { label: "Integrations", href: "/integrations" },
 ])
@@ -502,7 +625,59 @@ export function getCtaForLiveMode(liveMode: boolean): { label: string; href: str
   return {
     label: "Request early access",
     href: "/contact",
-    helper: "Join the waitlist and we will help you get set up.",
+    helper: "No accounting system replacement. Start with CSV or connect your accounting software later.",
+  }
+}
+
+export function getJourneyCta(stage: MarketingCtaStage, liveMode: boolean): { label: string; href: string; helper: string } {
+  if (liveMode) {
+    const liveCta = getCtaForLiveMode(true)
+    if (stage === "after-problem") {
+      return { label: "See how PaidSoon works", href: "/how-it-works", helper: liveCta.helper }
+    }
+    if (stage === "after-cycle") {
+      return { label: "Explore the platform", href: "/platform", helper: liveCta.helper }
+    }
+    if (stage === "after-modules") {
+      return { label: "Find your starting point", href: "/pricing", helper: liveCta.helper }
+    }
+    if (stage === "footer") {
+      return { label: "Talk to us about your business", href: "/contact", helper: liveCta.helper }
+    }
+    return liveCta
+  }
+
+  switch (stage) {
+    case "after-problem":
+      return {
+        label: MARKETING_CTA_BY_STAGE[stage],
+        href: "/how-it-works",
+        helper: PRIVATE_BETA_POSITIONING,
+      }
+    case "after-cycle":
+      return {
+        label: MARKETING_CTA_BY_STAGE[stage],
+        href: "/platform",
+        helper: PRIVATE_BETA_POSITIONING,
+      }
+    case "after-modules":
+      return {
+        label: MARKETING_CTA_BY_STAGE[stage],
+        href: "/pricing",
+        helper: PRIVATE_BETA_POSITIONING,
+      }
+    case "footer":
+      return {
+        label: MARKETING_CTA_BY_STAGE[stage],
+        href: "/contact",
+        helper: PRIVATE_BETA_POSITIONING,
+      }
+    default:
+      return {
+        label: MARKETING_CTA_BY_STAGE[stage],
+        href: "/contact",
+        helper: "No accounting system replacement. Start with CSV or connect your accounting software later.",
+      }
   }
 }
 
@@ -513,7 +688,7 @@ export function getIntegrationSupportCopy(): string {
   const live = formatIntegrationNameList(available)
   const upcoming = planned.length > 0 ? `${formatIntegrationNameList(planned)} planned.` : ""
 
-  return `${live} available today. ${upcoming}`.trim()
+  return `${live} available in private beta. ${upcoming}`.trim()
 }
 
 export function getModulesByPlatformArea(areaId: MarketingPlatformAreaId): MarketingModuleDefinition[] {

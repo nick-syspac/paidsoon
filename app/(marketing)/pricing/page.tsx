@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { PricingCTA } from "@/components/pricing/PricingCTA"
+import { PricingIntentSelector } from "@/components/pricing/PricingIntentSelector"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 import {
   getPublicPlans,
@@ -20,6 +21,7 @@ import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
 import { canAccessOwnersDigest } from "@/lib/dashboard/ownersDigestAccess"
 import { canAccessRunwayGuard } from "@/lib/dashboard/runwayGuardAccess"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
+import { PRIVATE_BETA_POSITIONING } from "@/components/marketing/marketingContent"
 
 const publicPlans = getPublicPlans()
 
@@ -39,11 +41,11 @@ export const metadata: Metadata = {
 }
 
 const PLAN_CTA_LABEL: Record<SubscriptionTier, string> = {
-  starter: "Start with Essentials",
-  solo: "Start with Solo",
-  small_business: "Start with Small Business",
-  business_pro: "Start with Business Pro",
-  accountant_partner: "Contact us",
+  starter: "Request early access",
+  solo: "Request early access",
+  small_business: "Request early access",
+  business_pro: "Request early access",
+  accountant_partner: "Request early access",
 }
 
 interface ComparisonRow {
@@ -105,6 +107,13 @@ const comparisonRows: ComparisonRow[] = [
 export default function PricingPage() {
   const liveMode = isLiveMode()
   const defaultCtaHref = liveMode ? "/sign-up" : "/contact?type=early-access"
+  const planNames: Record<SubscriptionTier, string> = {
+    starter: PLAN_CATALOG.starter.name,
+    solo: PLAN_CATALOG.solo.name,
+    small_business: PLAN_CATALOG.small_business.name,
+    business_pro: PLAN_CATALOG.business_pro.name,
+    accountant_partner: PLAN_CATALOG.accountant_partner.name,
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -115,10 +124,12 @@ export default function PricingPage() {
         <p className="mt-4 text-lg text-gray-500">
           {liveMode
             ? "Start your free trial. No credit card required. Cancel any time - no lock-in contracts."
-            : "Pricing is available now. Request early access to start using InvoiceGuard."}
+            : PRIVATE_BETA_POSITIONING}
         </p>
         <p className="mt-2 text-sm text-gray-400">All prices are in AUD and include GST.</p>
       </section>
+
+      <PricingIntentSelector planNames={planNames} />
 
       {/* Plan cards */}
       <section className="max-w-5xl mx-auto px-4 pb-16">
@@ -162,7 +173,7 @@ export default function PricingPage() {
               </div>
               <PricingCTA
                 tier={plan.id}
-                label={liveMode ? PLAN_CTA_LABEL[plan.id] : `Request access for ${plan.name}`}
+                label={liveMode ? `Start with ${plan.name}` : PLAN_CTA_LABEL[plan.id]}
                 featured={plan.popular}
                 href={defaultCtaHref}
                 liveMode={liveMode}
@@ -237,7 +248,7 @@ export default function PricingPage() {
             href={defaultCtaHref}
             className="inline-block bg-white text-blue-600 px-6 py-3 rounded-md text-sm font-semibold hover:bg-blue-50"
           >
-            {liveMode ? "Start Free Trial" : "Request Early Access"}
+            {liveMode ? "Start Free Trial" : "Request early access"}
           </Link>
         </div>
       </section>

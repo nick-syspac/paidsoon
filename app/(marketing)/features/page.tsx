@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 import {
+  getMarketingModuleLabel,
   MODULES,
   PLATFORM_AREAS,
   PLATFORM_TAGLINE,
@@ -33,11 +34,8 @@ export default function FeaturesPage() {
               <div className="mt-5 grid gap-4">
                 {MODULES.filter((module) => area.moduleIds.includes(module.id)).map((module) => (
                   <article key={module.id} className="rounded-xl border border-gray-100 p-5">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-semibold text-gray-900">{module.name}</h3>
-                      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">
-                        {module.statusLabel}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900">{getMarketingModuleLabel(module)}</h3>
                     </div>
                     <p className="mt-2 text-sm text-gray-500 leading-relaxed">{module.summary}</p>
                     <ul className="mt-3 space-y-1 text-sm text-gray-600">
@@ -46,7 +44,7 @@ export default function FeaturesPage() {
                       ))}
                     </ul>
                     <Link href={module.href} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:underline">
-                      Explore {module.name}
+                      Explore {getMarketingModuleLabel(module)}
                     </Link>
                   </article>
                 ))}

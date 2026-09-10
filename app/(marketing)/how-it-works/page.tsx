@@ -1,42 +1,52 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { PRIVATE_BETA_POSITIONING } from "@/components/marketing/marketingContent"
 
 export const metadata: Metadata = {
   title: "How It Works — PaidSoon",
   description:
-    "See how PaidSoon automates invoice follow-ups: connect your accounting software or upload a CSV spreadsheet, import invoices, configure reminders, and let PaidSoon do the rest.",
+    "See how PaidSoon helps small businesses get paid, stop waste, protect margins, and plan cash using one practical operating cycle.",
 }
 
-const steps = [
+const operatingCycle = [
   {
     n: "1",
-    title: "Connect an invoice source — or upload a spreadsheet",
-    body: "Authorise PaidSoon to connect to Stripe, Xero, or MYOB via OAuth — no credentials to share, revocable at any time. Prefer not to connect anything yet? Upload a CSV file of your outstanding invoices instead and get started immediately, on any plan.",
+    title: "Get paid — InvoiceGuard",
+    modules: "InvoiceGuard",
+    body: "Prioritise overdue invoices and automate respectful follow-ups so debtor action is consistent without manual chasing.",
   },
   {
     n: "2",
-    title: "Import your unpaid invoices",
-    body: "If you connected an accounting source, PaidSoon syncs overdue and unpaid invoices automatically on each sync cycle. If you're using spreadsheet import, upload a new file any time to add or update invoices — no integration required.",
+    title: "Stop waste",
+    modules: "SpendLeak",
+    body: "Surface recurring spend leakage and stale subscriptions before they quietly drain operating cash.",
   },
   {
     n: "3",
-    title: "Configure your reminder schedule and templates",
-    body: "Choose when each reminder fires (e.g., 3 days, 10 days, 21 days overdue) and select or customise the reminder template for each stage — friendly, firm, or final notice.",
+    title: "Protect margins",
+    modules: "CostGuard + MarginGuard + CommitGuard",
+    body: "Track cost drift, commitment pressure, and profitability deterioration early enough to adjust pricing, spend, and renewal decisions.",
   },
   {
     n: "4",
-    title: "PaidSoon sends reminders automatically",
-    body: "On schedule, PaidSoon sends professional reminder emails on your behalf. Emails include invoice details, the amount due, and a call to action. You receive a copy for your records.",
+    title: "Plan ahead",
+    modules: "CashPlan + Tax Buffer + RunwayGuard + Owner's Digest",
+    body: "Model upcoming cash pressure, protect tax reserves, monitor runway, and review one owner-level digest so next-week decisions are proactive.",
+  },
+]
+
+const workflow = [
+  {
+    title: "Connect Xero, MYOB, Stripe, or start with CSV",
+    body: "PaidSoon works alongside your accounting system. You can begin with spreadsheet import and connect providers later.",
   },
   {
-    n: "5",
-    title: "Promise-to-pay and disputes are tracked",
-    body: "If a client promises to pay or raises a dispute, record it in PaidSoon. Reminders pause automatically when a commitment is in place, keeping the relationship professional.",
+    title: "See what needs attention this week",
+    body: "The platform surfaces receivables, spend, commitments, margin, tax, and runway signals in one operating rhythm.",
   },
   {
-    n: "6",
-    title: "Weekly debtor summary (coming soon)",
-    body: "After production scheduler activation, PaidSoon will send a weekly summary of outstanding invoices and follow-up stages so you can monitor progress without manual checking.",
+    title: "Take action module by module",
+    body: "Move from invoice follow-up to waste reduction, cost control, and cash planning without switching tools or rebuilding context.",
   },
 ]
 
@@ -46,21 +56,23 @@ export default function HowItWorksPage() {
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-10 text-center">
         <h1 className="text-3xl font-bold text-gray-900">How PaidSoon works</h1>
         <p className="mt-4 text-lg text-gray-500">
-          From connection to payment — the complete workflow, automated.
+          One practical cycle for getting paid, stopping waste, protecting margins, and planning cash.
         </p>
+        <p className="mt-3 text-sm text-gray-500">{PRIVATE_BETA_POSITIONING}</p>
       </section>
 
       <section className="max-w-3xl mx-auto px-4 pb-16">
         <ol className="space-y-10">
-          {steps.map((step, i) => (
+          {operatingCycle.map((step, i) => (
             <li key={step.n} className="flex gap-6">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg">
                 {step.n}
               </div>
               <div className="pt-1">
                 <h2 className="font-semibold text-gray-900 text-lg mb-1">{step.title}</h2>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{step.modules}</p>
                 <p className="text-gray-500 text-sm leading-relaxed">{step.body}</p>
-                {i < steps.length - 1 && (
+                {i < operatingCycle.length - 1 && (
                   <div className="mt-4 ml-[-2.75rem] pl-[2.75rem] border-l-2 border-dashed border-blue-100 h-4" />
                 )}
               </div>
@@ -69,14 +81,26 @@ export default function HowItWorksPage() {
         </ol>
       </section>
 
+      <section className="max-w-4xl mx-auto px-4 pb-16">
+        <h2 className="text-2xl font-bold text-gray-900 text-center">What this looks like week to week</h2>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {workflow.map((item) => (
+            <article key={item.title} className="rounded-xl border border-gray-200 p-5">
+              <h3 className="font-semibold text-gray-900">{item.title}</h3>
+              <p className="mt-2 text-sm text-gray-600">{item.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="bg-blue-600 py-16">
         <div className="max-w-2xl mx-auto px-4 text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Start automating your follow-ups today</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">Start with the financial problem that matters most.</h2>
           <Link
-            href="/pricing"
+            href="/contact?type=early-access"
             className="inline-block bg-white text-blue-600 px-6 py-3 rounded-md text-sm font-semibold hover:bg-blue-50"
           >
-            View pricing →
+            Request early access
           </Link>
         </div>
       </section>
