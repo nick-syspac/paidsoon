@@ -5,12 +5,12 @@ import type { SubscriptionTier } from "@/lib/subscriptionPlans"
 
 const TIER_LABELS: Record<string, string> = {
   starter: "Starter",
-  solo: "Solo",
+  solo: "Business Control",
   small_business: "Small Business",
   business_pro: "Business Pro",
   accountant_partner: "Accountant Partner",
   free: "Starter",
-  pro: "Solo",
+  pro: "Business Control",
 }
 
 const STATUS_LABELS: Record<string, string> = {

@@ -113,7 +113,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     name: "Essentials",
     monthlyPriceAud: 15,
     visibility: "public",
-    tagline: "A focused entry point for a growing cash-control workflow.",
+    tagline: "Start controlling invoices and cash risks.",
     limits: {
       chasedInvoicesPerMonth: 10,
       userSeats: 1,
@@ -165,10 +165,10 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
   },
   solo: {
     id: "solo",
-    name: "Solo",
+    name: "Business Control",
     monthlyPriceAud: 29,
     visibility: "public",
-    tagline: "The first complete control layer for a solo operation.",
+    tagline: "Complete financial visibility for owner-operated businesses.",
     limits: {
       chasedInvoicesPerMonth: 50,
       userSeats: 1,
@@ -224,7 +224,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     monthlyPriceAud: 69,
     visibility: "public",
     popular: true,
-    tagline: "The recommended plan for a growing small business team.",
+    tagline: "Automation and collaboration for growing teams.",
     limits: {
       chasedInvoicesPerMonth: 250,
       userSeats: 3,
@@ -279,7 +279,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     name: "Business Pro",
     monthlyPriceAud: 149,
     visibility: "public",
-    tagline: "Advanced governance, multi-entity visibility, and cash forecasting.",
+    tagline: "Advanced forecasting, governance and multi-entity control.",
     limits: {
       chasedInvoicesPerMonth: 1000,
       userSeats: 10,
@@ -387,7 +387,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
 }
 
 /** Ordered lowest to highest, reflecting the recommended customer-facing ladder
- * of Essentials → Solo → Small Business → Business Pro, with the hidden
+ * of Essentials → Business Control → Small Business → Business Pro, with the hidden
  * contact-only tier at the end. */
 export const PLAN_ORDER: SubscriptionTier[] = [
   "starter",

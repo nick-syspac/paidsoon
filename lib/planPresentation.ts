@@ -30,10 +30,10 @@ export function lowestTierWithFeature(feature: SubscriptionFeature): Subscriptio
 }
 
 export const PLAN_TAGLINE: Record<SubscriptionTier, string> = {
-  starter: "Essentials: Start controlling receivables and committed cash.",
-  solo: "Solo: Add visibility for a one-person business.",
-  small_business: "Small Business: Complete financial control for a growing team.",
-  business_pro: "Business Pro: Higher capacity and advanced controls.",
+  starter: "Essentials: Start controlling invoices and cash risks.",
+  solo: "Business Control: Complete financial visibility for owner-operated businesses.",
+  small_business: "Small Business: Automation and collaboration for growing teams.",
+  business_pro: "Business Pro: Advanced forecasting, governance and multi-entity control.",
   accountant_partner: "For bookkeepers and accountants managing invoice follow-ups across multiple clients.",
 }
 

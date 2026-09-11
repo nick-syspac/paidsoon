@@ -9,8 +9,8 @@ import { CustomerInvoiceActions } from "@/components/admin/CustomerInvoiceAction
 const TIER_LABELS: Record<string, string> = {
   free: "Starter",
   starter: "Starter",
-  pro: "Solo",
-  solo: "Solo",
+  pro: "Business Control",
+  solo: "Business Control",
   small_business: "Small Business",
   business_pro: "Business Pro",
   accountant_partner: "Accountant Partner",

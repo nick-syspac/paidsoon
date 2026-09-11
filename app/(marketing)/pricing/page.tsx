@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     openGraph: {
       title: "Pricing - PaidSoon",
       description:
-        "Compare Essentials, Solo, Small Business, and Business Pro plans across receivables, commitments, tax, margin, digest, and runway controls.",
+        "Compare Essentials, Business Control, Small Business, and Business Pro plans across receivables, commitments, tax, margin, digest, and runway controls.",
       url: "/pricing",
       type: "website",
     },

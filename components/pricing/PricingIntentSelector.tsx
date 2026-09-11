@@ -21,7 +21,7 @@ const INTENTS: PricingIntent[] = [
     id: "reduce-spend",
     label: "I want to reduce unnecessary spending",
     recommendedTier: "solo",
-    reason: "Solo adds stronger visibility across recurring spend, owner summaries, and control signals.",
+    reason: "Business Control adds stronger visibility across recurring spend, owner summaries, and control signals.",
   },
   {
     id: "cash-visibility",

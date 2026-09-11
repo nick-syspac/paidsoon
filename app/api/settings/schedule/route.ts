@@ -42,7 +42,7 @@ export async function PUT(request: Request) {
   )
   if (!hasReminderSequenceAccess) {
     return NextResponse.json(
-      { error: "Solo or Small Business subscription required" },
+      { error: "Business Control or Small Business subscription required" },
       { status: 403 }
     )
   }

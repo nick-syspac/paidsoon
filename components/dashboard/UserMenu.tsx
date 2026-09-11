@@ -5,12 +5,12 @@ import Link from "next/link"
 
 const TIER_LABELS: Record<string, string> = {
   starter: "Starter",
-  solo: "Solo",
+  solo: "Business Control",
   small_business: "Small Business",
   business_pro: "Business Pro",
   accountant_partner: "Accountant Partner",
   free: "Starter",
-  pro: "Solo",
+  pro: "Business Control",
 }
 
 function getInitials(displayName: string | null, email: string): string {

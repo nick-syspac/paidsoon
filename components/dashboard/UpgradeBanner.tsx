@@ -64,7 +64,7 @@ export function UpgradeBanner({
         disabled={loading}
         className="shrink-0 bg-amber-600 text-white text-sm px-3 py-1.5 rounded-md hover:bg-amber-700 disabled:opacity-50"
       >
-        {loading ? "Loading..." : "Upgrade to Solo — $19/mo"}
+        {loading ? "Loading..." : "Upgrade to Business Control — $29/mo"}
       </button>
     </div>
   )

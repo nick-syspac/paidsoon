@@ -53,13 +53,13 @@ export async function PUT(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  // Reply-to configuration is available on Solo and above (custom_reply_to).
+  // Reply-to configuration is available on Business Control and above (custom_reply_to).
   // Setting a custom sender name or a verified custom from-domain is gated
   // separately below, per-field, in line with the sender-identity ladder.
   const hasCustomReplyTo = await requireFeature(user.id, "custom_reply_to")
   if (!hasCustomReplyTo) {
     return NextResponse.json(
-      { error: "A Solo or Small Business subscription is required to set a custom reply-to" },
+      { error: "A Business Control or Small Business subscription is required to set a custom reply-to" },
       { status: 403 }
     )
   }
@@ -98,7 +98,7 @@ export async function PUT(request: Request) {
   })
 
   // Trigger Resend sender verification only for tiers with a verified custom
-  // from-domain — Starter/Solo may store fromEmail/fromName, but resolveFromAddress
+  // from-domain — Starter/Business Control may store fromEmail/fromName, but resolveFromAddress
   // in lib/email/send.ts never uses them for sending unless this feature is present.
   const canUseVerifiedDomain = await requireFeature(user.id, "verified_from_domain")
   if (emailChanged && canUseVerifiedDomain) {

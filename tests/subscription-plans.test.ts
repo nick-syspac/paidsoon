@@ -14,8 +14,9 @@ import {
 } from "@/lib/subscriptionPlans"
 import { planHighlights } from "@/lib/planPresentation"
 
-test("plan catalog includes Essentials, Solo, Small Business, Business Pro, and Accountant Partner pricing", () => {
-  assert.equal(PLAN_CATALOG.starter.monthlyPriceAud, 15)
+test("plan catalog includes Essentials, Business Control, Small Business, Business Pro, and Accountant Partner pricing", () => {
+  assert.equal(PLAN_CATALOG.starter.name, "Essentials")
+  assert.equal(PLAN_CATALOG.solo.name, "Business Control")
   assert.equal(PLAN_CATALOG.solo.monthlyPriceAud, 29)
   assert.equal(PLAN_CATALOG.small_business.monthlyPriceAud, 69)
   assert.equal(PLAN_CATALOG.business_pro.monthlyPriceAud, 149)
@@ -142,7 +143,9 @@ test("explicit plan selector choice overrides query intent and current tier", ()
   assert.equal(resolvePlanSelectorTier("solo", "small_business", "starter"), "starter")
 })
 
-test("Small Business is marked as the popular plan in the public pricing story", () => {
+test("Small Business remains the popular plan while solo stays the stable internal identifier", () => {
+  assert.equal(PLAN_CATALOG.solo.id, "solo")
+  assert.equal(PLAN_CATALOG.solo.name, "Business Control")
   assert.equal(PLAN_CATALOG.small_business.popular, true)
   assert.ok(!PLAN_CATALOG.solo.popular)
   assert.ok(!PLAN_CATALOG.starter.popular)
