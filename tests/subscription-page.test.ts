@@ -58,7 +58,7 @@ describe("Subscription settings page", () => {
   beforeEach(() => {
     mockUser = { id: "user-123" }
     mockProfile = {
-      subscriptionTier: "solo",
+      subscriptionTier: "business_control",
       subscriptionStatus: "active",
       subscriptionCurrentPeriodEnd: new Date("2026-09-12T00:00:00.000Z"),
       subscriptionCancelAt: null,
@@ -70,7 +70,7 @@ describe("Subscription settings page", () => {
 
   test("passes scheduled cancellation data and success copy to SubscriptionClient", async () => {
     mockProfile = {
-      subscriptionTier: "solo",
+      subscriptionTier: "business_control",
       subscriptionStatus: "active",
       subscriptionCurrentPeriodEnd: new Date("2026-09-12T00:00:00.000Z"),
       subscriptionCancelAt: new Date("2026-09-12T00:00:00.000Z"),
@@ -92,7 +92,7 @@ describe("Subscription settings page", () => {
 
   test("passes trial-only state without cancel capability", async () => {
     mockProfile = {
-      subscriptionTier: "starter",
+      subscriptionTier: "essentials",
       subscriptionStatus: "trialing",
       subscriptionCurrentPeriodEnd: null,
       subscriptionCancelAt: null,

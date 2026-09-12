@@ -30,7 +30,7 @@ describe("sendFollowUpEmail — EmailLog body persistence", () => {
       namedExports: {
         prismaAdmin: {
           userProfile: {
-            findUnique: async () => ({ subscriptionTier: "starter" }),
+            findUnique: async () => ({ subscriptionTier: "essentials" }),
           },
           emailSettings: {
             findUnique: async () => null,

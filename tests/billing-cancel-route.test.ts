@@ -102,7 +102,7 @@ describe("POST /api/billing/cancel", () => {
     mockProfile = {
       userId: "user_123",
       subscriptionStatus: "active",
-      subscriptionTier: "starter",
+      subscriptionTier: "essentials",
       stripeCustomerId: "cus_123",
       stripeSubscriptionId: null,
       subscriptionCurrentPeriodEnd: null,
@@ -154,7 +154,7 @@ describe("POST /api/billing/cancel", () => {
     mockProfile = {
       userId: "user_123",
       subscriptionStatus: "active",
-      subscriptionTier: "solo",
+      subscriptionTier: "business_control",
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       subscriptionCurrentPeriodEnd: null,
@@ -173,7 +173,7 @@ describe("POST /api/billing/cancel", () => {
     mockProfile = {
       userId: "user_123",
       subscriptionStatus: "trialing",
-      subscriptionTier: "starter",
+      subscriptionTier: "essentials",
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       subscriptionCurrentPeriodEnd: null,
@@ -192,7 +192,7 @@ describe("POST /api/billing/cancel", () => {
       where: { userId: "user_123" },
       data: {
         subscriptionStatus: "cancelled",
-        subscriptionTier: "starter",
+        subscriptionTier: "essentials",
         trialEndsAt: null,
         subscriptionCancelAt: null,
         pendingDowngradeTier: null,

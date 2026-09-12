@@ -14,10 +14,12 @@ export interface CustomerSearchResult {
 }
 
 const TIER_LABELS: Record<string, string> = {
-  free: "Starter",
-  starter: "Starter",
+  free: "Essentials",
+  starter: "Essentials",
+  essentials: "Essentials",
   pro: "Business Control",
   solo: "Business Control",
+  business_control: "Business Control",
   small_business: "Small Business",
   business_pro: "Business Pro",
   accountant_partner: "Accountant Partner",

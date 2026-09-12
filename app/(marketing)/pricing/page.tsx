@@ -41,8 +41,8 @@ export const metadata: Metadata = {
 }
 
 const PLAN_CTA_LABEL: Record<SubscriptionTier, string> = {
-  starter: "Request early access",
-  solo: "Request early access",
+  essentials: "Request early access",
+  business_control: "Request early access",
   small_business: "Request early access",
   business_pro: "Request early access",
   accountant_partner: "Request early access",
@@ -108,8 +108,8 @@ export default function PricingPage() {
   const liveMode = isLiveMode()
   const defaultCtaHref = liveMode ? "/sign-up" : "/contact?type=early-access"
   const planNames: Record<SubscriptionTier, string> = {
-    starter: PLAN_CATALOG.starter.name,
-    solo: PLAN_CATALOG.solo.name,
+    essentials: PLAN_CATALOG.essentials.name,
+    business_control: PLAN_CATALOG.business_control.name,
     small_business: PLAN_CATALOG.small_business.name,
     business_pro: PLAN_CATALOG.business_pro.name,
     accountant_partner: PLAN_CATALOG.accountant_partner.name,

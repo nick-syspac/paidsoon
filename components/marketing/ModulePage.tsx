@@ -15,7 +15,7 @@ import { canAccessOwnersDigest } from "@/lib/dashboard/ownersDigestAccess"
 import { canAccessRunwayGuard } from "@/lib/dashboard/runwayGuardAccess"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
 
-const PUBLIC_TIERS: SubscriptionTier[] = ["starter", "solo", "small_business", "business_pro"]
+const PUBLIC_TIERS: SubscriptionTier[] = ["essentials", "business_control", "small_business", "business_pro"]
 
 function isModuleIncludedOnTier(id: MarketingModuleId, tier: SubscriptionTier): boolean {
   if (id === "paidsoon" || id === "spendleak" || id === "costguard" || id === "commitguard") {

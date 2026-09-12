@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 
 const TIER_LABELS: Record<string, string> = {
-  starter: "Starter",
+  starter: "Essentials",
+  essentials: "Essentials",
   solo: "Business Control",
+  business_control: "Business Control",
   small_business: "Small Business",
   business_pro: "Business Pro",
   accountant_partner: "Accountant Partner",
-  free: "Starter",
+  free: "Essentials",
   pro: "Business Control",
 }
 

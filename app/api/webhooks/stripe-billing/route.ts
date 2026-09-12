@@ -12,10 +12,10 @@ import Stripe from "stripe"
 
 const PRICE_ID_TO_TIER: Record<string, SubscriptionTier> = {
   ...(process.env.STRIPE_STARTER_PRICE_ID
-    ? { [process.env.STRIPE_STARTER_PRICE_ID]: "starter" as const }
+    ? { [process.env.STRIPE_STARTER_PRICE_ID]: "essentials" as const }
     : {}),
   ...(process.env.STRIPE_SOLO_PRICE_ID
-    ? { [process.env.STRIPE_SOLO_PRICE_ID]: "solo" as const }
+    ? { [process.env.STRIPE_SOLO_PRICE_ID]: "business_control" as const }
     : {}),
   ...(process.env.STRIPE_SMALL_BUSINESS_PRICE_ID
     ? { [process.env.STRIPE_SMALL_BUSINESS_PRICE_ID]: "small_business" as const }
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
         where: { stripeCustomerId: subscription.customer as string },
       })
       if (profile) {
-        // Revert to starter tier
+        // Revert to essentials tier
         await prisma.userProfile.update({
           where: { userId: profile.userId },
           data: {
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
           },
         })
 
-        // Pause invoices over starter limit.
+        // Pause invoices over essentials limit.
         const starterLimit = getInvoiceLimitForTier(DEFAULT_SUBSCRIPTION_TIER)
         const activeInvoices = await prisma.trackedInvoice.findMany({
           where: {

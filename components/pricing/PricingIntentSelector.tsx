@@ -14,13 +14,13 @@ const INTENTS: PricingIntent[] = [
   {
     id: "get-paid",
     label: "I need to get invoices paid",
-    recommendedTier: "starter",
+    recommendedTier: "essentials",
     reason: "Essentials gives you a practical receivables and committed-cash starting point.",
   },
   {
     id: "reduce-spend",
     label: "I want to reduce unnecessary spending",
-    recommendedTier: "solo",
+    recommendedTier: "business_control",
     reason: "Business Control adds stronger visibility across recurring spend, owner summaries, and control signals.",
   },
   {

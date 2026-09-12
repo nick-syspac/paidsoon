@@ -30,8 +30,8 @@ export function lowestTierWithFeature(feature: SubscriptionFeature): Subscriptio
 }
 
 export const PLAN_TAGLINE: Record<SubscriptionTier, string> = {
-  starter: "Essentials: Start controlling invoices and cash risks.",
-  solo: "Business Control: Complete financial visibility for owner-operated businesses.",
+  essentials: "Essentials: Start controlling invoices and cash risks.",
+  business_control: "Business Control: Complete financial visibility for owner-operated businesses.",
   small_business: "Small Business: Automation and collaboration for growing teams.",
   business_pro: "Business Pro: Advanced forecasting, governance and multi-entity control.",
   accountant_partner: "For bookkeepers and accountants managing invoice follow-ups across multiple clients.",
@@ -72,7 +72,7 @@ export function planHighlights(tier: SubscriptionTier): string[] {
       : `Up to ${plan.limits.chasedInvoicesPerMonth} chased invoices per month`
 
   switch (tier) {
-    case "starter":
+    case "essentials":
       return [
         "InvoiceGuard receivables control",
         "SpendLeak spend monitoring",
@@ -80,7 +80,7 @@ export function planHighlights(tier: SubscriptionTier): string[] {
         "Tax Buffer reserve planning",
         allowanceLabel,
       ]
-    case "solo":
+    case "business_control":
       return [
         "Everything in Essentials",
         "SpendLeak spend monitoring",

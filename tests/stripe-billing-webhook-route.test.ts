@@ -131,7 +131,7 @@ describe("Stripe billing webhook", () => {
     findFirstProfile = {
       userId: "user_1",
       stripeCustomerId: "cus_123",
-      subscriptionTier: "solo",
+      subscriptionTier: "business_control",
       pendingDowngradeTier: null,
     }
     subscriptionRetrieveResponse = {
@@ -162,7 +162,7 @@ describe("Stripe billing webhook", () => {
     assert.deepEqual(updateCalls[0], {
       where: { userId: "user_1" },
       data: {
-        subscriptionTier: "solo",
+        subscriptionTier: "business_control",
         subscriptionStatus: "active",
         stripeSubscriptionId: "sub_123",
         subscriptionCurrentPeriodStart: new Date(1733356800 * 1000),
@@ -176,7 +176,7 @@ describe("Stripe billing webhook", () => {
     findFirstProfile = {
       userId: "user_1",
       stripeCustomerId: "cus_123",
-      subscriptionTier: "solo",
+      subscriptionTier: "business_control",
       pendingDowngradeTier: null,
     }
     subscriptionRetrieveResponse = {
@@ -207,7 +207,7 @@ describe("Stripe billing webhook", () => {
     assert.deepEqual(updateCalls[0], {
       where: { userId: "user_1" },
       data: {
-        subscriptionTier: "solo",
+        subscriptionTier: "business_control",
         subscriptionStatus: "active",
         stripeSubscriptionId: "sub_123",
         subscriptionCurrentPeriodStart: new Date(1733356800 * 1000),
@@ -238,7 +238,7 @@ describe("Stripe billing webhook", () => {
     assert.deepEqual(updateCalls[0], {
       where: { userId: "user_1" },
       data: {
-        subscriptionTier: "starter",
+        subscriptionTier: "essentials",
         subscriptionStatus: "cancelled",
         subscriptionCancelAt: null,
       },

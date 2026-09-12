@@ -1,6 +1,6 @@
 export type SubscriptionTier =
-  | "starter"
-  | "solo"
+  | "essentials"
+  | "business_control"
   | "small_business"
   | "business_pro"
   | "accountant_partner"
@@ -105,11 +105,11 @@ export interface PlanDefinition {
   features: Record<SubscriptionFeature, boolean>
 }
 
-export const DEFAULT_SUBSCRIPTION_TIER: SubscriptionTier = "starter"
+export const DEFAULT_SUBSCRIPTION_TIER: SubscriptionTier = "essentials"
 
 export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
-  starter: {
-    id: "starter",
+  essentials: {
+    id: "essentials",
     name: "Essentials",
     monthlyPriceAud: 15,
     visibility: "public",
@@ -163,8 +163,8 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       multi_client_management: false,
     },
   },
-  solo: {
-    id: "solo",
+  business_control: {
+    id: "business_control",
     name: "Business Control",
     monthlyPriceAud: 29,
     visibility: "public",
@@ -390,12 +390,17 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
  * of Essentials → Business Control → Small Business → Business Pro, with the hidden
  * contact-only tier at the end. */
 export const PLAN_ORDER: SubscriptionTier[] = [
-  "starter",
-  "solo",
+  "essentials",
+  "business_control",
   "small_business",
   "business_pro",
   "accountant_partner",
 ]
+
+const LEGACY_TIER_ALIASES: Record<string, SubscriptionTier> = {
+  starter: "essentials",
+  solo: "business_control",
+}
 
 function isSubscriptionTier(tier: string): tier is SubscriptionTier {
   return Object.prototype.hasOwnProperty.call(PLAN_CATALOG, tier)
@@ -403,6 +408,9 @@ function isSubscriptionTier(tier: string): tier is SubscriptionTier {
 
 export function normalizeSubscriptionTier(tier?: string | null): SubscriptionTier {
   if (!tier) return DEFAULT_SUBSCRIPTION_TIER
+  if (Object.prototype.hasOwnProperty.call(LEGACY_TIER_ALIASES, tier)) {
+    return LEGACY_TIER_ALIASES[tier]
+  }
   if (isSubscriptionTier(tier)) return tier
   return DEFAULT_SUBSCRIPTION_TIER
 }
@@ -430,9 +438,16 @@ export function getPublicPlans(): PlanDefinition[] {
 export function getPublicPlanSelectionIntent(
   tier?: string | null,
 ): SubscriptionTier | undefined {
-  if (!tier || !isSubscriptionTier(tier)) return undefined
+  if (!tier) return undefined
+  let resolvedTier: SubscriptionTier | undefined
+  if (isSubscriptionTier(tier)) {
+    resolvedTier = tier
+  } else if (Object.prototype.hasOwnProperty.call(LEGACY_TIER_ALIASES, tier)) {
+    resolvedTier = LEGACY_TIER_ALIASES[tier]
+  }
+  if (!resolvedTier) return undefined
 
-  const plan = PLAN_CATALOG[tier]
+  const plan = PLAN_CATALOG[resolvedTier]
   return plan.visibility === "public" ? plan.id : undefined
 }
 

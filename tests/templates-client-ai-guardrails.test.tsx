@@ -48,7 +48,7 @@ describe("TemplatesClient AI guardrail UI", () => {
         canRewrite={false}
         initialRemainingMonthlyCredits={12}
         data={{
-          tier: "starter",
+          tier: "essentials",
           templates: [{ id: "gentle-reminder", label: "Gentle reminder" }],
           canCustomize: true,
           stage: 1,

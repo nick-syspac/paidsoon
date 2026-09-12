@@ -13,8 +13,8 @@ const bodySchema = z
   .optional()
 
 const PRICE_ID_BY_TIER: Record<SubscriptionTier, string | undefined> = {
-  starter: process.env.STRIPE_STARTER_PRICE_ID,
-  solo: process.env.STRIPE_SOLO_PRICE_ID,
+  essentials: process.env.STRIPE_STARTER_PRICE_ID,
+  business_control: process.env.STRIPE_SOLO_PRICE_ID,
   small_business: process.env.STRIPE_SMALL_BUSINESS_PRICE_ID,
   business_pro: process.env.STRIPE_BUSINESS_PRO_PRICE_ID,
   accountant_partner: undefined,  // contact-us pricing; not via Stripe Checkout

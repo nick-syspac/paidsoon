@@ -32,7 +32,7 @@ function makeProfile(overrides: Partial<UserProfile> = {}): UserProfile {
     subscriptionCancelAt: null,
     pendingDowngradeTier: null,
     stripeScheduleId: null,
-    subscriptionTier: "starter",
+    subscriptionTier: "essentials",
     subscriptionStatus: "active",
     trialEndsAt: null,
     onboardingCompletedAt: new Date("2026-01-01"),

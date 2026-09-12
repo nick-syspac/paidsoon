@@ -139,7 +139,7 @@ const ACCOUNTS = {
     email: "bookkeeper@coastline-demo.test",
     displayName: "Marcus Petrides",
     businessName: "Coastline Plumbing — Bookkeeping",
-    tier: "starter",
+    tier: "essentials",
   },
   /** Second organisation — small data set, used for tenant-isolation / RLS testing. */
   secondOrg: {

@@ -100,7 +100,7 @@ describe("GET /api/spendleak/export", () => {
   })
 
   test("returns 403 when plan lacks csv_export", async () => {
-    mockSubscriptionTier = "solo"
+    mockSubscriptionTier = "business_control"
     const response = await GET(makeRequest("format=csv"))
     assert.equal(response.status, 403)
   })

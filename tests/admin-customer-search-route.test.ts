@@ -28,7 +28,7 @@ const profiles = [
   {
     userId: "user-1",
     displayName: "Alice",
-    subscriptionTier: "starter",
+    subscriptionTier: "essentials",
     subscriptionStatus: "active",
     stripeCustomerId: null,
     createdAt: new Date("2026-08-01T00:00:00.000Z"),
@@ -36,7 +36,7 @@ const profiles = [
   {
     userId: "user-2",
     displayName: "Bob",
-    subscriptionTier: "solo",
+    subscriptionTier: "business_control",
     subscriptionStatus: "trialing",
     stripeCustomerId: "cus_123",
     createdAt: new Date("2026-08-02T00:00:00.000Z"),

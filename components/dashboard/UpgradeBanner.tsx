@@ -22,7 +22,7 @@ export function UpgradeBanner({
     const res = await fetch("/api/billing/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tier: "solo" }),
+      body: JSON.stringify({ tier: "business_control" }),
     })
     const data = await res.json()
     if (data.url) {
