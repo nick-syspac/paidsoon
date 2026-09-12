@@ -101,8 +101,13 @@ export async function resolveCheckoutCompletion(
   tier: SubscriptionTier
   subscriptionId: string
   customerId: string
+  status: Stripe.Subscription.Status
+  priceId: string | null
   periodStart: Date | null
   periodEnd: Date | null
+  trialEndsAt: Date | null
+  subscriptionCancelAt: Date | null
+  subscriptionCancelAtPeriodEnd: boolean
 } | null> {
   if (!session.subscription) return null
 
@@ -121,13 +126,24 @@ export async function resolveCheckoutCompletion(
   const periodEnd = latestInvoice?.period_end
     ? new Date(latestInvoice.period_end * 1000)
     : null
+  const trialEndsAt = subscription.trial_end
+    ? new Date(subscription.trial_end * 1000)
+    : null
+  const subscriptionCancelAt = subscription.cancel_at
+    ? new Date(subscription.cancel_at * 1000)
+    : null
 
   return {
     tier,
     subscriptionId,
     customerId: session.customer as string,
+    status: subscription.status,
+    priceId: subscription.items.data[0]?.price?.id ?? null,
     periodStart,
     periodEnd,
+    trialEndsAt,
+    subscriptionCancelAt,
+    subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
   }
 }
 
@@ -217,7 +233,8 @@ export interface AllowanceAccountSnapshot {
  * Resolves the window over which an account's chase-volume allowance usage
  * is measured. Resolution order (see design.md decision 3):
  *   1. Active billing period — `subscriptionCurrentPeriodStart/End`, when both are set.
- *   2. Trial window — account creation to `trialEndsAt`, when trialing.
+ *   2. Trial window — account creation to `trialEndsAt`, when trialing and
+ *      the synchronized trial end is still in the future.
  *   3. Fallback — the current calendar month in Australia/Melbourne.
  */
 export function resolveAllowancePeriod(
@@ -231,7 +248,11 @@ export function resolveAllowancePeriod(
     }
   }
 
-  if (account.subscriptionStatus === "trialing" && account.trialEndsAt) {
+  if (
+    account.subscriptionStatus === "trialing" &&
+    account.trialEndsAt &&
+    account.trialEndsAt > now
+  ) {
     return { start: account.createdAt, end: account.trialEndsAt }
   }
 

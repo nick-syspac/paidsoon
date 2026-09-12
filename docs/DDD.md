@@ -594,7 +594,7 @@ enforced server-side before content is returned.
 | `GET /api/stripe/connect/authorize` | `.../authorize/route.ts` | — | session | `withUserContext` count | → redirect to Stripe | Implemented |
 | `GET /api/stripe/connect/callback` | `.../callback/route.ts` | query `code,state` | session + `state==user.id` | `withUserContext` upsert | → redirect to settings | Implemented |
 | `POST /api/stripe/connect/disconnect` | `.../disconnect/route.ts` | optional `{connectionId}` | session | `withUserContext` | → `{success}` | Implemented |
-| `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` by `stripeCustomerId` | Stripe event → `{received}` | Implemented (no `payment_failed`) |
+| `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` + durable event dedupe | Stripe event → `{received}` | Implemented — handles `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.trial_will_end`; enforces stale-event guard by `event.created` watermark |
 | `POST /api/webhooks/stripe-connect` | `.../stripe-connect/route.ts` | provider signature | signature | `prismaAdmin` by account id | Stripe event → `{received}` | Implemented |
 | `POST /api/webhooks/resend` | `.../resend/route.ts` | Svix-style signature (`svix-id`/`svix-timestamp`/`svix-signature`, HMAC-SHA256, 5-min tolerance) | signature | `prismaAdmin` by `resendMessageId` | Resend delivery event → `{received}` | Implemented — updates `EmailLog.status`; always returns 200 for unmatched/unknown events |
 | `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed,held,usageByAccount}` | Implemented |
@@ -837,7 +837,7 @@ stateDiagram-v2
   implemented in the product — presentation code must render these as "Coming soon",
   see `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()`):
 
-| Feature (`SubscriptionFeature`) | Starter | Solo | Small Business | Business Pro | Accountant Partner |
+| Feature (`SubscriptionFeature`) | Essentials | Business Control | Small Business | Business Pro | Accountant Partner |
 |---|---|---|---|---|---|
 | `basic_email_reminders` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `email_reminder_sequence` (custom timing) | — | ✓ | ✓ | ✓ | ✓ |
@@ -869,10 +869,9 @@ stateDiagram-v2
   pause, the debtor dashboard, accounting integrations) are enabled on every paid
   tier — MYOB's own reminder features are not a substitute for PaidSoon's workflow,
   so these are not used as upsell levers.
-- **No legacy alias map:** `normalizeSubscriptionTier` returns `starter` for any
-  value not in `{starter, solo, small_business, business_pro, accountant_partner}`. Previous
-  generations of tier naming (`free`/`pro`/`business`) are not aliased — a stray
-  legacy value surfaces as a visibly wrong plan rather than resolving silently.
+- **Compatibility aliases:** `normalizeSubscriptionTier` keeps runtime compatibility for
+  persisted legacy values (`starter` → `essentials`, `solo` → `business_control`) and
+  otherwise falls back to `essentials`.
 - **Accountant Partner checkout:** `accountant_partner` has `monthlyPriceAud: null` (contact-us
   pricing); the Stripe Checkout route returns an error for this tier. Provisioning is manual.
   It is `visibility: "contact_only"` — `getPublicPlans()` excludes it from the pricing page,
@@ -883,29 +882,39 @@ stateDiagram-v2
   `getInvoiceSourceLimitForTier` covers Stripe Connect accounts and accounting
   connections combined (`countActiveInvoiceSources`), replacing the earlier
   Stripe-only connection limit.
-- **Checkout → activation:** `POST /api/billing/checkout` → Stripe Checkout →
-  `checkout.session.completed` webhook sets `subscriptionTier` (from
-  `selectedTier` metadata) and `subscriptionStatus = active`.
-- **Updates/cancellation:** `customer.subscription.updated` resolves tier from
-  the price id (`PRICE_ID_TO_TIER`); `customer.subscription.deleted` reverts to
-  `starter`, sets `cancelled`, and pauses invoices exceeding the starter limit.
+- **Checkout → activation:** `POST /api/billing/checkout` sets
+  `subscription_data.trial_period_days` from `STRIPE_TRIAL_PERIOD_DAYS` (default 14)
+  for eligible self-serve plans, reuses existing Stripe customers, and blocks
+  duplicate active/trialing subscription creation.
+- **Checkout-success reconciliation:** `GET /api/billing/checkout/success` reads the
+  completed session from Stripe, enforces ownership via checkout metadata, and
+  writes Stripe-backed lifecycle fields (`status`, trial end, period start/end,
+  cancel-at-period-end, price id, customer/subscription ids).
+- **Updates/cancellation:** `customer.subscription.created` and
+  `customer.subscription.updated` resolve tier from price id (`PRICE_ID_TO_TIER`)
+  and persist Stripe-backed lifecycle projection; `customer.subscription.deleted`
+  reverts to `essentials`, sets `canceled`, and pauses invoices exceeding the
+  Essentials limit.
 - **Price IDs:** the webhook's `PRICE_ID_TO_TIER` map has exactly four entries —
-  `STRIPE_STARTER_PRICE_ID→starter`, `STRIPE_SOLO_PRICE_ID→solo`,
+  `STRIPE_STARTER_PRICE_ID→essentials`, `STRIPE_SOLO_PRICE_ID→business_control`,
   `STRIPE_SMALL_BUSINESS_PRICE_ID→small_business`, `STRIPE_BUSINESS_PRO_PRICE_ID→business_pro`.
   `STRIPE_BUSINESS_PRICE_ID` and
   `STRIPE_PRO_PRICE_ID` have been retired (see `changes/restore-three-tier-pricing`).
 - **Portal:** `POST /api/billing/portal` → Stripe billing portal.
 - **Trial/free handling:** `trialing` is treated as active; there is no separate
-  free plan — `starter` is the paid entry tier (schema's `subscriptionTier` default
-  is `"starter"`).
+  free plan — `essentials` is the paid entry tier (schema's `subscriptionTier` default
+  is `"essentials"`). Access control now follows Stripe-backed status matrix:
+  `trialing`/`active` allow access, `past_due` allows with warning,
+  `incomplete` blocks, and `unpaid`/`canceled` revoke access.
 - **GST:** all three prices are inclusive of GST. The corresponding Stripe Price
   objects must carry `tax_behavior: "inclusive"` — this attribute is immutable
   once set, so it must be confirmed before pricing/checkout changes, not after.
 - **Not implemented:** add-ons; usage events;
   monthly chased-invoice allowance enforcement semantics (counting, warning,
   pausing) — see `changes/monthly-chase-volume-limits`.
-- `invoice.payment_failed` → `past_due` is implemented — see
-  `changes/handle-stripe-payment-failed`.
+- **Webhook idempotency/order:** billing webhook events are durably deduplicated by
+  `stripe_event_id` in `stripe_billing_webhook_events`; older events are ignored
+  when `event.created` is older than `UserProfile.latestStripeEventCreatedAt`.
 
 ## 12. AI Rewrite Design
 

@@ -18,8 +18,11 @@ const TIER_LABELS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   active: "Active",
   trialing: "Trial",
+  canceled: "Canceled",
   cancelled: "Cancelled",
   past_due: "Past Due",
+  unpaid: "Unpaid",
+  incomplete: "Incomplete",
 }
 
 function formatDate(date: Date | string): string {

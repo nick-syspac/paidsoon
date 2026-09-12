@@ -191,7 +191,7 @@ describe("POST /api/billing/cancel", () => {
     assert.deepEqual(updateCalls[0], {
       where: { userId: "user_123" },
       data: {
-        subscriptionStatus: "cancelled",
+        subscriptionStatus: "canceled",
         subscriptionTier: "essentials",
         trialEndsAt: null,
         subscriptionCancelAt: null,

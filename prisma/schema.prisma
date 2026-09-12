@@ -19,13 +19,16 @@ model UserProfile {
   userId                         String    @unique // maps to auth.users.id in Supabase
   stripeCustomerId               String?   @unique
   stripeSubscriptionId           String?   @map("stripe_subscription_id")
+  stripePriceId                  String?   @map("stripe_price_id")
   subscriptionCurrentPeriodStart DateTime? @map("subscription_current_period_start")
   subscriptionCurrentPeriodEnd   DateTime? @map("subscription_current_period_end")
   subscriptionCancelAt           DateTime? @map("subscription_cancel_at")
+  subscriptionCancelAtPeriodEnd  Boolean?  @map("subscription_cancel_at_period_end")
+  latestStripeEventCreatedAt     DateTime? @map("latest_stripe_event_created_at")
   pendingDowngradeTier           String?   @map("pending_downgrade_tier")
   stripeScheduleId               String?   @map("stripe_schedule_id")
   subscriptionTier               String    @default("essentials") // 'essentials' | 'business_control' | 'small_business' | 'business_pro' | 'accountant_partner'
-  subscriptionStatus             String    @default("active") // 'active' | 'trialing' | 'cancelled' | 'past_due'
+  subscriptionStatus             String    @default("active") // 'active' | 'trialing' | 'canceled' | 'past_due' | 'unpaid' | 'incomplete'
   trialEndsAt                    DateTime? @map("trial_ends_at")
   onboardingCompletedAt          DateTime? @map("onboarding_completed_at")
   displayName                    String?   @map("display_name")
@@ -95,6 +98,27 @@ model UserProfile {
   ownersDigestDeliveries       OwnersDigestDelivery[]
 
   @@map("user_profiles")
+}
+
+model StripeBillingWebhookEvent {
+  id                   String   @id @default(cuid())
+  stripeEventId        String   @unique @map("stripe_event_id")
+  eventType            String   @map("event_type")
+  eventCreatedAt       DateTime @map("event_created_at")
+  processingStatus     String   @default("received") @map("processing_status")
+  processingNote       String?  @map("processing_note")
+  userId               String?  @map("user_id")
+  stripeCustomerId     String?  @map("stripe_customer_id")
+  stripeSubscriptionId String?  @map("stripe_subscription_id")
+  processedAt          DateTime? @map("processed_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([eventType, eventCreatedAt])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@index([userId])
+  @@map("stripe_billing_webhook_events")
 }
 
 // ---------------------------------------------------------------------------

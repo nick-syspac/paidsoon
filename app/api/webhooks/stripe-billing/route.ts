@@ -36,6 +36,92 @@ function resolveTierFromSubscription(
   return normalizeSubscriptionTier(fallbackTier)
 }
 
+function toDateFromUnix(seconds: number): Date {
+  return new Date(seconds * 1000)
+}
+
+function resolveEventUserId(event: Stripe.Event): string | null {
+  const objectWithMetadata = event.data.object as { metadata?: Record<string, string | undefined> }
+  const userId = objectWithMetadata.metadata?.userId ?? objectWithMetadata.metadata?.user_id
+  return userId ?? null
+}
+
+function resolveEventCustomerId(event: Stripe.Event): string | null {
+  const obj = event.data.object as { customer?: string | Stripe.Customer | null }
+  const customer = obj.customer
+  if (!customer) return null
+  return typeof customer === "string" ? customer : customer.id
+}
+
+function resolveEventSubscriptionId(event: Stripe.Event): string | null {
+  const obj = event.data.object as {
+    id?: string
+    object?: string
+    subscription?: string | Stripe.Subscription | null
+  }
+  if (obj.object === "subscription" && obj.id) return obj.id
+  const sub = obj.subscription
+  if (!sub) return null
+  return typeof sub === "string" ? sub : sub.id
+}
+
+async function markEventProcessed(
+  stripeEventId: string,
+  processingStatus: "processed" | "skipped" | "failed",
+  processingNote?: string,
+) {
+  await prisma.stripeBillingWebhookEvent.update({
+    where: { stripeEventId },
+    data: {
+      processingStatus,
+      processingNote: processingNote ?? null,
+      processedAt: new Date(),
+    },
+  })
+}
+
+async function shouldSkipAsStale(
+  userId: string,
+  eventCreatedAt: Date,
+): Promise<boolean> {
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId },
+    select: { latestStripeEventCreatedAt: true },
+  })
+  if (!profile?.latestStripeEventCreatedAt) return false
+  return eventCreatedAt.getTime() < profile.latestStripeEventCreatedAt.getTime()
+}
+
+async function resolveProfileForEvent({
+  userId,
+  stripeCustomerId,
+  stripeSubscriptionId,
+}: {
+  userId?: string | null
+  stripeCustomerId?: string | null
+  stripeSubscriptionId?: string | null
+}) {
+  if (userId) {
+    const byUserId = await prisma.userProfile.findUnique({ where: { userId } })
+    if (byUserId) return byUserId
+  }
+
+  if (stripeCustomerId) {
+    const byCustomer = await prisma.userProfile.findFirst({
+      where: { stripeCustomerId },
+    })
+    if (byCustomer) return byCustomer
+  }
+
+  if (stripeSubscriptionId) {
+    return prisma.userProfile.findFirst({
+      where: { stripeSubscriptionId },
+    })
+  }
+
+  return null
+}
+
 // Must use raw body for Stripe signature verification
 export async function POST(request: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -55,11 +141,52 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
+  const eventCreatedAt = toDateFromUnix(event.created)
+  const eventUserId = resolveEventUserId(event)
+  const eventCustomerId = resolveEventCustomerId(event)
+  const eventSubscriptionId = resolveEventSubscriptionId(event)
+  console.info("[billing/webhook] received", {
+    stripeEventId: event.id,
+    eventType: event.type,
+    hasUserId: Boolean(eventUserId),
+    hasCustomerId: Boolean(eventCustomerId),
+    hasSubscriptionId: Boolean(eventSubscriptionId),
+  })
+
+  try {
+    await prisma.stripeBillingWebhookEvent.create({
+      data: {
+        stripeEventId: event.id,
+        eventType: event.type,
+        eventCreatedAt,
+        processingStatus: "received",
+        userId: eventUserId,
+        stripeCustomerId: eventCustomerId,
+        stripeSubscriptionId: eventSubscriptionId,
+      },
+    })
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : null
+    if (code === "P2002") {
+      // Event was already seen and processed/retried by Stripe.
+      return NextResponse.json({ received: true, deduped: true })
+    }
+    // Non-idempotency persistence issue; surface to trigger Stripe retry.
+    throw error
+  }
+
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session
-      const userId = session.metadata?.userId
+      const userId = session.metadata?.userId ?? session.metadata?.user_id
       if (userId && session.subscription) {
+        if (await shouldSkipAsStale(userId, eventCreatedAt)) {
+          await markEventProcessed(event.id, "skipped", "stale_event")
+          break
+        }
         const checkoutTier = normalizeSubscriptionTier(session.metadata?.selectedTier)
         const subscriptionId = session.subscription as string
         // Fetch subscription and expand latest_invoice to get period_end
@@ -72,25 +199,40 @@ export async function POST(request: Request) {
           where: { userId },
           data: {
             subscriptionTier: checkoutTier,
-            subscriptionStatus: "active",
-            trialEndsAt: null,
+            subscriptionStatus: subscription.status,
             stripeCustomerId: session.customer as string,
             stripeSubscriptionId: subscriptionId,
+            stripePriceId: subscription.items.data[0]?.price?.id ?? null,
             subscriptionCurrentPeriodStart: periodStart,
             subscriptionCurrentPeriodEnd: periodEnd,
             subscriptionCancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
+            subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
+            latestStripeEventCreatedAt: eventCreatedAt,
+            trialEndsAt:
+              subscription.trial_end != null
+                ? new Date(subscription.trial_end * 1000)
+                : null,
           },
         })
       }
+      await markEventProcessed(event.id, "processed")
       break
     }
 
+    case "customer.subscription.created":
+
     case "customer.subscription.updated": {
       const subscription = event.data.object as Stripe.Subscription
-      const profile = await prisma.userProfile.findFirst({
-        where: { stripeCustomerId: subscription.customer as string },
+      const profile = await resolveProfileForEvent({
+        userId: eventUserId,
+        stripeCustomerId: subscription.customer as string,
+        stripeSubscriptionId: subscription.id,
       })
       if (profile) {
+        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
+          await markEventProcessed(event.id, "skipped", "stale_event")
+          break
+        }
         const tier: SubscriptionTier =
           subscription.status === "active" || subscription.status === "trialing"
             ? resolveTierFromSubscription(subscription, profile.subscriptionTier)
@@ -115,31 +257,49 @@ export async function POST(request: Request) {
             subscriptionTier: tier,
             subscriptionStatus: subscription.status,
             stripeSubscriptionId: subscription.id,
+            stripePriceId: subscription.items.data[0]?.price?.id ?? null,
             subscriptionCurrentPeriodStart: periodStart,
             subscriptionCurrentPeriodEnd: periodEnd,
             subscriptionCancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
+            subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
+            latestStripeEventCreatedAt: eventCreatedAt,
+            trialEndsAt:
+              subscription.trial_end != null
+                ? new Date(subscription.trial_end * 1000)
+                : null,
             ...(scheduleExecuted
               ? { pendingDowngradeTier: null, stripeScheduleId: null }
               : {}),
           },
         })
       }
+      await markEventProcessed(event.id, "processed")
       break
     }
 
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription
-      const profile = await prisma.userProfile.findFirst({
-        where: { stripeCustomerId: subscription.customer as string },
+      const profile = await resolveProfileForEvent({
+        userId: eventUserId,
+        stripeCustomerId: subscription.customer as string,
+        stripeSubscriptionId: subscription.id,
       })
       if (profile) {
+        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
+          await markEventProcessed(event.id, "skipped", "stale_event")
+          break
+        }
         // Revert to essentials tier
         await prisma.userProfile.update({
           where: { userId: profile.userId },
           data: {
             subscriptionTier: DEFAULT_SUBSCRIPTION_TIER,
-            subscriptionStatus: "cancelled",
+            subscriptionStatus: "canceled",
+            stripePriceId: null,
             subscriptionCancelAt: null,
+            subscriptionCancelAtPeriodEnd: false,
+            latestStripeEventCreatedAt: eventCreatedAt,
+            trialEndsAt: null,
           },
         })
 
@@ -166,6 +326,7 @@ export async function POST(request: Request) {
         }
         void toKeep // suppress unused warning
       }
+      await markEventProcessed(event.id, "processed")
       break
     }
 
@@ -176,29 +337,80 @@ export async function POST(request: Request) {
         where: { stripeScheduleId: schedule.id },
       })
       if (profile) {
+        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
+          await markEventProcessed(event.id, "skipped", "stale_event")
+          break
+        }
         await prisma.userProfile.update({
           where: { userId: profile.userId },
-          data: { pendingDowngradeTier: null, stripeScheduleId: null },
+          data: {
+            pendingDowngradeTier: null,
+            stripeScheduleId: null,
+            latestStripeEventCreatedAt: eventCreatedAt,
+          },
         })
       }
+      await markEventProcessed(event.id, "processed")
       break
     }
 
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice
-      const profile = await prisma.userProfile.findFirst({
-        where: { stripeCustomerId: invoice.customer as string },
+      const profile = await resolveProfileForEvent({
+        userId: eventUserId,
+        stripeCustomerId: invoice.customer as string,
       })
       if (profile) {
+        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
+          await markEventProcessed(event.id, "skipped", "stale_event")
+          break
+        }
         // Tier is left unchanged: access is only revoked by an explicit
         // customer.subscription.deleted event, not a past-due status alone.
         await prisma.userProfile.update({
           where: { userId: profile.userId },
-          data: { subscriptionStatus: "past_due" },
+          data: {
+            subscriptionStatus: "past_due",
+            latestStripeEventCreatedAt: eventCreatedAt,
+          },
         })
       }
+      await markEventProcessed(event.id, "processed")
       break
     }
+
+    case "invoice.paid": {
+      const invoice = event.data.object as Stripe.Invoice
+      const profile = await resolveProfileForEvent({
+        userId: eventUserId,
+        stripeCustomerId: invoice.customer as string,
+      })
+      if (profile) {
+        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
+          await markEventProcessed(event.id, "skipped", "stale_event")
+          break
+        }
+        await prisma.userProfile.update({
+          where: { userId: profile.userId },
+          data: {
+            subscriptionStatus: "active",
+            latestStripeEventCreatedAt: eventCreatedAt,
+          },
+        })
+      }
+      await markEventProcessed(event.id, "processed")
+      break
+    }
+
+    case "customer.subscription.trial_will_end": {
+      // No state mutation required; this event is observed for operational visibility.
+      await markEventProcessed(event.id, "processed", "trial_will_end_observed")
+      break
+    }
+
+    default:
+      await markEventProcessed(event.id, "skipped", "unhandled_event_type")
+      break
   }
 
   return NextResponse.json({ received: true })

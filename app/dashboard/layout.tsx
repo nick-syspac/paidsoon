@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { getDashboardSubscriptionAccessState } from "@/lib/subscriptionStatusPresentation"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
 import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
@@ -97,23 +98,33 @@ export default async function DashboardLayout({
   const isTrialing = profile?.subscriptionStatus === "trialing"
   const trialEndsAt = profile?.trialEndsAt ?? null
   const tier = normalizeSubscriptionTier(profile?.subscriptionTier)
+  const status = profile?.subscriptionStatus ?? "active"
+  const accessState = getDashboardSubscriptionAccessState(status)
 
-  // Gate: trial has expired → force checkout
-  if (isTrialing && trialEndsAt !== null && trialEndsAt < new Date()) {
+  if (!accessState.allowAccess && accessState.redirectReason) {
     traceEvent(
       () => ({
         traceId: traceContext.traceId,
         stage: "dashboard.layout.redirect",
-        operation: "redirect_trial_expired",
+        operation: "redirect_subscription_inactive",
         subsystem: "dashboard",
         component: "app/dashboard/layout.tsx",
         event: "decision",
-        navigation: { from: "/dashboard", to: `/billing/checkout?plan=${tier}&reason=trial_expired`, decision: "trial_expired" },
-        outputs: { tier, isTrialing, trialEndsAtPresent: true },
+        navigation: {
+          from: "/dashboard",
+          to: `/billing/checkout?plan=${tier}&reason=${accessState.redirectReason}`,
+          decision: `subscription_${accessState.redirectReason}`,
+        },
+        outputs: {
+          tier,
+          status,
+          allowAccess: accessState.allowAccess,
+          redirectReason: accessState.redirectReason,
+        },
       }),
       traceContext,
     )
-    redirect(`/billing/checkout?plan=${tier}&reason=trial_expired`)
+    redirect(`/billing/checkout?plan=${tier}&reason=${accessState.redirectReason}`)
   }
 
   // Banner: trial still active
@@ -144,6 +155,13 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-gray-50">
       <SupportBanner />
+      {accessState.showBillingWarning && accessState.billingWarning ? (
+        <div className="border-b border-amber-200 bg-amber-50">
+          <div className="mx-auto max-w-5xl px-4 py-2 text-sm text-amber-800">
+            {accessState.billingWarning}
+          </div>
+        </div>
+      ) : null}
       {daysRemaining !== null && (
         <TrialBanner
           daysRemaining={daysRemaining}

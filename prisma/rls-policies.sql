@@ -61,6 +61,7 @@ ALTER TABLE margin_alert_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_scenarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_opportunities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stripe_billing_webhook_events ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles

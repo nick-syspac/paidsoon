@@ -124,6 +124,7 @@ Railway worker's internal job calls.
 | `DISPATCH_INTERVAL_SECONDS` | `120` (must match the Railway worker's value) | `120` (must match the Railway worker's value) | `120` (must match the Railway worker's value) | [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts) — the worker's own heartbeat cadence in seconds; the watchdog's staleness threshold is computed from this, not hardcoded. See [worker/README.md](../../worker/README.md) |
 | `STALE_THRESHOLD_MULTIPLIER` | `10` (reproduces the previous 20-minute threshold) | `10` | `10` | [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts) — staleness threshold = `DISPATCH_INTERVAL_SECONDS x STALE_THRESHOLD_MULTIPLIER` seconds |
 | `STRIPE_SECRET_KEY` | test `sk_test_…` | test `sk_test_…` | live `sk_live_…` | [stripe.md §2](./stripe.md) |
+| `STRIPE_TRIAL_PERIOD_DAYS` | `14` (or another positive integer) | `14` (or another positive integer) | `14` (or another approved positive integer) | [stripe.md §3](./stripe.md) — checkout uses this for Stripe-managed trial configuration |
 | `STRIPE_STARTER_PRICE_ID` | test `price_…` | test `price_…` | live `price_…` | [stripe.md §3](./stripe.md) |
 | `STRIPE_SOLO_PRICE_ID` | test `price_…` | test `price_…` | live `price_…` | [stripe.md §3](./stripe.md) |
 | `STRIPE_SMALL_BUSINESS_PRICE_ID` | test `price_…` | test `price_…` | live `price_…` | [stripe.md §3](./stripe.md) |
@@ -247,6 +248,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `DISPATCH_INTERVAL_SECONDS` | [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts) |
 | `STALE_THRESHOLD_MULTIPLIER` | [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts) |
 | `STRIPE_SECRET_KEY` | [lib/providers/stripe.ts](../../lib/providers/stripe.ts), [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/portal/route.ts](../../app/api/billing/portal/route.ts), [app/api/stripe/connect/callback/route.ts](../../app/api/stripe/connect/callback/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
+| `STRIPE_TRIAL_PERIOD_DAYS` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts) — Stripe-managed subscription trial days for eligible plans |
 | `STRIPE_STARTER_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/downgrade/route.ts](../../app/api/billing/downgrade/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
 | `STRIPE_SOLO_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/downgrade/route.ts](../../app/api/billing/downgrade/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
 | `STRIPE_SMALL_BUSINESS_PRICE_ID` | [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts), [app/api/billing/downgrade/route.ts](../../app/api/billing/downgrade/route.ts), [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
@@ -309,5 +311,6 @@ Retention, access, and removal:
 ### Things you might expect but won't find
 
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — **not used.** The app does not run Stripe.js in the browser; checkout is server-driven via `stripe.checkout.sessions.create`. Do not set this variable.
+- `NEXT_PUBLIC_SITE_URL` — **not used in PaidSoon.** Use `NEXT_PUBLIC_APP_URL` as the canonical app origin.
 - `SUPABASE_SERVICE_ROLE_KEY` — superseded by `SUPABASE_SECRET_KEY` (Supabase's newer `sb_secret_…` API-key naming). Do not set the old name.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — superseded by `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (the newer `sb_publishable_…` key). Do not set the old name.
