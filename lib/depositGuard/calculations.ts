@@ -81,14 +81,17 @@ function divideWithRounding(
   denominator: bigint,
   mode: DepositCalculationRounding,
 ): bigint {
+  const zero = BigInt(0)
+  const one = BigInt(1)
+  const two = BigInt(2)
   const quotient = numerator / denominator
   const remainder = numerator % denominator
 
-  if (remainder === 0n) return quotient
+  if (remainder === zero) return quotient
   if (mode === "down") return quotient
-  if (mode === "up") return quotient + 1n
+  if (mode === "up") return quotient + one
 
-  return remainder * 2n >= denominator ? quotient + 1n : quotient
+  return remainder * two >= denominator ? quotient + one : quotient
 }
 
 function calculatePercentageDepositCents(
@@ -98,7 +101,7 @@ function calculatePercentageDepositCents(
 ): number {
   const perHundredThousand = percentageToPerHundredThousand(percentage)
   const numerator = BigInt(totalAmountCents) * perHundredThousand
-  const rounded = divideWithRounding(numerator, 100_000n, roundingMode)
+  const rounded = divideWithRounding(numerator, BigInt(100_000), roundingMode)
   return Number(rounded)
 }
 

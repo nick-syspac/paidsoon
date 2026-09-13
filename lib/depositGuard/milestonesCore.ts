@@ -26,7 +26,7 @@ export function calculateDepositGuardMilestoneAmountCents(input: {
 
   const scaled = Math.round(percentage * 1000)
   const numerator = BigInt(input.totalAmountCents) * BigInt(scaled)
-  const amount = Number((numerator + 50_000n) / 100_000n)
+  const amount = Number((numerator + BigInt(50_000)) / BigInt(100_000))
   if (amount > input.totalAmountCents) {
     throw new Error("Milestone amount cannot exceed job total")
   }
