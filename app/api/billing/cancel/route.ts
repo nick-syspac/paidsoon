@@ -110,7 +110,7 @@ export async function POST() {
       tx.userProfile.update({
         where: { userId: user.id },
         data: {
-          subscriptionStatus: "cancelled",
+          subscriptionStatus: "canceled",
           subscriptionTier: DEFAULT_SUBSCRIPTION_TIER,
           trialEndsAt: null,
           subscriptionCancelAt: null,

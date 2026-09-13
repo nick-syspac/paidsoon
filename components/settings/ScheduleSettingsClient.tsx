@@ -44,12 +44,12 @@ export function ScheduleSettingsClient({
       <h2 className="text-base font-medium text-gray-900">Follow-up Schedule</h2>
       <p className="text-sm text-gray-500">
         Configure when follow-up emails are sent after an invoice becomes overdue.
-        {!canCustomizeSequence && " Custom schedules are available on Solo and Small Business plans."}
+        {!canCustomizeSequence && " Custom schedules are available on Business Control and Small Business plans."}
       </p>
 
       {!canCustomizeSequence && (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-          You&apos;re on Starter. Upgrade to Solo or Small Business to customize your schedule.
+          You&apos;re on Starter. Upgrade to Business Control or Small Business to customize your schedule.
         </div>
       )}
 

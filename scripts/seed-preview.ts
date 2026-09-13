@@ -139,7 +139,7 @@ const ACCOUNTS = {
     email: "bookkeeper@coastline-demo.test",
     displayName: "Marcus Petrides",
     businessName: "Coastline Plumbing — Bookkeeping",
-    tier: "starter",
+    tier: "essentials",
   },
   /** Second organisation — small data set, used for tenant-isolation / RLS testing. */
   secondOrg: {
@@ -974,6 +974,15 @@ async function cleanup(userIds: string[]): Promise<void> {
     })
   }
 
+  await prismaAdmin.depositPaymentWebhookEvent.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.depositGuardEvent.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.depositReminder.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.depositPayment.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.paymentMilestone.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.depositRequest.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.depositGuardJob.deleteMany({ where: { userId: { in: userIds } } })
+  await prismaAdmin.depositGuardSetting.deleteMany({ where: { userId: { in: userIds } } })
+
   await prismaAdmin.spendInsight.deleteMany({
     where: {
       OR: [{ userId: { in: userIds } }, { accountingConnectionId: { in: accountingConnectionIds } }],
@@ -1109,6 +1118,11 @@ interface SeedCounters {
   commitmentCandidates: number
   ownersDigestSnapshots: number
   ownersDigestItems: number
+  depositGuardJobs: number
+  depositGuardRequests: number
+  depositGuardMilestones: number
+  depositGuardPayments: number
+  depositGuardReminders: number
 }
 
 /** Deterministic, obviously-fake token (never a real credential). */
@@ -2522,6 +2536,389 @@ async function seedOwnersDigestFoundation(
   })
 }
 
+async function seedDepositGuardFoundation(
+  userId: string,
+  clock: SeedClock,
+  counters: SeedCounters,
+): Promise<void> {
+  const seedCustomer = await findOrCreateCustomer(
+    prismaAdmin,
+    userId,
+    "projects@coastlineprojects.example.test",
+    "Coastline Projects",
+    "stripe",
+    "demo-seed-depositguard-customer",
+  )
+
+  await prismaAdmin.depositGuardSetting.create({
+    data: {
+      userId,
+      autoReminderEnabled: true,
+      initialReminderOffsetDays: 0,
+      beforeDueOffsetDays: 1,
+      overdue3Enabled: true,
+      overdue7Enabled: true,
+      paymentProviderDefault: "manual_external_link",
+      requireDepositBeforeStart: true,
+      settingsJson: {
+        seedScenario: "depositguard-foundation",
+        phase2Integrations: "planned",
+      } as Prisma.JsonObject,
+    },
+  })
+
+  await prismaAdmin.depositGuardJob.create({
+    data: {
+      userId,
+      customerId: seedCustomer.id,
+      name: "Kitchen fit-out (draft)",
+      currency: CURRENCY,
+      totalAmountCents: aud(6500),
+      depositType: "percentage",
+      depositPercentage: new Prisma.Decimal("20"),
+      requiredDepositAmountCents: aud(1300),
+      amountPaidCents: 0,
+      outstandingAmountCents: aud(6500),
+      workStatus: "draft",
+      paymentStatus: "draft",
+      commencementBlocked: false,
+      createdBy: userId,
+      createdAt: clock.daysAgo(4),
+    },
+  })
+  counters.depositGuardJobs++
+
+  const awaitingJob = await prismaAdmin.depositGuardJob.create({
+    data: {
+      userId,
+      customerId: seedCustomer.id,
+      name: "Townhouse electrical rough-in",
+      currency: CURRENCY,
+      totalAmountCents: aud(12000),
+      depositType: "percentage",
+      depositPercentage: new Prisma.Decimal("30"),
+      requiredDepositAmountCents: aud(3600),
+      amountPaidCents: 0,
+      outstandingAmountCents: aud(12000),
+      workStatus: "awaiting_deposit",
+      paymentStatus: "requested",
+      commencementBlocked: true,
+      createdBy: userId,
+      createdAt: clock.daysAgo(8),
+    },
+  })
+  counters.depositGuardJobs++
+
+  const awaitingRequest = await prismaAdmin.depositRequest.create({
+    data: {
+      userId,
+      jobId: awaitingJob.id,
+      customerId: seedCustomer.id,
+      requestType: "deposit",
+      description: "30% commencement deposit",
+      amountCents: aud(3600),
+      taxAmountCents: 0,
+      totalAmountCents: aud(3600),
+      currency: CURRENCY,
+      dueDate: clock.daysFromNow(4),
+      status: "requested",
+      paymentProvider: "manual_external_link",
+      externalPaymentReference: `manual-link:${awaitingJob.id}`,
+      externalPaymentUrl: "https://payments.example.test/deposit/awaiting",
+      sentAt: clock.daysAgo(1),
+      createdBy: userId,
+      createdAt: clock.daysAgo(1),
+    },
+  })
+  counters.depositGuardRequests++
+
+  await prismaAdmin.depositReminder.create({
+    data: {
+      userId,
+      depositRequestId: awaitingRequest.id,
+      reminderType: "before_due",
+      scheduledFor: clock.daysFromNow(3),
+      deliveryStatus: "pending",
+    },
+  })
+  counters.depositGuardReminders++
+
+  const partialJob = await prismaAdmin.depositGuardJob.create({
+    data: {
+      userId,
+      customerId: seedCustomer.id,
+      name: "Shopfront glazing install",
+      currency: CURRENCY,
+      totalAmountCents: aud(11000),
+      depositType: "percentage",
+      depositPercentage: new Prisma.Decimal("25"),
+      requiredDepositAmountCents: aud(2750),
+      amountPaidCents: aud(1200),
+      outstandingAmountCents: aud(9800),
+      workStatus: "awaiting_deposit",
+      paymentStatus: "partially_paid",
+      commencementBlocked: true,
+      createdBy: userId,
+      createdAt: clock.daysAgo(12),
+    },
+  })
+  counters.depositGuardJobs++
+
+  const partialRequest = await prismaAdmin.depositRequest.create({
+    data: {
+      userId,
+      jobId: partialJob.id,
+      customerId: seedCustomer.id,
+      requestType: "deposit",
+      description: "25% deposit before install booking",
+      amountCents: aud(2750),
+      taxAmountCents: 0,
+      totalAmountCents: aud(2750),
+      currency: CURRENCY,
+      dueDate: clock.daysAgo(1),
+      status: "partially_paid",
+      paymentProvider: "manual_external_link",
+      externalPaymentReference: `manual-link:${partialJob.id}`,
+      externalPaymentUrl: "https://payments.example.test/deposit/partial",
+      sentAt: clock.daysAgo(6),
+      firstViewedAt: clock.daysAgo(5),
+      lastViewedAt: clock.daysAgo(2),
+      createdBy: userId,
+      createdAt: clock.daysAgo(6),
+    },
+  })
+  counters.depositGuardRequests++
+
+  await prismaAdmin.depositPayment.create({
+    data: {
+      userId,
+      jobId: partialJob.id,
+      depositRequestId: partialRequest.id,
+      amountCents: aud(1200),
+      currency: CURRENCY,
+      paymentMethod: "bank_transfer",
+      paymentProvider: "manual_external_link",
+      externalPaymentId: "demo-seed-dg-partial-001",
+      status: "confirmed",
+      paidAt: clock.daysAgo(2),
+      recordedBy: userId,
+      notes: "Customer paid part of the requested deposit.",
+      createdAt: clock.daysAgo(2),
+    },
+  })
+  counters.depositGuardPayments++
+
+  await prismaAdmin.depositReminder.create({
+    data: {
+      userId,
+      depositRequestId: partialRequest.id,
+      reminderType: "overdue_3_days",
+      scheduledFor: clock.daysFromNow(2),
+      deliveryStatus: "pending",
+    },
+  })
+  counters.depositGuardReminders++
+
+  const overdueJob = await prismaAdmin.depositGuardJob.create({
+    data: {
+      userId,
+      customerId: seedCustomer.id,
+      name: "Warehouse roller-door replacement",
+      currency: CURRENCY,
+      totalAmountCents: aud(15400),
+      depositType: "fixed",
+      depositFixedAmountCents: aud(5000),
+      requiredDepositAmountCents: aud(5000),
+      amountPaidCents: 0,
+      outstandingAmountCents: aud(15400),
+      workStatus: "awaiting_deposit",
+      paymentStatus: "overdue",
+      commencementBlocked: true,
+      createdBy: userId,
+      createdAt: clock.daysAgo(16),
+    },
+  })
+  counters.depositGuardJobs++
+
+  const overdueRequest = await prismaAdmin.depositRequest.create({
+    data: {
+      userId,
+      jobId: overdueJob.id,
+      customerId: seedCustomer.id,
+      requestType: "deposit",
+      description: "Fixed deposit before manufacturing starts",
+      amountCents: aud(5000),
+      taxAmountCents: 0,
+      totalAmountCents: aud(5000),
+      currency: CURRENCY,
+      dueDate: clock.daysAgo(6),
+      status: "overdue",
+      paymentProvider: "manual_external_link",
+      externalPaymentReference: `manual-link:${overdueJob.id}`,
+      externalPaymentUrl: "https://payments.example.test/deposit/overdue",
+      sentAt: clock.daysAgo(11),
+      firstViewedAt: clock.daysAgo(10),
+      lastViewedAt: clock.daysAgo(6),
+      createdBy: userId,
+      createdAt: clock.daysAgo(11),
+    },
+  })
+  counters.depositGuardRequests++
+
+  await prismaAdmin.depositReminder.create({
+    data: {
+      userId,
+      depositRequestId: overdueRequest.id,
+      reminderType: "overdue_3_days",
+      scheduledFor: clock.daysAgo(3),
+      sentAt: clock.daysAgo(3),
+      deliveryStatus: "sent",
+      providerMessageId: "demo-seed-dg-reminder-overdue-003",
+    },
+  })
+  counters.depositGuardReminders++
+
+  const paidJob = await prismaAdmin.depositGuardJob.create({
+    data: {
+      userId,
+      customerId: seedCustomer.id,
+      name: "Office split-system replacement",
+      currency: CURRENCY,
+      totalAmountCents: aud(9800),
+      depositType: "percentage",
+      depositPercentage: new Prisma.Decimal("35"),
+      requiredDepositAmountCents: aud(3430),
+      amountPaidCents: aud(3430),
+      outstandingAmountCents: aud(6370),
+      workStatus: "ready_to_start",
+      paymentStatus: "paid",
+      commencementBlocked: false,
+      createdBy: userId,
+      createdAt: clock.daysAgo(9),
+    },
+  })
+  counters.depositGuardJobs++
+
+  const paidRequest = await prismaAdmin.depositRequest.create({
+    data: {
+      userId,
+      jobId: paidJob.id,
+      customerId: seedCustomer.id,
+      requestType: "deposit",
+      description: "35% deposit confirmed",
+      amountCents: aud(3430),
+      taxAmountCents: 0,
+      totalAmountCents: aud(3430),
+      currency: CURRENCY,
+      dueDate: clock.daysAgo(2),
+      status: "paid",
+      paymentProvider: "manual_external_link",
+      externalPaymentReference: `manual-link:${paidJob.id}`,
+      externalPaymentUrl: "https://payments.example.test/deposit/paid",
+      sentAt: clock.daysAgo(7),
+      firstViewedAt: clock.daysAgo(7),
+      lastViewedAt: clock.daysAgo(5),
+      paidAt: clock.daysAgo(5),
+      createdBy: userId,
+      createdAt: clock.daysAgo(7),
+    },
+  })
+  counters.depositGuardRequests++
+
+  await prismaAdmin.depositPayment.create({
+    data: {
+      userId,
+      jobId: paidJob.id,
+      depositRequestId: paidRequest.id,
+      amountCents: aud(3430),
+      currency: CURRENCY,
+      paymentMethod: "card",
+      paymentProvider: "manual_external_link",
+      externalPaymentId: "demo-seed-dg-paid-001",
+      status: "confirmed",
+      paidAt: clock.daysAgo(5),
+      recordedBy: userId,
+      notes: "Deposit confirmed and commencement unlocked.",
+      createdAt: clock.daysAgo(5),
+    },
+  })
+  counters.depositGuardPayments++
+
+  const milestoneJob = await prismaAdmin.depositGuardJob.create({
+    data: {
+      userId,
+      customerId: seedCustomer.id,
+      name: "Civic fit-out staged delivery",
+      currency: CURRENCY,
+      totalAmountCents: aud(24000),
+      depositType: "percentage",
+      depositPercentage: new Prisma.Decimal("20"),
+      requiredDepositAmountCents: aud(4800),
+      amountPaidCents: aud(4800),
+      outstandingAmountCents: aud(19200),
+      workStatus: "in_progress",
+      paymentStatus: "requested",
+      commencementBlocked: false,
+      createdBy: userId,
+      createdAt: clock.daysAgo(20),
+    },
+  })
+  counters.depositGuardJobs++
+
+  const milestoneRequest = await prismaAdmin.depositRequest.create({
+    data: {
+      userId,
+      jobId: milestoneJob.id,
+      customerId: seedCustomer.id,
+      requestType: "progress_payment",
+      description: "Milestone 1 progress claim",
+      amountCents: aud(6400),
+      taxAmountCents: 0,
+      totalAmountCents: aud(6400),
+      currency: CURRENCY,
+      dueDate: clock.daysFromNow(5),
+      status: "requested",
+      paymentProvider: "manual_external_link",
+      externalPaymentReference: `manual-link:${milestoneJob.id}-m1`,
+      externalPaymentUrl: "https://payments.example.test/deposit/milestone",
+      sentAt: clock.daysAgo(1),
+      createdBy: userId,
+      createdAt: clock.daysAgo(1),
+    },
+  })
+  counters.depositGuardRequests++
+
+  await prismaAdmin.paymentMilestone.create({
+    data: {
+      userId,
+      jobId: milestoneJob.id,
+      name: "Frame complete",
+      description: "Raise progress payment once framing is signed off.",
+      sequence: 1,
+      amountType: "percentage",
+      percentage: new Prisma.Decimal("26.667"),
+      fixedAmountCents: null,
+      calculatedAmountCents: aud(6400),
+      triggerType: "work_status",
+      status: "requested",
+      depositRequestId: milestoneRequest.id,
+      createdAt: clock.daysAgo(1),
+    },
+  })
+  counters.depositGuardMilestones++
+
+  await prismaAdmin.depositReminder.create({
+    data: {
+      userId,
+      depositRequestId: milestoneRequest.id,
+      reminderType: "before_due",
+      scheduledFor: clock.daysFromNow(4),
+      deliveryStatus: "pending",
+    },
+  })
+  counters.depositGuardReminders++
+}
+
 async function createInvoices(
   userId: string,
   businessName: string,
@@ -2942,6 +3339,7 @@ async function seedCoastline(
   await seedTaxBufferFoundation(userId, "coastline", clock, counters)
   await seedCommitGuardFoundation(userId, "coastline", clock, counters)
   await seedOwnersDigestFoundation(userId, "coastline", clock, counters)
+  await seedDepositGuardFoundation(userId, clock, counters)
 
   await prismaAdmin.accountingSyncRun.create({
     data: {
@@ -3031,7 +3429,7 @@ async function seedCoastline(
   })
 
   console.log(
-    `  ✓ ${COASTLINE_INVOICES.length} invoices, 4 promises, 4 arrangements, MYOB connection, SpendLeak/MarginGuard/CashPlan/RunwayGuard/CostGuard/TaxBuffer/CommitGuard/OwnersDigest fixtures`,
+    `  ✓ ${COASTLINE_INVOICES.length} invoices, 4 promises, 4 arrangements, MYOB connection, SpendLeak/MarginGuard/CashPlan/RunwayGuard/CostGuard/TaxBuffer/CommitGuard/OwnersDigest/DepositGuard fixtures`,
   )
 }
 
@@ -3321,6 +3719,11 @@ async function main(): Promise<void> {
     commitmentCandidates: 0,
     ownersDigestSnapshots: 0,
     ownersDigestItems: 0,
+    depositGuardJobs: 0,
+    depositGuardRequests: 0,
+    depositGuardMilestones: 0,
+    depositGuardPayments: 0,
+    depositGuardReminders: 0,
   }
 
   await seedCoastline(byKey.get("owner")!, clock, counters)
@@ -3359,6 +3762,11 @@ async function main(): Promise<void> {
   console.log(`  Commitment candidates:${counters.commitmentCandidates}`)
   console.log(`  Owners digest snaps:  ${counters.ownersDigestSnapshots}`)
   console.log(`  Owners digest items:  ${counters.ownersDigestItems}`)
+  console.log(`  DepositGuard jobs:    ${counters.depositGuardJobs}`)
+  console.log(`  DepositGuard requests:${counters.depositGuardRequests}`)
+  console.log(`  DepositGuard milestones:${counters.depositGuardMilestones}`)
+  console.log(`  DepositGuard payments:${counters.depositGuardPayments}`)
+  console.log(`  DepositGuard reminders:${counters.depositGuardReminders}`)
 
   console.log("\nDevelopment sign-in (development environments only):")
   for (const account of Object.values(ACCOUNTS)) {

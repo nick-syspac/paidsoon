@@ -11,11 +11,13 @@ import {
   INTEGRATION_STATUS_LABEL,
 } from "@/lib/integrationsCatalog"
 import {
-  getCtaForLiveMode,
+  getMarketingModuleLabel,
+  getJourneyCta,
   getPublicPlanSummary,
+  PRIVATE_BETA_POSITIONING,
+  PRACTICAL_CONTROL_GROUPS,
   MODULES,
   PLATFORM_AREAS,
-  PLATFORM_TAGLINE,
 } from "@/components/marketing/marketingContent"
 
 export const metadata: Metadata = {
@@ -50,7 +52,11 @@ const customSenderNameTierName = customSenderNameTier
 
 export default function HomePage() {
   const liveMode = isLiveMode()
-  const cta = getCtaForLiveMode(liveMode)
+  const heroCta = getJourneyCta("hero", liveMode)
+  const afterProblemCta = getJourneyCta("after-problem", liveMode)
+  const afterCycleCta = getJourneyCta("after-cycle", liveMode)
+  const afterModulesCta = getJourneyCta("after-modules", liveMode)
+  const afterPricingCta = getJourneyCta("after-pricing", liveMode)
 
   const faq = [
     {
@@ -115,89 +121,75 @@ export default function HomePage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">Financial control platform</p>
             <h1 className="mt-4 text-4xl font-bold leading-tight text-gray-900 md:text-5xl">
-              Your accounting software tells you what happened.
-              <span className="block text-blue-700">PaidSoon helps you control what happens next.</span>
+              Know what needs attention in your business before it becomes a cash-flow problem.
             </h1>
-            <p className="mt-5 max-w-xl text-lg text-gray-600">{PLATFORM_TAGLINE}</p>
+            <p className="mt-5 max-w-xl text-lg text-gray-600">
+              PaidSoon works alongside Xero, MYOB or CSV data to help small businesses get paid faster, reduce waste, protect margins and plan their cash.
+            </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <MarketingCtaLink
-                href={cta.href}
-                label={cta.label}
+                href={heroCta.href}
+                label={heroCta.label}
                 eventName="marketing_hero_cta_selected"
                 eventData={{ liveMode: String(liveMode) }}
                 className="inline-flex items-center justify-center rounded-md bg-blue-700 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-800"
               />
               <MarketingCtaLink
-                href="/platform"
-                label="See platform overview"
+                href={afterProblemCta.href}
+                label={afterProblemCta.label}
                 eventName="marketing_hero_secondary_cta_selected"
                 className="inline-flex items-center justify-center rounded-md border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50"
               />
             </div>
-            <p className="mt-3 text-sm text-gray-500">{cta.helper}</p>
+            <p className="mt-3 text-sm text-gray-500">No accounting system replacement. Start with CSV or connect your accounting software later.</p>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-blue-50 to-slate-100 p-6">
-            <h2 className="text-lg font-semibold text-gray-900">{MODULES.length}-module financial control system</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Public modules now span receivables, spend, commitments, margin, tax, and runway control.
-            </p>
+            <h2 className="text-lg font-semibold text-gray-900">Outcome dashboard</h2>
+            <p className="mt-2 text-sm text-gray-600">Four practical outcomes before full architecture detail.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {MODULES.map((item) => (
-                <Link key={item.id} href={item.href} className="rounded-xl border border-white bg-white/80 p-4 hover:bg-white">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-gray-900">{item.name}</p>
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-                      {item.statusLabel}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600">{item.question}</p>
-                </Link>
+              {PLATFORM_AREAS.map((area) => (
+                <article key={area.id} className="rounded-xl border border-white bg-white/80 p-4">
+                  <p className="text-sm font-semibold text-gray-900">{area.name}</p>
+                  <p className="mt-1 text-sm text-gray-600">{area.summary}</p>
+                </article>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="border-y border-gray-100 py-12">
-        <div className="mx-auto grid max-w-6xl gap-4 px-4 md:grid-cols-2 xl:grid-cols-3">
-          {MODULES.map((item) => (
-            <article key={item.id} className="rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs uppercase tracking-wide text-gray-400">{item.name}</p>
-                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">
-                  {item.statusLabel}
-                </span>
-              </div>
-              <h2 className="mt-2 text-lg font-semibold text-gray-900">{item.question}</h2>
-              <p className="mt-2 text-sm text-gray-600">{item.summary}</p>
-              <Link href={item.href} className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
-                Learn more
-              </Link>
-            </article>
-          ))}
-        </div>
-      </section>
-
       <section className="bg-gray-50 py-12">
         <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-center text-2xl font-semibold text-gray-900">Accounting records. PaidSoon controls.</h2>
+          <h2 className="text-center text-2xl font-semibold text-gray-900">
+            Your accounting software records the past. PaidSoon helps you decide what to do next.
+          </h2>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <article className="rounded-xl border border-gray-200 bg-white p-6">
               <h3 className="text-lg font-semibold text-gray-900">Your accounting software</h3>
               <ul className="mt-3 space-y-2 text-gray-600">
                 <li>Records invoices and payments</li>
-                <li>Shows historical reporting</li>
-                <li>Tracks what already happened</li>
+                <li>Reports historical results</li>
+                <li>Stores expenses and transactions</li>
+                <li>Shows available cash</li>
               </ul>
             </article>
             <article className="rounded-xl border border-blue-200 bg-blue-50 p-6">
               <h3 className="text-lg font-semibold text-blue-900">PaidSoon platform</h3>
               <ul className="mt-3 space-y-2 text-blue-900">
-                <li>Shows what needs attention now</li>
-                <li>Flags waste, margin pressure, and renewal risk early</li>
-                <li>Models cash, runway, and protected-tax decisions ahead</li>
+                <li>Tells you what needs attention</li>
+                <li>Highlights emerging risks</li>
+                <li>Helps control waste and commitments</li>
+                <li>Helps plan what happens next</li>
               </ul>
             </article>
+          </div>
+          <div className="mt-6 text-center">
+            <MarketingCtaLink
+              href={afterProblemCta.href}
+              label={afterProblemCta.label}
+              eventName="marketing_after_problem_cta_selected"
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-900 hover:bg-white"
+            />
           </div>
         </div>
       </section>
@@ -219,9 +211,43 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="border-y border-gray-100 py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">How PaidSoon works</h2>
+          <p className="mt-3 text-center text-gray-600">Automated reminder flow with templates and AI assistance.</p>
+          <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                title: "Import unpaid invoices",
+                copy: "Start with CSV or connect Xero, MYOB, or Stripe to load invoice data.",
+              },
+              {
+                title: "Set reminder templates*",
+                copy: "Choose tone and stage-based messaging so reminders stay clear and professional.",
+              },
+              {
+                title: "Apply AI wording support*",
+                copy: "Use AI-assisted rewrites when you want to refine phrasing before send.",
+              },
+              {
+                title: "Run escalating reminders",
+                copy: "PaidSoon sends polite-to-firm follow-ups and tracks promises or disputes.",
+              },
+            ].map((step, index) => (
+              <article key={step.title} className="rounded-xl border border-gray-200 p-5">
+                <p className="text-xs uppercase tracking-wide text-gray-400">Step {index + 1}</p>
+                <h3 className="mt-2 text-base font-semibold text-gray-900">{step.title}</h3>
+                <p className="mt-2 text-sm text-gray-600">{step.copy}</p>
+              </article>
+            ))}
+          </div>
+          <p className="mt-4 text-center text-xs text-gray-500">*Marked capabilities are available in selected early-access plans.</p>
+        </div>
+      </section>
+
       <section className="bg-gray-50 py-12">
         <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-center text-2xl font-semibold text-gray-900">How the modules work together</h2>
+          <h2 className="text-center text-2xl font-semibold text-gray-900">The four-part control cycle</h2>
           <p className="mt-3 text-center text-gray-600">One operating rhythm for day-to-day financial control.</p>
           <div className="mt-6 grid gap-4 lg:grid-cols-4">
             {PLATFORM_AREAS.map((area, index) => (
@@ -250,8 +276,8 @@ export default function HomePage() {
           </div>
           <div className="mt-6 text-center">
             <MarketingCtaLink
-              href="/platform"
-              label="Explore the full platform"
+              href={afterCycleCta.href}
+              label={afterCycleCta.label}
               eventName="marketing_platform_explore_selected"
               className="inline-flex items-center justify-center rounded-md border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-900 hover:bg-white"
             />
@@ -261,22 +287,38 @@ export default function HomePage() {
 
       <section className="py-12">
         <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Module deep dives</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">Everything you need for practical financial control</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {MODULES.map((item) => (
-              <article key={item.id} className="rounded-xl border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                <p className="mt-1 text-gray-600">{item.tagline}</p>
-                <ul className="mt-4 space-y-2 text-sm text-gray-600">
-                  {item.capabilities.slice(0, 3).map((capability) => (
-                    <li key={capability}>{capability}</li>
-                  ))}
-                </ul>
-                <Link href={item.href} className="mt-4 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900">
-                  Visit {item.name}
-                </Link>
+            {PRACTICAL_CONTROL_GROUPS.map((group) => (
+              <article key={group.id} className="rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900">{group.label}</h3>
+                <p className="mt-2 text-sm text-gray-600">{group.question}</p>
+                <p className="mt-3 text-sm text-gray-700">{group.benefit}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {group.moduleIds.map((moduleId) => {
+                    const moduleDef = MODULES.find((item) => item.id === moduleId)
+                    if (!moduleDef) return null
+                    return (
+                      <Link
+                        key={moduleDef.id}
+                        href={moduleDef.href}
+                        className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                      >
+                        Explore {getMarketingModuleLabel(moduleDef)}
+                      </Link>
+                    )
+                  })}
+                </div>
               </article>
             ))}
+          </div>
+          <div className="mt-6 text-center">
+            <MarketingCtaLink
+              href={afterModulesCta.href}
+              label={afterModulesCta.label}
+              eventName="marketing_module_starting_point_cta_selected"
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            />
           </div>
         </div>
       </section>
@@ -353,8 +395,8 @@ export default function HomePage() {
           </div>
           <div className="mt-6 text-center">
             <MarketingCtaLink
-              href="/pricing"
-              label="Compare all plans"
+              href={afterPricingCta.href}
+              label={afterPricingCta.label}
               eventName="marketing_pricing_preview_selected"
               className="inline-flex items-center justify-center rounded-md border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50"
             />
@@ -379,10 +421,10 @@ export default function HomePage() {
       <section className="bg-blue-700 py-14">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <h2 className="text-3xl font-bold text-white">Get paid. Stop waste. Control costs. Plan ahead.</h2>
-          <p className="mt-3 text-blue-100">Built for Australian small businesses that want practical financial control.</p>
+          <p className="mt-3 text-blue-100">{PRIVATE_BETA_POSITIONING}</p>
           <MarketingCtaLink
-            href={cta.href}
-            label={cta.label}
+            href={getJourneyCta("footer", liveMode).href}
+            label={getJourneyCta("footer", liveMode).label}
             eventName="marketing_home_bottom_cta_selected"
             eventData={{ liveMode: String(liveMode) }}
             className="mt-6 inline-flex items-center justify-center rounded-md bg-white px-6 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50"

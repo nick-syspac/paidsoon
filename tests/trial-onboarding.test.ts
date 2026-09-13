@@ -83,17 +83,17 @@ test("createUserProfile trial duration constant is 14 days in ms", () => {
 // Onboarding tier validation (mirrors Zod schema in /api/onboarding)
 // ---------------------------------------------------------------------------
 
-const VALID_TIERS = new Set(["starter", "solo", "small_business", "business_pro"])
+const VALID_TIERS = new Set(["essentials", "business_control", "small_business", "business_pro"])
 
 function validateOnboardingTier(
   tier: unknown,
-): tier is "starter" | "solo" | "small_business" | "business_pro" {
+): tier is "essentials" | "business_control" | "small_business" | "business_pro" {
   return typeof tier === "string" && VALID_TIERS.has(tier)
 }
 
 test("valid tiers are accepted by onboarding route schema", () => {
-  assert.equal(validateOnboardingTier("starter"), true)
-  assert.equal(validateOnboardingTier("solo"), true)
+  assert.equal(validateOnboardingTier("essentials"), true)
+  assert.equal(validateOnboardingTier("business_control"), true)
   assert.equal(validateOnboardingTier("small_business"), true)
   assert.equal(validateOnboardingTier("business_pro"), true)
   assert.equal(validateOnboardingTier("accountant_partner"), false)
@@ -116,13 +116,13 @@ test("invalid tiers are rejected by onboarding route schema", () => {
 // ---------------------------------------------------------------------------
 
 const VALID_CHECKOUT_TIERS = new Set([
-  "starter",
-  "solo",
+  "essentials",
+  "business_control",
   "small_business",
   "business_pro",
   "accountant_partner",
 ])
-const DEFAULT_CHECKOUT_TIER = "starter" // normalizeSubscriptionTier default
+const DEFAULT_CHECKOUT_TIER = "essentials" // normalizeSubscriptionTier default
 
 function resolveCheckoutTier(
   planParam: string | undefined,
@@ -137,15 +137,15 @@ function resolveCheckoutTier(
 }
 
 test("checkout resolves plan from query param when present", () => {
-  assert.equal(resolveCheckoutTier("starter", "small_business"), "starter")
-  assert.equal(resolveCheckoutTier("small_business", "starter"), "small_business")
-  assert.equal(resolveCheckoutTier("business_pro", "starter"), "business_pro")
+  assert.equal(resolveCheckoutTier("essentials", "small_business"), "essentials")
+  assert.equal(resolveCheckoutTier("small_business", "essentials"), "small_business")
+  assert.equal(resolveCheckoutTier("business_pro", "essentials"), "business_pro")
 })
 
 test("checkout falls back to profile tier when no plan param is given", () => {
   assert.equal(resolveCheckoutTier(undefined, "small_business"), "small_business")
   assert.equal(resolveCheckoutTier(undefined, "business_pro"), "business_pro")
-  assert.equal(resolveCheckoutTier(undefined, "starter"), "starter")
+  assert.equal(resolveCheckoutTier(undefined, "essentials"), "essentials")
   assert.equal(resolveCheckoutTier(undefined, "accountant_partner"), "accountant_partner")
 })
 
@@ -156,7 +156,7 @@ test("checkout falls back to default tier when both param and profile tier are a
 
 test("checkout ignores invalid plan param and falls back to profile tier", () => {
   assert.equal(resolveCheckoutTier("enterprise", "small_business"), "small_business")
-  assert.equal(resolveCheckoutTier("free", "starter"), "starter")
+  assert.equal(resolveCheckoutTier("free", "essentials"), "essentials")
 })
 
 // ---------------------------------------------------------------------------
@@ -171,7 +171,7 @@ function buildTrialCheckoutUrl(tier: string): string {
 test("trial banner checkoutUrl points to /billing/checkout for trialing user", () => {
   assert.equal(buildTrialCheckoutUrl("small_business"), "/billing/checkout?plan=small_business")
   assert.equal(buildTrialCheckoutUrl("business_pro"), "/billing/checkout?plan=business_pro")
-  assert.equal(buildTrialCheckoutUrl("starter"), "/billing/checkout?plan=starter")
+  assert.equal(buildTrialCheckoutUrl("essentials"), "/billing/checkout?plan=essentials")
   assert.equal(
     buildTrialCheckoutUrl("accountant_partner"),
     "/billing/checkout?plan=accountant_partner",

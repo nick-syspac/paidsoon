@@ -30,15 +30,15 @@ export function lowestTierWithFeature(feature: SubscriptionFeature): Subscriptio
 }
 
 export const PLAN_TAGLINE: Record<SubscriptionTier, string> = {
-  starter: "A focused entry point for a growing cash-control workflow.",
-  solo: "The first complete control layer for a solo operation.",
-  small_business: "The recommended plan for a growing small business team.",
-  business_pro: "Advanced governance, multi-entity visibility, and cash forecasting.",
+  essentials: "Essentials: Start controlling invoices and cash risks.",
+  business_control: "Business Control: Complete financial visibility for owner-operated businesses.",
+  small_business: "Small Business: Automation and collaboration for growing teams.",
+  business_pro: "Business Pro: Advanced forecasting, governance and multi-entity control.",
   accountant_partner: "For bookkeepers and accountants managing invoice follow-ups across multiple clients.",
 }
 
 export function getPlanModuleCoverage(tier: SubscriptionTier): string[] {
-  const coverage = ["PaidSoon receivables control"]
+  const coverage = ["InvoiceGuard receivables control"]
 
   if (hasPlanFeature(tier, "commitguard_core")) {
     coverage.push("CommitGuard committed-cash visibility")
@@ -72,15 +72,15 @@ export function planHighlights(tier: SubscriptionTier): string[] {
       : `Up to ${plan.limits.chasedInvoicesPerMonth} chased invoices per month`
 
   switch (tier) {
-    case "starter":
+    case "essentials":
       return [
-        "PaidSoon receivables control",
+        "InvoiceGuard receivables control",
         "SpendLeak spend monitoring",
         "CommitGuard committed-cash visibility",
         "Tax Buffer reserve planning",
         allowanceLabel,
       ]
-    case "solo":
+    case "business_control":
       return [
         "Everything in Essentials",
         "SpendLeak spend monitoring",

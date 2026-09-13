@@ -130,7 +130,7 @@ describe("SpendLeak dashboard page", () => {
   })
 
   test("renders tier-gated lock state for ineligible tiers", async () => {
-    mockTier = "starter"
+    mockTier = "essentials"
     const element = await SpendLeakDashboardPage({ searchParams: Promise.resolve({}) })
     assert.equal(moduleGridModulesLength, 0)
     assert.equal(typeof element?.props?.children?.[0]?.props?.children, "string")

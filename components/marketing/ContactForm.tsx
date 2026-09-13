@@ -4,6 +4,8 @@ import { useState } from "react"
 import { Turnstile } from "@marsidev/react-turnstile"
 
 const enquiryTypes = ["Sales", "Support", "Accounting Partnerships"] as const
+const accountingSystems = ["Xero", "MYOB", "CSV", "Other"] as const
+const biggestProblems = ["Getting paid", "Waste", "Costs", "Margins", "Cash planning"] as const
 
 type FormState = "idle" | "submitting" | "success" | "error"
 
@@ -13,8 +15,9 @@ export function ContactForm() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    enquiryType: enquiryTypes[0] as string,
-    message: "",
+    businessName: "",
+    accountingSystem: accountingSystems[0] as string,
+    biggestProblem: biggestProblems[0] as string,
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,7 +29,15 @@ export function ContactForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
+          name: formData.name,
+          email: formData.email,
+          enquiryType: enquiryTypes[0],
+          message: [
+            `Business name: ${formData.businessName}`,
+            `Accounting system: ${formData.accountingSystem}`,
+            `Biggest problem: ${formData.biggestProblem}`,
+            "Request type: Early access",
+          ].join("\n"),
           cfToken,
         }),
       })
@@ -70,7 +81,7 @@ export function ContactForm() {
 
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-          Email address
+          Business email
         </label>
         <input
           id="email"
@@ -83,16 +94,30 @@ export function ContactForm() {
       </div>
 
       <div>
-        <label htmlFor="enquiryType" className="block text-sm font-medium text-gray-700 mb-1">
-          Enquiry type
+        <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-1">
+          Business name
+        </label>
+        <input
+          id="businessName"
+          type="text"
+          required
+          value={formData.businessName}
+          onChange={(e) => setFormData((d) => ({ ...d, businessName: e.target.value }))}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="accountingSystem" className="block text-sm font-medium text-gray-700 mb-1">
+          Accounting system
         </label>
         <select
-          id="enquiryType"
-          value={formData.enquiryType}
-          onChange={(e) => setFormData((d) => ({ ...d, enquiryType: e.target.value }))}
+          id="accountingSystem"
+          value={formData.accountingSystem}
+          onChange={(e) => setFormData((d) => ({ ...d, accountingSystem: e.target.value }))}
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          {enquiryTypes.map((type) => (
+          {accountingSystems.map((type) => (
             <option key={type} value={type}>
               {type}
             </option>
@@ -101,17 +126,21 @@ export function ContactForm() {
       </div>
 
       <div>
-        <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
-          Message
+        <label htmlFor="biggestProblem" className="block text-sm font-medium text-gray-700 mb-1">
+          Biggest problem
         </label>
-        <textarea
-          id="message"
-          required
-          rows={5}
-          value={formData.message}
-          onChange={(e) => setFormData((d) => ({ ...d, message: e.target.value }))}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-        />
+        <select
+          id="biggestProblem"
+          value={formData.biggestProblem}
+          onChange={(e) => setFormData((d) => ({ ...d, biggestProblem: e.target.value }))}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {biggestProblems.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
       </div>
 
       {formState === "error" && (
@@ -138,6 +167,10 @@ export function ContactForm() {
       >
         {formState === "submitting" ? "Sending…" : "Send message"}
       </button>
+
+      <p className="text-xs text-center text-gray-400">
+        We&apos;ll help you identify the best starting module.
+      </p>
 
       <p className="text-xs text-center text-gray-400">
         For urgent queries, email{" "}

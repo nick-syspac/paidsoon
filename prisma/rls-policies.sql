@@ -61,6 +61,15 @@ ALTER TABLE margin_alert_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_scenarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_opportunities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stripe_billing_webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposit_guard_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposit_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_milestones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposit_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposit_reminders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposit_guard_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposit_guard_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposit_payment_webhook_events ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- user_profiles
@@ -1269,6 +1278,208 @@ CREATE POLICY "users can update own customers"
   ON customers FOR UPDATE
   USING (auth.uid()::text = "userId")
   WITH CHECK (auth.uid()::text = "userId");
+
+-- ---------------------------------------------------------------------------
+-- deposit_guard_jobs
+-- Users can create and manage their own DepositGuard jobs. Service-only
+-- reminder/webhook jobs use prismaAdmin bypass paths.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own deposit guard jobs" ON deposit_guard_jobs;
+CREATE POLICY "users can view own deposit guard jobs"
+  ON deposit_guard_jobs FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own deposit guard jobs" ON deposit_guard_jobs;
+CREATE POLICY "users can insert own deposit guard jobs"
+  ON deposit_guard_jobs FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own deposit guard jobs" ON deposit_guard_jobs;
+CREATE POLICY "users can update own deposit guard jobs"
+  ON deposit_guard_jobs FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own deposit guard jobs" ON deposit_guard_jobs;
+CREATE POLICY "users can delete own deposit guard jobs"
+  ON deposit_guard_jobs FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- deposit_requests
+-- User-owned deposit/payment request records and public-link lifecycle state.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own deposit requests" ON deposit_requests;
+CREATE POLICY "users can view own deposit requests"
+  ON deposit_requests FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own deposit requests" ON deposit_requests;
+CREATE POLICY "users can insert own deposit requests"
+  ON deposit_requests FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own deposit requests" ON deposit_requests;
+CREATE POLICY "users can update own deposit requests"
+  ON deposit_requests FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own deposit requests" ON deposit_requests;
+CREATE POLICY "users can delete own deposit requests"
+  ON deposit_requests FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- payment_milestones
+-- Business Pro milestone schedule definitions for DepositGuard jobs.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own payment milestones" ON payment_milestones;
+CREATE POLICY "users can view own payment milestones"
+  ON payment_milestones FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own payment milestones" ON payment_milestones;
+CREATE POLICY "users can insert own payment milestones"
+  ON payment_milestones FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own payment milestones" ON payment_milestones;
+CREATE POLICY "users can update own payment milestones"
+  ON payment_milestones FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own payment milestones" ON payment_milestones;
+CREATE POLICY "users can delete own payment milestones"
+  ON payment_milestones FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- deposit_payments
+-- Recorded payment events for DepositGuard requests.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own deposit payments" ON deposit_payments;
+CREATE POLICY "users can view own deposit payments"
+  ON deposit_payments FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own deposit payments" ON deposit_payments;
+CREATE POLICY "users can insert own deposit payments"
+  ON deposit_payments FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own deposit payments" ON deposit_payments;
+CREATE POLICY "users can update own deposit payments"
+  ON deposit_payments FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own deposit payments" ON deposit_payments;
+CREATE POLICY "users can delete own deposit payments"
+  ON deposit_payments FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- deposit_reminders
+-- Reminder schedule and send-attempt state for DepositGuard requests.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own deposit reminders" ON deposit_reminders;
+CREATE POLICY "users can view own deposit reminders"
+  ON deposit_reminders FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own deposit reminders" ON deposit_reminders;
+CREATE POLICY "users can insert own deposit reminders"
+  ON deposit_reminders FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own deposit reminders" ON deposit_reminders;
+CREATE POLICY "users can update own deposit reminders"
+  ON deposit_reminders FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own deposit reminders" ON deposit_reminders;
+CREATE POLICY "users can delete own deposit reminders"
+  ON deposit_reminders FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- deposit_guard_events
+-- Tenant-scoped DepositGuard audit trail for lifecycle transitions.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own deposit guard events" ON deposit_guard_events;
+CREATE POLICY "users can view own deposit guard events"
+  ON deposit_guard_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own deposit guard events" ON deposit_guard_events;
+CREATE POLICY "users can insert own deposit guard events"
+  ON deposit_guard_events FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own deposit guard events" ON deposit_guard_events;
+CREATE POLICY "users can update own deposit guard events"
+  ON deposit_guard_events FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own deposit guard events" ON deposit_guard_events;
+CREATE POLICY "users can delete own deposit guard events"
+  ON deposit_guard_events FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- deposit_guard_settings
+-- Tenant-scoped DepositGuard settings and reminder policy configuration.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own deposit guard settings" ON deposit_guard_settings;
+CREATE POLICY "users can view own deposit guard settings"
+  ON deposit_guard_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own deposit guard settings" ON deposit_guard_settings;
+CREATE POLICY "users can insert own deposit guard settings"
+  ON deposit_guard_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own deposit guard settings" ON deposit_guard_settings;
+CREATE POLICY "users can update own deposit guard settings"
+  ON deposit_guard_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own deposit guard settings" ON deposit_guard_settings;
+CREATE POLICY "users can delete own deposit guard settings"
+  ON deposit_guard_settings FOR DELETE
+  USING (auth.uid()::text = user_id);
+
+-- ---------------------------------------------------------------------------
+-- deposit_payment_webhook_events
+-- Internal webhook-delivery ledger used for idempotency and diagnostics.
+-- User sessions can access only rows linked to their own user_id.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own deposit payment webhook events" ON deposit_payment_webhook_events;
+CREATE POLICY "users can view own deposit payment webhook events"
+  ON deposit_payment_webhook_events FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own deposit payment webhook events" ON deposit_payment_webhook_events;
+CREATE POLICY "users can insert own deposit payment webhook events"
+  ON deposit_payment_webhook_events FOR INSERT
+  WITH CHECK (user_id IS NULL OR auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own deposit payment webhook events" ON deposit_payment_webhook_events;
+CREATE POLICY "users can update own deposit payment webhook events"
+  ON deposit_payment_webhook_events FOR UPDATE
+  USING (user_id IS NULL OR auth.uid()::text = user_id)
+  WITH CHECK (user_id IS NULL OR auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can delete own deposit payment webhook events" ON deposit_payment_webhook_events;
+CREATE POLICY "users can delete own deposit payment webhook events"
+  ON deposit_payment_webhook_events FOR DELETE
+  USING (user_id IS NULL OR auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- invoice_import_batches

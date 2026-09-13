@@ -19,7 +19,7 @@ describe("sendFollowUpEmail — paymentUrl passthrough", () => {
       namedExports: {
         prismaAdmin: {
           userProfile: {
-            findUnique: async () => ({ subscriptionTier: "starter" }),
+            findUnique: async () => ({ subscriptionTier: "essentials" }),
           },
           emailSettings: {
             findUnique: async () => null,

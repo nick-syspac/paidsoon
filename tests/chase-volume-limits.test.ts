@@ -109,13 +109,13 @@ function resolveAllowancePeriod(
 }
 
 const TIER_ALLOWANCES: Record<string, number> = {
-  starter: 10,
-  solo: 50,
+  essentials: 10,
+  business_control: 50,
   small_business: 200,
 }
 
 function allowanceForTier(tier?: string | null): number {
-  return TIER_ALLOWANCES[tier ?? "starter"] ?? TIER_ALLOWANCES.starter
+  return TIER_ALLOWANCES[tier ?? "essentials"] ?? TIER_ALLOWANCES.essentials
 }
 
 interface ChaseAllowanceStatus {
@@ -247,7 +247,7 @@ describe("chase-volume allowance — period resolver (6.3)", () => {
 
 describe("chase-volume allowance — usage counting and reset (6.1, 6.2, 6.4)", () => {
   const account: AllowanceAccountSnapshot = {
-    subscriptionTier: "starter",
+    subscriptionTier: "essentials",
     subscriptionStatus: "active",
     subscriptionCurrentPeriodStart: new Date("2026-07-01T00:00:00.000Z"),
     subscriptionCurrentPeriodEnd: new Date("2026-08-01T00:00:00.000Z"),
@@ -296,7 +296,7 @@ describe("chase-volume allowance — usage counting and reset (6.1, 6.2, 6.4)", 
 
 describe("chase-volume allowance — 80% threshold boundary (6.7)", () => {
   const account: AllowanceAccountSnapshot = {
-    subscriptionTier: "starter",
+    subscriptionTier: "essentials",
     subscriptionStatus: "active",
     subscriptionCurrentPeriodStart: new Date("2026-07-01T00:00:00.000Z"),
     subscriptionCurrentPeriodEnd: new Date("2026-08-01T00:00:00.000Z"),
@@ -338,7 +338,7 @@ describe("chase-volume allowance — calendar day arithmetic in Australia/Melbou
     const now = new Date("2026-07-15T00:00:00.000Z")
 
     const account: AllowanceAccountSnapshot = {
-      subscriptionTier: "starter",
+      subscriptionTier: "essentials",
       subscriptionStatus: "active",
       subscriptionCurrentPeriodStart: null,
       subscriptionCurrentPeriodEnd: null,
@@ -356,7 +356,7 @@ describe("chase-volume allowance — calendar day arithmetic in Australia/Melbou
     const now = new Date("2026-07-15T00:00:00.000Z")
 
     const account: AllowanceAccountSnapshot = {
-      subscriptionTier: "starter",
+      subscriptionTier: "essentials",
       subscriptionStatus: "active",
       subscriptionCurrentPeriodStart: null,
       subscriptionCurrentPeriodEnd: null,

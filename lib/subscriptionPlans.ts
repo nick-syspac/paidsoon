@@ -1,6 +1,6 @@
 export type SubscriptionTier =
-  | "starter"
-  | "solo"
+  | "essentials"
+  | "business_control"
   | "small_business"
   | "business_pro"
   | "accountant_partner"
@@ -50,6 +50,14 @@ export type SubscriptionFeature =
   | "contact_suppression" // NOT IMPLEMENTED — do-not-contact / suppression list
   | "team_seats" // NOT IMPLEMENTED — usable multi-user seats beyond 1
   | "multi_client_management" // planned — not yet implemented (Accountant Partner)
+  | "deposit_guard_access"
+  | "deposit_guard_deposit_requests"
+  | "deposit_guard_automatic_reminders"
+  | "deposit_guard_progress_payments"
+  | "deposit_guard_payment_schedules"
+  | "deposit_guard_accounting_sync"
+  | "deposit_guard_cashplan_forecasting"
+  | "deposit_guard_advanced_reporting"
 
 /**
  * Features that are gated in the catalog by their intended tier boundary but are
@@ -89,6 +97,8 @@ export interface PlanLimits {
   commitmentsTracked: number
   /** Maximum open detection candidates surfaced per detection cycle. -1 = unlimited. */
   commitmentDetectionCandidatesPerCycle: number
+  /** Maximum active DepositGuard jobs. -1 = unlimited. */
+  depositGuardActiveJobs: number
 }
 
 export interface PlanDefinition {
@@ -105,21 +115,22 @@ export interface PlanDefinition {
   features: Record<SubscriptionFeature, boolean>
 }
 
-export const DEFAULT_SUBSCRIPTION_TIER: SubscriptionTier = "starter"
+export const DEFAULT_SUBSCRIPTION_TIER: SubscriptionTier = "essentials"
 
 export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
-  starter: {
-    id: "starter",
+  essentials: {
+    id: "essentials",
     name: "Essentials",
     monthlyPriceAud: 15,
     visibility: "public",
-    tagline: "A focused entry point for a growing cash-control workflow.",
+    tagline: "Start controlling invoices and cash risks.",
     limits: {
       chasedInvoicesPerMonth: 10,
       userSeats: 1,
       connectedInvoiceSources: 1,
       commitmentsTracked: 25,
       commitmentDetectionCandidatesPerCycle: 25,
+      depositGuardActiveJobs: 0,
     },
     features: {
       basic_email_reminders: true,
@@ -161,20 +172,29 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: false,
       team_seats: false,
       multi_client_management: false,
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: false,
+      deposit_guard_automatic_reminders: false,
+      deposit_guard_progress_payments: false,
+      deposit_guard_payment_schedules: false,
+      deposit_guard_accounting_sync: false,
+      deposit_guard_cashplan_forecasting: false,
+      deposit_guard_advanced_reporting: false,
     },
   },
-  solo: {
-    id: "solo",
-    name: "Solo",
+  business_control: {
+    id: "business_control",
+    name: "Business Control",
     monthlyPriceAud: 29,
     visibility: "public",
-    tagline: "The first complete control layer for a solo operation.",
+    tagline: "Complete financial visibility for owner-operated businesses.",
     limits: {
       chasedInvoicesPerMonth: 50,
       userSeats: 1,
       connectedInvoiceSources: 1,
       commitmentsTracked: 150,
       commitmentDetectionCandidatesPerCycle: 75,
+      depositGuardActiveJobs: 0,
     },
     features: {
       basic_email_reminders: true,
@@ -216,6 +236,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: false,
       team_seats: false,
       multi_client_management: false,
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: false,
+      deposit_guard_automatic_reminders: false,
+      deposit_guard_progress_payments: false,
+      deposit_guard_payment_schedules: false,
+      deposit_guard_accounting_sync: false,
+      deposit_guard_cashplan_forecasting: false,
+      deposit_guard_advanced_reporting: false,
     },
   },
   small_business: {
@@ -224,13 +252,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     monthlyPriceAud: 69,
     visibility: "public",
     popular: true,
-    tagline: "The recommended plan for a growing small business team.",
+    tagline: "Automation and collaboration for growing teams.",
     limits: {
       chasedInvoicesPerMonth: 250,
       userSeats: 3,
       connectedInvoiceSources: 1,
       commitmentsTracked: 500,
       commitmentDetectionCandidatesPerCycle: 250,
+      depositGuardActiveJobs: 25,
     },
     features: {
       basic_email_reminders: true,
@@ -272,6 +301,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: true,
       team_seats: true,
       multi_client_management: false,
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: true,
+      deposit_guard_automatic_reminders: true,
+      deposit_guard_progress_payments: false,
+      deposit_guard_payment_schedules: false,
+      deposit_guard_accounting_sync: false,
+      deposit_guard_cashplan_forecasting: true,
+      deposit_guard_advanced_reporting: false,
     },
   },
   business_pro: {
@@ -279,13 +316,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
     name: "Business Pro",
     monthlyPriceAud: 149,
     visibility: "public",
-    tagline: "Advanced governance, multi-entity visibility, and cash forecasting.",
+    tagline: "Advanced forecasting, governance and multi-entity control.",
     limits: {
       chasedInvoicesPerMonth: 1000,
       userSeats: 10,
       connectedInvoiceSources: 3,
       commitmentsTracked: 2000,
       commitmentDetectionCandidatesPerCycle: 1000,
+      depositGuardActiveJobs: -1,
     },
     features: {
       basic_email_reminders: true,
@@ -327,6 +365,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: true,
       team_seats: true,
       multi_client_management: false,
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: true,
+      deposit_guard_automatic_reminders: true,
+      deposit_guard_progress_payments: true,
+      deposit_guard_payment_schedules: true,
+      deposit_guard_accounting_sync: true,
+      deposit_guard_cashplan_forecasting: true,
+      deposit_guard_advanced_reporting: true,
     },
   },
   accountant_partner: {
@@ -341,6 +387,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       connectedInvoiceSources: -1, // unlimited — exempt from the one-source limit
       commitmentsTracked: -1, // unlimited
       commitmentDetectionCandidatesPerCycle: -1, // unlimited
+      depositGuardActiveJobs: -1, // unlimited
     },
     features: {
       basic_email_reminders: true,
@@ -382,20 +429,33 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: true,
       team_seats: true,
       multi_client_management: false, // planned — not yet implemented
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: true,
+      deposit_guard_automatic_reminders: true,
+      deposit_guard_progress_payments: true,
+      deposit_guard_payment_schedules: true,
+      deposit_guard_accounting_sync: true,
+      deposit_guard_cashplan_forecasting: true,
+      deposit_guard_advanced_reporting: true,
     },
   },
 }
 
 /** Ordered lowest to highest, reflecting the recommended customer-facing ladder
- * of Essentials → Solo → Small Business → Business Pro, with the hidden
+ * of Essentials → Business Control → Small Business → Business Pro, with the hidden
  * contact-only tier at the end. */
 export const PLAN_ORDER: SubscriptionTier[] = [
-  "starter",
-  "solo",
+  "essentials",
+  "business_control",
   "small_business",
   "business_pro",
   "accountant_partner",
 ]
+
+const LEGACY_TIER_ALIASES: Record<string, SubscriptionTier> = {
+  starter: "essentials",
+  solo: "business_control",
+}
 
 function isSubscriptionTier(tier: string): tier is SubscriptionTier {
   return Object.prototype.hasOwnProperty.call(PLAN_CATALOG, tier)
@@ -403,6 +463,9 @@ function isSubscriptionTier(tier: string): tier is SubscriptionTier {
 
 export function normalizeSubscriptionTier(tier?: string | null): SubscriptionTier {
   if (!tier) return DEFAULT_SUBSCRIPTION_TIER
+  if (Object.prototype.hasOwnProperty.call(LEGACY_TIER_ALIASES, tier)) {
+    return LEGACY_TIER_ALIASES[tier]
+  }
   if (isSubscriptionTier(tier)) return tier
   return DEFAULT_SUBSCRIPTION_TIER
 }
@@ -430,9 +493,16 @@ export function getPublicPlans(): PlanDefinition[] {
 export function getPublicPlanSelectionIntent(
   tier?: string | null,
 ): SubscriptionTier | undefined {
-  if (!tier || !isSubscriptionTier(tier)) return undefined
+  if (!tier) return undefined
+  let resolvedTier: SubscriptionTier | undefined
+  if (isSubscriptionTier(tier)) {
+    resolvedTier = tier
+  } else if (Object.prototype.hasOwnProperty.call(LEGACY_TIER_ALIASES, tier)) {
+    resolvedTier = LEGACY_TIER_ALIASES[tier]
+  }
+  if (!resolvedTier) return undefined
 
-  const plan = PLAN_CATALOG[tier]
+  const plan = PLAN_CATALOG[resolvedTier]
   return plan.visibility === "public" ? plan.id : undefined
 }
 

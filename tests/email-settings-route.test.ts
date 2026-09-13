@@ -89,11 +89,11 @@ describe("PUT /api/settings/email", () => {
     const res = await PUT(req)
     assert.equal(res.status, 403)
     const body = await res.json()
-    assert.equal(body.error, "A Solo or Small Business subscription is required to set a custom reply-to")
+    assert.equal(body.error, "A Business Control or Small Business subscription is required to set a custom reply-to")
     assert.equal(withUserContextCalls, 0)
   })
 
-  test("accepts reply-to updates for Solo+ users", async () => {
+  test("accepts reply-to updates for Business Control+ users", async () => {
     canUseCustomReplyTo = true
 
     const req = new Request("http://localhost/api/settings/email", {

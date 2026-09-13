@@ -26,6 +26,13 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { href: "/dashboard/settings/email", label: "Email", group: "paidsoon", order: 2 },
   { href: "/dashboard/settings/templates", label: "Templates", group: "paidsoon", order: 3 },
   { href: "/dashboard/settings/import-export", label: "Import / Export", group: "paidsoon", order: 4 },
+  {
+    href: "/dashboard/settings/deposit-guard",
+    label: "DepositGuard",
+    group: "depositguard",
+    order: 1,
+    requiresFeature: "deposit_guard_deposit_requests",
+  },
   { href: "/dashboard/settings/owners-digest", label: "Owner's Digest", group: "ownersdigest", order: 1, requiresFeature: "owners_digest_core" },
   { href: "/dashboard/settings/commitguard", label: "CommitGuard", group: "commitguard", order: 1, requiresFeature: "commitguard_core" },
   { href: "/dashboard/settings/cost-guard", label: "Cost Guard", group: "costguard", order: 1, requiresFeature: "accounting_integrations" },
@@ -37,7 +44,8 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
 
 export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   { id: "general", label: "General", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "general") },
-  { id: "paidsoon", label: "PaidSoon", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "paidsoon") },
+  { id: "paidsoon", label: "InvoiceGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "paidsoon") },
+  { id: "depositguard", label: "DepositGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "depositguard") },
   { id: "spendleak", label: "SpendLeak", items: [] },
   { id: "ownersdigest", label: "Owner's Digest", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "ownersdigest") },
   { id: "commitguard", label: "CommitGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "commitguard") },

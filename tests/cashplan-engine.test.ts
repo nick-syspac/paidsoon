@@ -558,11 +558,14 @@ describe("CashPlan forecast engine", () => {
       }),
     })
 
-    const expired = expireCashPlanOverrides([
-      { id: "override-live", expiresAt: new Date("2026-09-10T00:00:00.000Z") },
-      { id: "override-expired", expiresAt: new Date("2026-09-06T00:00:00.000Z") },
-      { id: "override-open", expiresAt: null },
-    ])
+    const expired = expireCashPlanOverrides(
+      [
+        { id: "override-live", expiresAt: new Date("2026-09-10T00:00:00.000Z") },
+        { id: "override-expired", expiresAt: new Date("2026-09-06T00:00:00.000Z") },
+        { id: "override-open", expiresAt: null },
+      ],
+      new Date("2026-09-07T00:00:00.000Z"),
+    )
 
     assert.ok(staleForecast.dataQualityIssues.some((issue) => issue.type === "stale_source"))
     assert.equal(overrideAudit.sourceLineage.sourceId, "invoice-9")

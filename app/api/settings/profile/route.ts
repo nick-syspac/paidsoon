@@ -26,7 +26,7 @@ export async function PATCH(request: Request) {
         create: {
           userId: user.id,
           displayName: parsed.data.displayName,
-          subscriptionTier: "starter",
+          subscriptionTier: "essentials",
           subscriptionStatus: "trialing",
           trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         },

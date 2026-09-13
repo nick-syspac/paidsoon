@@ -36,7 +36,7 @@ describe("sendFollowUpEmail — duplicate-send guard", () => {
       namedExports: {
         prismaAdmin: {
           userProfile: {
-            findUnique: async () => ({ subscriptionTier: "starter" }),
+            findUnique: async () => ({ subscriptionTier: "essentials" }),
           },
           emailSettings: {
             findUnique: async () => null,

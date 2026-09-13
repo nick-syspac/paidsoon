@@ -9,7 +9,7 @@ export async function createUserProfile(userId: string) {
   await prisma.$transaction([
     prisma.userProfile.upsert({
       where: { userId },
-      create: { userId, subscriptionTier: "starter", subscriptionStatus: "trialing", trialEndsAt },
+      create: { userId, subscriptionTier: "essentials", subscriptionStatus: "trialing", trialEndsAt },
       update: {},
     }),
     prisma.schedule.upsert({

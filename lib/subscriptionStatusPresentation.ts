@@ -21,11 +21,70 @@ export interface SubscriptionBillingState {
   isTrialOnly: boolean
 }
 
+export interface DashboardSubscriptionAccessState {
+  allowAccess: boolean
+  showBillingWarning: boolean
+  billingWarning: string | null
+  redirectReason: "incomplete" | "unpaid" | "canceled" | null
+}
+
 export interface SubscriptionCancellationPageState {
   title: string
   description: string
   confirmLabel: string | null
   confirmDisabled: boolean
+}
+
+export function getDashboardSubscriptionAccessState(
+  status: string,
+): DashboardSubscriptionAccessState {
+  switch (status) {
+    case "active":
+    case "trialing":
+      return {
+        allowAccess: true,
+        showBillingWarning: false,
+        billingWarning: null,
+        redirectReason: null,
+      }
+    case "past_due":
+      return {
+        allowAccess: true,
+        showBillingWarning: true,
+        billingWarning:
+          "Your latest payment did not go through. Please update your billing details to avoid interruption.",
+        redirectReason: null,
+      }
+    case "incomplete":
+      return {
+        allowAccess: false,
+        showBillingWarning: false,
+        billingWarning: null,
+        redirectReason: "incomplete",
+      }
+    case "unpaid":
+      return {
+        allowAccess: false,
+        showBillingWarning: false,
+        billingWarning: null,
+        redirectReason: "unpaid",
+      }
+    case "canceled":
+    case "cancelled":
+      return {
+        allowAccess: false,
+        showBillingWarning: false,
+        billingWarning: null,
+        redirectReason: "canceled",
+      }
+    default:
+      return {
+        allowAccess: true,
+        showBillingWarning: false,
+        billingWarning: null,
+        redirectReason: null,
+      }
+  }
 }
 
 export function getSubscriptionBillingState({
@@ -34,6 +93,36 @@ export function getSubscriptionBillingState({
   subscriptionCancelAt,
   canCancelSubscription,
 }: SubscriptionBillingStateInput): SubscriptionBillingState {
+  if (status === "past_due") {
+    return {
+      headline: "Payment overdue",
+      description:
+        "We could not process your latest payment. Please update your billing details to keep your reminders running.",
+      showCancelAction: canCancelSubscription,
+      isTrialOnly: false,
+    }
+  }
+
+  if (status === "incomplete") {
+    return {
+      headline: "Checkout incomplete",
+      description:
+        "Your subscription setup was not completed. Return to checkout to finish activation.",
+      showCancelAction: false,
+      isTrialOnly: false,
+    }
+  }
+
+  if (status === "unpaid" || status === "canceled" || status === "cancelled") {
+    return {
+      headline: "Subscription inactive",
+      description:
+        "Your subscription is inactive. Choose a plan to restore full access.",
+      showCancelAction: false,
+      isTrialOnly: false,
+    }
+  }
+
   if (subscriptionCancelAt) {
     const formattedDate = formatSubscriptionDate(subscriptionCancelAt)
     return {
@@ -76,6 +165,26 @@ export function getSubscriptionCancellationPageState({
   subscriptionCancelAt,
   canCancelSubscription,
 }: SubscriptionBillingStateInput): SubscriptionCancellationPageState {
+  if (status === "incomplete") {
+    return {
+      title: "Subscription not active",
+      description:
+        "Your checkout was not completed. Finish checkout before managing cancellation.",
+      confirmLabel: null,
+      confirmDisabled: true,
+    }
+  }
+
+  if (status === "unpaid" || status === "canceled" || status === "cancelled") {
+    return {
+      title: "Subscription already inactive",
+      description:
+        "This subscription is no longer active. You can choose a new plan from subscription settings.",
+      confirmLabel: null,
+      confirmDisabled: true,
+    }
+  }
+
   if (subscriptionCancelAt) {
     const formattedDate = formatSubscriptionDate(subscriptionCancelAt)
     return {

@@ -19,7 +19,7 @@ function getPreselectedTier(): SubscriptionTier {
   } catch {
     // localStorage unavailable (e.g. private browsing restrictions)
   }
-  return "starter"
+  return "essentials"
 }
 
 export function OnboardingPlanPicker() {

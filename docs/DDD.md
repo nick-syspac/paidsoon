@@ -54,6 +54,7 @@ below maps logical areas to code modules (there are no Django apps).
 | Tax Buffer | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | Tax reserve estimation, safe-to-spend composition, obligation tracking, and reserve override audit trail | `TaxBufferConfiguration`, `TaxReserveCategory`, `TaxBufferObligation`, `TaxBufferSnapshot`, `TaxBufferOverride`, `TaxBufferEvent`; `buildTaxBufferSummary`, `loadTaxBufferSummary`, `saveTaxBufferSettings` | `changes/add-tax-buffer-module` |
 | CommitGuard | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | Recurring commitment registry, detection/review queue, horizon projection, free-cash guardrails, and renewal/notice alerts | `CommitGuardSetting`, `Commitment`, `CommitmentDetectionCandidate`, `CommitmentEvent`; `summarizeCommitGuard`, `detectCommitmentCandidates`, `buildCommitmentHorizonTotals`, `calculateFreeCashBreakdown` | `changes/add-commitguard-module` |
 | Owner's Digest | `lib/ownersDigest/**`, `app/api/owners-digest/**`, `app/dashboard/owners-digest/**`, `app/dashboard/settings/owners-digest/**`, `app/api/internal/jobs/send-owners-digest/route.ts` | Cross-module executive digest with deterministic ranking, immutable snapshots, history, settings, and scheduled email delivery | `OwnersDigestSetting`, `OwnersDigestSnapshot`, `OwnersDigestItem`, `OwnersDigestMetric`, `OwnersDigestProviderRun`, `OwnersDigestDelivery`; `generateOwnersDigest`, `getCurrentOwnersDigest`, `sendOwnersDigest` | `changes/add-owners-digest-module` |
+| DepositGuard | `lib/depositGuard/**`, `app/api/deposit-guard/**`, `app/api/internal/jobs/send-deposit-reminder/route.ts`, `app/dashboard/deposit-guard/**`, `app/dashboard/settings/deposit-guard/**`, `app/pay/deposit/**` | Deposit-request lifecycle, commencement blocking, milestone/request generation, reminder automation, public payment request page, dashboard workspace/detail/settings surfacing, and service-level cash-plan/digest/runway/notification adapters. MVP uses external-link payment requests plus manual confirmation; Stripe connected-account collection and advanced reconciliation remain planned. | `DepositGuardJob`, `DepositRequest`, `PaymentMilestone`, `DepositPayment`, `DepositReminder`, `DepositGuardSetting`, `DepositGuardEvent`, `DepositPaymentWebhookEvent`; `listDepositGuardJobs`, `listDepositRequests`, `sendDepositRequest`, `processDepositReminder`, `getDepositGuardJobDetail`, `getDepositGuardSettings`, `buildDepositGuardCashPlanLineItems`, `loadDepositGuardOwnerDigestProvider`, `buildDepositGuardRunwayImpact`, `buildDepositGuardNotificationPlan` | `changes/implement-depositguard` |
 | Spreadsheet invoice import | `app/api/invoice-imports/**`, `app/api/cron/invoice-import-cleanup/route.ts`, `lib/invoiceImport/**`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `components/settings/InvoiceImportClient.tsx` | CSV/XLSX invoice import: template, upload, mapping, validation, idempotent commit, retention cleanup | `InvoiceImportBatch`, `InvoiceImportColumnMapping`, `InvoiceImportStagingRow`, `InvoiceImportError`, `InvoiceImportMappingProfile` | `changes/csv-only-invoice-import`, `changes/combine-settings-import-export`, `changes/canonical-financial-data-model` |
 | Settings import/export shell | `app/dashboard/settings/layout.tsx`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/import/**`, `app/dashboard/settings/export/**`, `components/settings/ExpenseImportClient.tsx` | Combined Settings page for invoice import, expense import, and invoice export, with legacy route aliases | Reuses existing import/export models and SpendLeak import workflow | `changes/combine-settings-import-export` |
 | Invoice export | `app/api/invoices/export/route.ts`, `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/dashboard/settings/import-export/**`, `app/dashboard/settings/export/**`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx` | Filtered CSV/XLSX export of a tenant's invoices, gated by the `csv_export` feature | `EXPORT_FIELDS` data dictionary; `loadInvoicesForExport`, `generateExportCsv`, `generateExportXlsx` | `changes/add-invoice-export`, `changes/combine-settings-import-export` |
@@ -357,10 +358,12 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 | Auth callback | `app/auth/callback/route.ts` | `exchangeCodeForSession` → `/dashboard` |
 | Sign out | `app/auth/sign-out/route.ts` | `signOut()` → redirect `/` |
 | Trial checkout gateway | `app/billing/checkout/page.tsx` | Server component; reads `?plan` param (falls back to profile tier), POSTs to `/api/billing/checkout`, and redirects to the Stripe Checkout URL. Entry point for both the trial-expired gate and the TrialBanner "Add payment" CTA. Renders an error UI if checkout session creation fails. |
-| Dashboard shell | `app/dashboard/layout.tsx` | Nav with `UserMenu` dropdown (identity + sign-out); left-side vertical tab rail (`DashboardNavRail`) for Overview/Invoices/Resolved Invoices; redirects unauthenticated to `/sign-in` |
+| Dashboard shell | `app/dashboard/layout.tsx` | Nav with `UserMenu` dropdown (identity + sign-out); left-side vertical tab rail (`DashboardNavRail`) for Overview/Invoices/Resolved Invoices/DepositGuard; redirects unauthenticated to `/sign-in` |
 | Dashboard Overview page | `app/dashboard/page.tsx` | Traffic-light summary cards (Overdue, Chase allowance, Broken promises, Held invoices), ungated for every tier; redirects legacy `?resolved=1` to `/dashboard/resolved` |
 | Tax Buffer dashboard page | `app/dashboard/tax-buffer/page.tsx` | Tier-gated module showing reserve totals, safe-to-spend, category explainability, and 90-day obligations; includes setup guidance when disabled |
 | SpendLeak dashboard page | `app/dashboard/spendleak/page.tsx` | Spend-side module summaries plus freshness/empty/partial/stale state copy; tier-gated to eligible dashboard tiers; supports `?module=` filters and an analysis-only "Export SpendLeak Report" action |
+| DepositGuard dashboard pages | `app/dashboard/deposit-guard/page.tsx`, `app/dashboard/deposit-guard/new/page.tsx`, `app/dashboard/deposit-guard/[jobId]/page.tsx`, `app/dashboard/settings/deposit-guard/page.tsx` | Deposit job summary cards, filters, search, guided create workflow, request counts, per-job detail timeline with reminders, payments, milestones, commencement status, and DepositGuard settings controls; tier-gated to `deposit_guard_access` / request-level settings access |
+| DepositGuard public payment page | `app/pay/deposit/[token]/page.tsx` | Public token-based request page for customer-facing payment context; noindex/no-store headers and idempotent viewed-at tracking via hashed token lookup |
 | CommitGuard dashboard page | `app/dashboard/commitguard/page.tsx` | Commitment horizons, free-cash status, upcoming commitment table, renewal/notice priorities, detection queue visibility; supports Cost Guard deep-link filter via `?costGuardAlertId=` |
 | Owner's Digest dashboard page | `app/dashboard/owners-digest/page.tsx`, `components/dashboard/ownersDigest/OwnersDigestView.tsx` | Executive summary, prioritized attention/opportunity/positive sections, key numbers, source completeness status, and digest history |
 | SpendLeak finding detail page | `app/dashboard/spendleak/[id]/page.tsx` | Evidence-first drill-down for a single finding, with structured evidence cards, raw evidence disclosure, and lifecycle controls |
@@ -594,13 +597,26 @@ enforced server-side before content is returned.
 | `GET /api/stripe/connect/authorize` | `.../authorize/route.ts` | — | session | `withUserContext` count | → redirect to Stripe | Implemented |
 | `GET /api/stripe/connect/callback` | `.../callback/route.ts` | query `code,state` | session + `state==user.id` | `withUserContext` upsert | → redirect to settings | Implemented |
 | `POST /api/stripe/connect/disconnect` | `.../disconnect/route.ts` | optional `{connectionId}` | session | `withUserContext` | → `{success}` | Implemented |
-| `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` by `stripeCustomerId` | Stripe event → `{received}` | Implemented (no `payment_failed`) |
+| `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` + durable event dedupe | Stripe event → `{received}` | Implemented — handles `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.trial_will_end`; enforces stale-event guard by `event.created` watermark |
 | `POST /api/webhooks/stripe-connect` | `.../stripe-connect/route.ts` | provider signature | signature | `prismaAdmin` by account id | Stripe event → `{received}` | Implemented |
 | `POST /api/webhooks/resend` | `.../resend/route.ts` | Svix-style signature (`svix-id`/`svix-timestamp`/`svix-signature`, HMAC-SHA256, 5-min tolerance) | signature | `prismaAdmin` by `resendMessageId` | Resend delivery event → `{received}` | Implemented — updates `EmailLog.status`; always returns 200 for unmatched/unknown events |
 | `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed,held,usageByAccount}` | Implemented |
 | `GET /api/cron/scheduling-watchdog` | `.../cron/scheduling-watchdog/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{ok,stale,lastRunAt}` | Implemented — alerts via email if the Railway Celery Beat heartbeat is stale/missing; see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
 | `GET /api/cron/margin-guard-snapshots` | `.../cron/margin-guard-snapshots/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{ok,snapshots,alerts,opportunities}` | Implemented — runs tenant snapshot upserts first, then alert and opportunity sweeps |
 | `POST /api/internal/jobs/send-reminder` | `.../internal/jobs/send-reminder/route.ts` | `zod` `{userId,trackedInvoiceId}` | `Bearer INTERNAL_JOBS_SECRET` | `withUserContext` | → `{outcome,...}` | Implemented — called by the Railway Celery `reminder_email` task, not public |
+| `GET/POST /api/deposit-guard/jobs` | `app/api/deposit-guard/jobs/route.ts` | query `includeArchived?`; create payload (`zod`) | session + DepositGuard entitlement checks | `withUserContext` via service | → `{jobs}` / `{job}` | Implemented — supports preview-mode and active-job-limit upgrade responses |
+| `PATCH/DELETE /api/deposit-guard/jobs/[jobId]` | `app/api/deposit-guard/jobs/[jobId]/route.ts` | path `jobId`; patch payload (`zod`) | session + DepositGuard entitlement checks | `withUserContext` via service | → `{job}` / `{archived}` | Implemented |
+| `POST /api/deposit-guard/jobs/preview` | `app/api/deposit-guard/jobs/preview/route.ts` | guided create-workflow payload (`zod`) | session | preview-only calculation helper | → `{preview}` | Implemented — server-authoritative preview totals for the DepositGuard create wizard |
+| `GET/POST /api/deposit-guard/requests` | `app/api/deposit-guard/requests/route.ts` | query `jobId?`; create payload (`zod`) | session + `deposit_guard_deposit_requests` feature | `withUserContext` via service | → `{requests}` / `{request}` | Implemented |
+| `PATCH/POST /api/deposit-guard/requests/[requestId]` | `app/api/deposit-guard/requests/[requestId]/route.ts` | path `requestId`; patch payload (`zod` dueDate); action payload (`zod` send/resend/cancel) | session + `deposit_guard_deposit_requests` feature | `withUserContext` via service | → `{request}` | Implemented |
+| `POST /api/deposit-guard/requests/[requestId]/payment-link` | `app/api/deposit-guard/requests/[requestId]/payment-link/route.ts` | path `requestId`; body `provider?` | session + request access | `withUserContext` + provider abstraction | → `{request}` | Implemented — `manual_external_link` is the MVP path; `stripe_connect` can return setup-required |
+| `POST /api/deposit-guard/payments` | `app/api/deposit-guard/payments/route.ts` | payment payload (`zod`) | session + DepositGuard entitlement checks | `withUserContext` via service | → payment sync result | Implemented — manual payment recording with idempotency key support |
+| `GET/POST /api/deposit-guard/milestones` | `app/api/deposit-guard/milestones/route.ts` | query `jobId?`; create payload (`zod`) | session + `deposit_guard_payment_schedules` feature | `withUserContext` via service | → `{milestones}` / `{milestone}` | Implemented |
+| `PATCH/DELETE /api/deposit-guard/milestones/[milestoneId]` | `app/api/deposit-guard/milestones/[milestoneId]/route.ts` | path `milestoneId`; patch payload (`zod`) | session + `deposit_guard_payment_schedules` feature | `withUserContext` via service | → `{milestone}` / `{ok}` | Implemented |
+| `POST /api/deposit-guard/milestones/[milestoneId]/generate-request` | `app/api/deposit-guard/milestones/[milestoneId]/generate-request/route.ts` | path `milestoneId`; body `dueDate` (`zod`) | session + milestone/request access | `withUserContext` via service | → `{request,milestone}` | Implemented |
+| `GET/PUT /api/deposit-guard/settings` | `app/api/deposit-guard/settings/route.ts` | strict settings payload (`zod`) | session + DepositGuard access checks | `withUserContext` via service | → `{settings}` | Implemented |
+| `POST /api/internal/jobs/send-deposit-reminder` | `app/api/internal/jobs/send-deposit-reminder/route.ts` | `zod` `{reminderId}` | `Bearer INTERNAL_JOBS_SECRET` | `prismaAdmin` delivery helper | → `{status,...}` | Implemented — worker-internal reminder dispatch endpoint |
+| `POST /api/webhooks/deposit-payments?provider=` | `app/api/webhooks/deposit-payments/route.ts` | provider-specific webhook payload/signature checks | signature | `prismaAdmin` idempotent webhook-event persistence | provider event → `{received,...}` | Implemented — Stripe signature required for `stripe_connect`; unsupported/invalid signatures are acknowledged safely |
 | `POST /api/internal/jobs/sync-connection` | `.../internal/jobs/sync-connection/route.ts` | `zod` `{accountingConnectionId}` | `Bearer INTERNAL_JOBS_SECRET` | `syncConnection` (`prismaAdmin`) | → `SyncResult` | Implemented — called by the Railway Celery `accounting_sync` task, not public |
 | `POST /api/internal/jobs/promise-arrangement-sweep` | `.../internal/jobs/promise-arrangement-sweep/route.ts` | — | `Bearer INTERNAL_JOBS_SECRET` | `prismaAdmin` | → `{brokenPromises,arrangementsUpdated}` | Implemented — called by the Railway Celery sweep task, not public |
 | `POST /api/internal/jobs/catchup-snooze-sweep` | `.../internal/jobs/catchup-snooze-sweep/route.ts` | — | `Bearer INTERNAL_JOBS_SECRET` | `prismaAdmin` | → `{snoozedResumed}` | Implemented — called by the Railway Celery sweep task, not public |
@@ -837,7 +853,7 @@ stateDiagram-v2
   implemented in the product — presentation code must render these as "Coming soon",
   see `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()`):
 
-| Feature (`SubscriptionFeature`) | Starter | Solo | Small Business | Business Pro | Accountant Partner |
+| Feature (`SubscriptionFeature`) | Essentials | Business Control | Small Business | Business Pro | Accountant Partner |
 |---|---|---|---|---|---|
 | `basic_email_reminders` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `email_reminder_sequence` (custom timing) | — | ✓ | ✓ | ✓ | ✓ |
@@ -869,10 +885,9 @@ stateDiagram-v2
   pause, the debtor dashboard, accounting integrations) are enabled on every paid
   tier — MYOB's own reminder features are not a substitute for PaidSoon's workflow,
   so these are not used as upsell levers.
-- **No legacy alias map:** `normalizeSubscriptionTier` returns `starter` for any
-  value not in `{starter, solo, small_business, business_pro, accountant_partner}`. Previous
-  generations of tier naming (`free`/`pro`/`business`) are not aliased — a stray
-  legacy value surfaces as a visibly wrong plan rather than resolving silently.
+- **Compatibility aliases:** `normalizeSubscriptionTier` keeps runtime compatibility for
+  persisted legacy values (`starter` → `essentials`, `solo` → `business_control`) and
+  otherwise falls back to `essentials`.
 - **Accountant Partner checkout:** `accountant_partner` has `monthlyPriceAud: null` (contact-us
   pricing); the Stripe Checkout route returns an error for this tier. Provisioning is manual.
   It is `visibility: "contact_only"` — `getPublicPlans()` excludes it from the pricing page,
@@ -883,29 +898,39 @@ stateDiagram-v2
   `getInvoiceSourceLimitForTier` covers Stripe Connect accounts and accounting
   connections combined (`countActiveInvoiceSources`), replacing the earlier
   Stripe-only connection limit.
-- **Checkout → activation:** `POST /api/billing/checkout` → Stripe Checkout →
-  `checkout.session.completed` webhook sets `subscriptionTier` (from
-  `selectedTier` metadata) and `subscriptionStatus = active`.
-- **Updates/cancellation:** `customer.subscription.updated` resolves tier from
-  the price id (`PRICE_ID_TO_TIER`); `customer.subscription.deleted` reverts to
-  `starter`, sets `cancelled`, and pauses invoices exceeding the starter limit.
+- **Checkout → activation:** `POST /api/billing/checkout` sets
+  `subscription_data.trial_period_days` from `STRIPE_TRIAL_PERIOD_DAYS` (default 14)
+  for eligible self-serve plans, reuses existing Stripe customers, and blocks
+  duplicate active/trialing subscription creation.
+- **Checkout-success reconciliation:** `GET /api/billing/checkout/success` reads the
+  completed session from Stripe, enforces ownership via checkout metadata, and
+  writes Stripe-backed lifecycle fields (`status`, trial end, period start/end,
+  cancel-at-period-end, price id, customer/subscription ids).
+- **Updates/cancellation:** `customer.subscription.created` and
+  `customer.subscription.updated` resolve tier from price id (`PRICE_ID_TO_TIER`)
+  and persist Stripe-backed lifecycle projection; `customer.subscription.deleted`
+  reverts to `essentials`, sets `canceled`, and pauses invoices exceeding the
+  Essentials limit.
 - **Price IDs:** the webhook's `PRICE_ID_TO_TIER` map has exactly four entries —
-  `STRIPE_STARTER_PRICE_ID→starter`, `STRIPE_SOLO_PRICE_ID→solo`,
+  `STRIPE_STARTER_PRICE_ID→essentials`, `STRIPE_SOLO_PRICE_ID→business_control`,
   `STRIPE_SMALL_BUSINESS_PRICE_ID→small_business`, `STRIPE_BUSINESS_PRO_PRICE_ID→business_pro`.
   `STRIPE_BUSINESS_PRICE_ID` and
   `STRIPE_PRO_PRICE_ID` have been retired (see `changes/restore-three-tier-pricing`).
 - **Portal:** `POST /api/billing/portal` → Stripe billing portal.
 - **Trial/free handling:** `trialing` is treated as active; there is no separate
-  free plan — `starter` is the paid entry tier (schema's `subscriptionTier` default
-  is `"starter"`).
+  free plan — `essentials` is the paid entry tier (schema's `subscriptionTier` default
+  is `"essentials"`). Access control now follows Stripe-backed status matrix:
+  `trialing`/`active` allow access, `past_due` allows with warning,
+  `incomplete` blocks, and `unpaid`/`canceled` revoke access.
 - **GST:** all three prices are inclusive of GST. The corresponding Stripe Price
   objects must carry `tax_behavior: "inclusive"` — this attribute is immutable
   once set, so it must be confirmed before pricing/checkout changes, not after.
 - **Not implemented:** add-ons; usage events;
   monthly chased-invoice allowance enforcement semantics (counting, warning,
   pausing) — see `changes/monthly-chase-volume-limits`.
-- `invoice.payment_failed` → `past_due` is implemented — see
-  `changes/handle-stripe-payment-failed`.
+- **Webhook idempotency/order:** billing webhook events are durably deduplicated by
+  `stripe_event_id` in `stripe_billing_webhook_events`; older events are ignored
+  when `event.created` is older than `UserProfile.latestStripeEventCreatedAt`.
 
 ## 12. AI Rewrite Design
 

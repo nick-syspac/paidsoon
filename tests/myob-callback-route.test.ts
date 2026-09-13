@@ -73,7 +73,7 @@ describe("MYOB callback route", () => {
               count: async () => 0,
             },
             userProfile: {
-              findUnique: async () => ({ subscriptionTier: "solo" }),
+              findUnique: async () => ({ subscriptionTier: "business_control" }),
             },
           }
           return fn(tx)

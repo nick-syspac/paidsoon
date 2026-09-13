@@ -65,15 +65,19 @@ Test mode keys start with `sk_test_…`, live mode with `sk_live_…`. Set per t
 
 Stripe dashboard → **Products → Add product**. Do this in **both modes** (test for Local/Preview, live for Production).
 
-- **Name**: `PaidSoon Starter`
+- **Name**: `PaidSoon Essentials`
 - **Pricing**: Recurring, monthly, **A$9.00 / month, inclusive of GST**
 - **Tax behavior**: set to **Inclusive** when creating the Price. `tax_behavior` is immutable once set — if it is left `Unspecified` or set to `Exclusive`, Stripe Checkout will add GST on top of the advertised price, and the only fix is creating a new Price object (the existing one cannot be edited). Verify this before capturing the Price ID.
 
 Save, then copy the **Price ID** (starts with `price_…`) and capture it as `STRIPE_STARTER_PRICE_ID` per the matrix.
 
+Set `STRIPE_TRIAL_PERIOD_DAYS` (default `14`) in each environment. This value
+is applied by checkout via `subscription_data.trial_period_days` for eligible
+self-serve plans.
+
 Repeat for the other paid tiers (same Inclusive tax behavior applies to both):
 
-- **Name**: `PaidSoon Solo`
+- **Name**: `PaidSoon Business Control`
 - **Pricing**: Recurring, monthly, **A$19.00 / month, inclusive of GST**
 - Capture the Price ID as `STRIPE_SOLO_PRICE_ID`
 
@@ -141,19 +145,21 @@ Stripe dashboard → **Developers → Webhooks → Add endpoint** (in **live mod
 |---|---|
 | **Endpoint URL** | `https://paidsoon.com/api/webhooks/stripe-billing` |
 | **Listen to** | Events on your account |
-| **Events** | `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed` |
+| **Events** | `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.trial_will_end` |
 
 Copy the **Signing secret** (`whsec_…`) → capture as `STRIPE_BILLING_WEBHOOK_SECRET` per the matrix.
 
-> **Note on `invoice.payment_failed`**: This event is required in the dashboard subscription so the data is delivered when the handler ships, but **as of June 2026 it is not yet handled in code**. The webhook returns `{received: true}` for unknown event types ([stripe-billing route](../../app/api/webhooks/stripe-billing/route.ts)) so subscribing is non-breaking. Tracked in follow-up change `handle-billing-payment-failed-webhook`.
-
-The three event branches that **are** handled by the route:
+The billing webhook branches currently handled in code:
 
 | Event | Effect |
 |---|---|
-| `checkout.session.completed` | Marks the user as the selected paid tier from Checkout metadata |
-| `customer.subscription.updated` | Sync subscription status → tier |
-| `customer.subscription.deleted` | Revert to Starter; pause invoices over the Starter-tier limit |
+| `checkout.session.completed` | Reconciles post-checkout subscription state from Stripe and persists plan/status snapshot |
+| `customer.subscription.created` | Persists initial trial/active lifecycle projection fields |
+| `customer.subscription.updated` | Syncs subscription status, period window, cancel-at-period-end, and mapped tier |
+| `customer.subscription.deleted` | Reverts to Essentials and pauses invoices over the Essentials-tier limit |
+| `invoice.paid` | Reinforces active billing state |
+| `invoice.payment_failed` | Marks billing as `past_due` while preserving tier |
+| `customer.subscription.trial_will_end` | Recorded for operational visibility; no direct entitlement change |
 
 ### 5.2 Local — Stripe CLI
 
@@ -176,7 +182,12 @@ To trigger specific events for testing:
 
 ```bash
 stripe trigger checkout.session.completed
+stripe trigger customer.subscription.created
 stripe trigger customer.subscription.updated
+stripe trigger customer.subscription.deleted
+stripe trigger invoice.paid
+stripe trigger invoice.payment_failed
+stripe trigger customer.subscription.trial_will_end
 ```
 
 ### 5.3 Preview

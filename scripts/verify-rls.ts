@@ -44,6 +44,20 @@ const PROBE_OWNERS_DIGEST_ITEM_A = "RLS verify owner's digest item A"
 const PROBE_OWNERS_DIGEST_ITEM_B = "RLS verify owner's digest item B"
 const PROBE_OWNERS_DIGEST_DELIVERY_KEY_A = "rls-verify-owners-digest-delivery-a"
 const PROBE_OWNERS_DIGEST_DELIVERY_KEY_B = "rls-verify-owners-digest-delivery-b"
+const PROBE_DEPOSIT_JOB_QUOTE_A = "rls-verify-deposit-quote-a"
+const PROBE_DEPOSIT_JOB_QUOTE_B = "rls-verify-deposit-quote-b"
+const PROBE_DEPOSIT_REQUEST_REF_A = "rls-verify-deposit-request-a"
+const PROBE_DEPOSIT_REQUEST_REF_B = "rls-verify-deposit-request-b"
+const PROBE_DEPOSIT_MILESTONE_A = "RLS verify milestone A"
+const PROBE_DEPOSIT_MILESTONE_B = "RLS verify milestone B"
+const PROBE_DEPOSIT_PAYMENT_A = "rls-verify-deposit-payment-a"
+const PROBE_DEPOSIT_PAYMENT_B = "rls-verify-deposit-payment-b"
+const PROBE_DEPOSIT_REMINDER_A = "rls-verify-deposit-reminder-a"
+const PROBE_DEPOSIT_REMINDER_B = "rls-verify-deposit-reminder-b"
+const PROBE_DEPOSIT_EVENT_A = "rls-verify-deposit-event-a"
+const PROBE_DEPOSIT_EVENT_B = "rls-verify-deposit-event-b"
+const PROBE_DEPOSIT_SETTINGS_NOTE_A = "rls-verify-deposit-settings-a"
+const PROBE_DEPOSIT_SETTINGS_NOTE_B = "rls-verify-deposit-settings-b"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -230,11 +244,257 @@ async function seed() {
       emailLower: PROBE_CUSTOMER_EMAIL_B,
     },
   })
-  await prismaAdmin.customer.create({
+  const customerA = await prismaAdmin.customer.create({
     data: { userId: USER_A, financialContactId: custContactA.id },
   })
-  await prismaAdmin.customer.create({
+  const customerB = await prismaAdmin.customer.create({
     data: { userId: USER_B, financialContactId: custContactB.id },
+  })
+
+  const depositJobA = await prismaAdmin.depositGuardJob.create({
+    data: {
+      userId: USER_A,
+      customerId: customerA.id,
+      externalQuoteId: PROBE_DEPOSIT_JOB_QUOTE_A,
+      externalQuoteNumber: "DGA-001",
+      accountingProvider: "manual",
+      name: "RLS Verify Deposit Job A",
+      currency: "aud",
+      quotedAmountCents: 100_000,
+      taxAmountCents: 10_000,
+      totalAmountCents: 110_000,
+      depositType: "percentage",
+      depositPercentage: 30,
+      requiredDepositAmountCents: 33_000,
+      outstandingAmountCents: 77_000,
+      workStatus: "awaiting_deposit",
+      paymentStatus: "requested",
+      commencementBlocked: true,
+      createdBy: USER_A,
+    },
+  })
+
+  const depositJobB = await prismaAdmin.depositGuardJob.create({
+    data: {
+      userId: USER_B,
+      customerId: customerB.id,
+      externalQuoteId: PROBE_DEPOSIT_JOB_QUOTE_B,
+      externalQuoteNumber: "DGB-001",
+      accountingProvider: "manual",
+      name: "RLS Verify Deposit Job B",
+      currency: "aud",
+      quotedAmountCents: 120_000,
+      taxAmountCents: 12_000,
+      totalAmountCents: 132_000,
+      depositType: "fixed",
+      depositFixedAmountCents: 40_000,
+      requiredDepositAmountCents: 40_000,
+      outstandingAmountCents: 92_000,
+      workStatus: "awaiting_deposit",
+      paymentStatus: "requested",
+      commencementBlocked: true,
+      createdBy: USER_B,
+    },
+  })
+
+  const depositRequestA = await prismaAdmin.depositRequest.create({
+    data: {
+      userId: USER_A,
+      jobId: depositJobA.id,
+      customerId: customerA.id,
+      requestType: "deposit",
+      description: "RLS verify request A",
+      amountCents: 30_000,
+      taxAmountCents: 3_000,
+      totalAmountCents: 33_000,
+      currency: "aud",
+      dueDate: new Date("2026-01-20T00:00:00.000Z"),
+      status: "requested",
+      paymentProvider: "manual",
+      externalPaymentReference: PROBE_DEPOSIT_REQUEST_REF_A,
+      externalPaymentUrl: "https://example.com/pay/deposit/a",
+      publicTokenHash: "hash-a",
+      createdBy: USER_A,
+    },
+  })
+
+  const depositRequestB = await prismaAdmin.depositRequest.create({
+    data: {
+      userId: USER_B,
+      jobId: depositJobB.id,
+      customerId: customerB.id,
+      requestType: "deposit",
+      description: "RLS verify request B",
+      amountCents: 36_363,
+      taxAmountCents: 3_637,
+      totalAmountCents: 40_000,
+      currency: "aud",
+      dueDate: new Date("2026-01-21T00:00:00.000Z"),
+      status: "requested",
+      paymentProvider: "manual",
+      externalPaymentReference: PROBE_DEPOSIT_REQUEST_REF_B,
+      externalPaymentUrl: "https://example.com/pay/deposit/b",
+      publicTokenHash: "hash-b",
+      createdBy: USER_B,
+    },
+  })
+
+  const depositPaymentA = await prismaAdmin.depositPayment.create({
+    data: {
+      userId: USER_A,
+      jobId: depositJobA.id,
+      depositRequestId: depositRequestA.id,
+      amountCents: 10_000,
+      currency: "aud",
+      paymentMethod: "bank_transfer",
+      paymentProvider: "manual",
+      externalPaymentId: PROBE_DEPOSIT_PAYMENT_A,
+      status: "confirmed",
+      paidAt: new Date("2026-01-16T00:00:00.000Z"),
+      recordedBy: USER_A,
+    },
+  })
+
+  const depositPaymentB = await prismaAdmin.depositPayment.create({
+    data: {
+      userId: USER_B,
+      jobId: depositJobB.id,
+      depositRequestId: depositRequestB.id,
+      amountCents: 12_000,
+      currency: "aud",
+      paymentMethod: "bank_transfer",
+      paymentProvider: "manual",
+      externalPaymentId: PROBE_DEPOSIT_PAYMENT_B,
+      status: "confirmed",
+      paidAt: new Date("2026-01-17T00:00:00.000Z"),
+      recordedBy: USER_B,
+    },
+  })
+
+  await prismaAdmin.paymentMilestone.create({
+    data: {
+      userId: USER_A,
+      jobId: depositJobA.id,
+      name: PROBE_DEPOSIT_MILESTONE_A,
+      sequence: 1,
+      amountType: "percentage",
+      percentage: 30,
+      calculatedAmountCents: 33_000,
+      triggerType: "manual",
+      status: "requested",
+      depositRequestId: depositRequestA.id,
+    },
+  })
+
+  await prismaAdmin.paymentMilestone.create({
+    data: {
+      userId: USER_B,
+      jobId: depositJobB.id,
+      name: PROBE_DEPOSIT_MILESTONE_B,
+      sequence: 1,
+      amountType: "fixed",
+      fixedAmountCents: 40_000,
+      calculatedAmountCents: 40_000,
+      triggerType: "manual",
+      status: "requested",
+      depositRequestId: depositRequestB.id,
+    },
+  })
+
+  await prismaAdmin.depositReminder.create({
+    data: {
+      userId: USER_A,
+      depositRequestId: depositRequestA.id,
+      reminderType: "due_today",
+      scheduledFor: new Date("2026-01-20T00:00:00.000Z"),
+      deliveryStatus: "pending",
+      providerMessageId: PROBE_DEPOSIT_REMINDER_A,
+    },
+  })
+
+  await prismaAdmin.depositReminder.create({
+    data: {
+      userId: USER_B,
+      depositRequestId: depositRequestB.id,
+      reminderType: "due_today",
+      scheduledFor: new Date("2026-01-21T00:00:00.000Z"),
+      deliveryStatus: "pending",
+      providerMessageId: PROBE_DEPOSIT_REMINDER_B,
+    },
+  })
+
+  await prismaAdmin.depositGuardEvent.create({
+    data: {
+      userId: USER_A,
+      jobId: depositJobA.id,
+      depositRequestId: depositRequestA.id,
+      depositPaymentId: depositPaymentA.id,
+      eventType: "payment_confirmed",
+      actorUserId: USER_A,
+      metadata: { idempotencyKey: PROBE_DEPOSIT_EVENT_A },
+    },
+  })
+
+  await prismaAdmin.depositGuardEvent.create({
+    data: {
+      userId: USER_B,
+      jobId: depositJobB.id,
+      depositRequestId: depositRequestB.id,
+      depositPaymentId: depositPaymentB.id,
+      eventType: "payment_confirmed",
+      actorUserId: USER_B,
+      metadata: { idempotencyKey: PROBE_DEPOSIT_EVENT_B },
+    },
+  })
+
+  await prismaAdmin.depositGuardSetting.upsert({
+    where: { userId: USER_A },
+    update: {
+      autoReminderEnabled: true,
+      initialReminderOffsetDays: 0,
+      beforeDueOffsetDays: 1,
+      overdue3Enabled: true,
+      overdue7Enabled: true,
+      paymentProviderDefault: "manual_external_link",
+      requireDepositBeforeStart: true,
+      settingsJson: { note: PROBE_DEPOSIT_SETTINGS_NOTE_A },
+    },
+    create: {
+      userId: USER_A,
+      autoReminderEnabled: true,
+      initialReminderOffsetDays: 0,
+      beforeDueOffsetDays: 1,
+      overdue3Enabled: true,
+      overdue7Enabled: true,
+      paymentProviderDefault: "manual_external_link",
+      requireDepositBeforeStart: true,
+      settingsJson: { note: PROBE_DEPOSIT_SETTINGS_NOTE_A },
+    },
+  })
+
+  await prismaAdmin.depositGuardSetting.upsert({
+    where: { userId: USER_B },
+    update: {
+      autoReminderEnabled: true,
+      initialReminderOffsetDays: 2,
+      beforeDueOffsetDays: 2,
+      overdue3Enabled: true,
+      overdue7Enabled: false,
+      paymentProviderDefault: "manual_external_link",
+      requireDepositBeforeStart: false,
+      settingsJson: { note: PROBE_DEPOSIT_SETTINGS_NOTE_B },
+    },
+    create: {
+      userId: USER_B,
+      autoReminderEnabled: true,
+      initialReminderOffsetDays: 2,
+      beforeDueOffsetDays: 2,
+      overdue3Enabled: true,
+      overdue7Enabled: false,
+      paymentProviderDefault: "manual_external_link",
+      requireDepositBeforeStart: false,
+      settingsJson: { note: PROBE_DEPOSIT_SETTINGS_NOTE_B },
+    },
   })
 
   await prismaAdmin.taxBufferConfiguration.create({
@@ -636,6 +896,27 @@ async function cleanup() {
   await prismaAdmin.ownersDigestSetting.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
   })
+  await prismaAdmin.depositGuardEvent.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.depositGuardSetting.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.depositReminder.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.paymentMilestone.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.depositPayment.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.depositRequest.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.depositGuardJob.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
   await prismaAdmin.customer.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
   })
@@ -1035,6 +1316,113 @@ async function main() {
     fail("expected USER_B Owner's Digest settings to remain unchanged")
   }
   console.log("  ✓ Owner's Digest settings updates are tenant-scoped")
+
+  console.log("\nCheck 18: withUserContext(USER_A) sees only A's DepositGuard job")
+  const depositJobs = await withUserContext(USER_A, (tx) =>
+    tx.depositGuardJob.findMany({
+      where: { externalQuoteId: { in: [PROBE_DEPOSIT_JOB_QUOTE_A, PROBE_DEPOSIT_JOB_QUOTE_B] } },
+      orderBy: { createdAt: "asc" },
+    }),
+  )
+  if (depositJobs.length !== 1 || depositJobs[0].externalQuoteId !== PROBE_DEPOSIT_JOB_QUOTE_A) {
+    await cleanup()
+    fail(`expected exactly A's DepositGuard job, got ${JSON.stringify(depositJobs.map((row) => row.externalQuoteId))}`)
+  }
+  console.log("  ✓ saw only A's DepositGuard job")
+
+  console.log("\nCheck 19: withUserContext(USER_A) sees only A's DepositGuard request")
+  const depositRequests = await withUserContext(USER_A, (tx) =>
+    tx.depositRequest.findMany({
+      where: { externalPaymentReference: { in: [PROBE_DEPOSIT_REQUEST_REF_A, PROBE_DEPOSIT_REQUEST_REF_B] } },
+      orderBy: { createdAt: "asc" },
+    }),
+  )
+  if (depositRequests.length !== 1 || depositRequests[0].externalPaymentReference !== PROBE_DEPOSIT_REQUEST_REF_A) {
+    await cleanup()
+    fail(`expected exactly A's DepositGuard request, got ${JSON.stringify(depositRequests.map((row) => row.externalPaymentReference))}`)
+  }
+  console.log("  ✓ saw only A's DepositGuard request")
+
+  console.log("\nCheck 20: withUserContext(USER_A) sees only A's milestone, payment, reminder, and event")
+  const [milestones, payments, reminders, events] = await withUserContext(USER_A, async (tx) => {
+    const milestones = await tx.paymentMilestone.findMany({
+      where: { name: { in: [PROBE_DEPOSIT_MILESTONE_A, PROBE_DEPOSIT_MILESTONE_B] } },
+      orderBy: { createdAt: "asc" },
+    })
+    const payments = await tx.depositPayment.findMany({
+      where: { externalPaymentId: { in: [PROBE_DEPOSIT_PAYMENT_A, PROBE_DEPOSIT_PAYMENT_B] } },
+      orderBy: { createdAt: "asc" },
+    })
+    const reminders = await tx.depositReminder.findMany({
+      where: { providerMessageId: { in: [PROBE_DEPOSIT_REMINDER_A, PROBE_DEPOSIT_REMINDER_B] } },
+      orderBy: { createdAt: "asc" },
+    })
+    const events = await tx.depositGuardEvent.findMany({
+      where: {
+        metadata: {
+          path: ["idempotencyKey"],
+          string_contains: "rls-verify-deposit-event",
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    })
+    return [milestones, payments, reminders, events]
+  })
+
+  if (milestones.length !== 1 || milestones[0].name !== PROBE_DEPOSIT_MILESTONE_A) {
+    await cleanup()
+    fail(`expected exactly A's milestone, got ${JSON.stringify(milestones.map((row) => row.name))}`)
+  }
+  if (payments.length !== 1 || payments[0].externalPaymentId !== PROBE_DEPOSIT_PAYMENT_A) {
+    await cleanup()
+    fail(`expected exactly A's payment, got ${JSON.stringify(payments.map((row) => row.externalPaymentId))}`)
+  }
+  if (reminders.length !== 1 || reminders[0].providerMessageId !== PROBE_DEPOSIT_REMINDER_A) {
+    await cleanup()
+    fail(`expected exactly A's reminder, got ${JSON.stringify(reminders.map((row) => row.providerMessageId))}`)
+  }
+  if (
+    events.length !== 1 ||
+    ((events[0].metadata as { idempotencyKey?: string } | null)?.idempotencyKey !== PROBE_DEPOSIT_EVENT_A)
+  ) {
+    await cleanup()
+    fail("expected exactly A's DepositGuard event")
+  }
+  console.log("  ✓ saw only A's milestone, payment, reminder, and event")
+
+  console.log("\nCheck 21: withUserContext(USER_A) sees and updates only A's DepositGuard settings")
+  const settingsRows = await withUserContext(USER_A, (tx) =>
+    tx.depositGuardSetting.findMany({
+      where: {
+        userId: { in: [USER_A, USER_B] },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  )
+
+  if (settingsRows.length !== 1 || settingsRows[0].userId !== USER_A) {
+    await cleanup()
+    fail(`expected exactly A's DepositGuard settings row, got ${JSON.stringify(settingsRows.map((row) => row.userId))}`)
+  }
+
+  const settingsUpdate = await withUserContext(USER_A, (tx) =>
+    tx.depositGuardSetting.updateMany({
+      where: { userId: USER_A },
+      data: { beforeDueOffsetDays: 5 },
+    }),
+  )
+
+  if (settingsUpdate.count !== 1) {
+    await cleanup()
+    fail(`expected one DepositGuard settings update for USER_A, got ${settingsUpdate.count}`)
+  }
+
+  const settingsB = await prismaAdmin.depositGuardSetting.findUnique({ where: { userId: USER_B } })
+  if (!settingsB || settingsB.beforeDueOffsetDays !== 2) {
+    await cleanup()
+    fail("expected USER_B DepositGuard settings to remain unchanged")
+  }
+  console.log("  ✓ DepositGuard settings updates are tenant-scoped")
 
   await cleanup()
   console.log("\nPASS: RLS is enforced.")

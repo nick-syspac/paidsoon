@@ -4,19 +4,22 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRef, useState } from "react"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
-import { getCtaForLiveMode, PRODUCT_LINKS } from "@/components/marketing/marketingContent"
+import { getJourneyCta, MODULE_HREF, PRODUCT_LINKS, SOLUTION_GROUPS } from "@/components/marketing/marketingContent"
+
+const MODULE_LINKS = PRODUCT_LINKS.filter((link) => Object.values(MODULE_HREF).includes(link.href))
 
 const topLinks = [
+  { label: "How it works", href: "/how-it-works" },
+  { label: "Pricing", href: "/pricing" },
   { label: "Resources", href: "/resources" },
   { label: "Security", href: "/security" },
-  { label: "Contact", href: "/contact" },
 ]
 
 export function MarketingNav({ liveMode }: { liveMode: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [productOpen, setProductOpen] = useState(false)
-  const productMenuRef = useRef<HTMLDivElement | null>(null)
-  const cta = getCtaForLiveMode(liveMode)
+  const [solutionsOpen, setSolutionsOpen] = useState(false)
+  const solutionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const cta = getJourneyCta("hero", liveMode)
 
   return (
     <header className="border-b border-gray-100 bg-white/95 backdrop-blur sticky top-0 z-40">
@@ -39,11 +42,11 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-6" aria-label="Main navigation">
           <div
-            ref={productMenuRef}
+            ref={solutionsMenuRef}
             className="relative"
             onBlur={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                setProductOpen(false)
+                setSolutionsOpen(false)
               }
             }}
           >
@@ -51,19 +54,19 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
               type="button"
               className="text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1 py-1"
               aria-haspopup="true"
-              aria-expanded={productOpen}
-              onClick={() => setProductOpen((value) => !value)}
+              aria-expanded={solutionsOpen}
+              onClick={() => setSolutionsOpen((value) => !value)}
             >
-              Product
+              Solutions
             </button>
-            {productOpen ? (
+            {solutionsOpen ? (
               <div className="absolute left-0 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
-                {PRODUCT_LINKS.map((link) => (
+                {SOLUTION_GROUPS.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
                     className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                    onClick={() => setProductOpen(false)}
+                    onClick={() => setSolutionsOpen(false)}
                   >
                     {link.label}
                   </Link>
@@ -126,8 +129,33 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
           className="lg:hidden border-t border-gray-100 bg-white px-4 py-3 flex flex-col gap-3"
           aria-label="Mobile navigation"
         >
-          <p className="text-xs uppercase tracking-wide text-gray-400 px-1">Product</p>
-          {PRODUCT_LINKS.map((link) => (
+          <p className="text-xs uppercase tracking-wide text-gray-400 px-1">Solutions</p>
+          {SOLUTION_GROUPS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-sm text-gray-700 hover:text-gray-900 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+              onClick={() => setMobileOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
+          <Link
+            href="/platform"
+            className="text-sm text-gray-700 hover:text-gray-900 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+            onClick={() => setMobileOpen(false)}
+          >
+            Platform
+          </Link>
+          <Link
+            href="/pricing"
+            className="text-sm text-gray-700 hover:text-gray-900 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+            onClick={() => setMobileOpen(false)}
+          >
+            Pricing
+          </Link>
+          <p className="text-xs uppercase tracking-wide text-gray-400 mt-1 px-1">Modules</p>
+          {MODULE_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}

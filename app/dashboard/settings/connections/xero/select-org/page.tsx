@@ -50,7 +50,7 @@ export default async function XeroSelectOrgPage({
       <div className="space-y-1">
         <h2 className="text-lg font-semibold text-gray-900">Choose Your Xero Organisation</h2>
         <p className="text-sm text-gray-500">
-          Select the organisation PaidSoon should sync invoices from.
+          Select the organisation InvoiceGuard should sync invoices from.
         </p>
       </div>
 

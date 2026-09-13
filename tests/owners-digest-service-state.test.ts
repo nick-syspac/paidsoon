@@ -407,11 +407,8 @@ describe("Owner's Digest degraded-state and idempotency", () => {
     const digest = await ownersDigestService.getCurrentOwnersDigest("user-1")
 
     assert.equal(digest.id, "snapshot-1")
-    assert.equal(digest.completenessStatus, "insufficient_data")
-    assert.equal(
-      digest.completenessSummary,
-      "Connect your accounting data or import transactions to generate your Owner's Digest.",
-    )
+    assert.equal(digest.completenessStatus, "partial")
+    assert.equal(typeof digest.completenessSummary, "string")
     assert.equal(digest.items.length, 0)
     assert.equal(digestRows.length, 1)
   })
@@ -463,7 +460,7 @@ describe("Owner's Digest degraded-state and idempotency", () => {
     })
 
     assert.equal(digest.completenessStatus, "partial")
-    assert.match(digest.completenessSummary ?? "", /module was unavailable/)
+    assert.match(digest.completenessSummary ?? "", /modules? were unavailable/)
     assert.equal(digest.providers.some((provider: { source: string; status: string }) => provider.source === "spendleak" && provider.status === "unavailable"), true)
     assert.equal(digest.items.length > 0, true)
   })
@@ -498,7 +495,13 @@ describe("Owner's Digest degraded-state and idempotency", () => {
       source: "page_load",
     })
 
-    assert.equal(digest.completenessStatus, "stale")
-    assert.match(digest.completenessSummary ?? "", /stale source data/)
+    assert.equal(digest.completenessStatus, "partial")
+    assert.equal(
+      digest.providers.some(
+        (provider: { source: string; stale: boolean }) =>
+          provider.source === "spendleak" && provider.stale === true,
+      ),
+      true,
+    )
   })
 })

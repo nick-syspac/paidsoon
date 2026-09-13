@@ -10,8 +10,8 @@ import {
 } from "@/lib/dashboardUpsell"
 
 test("next-tier recommendation follows the public plan ladder", () => {
-  assert.equal(getNextTierRecommendation("starter"), "solo")
-  assert.equal(getNextTierRecommendation("solo"), "small_business")
+  assert.equal(getNextTierRecommendation("essentials"), "business_control")
+  assert.equal(getNextTierRecommendation("business_control"), "small_business")
   assert.equal(getNextTierRecommendation("small_business"), "business_pro")
 })
 
@@ -33,20 +33,20 @@ test("feature intent detection supports upsell signals", () => {
 
 test("locked dashboard model contains sample label and rows", () => {
   const model = buildDashboardUpsellModel({
-    tier: "starter",
+    tier: "essentials",
     usageCount: 1,
     usageLimit: 10,
     showResolved: false,
   })
 
   assert.equal(model.badgeLabel, "Sample preview")
-  assert.equal(model.recommendedTier, "solo")
+  assert.equal(model.recommendedTier, "business_control")
   assert.equal(model.sampleRows.length, LOCKED_DASHBOARD_SAMPLE_ROWS.length)
 })
 
 test("near-limit or intent upgrades copy context in model", () => {
   const nearLimitModel = buildDashboardUpsellModel({
-    tier: "starter",
+    tier: "essentials",
     usageCount: 9,
     usageLimit: 10,
     showResolved: false,
@@ -54,7 +54,7 @@ test("near-limit or intent upgrades copy context in model", () => {
   assert.equal(nearLimitModel.nearLimit, true)
 
   const intentModel = buildDashboardUpsellModel({
-    tier: "starter",
+    tier: "essentials",
     usageCount: 1,
     usageLimit: 20,
     showResolved: true,
@@ -62,5 +62,5 @@ test("near-limit or intent upgrades copy context in model", () => {
   })
   // featureIntent "templates" is a recognised intent signal → nearLimit = true
   assert.equal(intentModel.nearLimit, true)
-  assert.equal(intentModel.recommendedTier, "solo")
+  assert.equal(intentModel.recommendedTier, "business_control")
 })

@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
   if (!canRewrite) {
     return NextResponse.json(
-      { error: "Solo or Small Business subscription required for AI rewrite" },
+      { error: "Business Control or Small Business subscription required for AI rewrite" },
       { status: 403 },
     )
   }

@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { PRODUCT_LINKS } from "@/components/marketing/marketingContent"
+import { MARKETING_CTA_BY_STAGE, PRODUCT_LINKS } from "@/components/marketing/marketingContent"
 
 const footerLinks = {
   Company: [
@@ -7,10 +7,11 @@ const footerLinks = {
     { label: "Contact", href: "/contact" },
     { label: "Careers", href: "/careers" },
   ],
-  Product: PRODUCT_LINKS.map((link) => ({
-    label: link.label === "Platform overview" ? "Platform Overview" : link.label,
-    href: link.href,
-  })),
+  Product: PRODUCT_LINKS.map((link) =>
+    link.href === "/paidsoon"
+      ? { label: "InvoiceGuard", href: "/invoiceguard" }
+      : { label: link.label, href: link.href },
+  ),
   Support: [
     { label: "Help Centre", href: "/help" },
     { label: "FAQ", href: "/faq" },
@@ -38,6 +39,15 @@ export function MarketingFooter() {
   return (
     <footer className="border-t border-gray-100 bg-gray-50 mt-auto">
       <div className="max-w-6xl mx-auto px-4 py-12">
+        <div className="mb-8 rounded-xl border border-blue-100 bg-blue-50 p-5 text-center">
+          <p className="text-sm text-blue-900">Start with the financial problem that matters most.</p>
+          <Link
+            href="/contact"
+            className="mt-3 inline-flex items-center justify-center rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+          >
+            {MARKETING_CTA_BY_STAGE.footer}
+          </Link>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           {Object.entries(footerLinks).map(([group, links]) => (
             <div key={group}>

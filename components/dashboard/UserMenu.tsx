@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 
 const TIER_LABELS: Record<string, string> = {
-  starter: "Starter",
-  solo: "Solo",
+  starter: "Essentials",
+  essentials: "Essentials",
+  solo: "Business Control",
+  business_control: "Business Control",
   small_business: "Small Business",
   business_pro: "Business Pro",
   accountant_partner: "Accountant Partner",
-  free: "Starter",
-  pro: "Solo",
+  free: "Essentials",
+  pro: "Business Control",
 }
 
 function getInitials(displayName: string | null, email: string): string {

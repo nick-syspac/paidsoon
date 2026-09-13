@@ -32,7 +32,27 @@ export default async function BillingCheckoutPage({
   }
 
   const plan = getPlanByTier(tier)
-  const isTrialExpired = params.reason === "trial_expired"
+  const reason = params.reason ?? null
+  const heading =
+    reason === "incomplete"
+      ? "Finish your subscription setup"
+      : reason === "unpaid"
+        ? "Your subscription is unpaid"
+        : reason === "canceled"
+          ? "Your subscription is inactive"
+          : reason === "trial_expired"
+            ? "Your trial has ended"
+            : "Upgrade your plan"
+  const body =
+    reason === "incomplete"
+      ? "Return to checkout to activate your subscription and restore dashboard access."
+      : reason === "unpaid"
+        ? "Update payment details and restart your plan to continue sending reminders."
+        : reason === "canceled"
+          ? "Choose a plan to restore access to reminder automation and debtor tracking."
+          : reason === "trial_expired"
+            ? "Subscribe to keep sending reminders and tracking overdue invoices."
+            : `Subscribe to the ${plan.name} plan to continue.`
 
   // Note: this page intentionally does NOT create a Checkout session or
   // redirect automatically on render. It previously did both, which meant
@@ -45,12 +65,10 @@ export default async function BillingCheckoutPage({
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full bg-white rounded-lg shadow p-8 text-center space-y-4">
         <h1 className="text-xl font-semibold text-gray-900">
-          {isTrialExpired ? "Your trial has ended" : "Upgrade your plan"}
+          {heading}
         </h1>
         <p className="text-sm text-gray-600">
-          {isTrialExpired
-            ? "Subscribe to keep sending reminders and tracking overdue invoices."
-            : `Subscribe to the ${plan.name} plan to continue.`}
+          {body}
         </p>
         {plan.monthlyPriceAud !== null ? (
           <>

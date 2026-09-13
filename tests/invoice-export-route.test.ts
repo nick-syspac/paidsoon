@@ -125,7 +125,7 @@ describe("GET /api/invoices/export", () => {
   })
 
   test("returns 403 without generating a file when the tier lacks csv_export", async () => {
-    mockSubscriptionTier = "starter"
+    mockSubscriptionTier = "essentials"
     const res = await GET(makeRequest("format=csv"))
     assert.strictEqual(res.status, 403)
     const body = await res.json()

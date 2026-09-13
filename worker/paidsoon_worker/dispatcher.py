@@ -12,6 +12,7 @@ from .celery_app import app
 from .config import Config
 from .tasks import (
     catchup_snooze_sweep_task,
+    send_deposit_reminder_task,
     owners_digest_task,
     promise_arrangement_sweep_task,
     send_reminder_task,
@@ -28,6 +29,15 @@ def dispatch_reminder_emails() -> int:
     for claim in claims:
         send_reminder_task.delay(claim["id"], claim["user_id"], claim["entity_id"])
     logger.info("dispatch_reminder_emails claimed %d", len(claims))
+    return len(claims)
+
+
+@app.task(name="dispatcher.dispatch_deposit_reminders")
+def dispatch_deposit_reminders() -> int:
+    claims = db.claim_due_deposit_reminders()
+    for claim in claims:
+        send_deposit_reminder_task.delay(claim["id"], claim["user_id"], claim["entity_id"])
+    logger.info("dispatch_deposit_reminders claimed %d", len(claims))
     return len(claims)
 
 
@@ -93,6 +103,8 @@ def _reenqueue(row: dict) -> None:
         send_reminder_task.delay(row["id"], row["user_id"], row["entity_id"])
     elif workflow == "accounting_sync":
         sync_connection_task.delay(row["id"], row["user_id"], row["entity_id"])
+    elif workflow == "deposit_reminder":
+        send_deposit_reminder_task.delay(row["id"], row["user_id"], row["entity_id"])
     elif workflow == "catchup_and_snooze":
         catchup_snooze_sweep_task.delay(row["id"])
     elif workflow == "promise_arrangement_sweep":
