@@ -4,6 +4,7 @@ import { getMarginSummary } from "@/lib/marginguard/service"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { summarizeCommitGuard } from "@/lib/commitguard/service"
 import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
+import { loadDepositGuardOwnerDigestProvider } from "@/lib/depositGuard/integrations"
 import { getOwnersDigestEntitlements, requireOwnersDigestCoreAccess, requireOwnersDigestHistoryAccess } from "@/lib/ownersDigest/entitlements"
 import {
   getOrCreateOwnersDigestSettings,
@@ -759,6 +760,9 @@ async function collectProviderResults(
   }
   if (hasPlanFeature(entitlements.tier, "tax_buffer_basic")) {
     providers.push({ source: "taxbuffer", load: () => loadTaxBufferProvider(userId, now) })
+  }
+  if (hasPlanFeature(entitlements.tier, "deposit_guard_access")) {
+    providers.push({ source: "depositguard", load: () => loadDepositGuardOwnerDigestProvider(userId, now) })
   }
   if (hasPlanFeature(entitlements.tier, "commitguard_core")) {
     providers.push({ source: "commitguard", load: () => loadCommitGuardProvider(userId, now) })

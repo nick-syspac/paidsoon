@@ -4,16 +4,16 @@ import assert from "node:assert/strict"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
 
 test("runway guard tier map exposes core access on the right plans", () => {
-  assert.equal(hasPlanFeature("solo", "runwayguard_core"), true)
-  assert.equal(hasPlanFeature("starter", "runwayguard_core"), false)
+  assert.equal(hasPlanFeature("business_control", "runwayguard_core"), true)
+  assert.equal(hasPlanFeature("essentials", "runwayguard_core"), false)
   assert.equal(hasPlanFeature("small_business", "runwayguard_scenarios"), true)
-  assert.equal(hasPlanFeature("solo", "runwayguard_scenarios"), false)
+  assert.equal(hasPlanFeature("business_control", "runwayguard_scenarios"), false)
 })
 
 test("runway guard access helpers reject access for blocked feature gates", async () => {
   await mock.module("@/lib/billing", {
     namedExports: {
-      getSubscriptionTier: async () => "starter",
+      getSubscriptionTier: async () => "essentials",
       requireFeature: async (_userId: string, feature: string) => {
         if (feature === "runwayguard_core") return false
         if (feature === "runwayguard_scenarios") return false

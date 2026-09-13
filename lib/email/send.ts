@@ -190,7 +190,7 @@ PaidSoon`
 /**
  * Resolve the "From" address and reply-to for a user, per the sender-identity
  * ladder: Starter gets the PaidSoon system address with account-email replies;
- * Solo adds a custom reply-to and custom sender display name alongside the
+ * Business Control adds a custom reply-to and custom sender display name alongside the
  * system address; Small Business (and Accountant Partner) adds a fully custom,
  * verified from-domain.
  * This is the single enforcement point for sender identity — settings routes

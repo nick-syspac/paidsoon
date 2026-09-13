@@ -58,7 +58,7 @@ export default async function MarginGuardSettingsPage() {
   const sources = [
     {
       id: "paidsoon",
-      label: "PaidSoon invoices",
+      label: "InvoiceGuard invoices",
       connected: sourceData.invoiceCount > 0,
       lastSyncAt: null,
       dataRange: sourceData.invoiceCount > 0 ? `${sourceData.invoiceCount} invoices` : "No records",

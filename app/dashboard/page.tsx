@@ -440,12 +440,28 @@ export default async function DashboardOverviewPage({
         <AiSummaryCard lines={currencySummaries[0].aiSummaryLines} />
       ) : null}
 
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Attention</h2>
+          <Link href="/dashboard/invoices" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            View all invoices
+          </Link>
+        </div>
+        <OverviewCards cards={cards} />
+      </section>
+
       {cashPlanStatus ? (
         <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Cash posture</h2>
+            <Link href="/dashboard/settings/cash-plan" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+              Forecast settings
+            </Link>
+          </div>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-gray-500">CashPlan status</p>
-              <h2 className="mt-1 text-lg font-semibold text-gray-900">{cashPlanStatus.title}</h2>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">{cashPlanStatus.title}</h3>
               <p className="mt-2 text-sm text-gray-600">{cashPlanStatus.summaryLabel}</p>
             </div>
             <div className="flex gap-2">
@@ -495,9 +511,9 @@ export default async function DashboardOverviewPage({
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-gray-500">RunwayGuard</p>
-              <h2 className="mt-1 text-lg font-semibold text-gray-900">
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">
                 {runwayGuardStatus.runwayDays} days runway · {runwayGuardStatus.status}
-              </h2>
+              </h3>
               <p className="mt-2 text-sm text-gray-600">
                 Usable cash {formatAudCents(runwayGuardStatus.usableCashCents)} · Confidence {runwayGuardStatus.confidence.toFixed(2)} · Exit day {runwayGuardStatus.projectedExhaustionDay}
               </p>
@@ -539,7 +555,7 @@ export default async function DashboardOverviewPage({
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-gray-500">Tax Buffer</p>
-              <h2 className="mt-1 text-lg font-semibold text-gray-900">Safe to spend {formatOptionalAudCents(taxBufferSummary.safeToSpendCents)}</h2>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">Safe to spend {formatOptionalAudCents(taxBufferSummary.safeToSpendCents)}</h3>
               <p className="mt-2 text-sm text-gray-600">
                 Required reserve {formatAudCents(taxBufferSummary.totalRequiredReserveCents)} · Reserved {formatAudCents(taxBufferSummary.totalReservedCents)}
               </p>
@@ -593,51 +609,18 @@ export default async function DashboardOverviewPage({
         </section>
       ) : null}
 
-      {commitGuardSummary ? (
-        <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-500">CommitGuard</p>
-              <h2 className="mt-1 text-lg font-semibold text-gray-900">Free cash {formatOptionalAudCents(commitGuardSummary.freeCash.freeCashCents)}</h2>
-              <p className="mt-2 text-sm text-gray-600">
-                Protected cash {formatAudCents(commitGuardSummary.freeCash.protectedCashCents)} · Status {commitGuardSummary.freeCash.status.replace("_", " ")}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Link
-                href="/dashboard/settings/commitguard"
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Open settings
-              </Link>
-              <Link
-                href="/dashboard/commitguard"
-                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Open CommitGuard
-              </Link>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            {commitGuardSummary.horizons.map((horizon) => (
-              <div key={horizon.days} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <p className="text-xs uppercase tracking-wide text-gray-500">{horizon.days}-day commitments</p>
-                <p className="mt-2 text-lg font-semibold text-gray-900">{formatAudCents(horizon.totalCents)}</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-gray-600">
-            Renewal items requiring attention: {commitGuardSummary.renewals.filter((item) => item.severity !== "info").length}
-          </p>
-        </section>
-      ) : null}
-
       {ownersDigestSummary ? (
         <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Digest</h2>
+            <Link href="/dashboard/owners-digest" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+              Open full digest
+            </Link>
+          </div>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-gray-500">Owner&apos;s Digest</p>
-              <h2 className="mt-1 text-lg font-semibold text-gray-900">{formatOwnersDigestStatus(ownersDigestSummary.status)}</h2>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">{formatOwnersDigestStatus(ownersDigestSummary.status)}</h3>
               <p className="mt-2 text-sm text-gray-600">{ownersDigestSummary.summary}</p>
             </div>
             <div className="flex gap-2">
@@ -678,48 +661,51 @@ export default async function DashboardOverviewPage({
         </section>
       ) : null}
 
-      <div>
-        <h2 className="text-sm font-medium text-gray-600 mb-3">Account health</h2>
-        <OverviewCards cards={cards} />
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
-          <div className="flex items-start justify-between gap-3">
+      {commitGuardSummary ? (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wide text-gray-500">SpendLeak health</p>
-              <p className="mt-1 text-sm font-semibold text-gray-900">
-                {canViewSpendLeak && spendLeakData
-                  ? `${spendLeakData.status.title} · ${spendLeakData.findings.length} finding${spendLeakData.findings.length === 1 ? "" : "s"}`
-                  : "Locked on current tier"}
+              <p className="text-xs uppercase tracking-wide text-gray-500">CommitGuard</p>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">Free cash {formatOptionalAudCents(commitGuardSummary.freeCash.freeCashCents)}</h3>
+              <p className="mt-2 text-sm text-gray-600">
+                Protected cash {formatAudCents(commitGuardSummary.freeCash.protectedCashCents)} · Status {commitGuardSummary.freeCash.status.replace("_", " ")}
               </p>
-              {canViewSpendLeak && spendLeakData ? (
-                <p className="mt-1 text-xs text-gray-600">{spendLeakData.status.description}</p>
-              ) : (
-                <p className="mt-1 text-xs text-gray-600">Upgrade to include spend-side leakage signals in account health.</p>
-              )}
             </div>
-            <Link
-              href={buildSpendLeakOverviewHref(financialSummary.showUnlockCta, topSpendLeakModule?.id ?? null)}
-              className="shrink-0 rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {financialSummary.showUnlockCta ? "Upgrade" : "Open"}
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                href="/dashboard/settings/commitguard"
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Open settings
+              </Link>
+              <Link
+                href="/dashboard/commitguard"
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Open CommitGuard
+              </Link>
+            </div>
           </div>
-          {canViewSpendLeak && spendLeakData && topSpendLeakModule ? (
-            <p className="mt-2 text-xs text-gray-600">
-              Top module: <span className="font-medium text-gray-900">{topSpendLeakModule.title}</span> with {topSpendLeakModule.findingCount} finding{topSpendLeakModule.findingCount === 1 ? "" : "s"}
-              {topSpendLeakModule.estimatedAnnualCents > 0
-                ? ` (${formatAudCents(topSpendLeakModule.estimatedAnnualCents)} potential annual impact).`
-                : "."}
-            </p>
-          ) : null}
-        </div>
-      </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            {commitGuardSummary.horizons.map((horizon) => (
+              <div key={horizon.days} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">{horizon.days}-day commitments</p>
+                <p className="mt-2 text-lg font-semibold text-gray-900">{formatAudCents(horizon.totalCents)}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-gray-600">
+            Renewal items requiring attention: {commitGuardSummary.renewals.filter((item) => item.severity !== "info").length}
+          </p>
+        </section>
+      ) : null}
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Financial operations summary</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Receivables momentum from PaidSoon plus spend-side signals from SpendLeak.
+              Receivables momentum from InvoiceGuard plus spend-side signals from SpendLeak.
             </p>
           </div>
           <Link

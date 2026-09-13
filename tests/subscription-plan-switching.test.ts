@@ -4,7 +4,7 @@ import test from "node:test"
 import { getPlanChangeImpact } from "@/lib/subscriptionPlans"
 
 test("getPlanChangeImpact lists lost features and limit reductions for downgrades", () => {
-  const impact = getPlanChangeImpact("small_business", "starter")
+  const impact = getPlanChangeImpact("small_business", "essentials")
 
   assert.ok(impact.lostFeatures.includes("Custom reminder templates"))
   assert.ok(impact.lostFeatures.includes("Verified from domain"))

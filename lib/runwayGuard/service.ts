@@ -11,10 +11,13 @@ import {
   type RunwayMaterialChangeResult,
 } from "@/lib/runwayGuard/foundation"
 
+import type { RunwayForecastPoint } from "@/lib/runwayGuard/foundation"
+
 export interface RunwayGuardServiceInput extends BuildRunwaySummaryInput {
   horizonDays?: number
   previousRunwayDays?: number
   previousProtectedCashCents?: number
+  depositGuardForecast?: RunwayForecastPoint[]
   scenario?: {
     inflowMultiplier?: number
     outflowMultiplier?: number
@@ -37,6 +40,7 @@ export function buildRunwayGuardServiceOutput(input: RunwayGuardServiceInput): R
 
   const summary = buildRunwaySummary({
     ...input,
+    forecast: input.depositGuardForecast ?? input.forecast,
     policy,
   })
   const previousRunwayDays = input.previousRunwayDays ?? summary.runwayDays

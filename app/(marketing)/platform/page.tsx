@@ -4,9 +4,12 @@ import { isLiveMode } from "@/lib/liveMode"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 import {
-  getCtaForLiveMode,
+  getMarketingModuleLabel,
+  getJourneyCta,
+  getModuleById,
+  getIntegrationSupportCopy,
   getModulesByPlatformArea,
-  MODULES,
+  PRACTICAL_CONTROL_GROUPS,
   PLATFORM_AREAS,
   PLATFORM_CYCLE,
   PLATFORM_TAGLINE,
@@ -28,7 +31,8 @@ export const metadata: Metadata = {
 
 export default function PlatformPage() {
   const liveMode = isLiveMode()
-  const cta = getCtaForLiveMode(liveMode)
+  const cta = getJourneyCta("after-modules", liveMode)
+  const integrationSupportCopy = getIntegrationSupportCopy()
 
   return (
     <div className="min-h-screen bg-white">
@@ -53,28 +57,112 @@ export default function PlatformPage() {
         </div>
       </section>
 
+      <section className="mx-auto max-w-5xl px-4 py-10">
+        <h2 className="text-2xl font-semibold text-gray-900 text-center">How PaidSoon works with Xero, MYOB, and CSV</h2>
+        <p className="mt-3 text-center text-gray-600">Your accounting software records the past. PaidSoon helps decide what to do next.</p>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <article className="rounded-xl border border-gray-200 p-5">
+            <h3 className="font-semibold text-gray-900">Accounting software</h3>
+            <ul className="mt-3 space-y-2 text-sm text-gray-600">
+              <li>Records invoices and payments</li>
+              <li>Reports historical results</li>
+              <li>Stores expenses and transactions</li>
+              <li>Shows available cash</li>
+            </ul>
+          </article>
+          <article className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+            <h3 className="font-semibold text-blue-900">PaidSoon</h3>
+            <ul className="mt-3 space-y-2 text-sm text-blue-900">
+              <li>Tells you what needs attention</li>
+              <li>Highlights emerging risks</li>
+              <li>Helps control waste and commitments</li>
+              <li>Helps plan what happens next</li>
+            </ul>
+          </article>
+        </div>
+        <p className="mt-4 text-center text-sm text-gray-500">{integrationSupportCopy}</p>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-8">
+        <h2 className="text-2xl font-semibold text-gray-900">Everything you need for practical financial control</h2>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {PRACTICAL_CONTROL_GROUPS.map((group) => (
+            <article key={group.id} className="rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900">{group.label}</h3>
+              <p className="mt-2 text-sm text-gray-600">{group.question}</p>
+              <p className="mt-3 text-sm text-gray-700">{group.benefit}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {group.moduleIds.map((moduleId) => {
+                  const moduleDef = getModuleById(moduleId)
+
+                  return (
+                    <Link
+                      key={moduleDef.id}
+                      href={moduleDef.href}
+                      className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                    >
+                      Explore {getMarketingModuleLabel(moduleDef)}
+                    </Link>
+                  )
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <h2 className="text-2xl font-semibold text-gray-900">A practical weekly workflow</h2>
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <article className="rounded-xl border border-gray-200 p-5">
+            <h3 className="font-semibold text-gray-900">Monday: prioritise receivables and risks</h3>
+            <p className="mt-2 text-sm text-gray-600">Review what needs attention in PaidSoon, SpendLeak, and CostGuard.</p>
+          </article>
+          <article className="rounded-xl border border-gray-200 p-5">
+            <h3 className="font-semibold text-gray-900">Midweek: protect commitments and margins</h3>
+            <p className="mt-2 text-sm text-gray-600">Use CommitGuard and MarginGuard signals to adjust spend and pricing decisions.</p>
+          </article>
+          <article className="rounded-xl border border-gray-200 p-5">
+            <h3 className="font-semibold text-gray-900">End of week: plan cash ahead</h3>
+            <p className="mt-2 text-sm text-gray-600">Validate CashPlan, Tax Buffer, and RunwayGuard before upcoming obligations.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-4 py-2">
+        <h2 className="text-2xl font-semibold text-gray-900">Who this is for</h2>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <article className="rounded-xl border border-gray-200 p-5">
+            <h3 className="font-semibold text-gray-900">Owner-operators and solo founders</h3>
+            <p className="mt-2 text-sm text-gray-600">Get one operating rhythm for receivables, spending, and cash decisions without replacing your accounting system.</p>
+          </article>
+          <article className="rounded-xl border border-gray-200 p-5">
+            <h3 className="font-semibold text-gray-900">Growing small-business teams</h3>
+            <p className="mt-2 text-sm text-gray-600">Share visibility across commitments, margins, and runway so decisions happen earlier and with less firefighting.</p>
+          </article>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="grid gap-6 lg:grid-cols-2">
           {PLATFORM_AREAS.map((area) => {
             const areaModules = getModulesByPlatformArea(area.id)
+            const areaAnchorId = area.id === "plan-ahead" ? "plan-cash" : area.id
 
             return (
-              <section key={area.id} className="rounded-2xl border border-gray-200 p-6">
+              <section key={area.id} id={areaAnchorId} className="rounded-2xl border border-gray-200 p-6">
                 <p className="text-xs uppercase tracking-wide text-gray-400">{area.name}</p>
                 <h2 className="mt-1 text-2xl font-semibold text-gray-900">{area.summary}</h2>
                 <div className="mt-5 grid gap-4">
                   {areaModules.map((module) => (
                     <article key={module.id} className="rounded-xl border border-gray-200 p-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{module.name}</h3>
-                        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-                          {module.statusLabel}
-                        </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{getMarketingModuleLabel(module)}</h3>
                       </div>
                       <p className="mt-2 text-sm text-gray-600">{module.question}</p>
                       <p className="mt-3 text-gray-600">{module.summary}</p>
                       <Link href={module.href} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:text-blue-800">
-                        Explore {module.name}
+                        Explore {getMarketingModuleLabel(module)}
                       </Link>
                     </article>
                   ))}
@@ -85,58 +173,13 @@ export default function PlatformPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-2">
-        <h2 className="text-2xl font-semibold text-gray-900">Every public module, one portfolio</h2>
-        <p className="mt-3 text-gray-600">
-          Each module solves a distinct control problem, but they are designed to work together so operators do not need to reconstruct the bigger picture by hand.
-        </p>
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {MODULES.map((module) => (
-            <article key={module.id} className="rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs uppercase tracking-wide text-gray-400">{module.name}</p>
-                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-                  {module.statusLabel}
-                </span>
-              </div>
-              <h3 className="mt-2 text-xl font-semibold text-gray-900">{module.question}</h3>
-              <ul className="mt-4 space-y-2 text-sm text-gray-600">
-                {module.capabilities.slice(0, 2).map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span className="text-blue-600">-</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <Link href={module.href} className="mt-5 inline-block text-sm font-semibold text-blue-600 hover:text-blue-800">
-                Explore {module.name}
-              </Link>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-5xl px-4 py-8">
-        <h2 className="text-2xl font-semibold text-gray-900">Why alongside accounting software?</h2>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <article className="rounded-xl border border-gray-200 p-5">
-            <h3 className="font-semibold text-gray-900">Accounting systems</h3>
-            <p className="mt-2 text-gray-600">Capture invoices, payments, and historical reporting.</p>
-          </article>
-          <article className="rounded-xl border border-gray-200 p-5">
-            <h3 className="font-semibold text-gray-900">PaidSoon platform</h3>
-            <p className="mt-2 text-gray-600">Turns that data into next actions so problems are visible sooner and decisions can be made earlier.</p>
-          </article>
-        </div>
-      </section>
-
       <section className="bg-blue-600 py-14">
         <div className="mx-auto max-w-3xl px-4 text-center">
-          <h2 className="text-3xl font-bold text-white">Control what happens next</h2>
-          <p className="mt-3 text-blue-100">{cta.helper}</p>
+          <h2 className="text-3xl font-bold text-white">Start with the financial problem that matters most</h2>
+          <p className="mt-3 text-blue-100">Find the right starting point, then expand to the full control platform at your pace.</p>
           <MarketingCtaLink
             href={cta.href}
-            label={cta.label}
+            label="Find the right starting point"
             eventName="marketing_platform_cta_selected"
             eventData={{ liveMode: String(liveMode) }}
             className="mt-6 inline-flex items-center justify-center rounded-md bg-white px-6 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50"

@@ -9,8 +9,8 @@ import {
 
 describe("ai rewrite usage guardrails helper", () => {
   test("returns expected per-tier policy values", () => {
-    assert.equal(getAiRewriteGuardrailPolicy("starter"), null)
-    assert.deepEqual(getAiRewriteGuardrailPolicy("solo"), {
+    assert.equal(getAiRewriteGuardrailPolicy("essentials"), null)
+    assert.deepEqual(getAiRewriteGuardrailPolicy("business_control"), {
       monthlyQuota: 120,
       hourlyCap: 12,
       burstCap: 3,
@@ -63,7 +63,7 @@ describe("ai rewrite usage guardrails helper", () => {
 
     const window = resolveAiRewriteQuotaWindow(
       {
-        subscriptionTier: "solo",
+        subscriptionTier: "business_control",
         subscriptionStatus: "active",
         subscriptionCurrentPeriodStart: start,
         subscriptionCurrentPeriodEnd: end,

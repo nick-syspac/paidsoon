@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createStripeClient } from "@/lib/billing/stripeClient"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { createUserProfile } from "@/lib/actions/auth"
 import { normalizeSubscriptionTier, PLAN_ORDER, type SubscriptionTier } from "@/lib/subscriptionPlans"
@@ -13,17 +14,35 @@ const bodySchema = z
   .optional()
 
 const PRICE_ID_BY_TIER: Record<SubscriptionTier, string | undefined> = {
-  starter: process.env.STRIPE_STARTER_PRICE_ID,
-  solo: process.env.STRIPE_SOLO_PRICE_ID,
+  essentials: process.env.STRIPE_STARTER_PRICE_ID,
+  business_control: process.env.STRIPE_SOLO_PRICE_ID,
   small_business: process.env.STRIPE_SMALL_BUSINESS_PRICE_ID,
   business_pro: process.env.STRIPE_BUSINESS_PRO_PRICE_ID,
   accountant_partner: undefined,  // contact-us pricing; not via Stripe Checkout
 }
 
+const TRIAL_ELIGIBLE_TIERS = new Set<SubscriptionTier>([
+  "essentials",
+  "business_control",
+  "small_business",
+  "business_pro",
+])
+
+const DUPLICATE_BLOCKING_STATUSES = new Set<Stripe.Subscription.Status>([
+  "active",
+  "trialing",
+])
+
+const UPDATE_ELIGIBLE_STATUSES = new Set<Stripe.Subscription.Status>([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "incomplete",
+])
+
 export async function POST(request: Request) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2026-05-27.dahlia",
-  })
+  const stripe = createStripeClient()
   const supabase = await createClient()
   const {
     data: { user },
@@ -85,8 +104,40 @@ export async function POST(request: Request) {
     )
   }
 
+  let existingSubscriptionId: string | null = null
+  let existingSubscriptionStatus: Stripe.Subscription.Status | null = null
+
+  if (profile.stripeSubscriptionId) {
+    const existing = await stripe.subscriptions.retrieve(profile.stripeSubscriptionId).catch(() => null)
+    if (existing && UPDATE_ELIGIBLE_STATUSES.has(existing.status)) {
+      existingSubscriptionId = existing.id
+      existingSubscriptionStatus = existing.status
+    }
+  }
+
+  if (!existingSubscriptionId && customerId) {
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 10,
+    })
+    const candidate = subscriptions.data.find((subscription) =>
+      UPDATE_ELIGIBLE_STATUSES.has(subscription.status),
+    )
+    if (candidate) {
+      existingSubscriptionId = candidate.id
+      existingSubscriptionStatus = candidate.status
+      await withUserContext(user.id, (tx) =>
+        tx.userProfile.update({
+          where: { userId: user.id },
+          data: { stripeSubscriptionId: candidate.id },
+        }),
+      )
+    }
+  }
+
   // Existing subscriber: use subscriptions.update instead of Checkout
-  if (profile.stripeSubscriptionId && customerId) {
+  if (existingSubscriptionId && customerId) {
     const currentTierIndex = PLAN_ORDER.indexOf(normalizeSubscriptionTier(profile.subscriptionTier))
     const requestedTierIndex = PLAN_ORDER.indexOf(requestedTier)
 
@@ -98,8 +149,19 @@ export async function POST(request: Request) {
       )
     }
 
+    if (
+      existingSubscriptionStatus &&
+      DUPLICATE_BLOCKING_STATUSES.has(existingSubscriptionStatus) &&
+      requestedTierIndex === currentTierIndex
+    ) {
+      return NextResponse.json(
+        { error: "Subscription already active for this plan" },
+        { status: 409 },
+      )
+    }
+
     // Upgrade — apply immediately with proration
-    await stripe.subscriptions.update(profile.stripeSubscriptionId, {
+    await stripe.subscriptions.update(existingSubscriptionId, {
       items: [{ price: priceId }],
       proration_behavior: "create_prorations",
     })
@@ -113,7 +175,7 @@ export async function POST(request: Request) {
         data: {
           subscriptionTier: requestedTier,
           subscriptionStatus: "active",
-          trialEndsAt: null,
+          stripePriceId: priceId,
         },
       }),
     )
@@ -122,6 +184,8 @@ export async function POST(request: Request) {
   }
 
   // New subscriber — create Stripe Checkout session
+  const trialDays = Number(process.env.STRIPE_TRIAL_PERIOD_DAYS ?? 14)
+  const shouldAttachTrial = Number.isFinite(trialDays) && trialDays > 0 && TRIAL_ELIGIBLE_TIERS.has(requestedTier)
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
@@ -131,6 +195,18 @@ export async function POST(request: Request) {
         quantity: 1,
       },
     ],
+    ...(shouldAttachTrial
+      ? {
+          subscription_data: {
+            trial_period_days: trialDays,
+            metadata: {
+              user_id: user.id,
+              plan: requestedTier,
+              source: "paidsoon_checkout",
+            },
+          },
+        }
+      : {}),
     // Route through the reconciliation endpoint rather than straight back to
     // the dashboard: it retrieves the confirmed session from Stripe and
     // updates the profile immediately, instead of assuming the async
@@ -138,7 +214,13 @@ export async function POST(request: Request) {
     // browser gets redirected back (see app/api/billing/checkout/success).
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/billing/checkout/success?session_id={CHECKOUT_SESSION_ID}&tier=${requestedTier}`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription?cancelled=true`,
-    metadata: { userId: user.id, selectedTier: requestedTier },
+    metadata: {
+      user_id: user.id,
+      userId: user.id,
+      plan: requestedTier,
+      selectedTier: requestedTier,
+      source: "paidsoon_checkout",
+    },
   })
 
   return NextResponse.json({ url: session.url })

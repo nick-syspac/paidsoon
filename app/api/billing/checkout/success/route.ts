@@ -23,10 +23,10 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
+import { createStripeClient } from "@/lib/billing/stripeClient"
 import { resolveCheckoutCompletion } from "@/lib/billing"
 import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { NextResponse } from "next/server"
-import Stripe from "stripe"
 
 export const maxDuration = 30
 
@@ -53,9 +53,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: "2026-05-27.dahlia",
-    })
+    const stripe = createStripeClient()
     const session = await stripe.checkout.sessions.retrieve(sessionId)
 
     // Ownership check: only reconcile using a session created for this
@@ -74,12 +72,15 @@ export async function GET(request: Request) {
             where: { userId: user.id },
             data: {
               subscriptionTier: completion.tier,
-              subscriptionStatus: "active",
-              trialEndsAt: null,
+              subscriptionStatus: completion.status,
+              trialEndsAt: completion.trialEndsAt,
               stripeCustomerId: completion.customerId,
               stripeSubscriptionId: completion.subscriptionId,
+              stripePriceId: completion.priceId,
               subscriptionCurrentPeriodStart: completion.periodStart,
               subscriptionCurrentPeriodEnd: completion.periodEnd,
+              subscriptionCancelAt: completion.subscriptionCancelAt,
+              subscriptionCancelAtPeriodEnd: completion.subscriptionCancelAtPeriodEnd,
             },
           }),
         )

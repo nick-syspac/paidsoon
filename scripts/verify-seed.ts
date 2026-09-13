@@ -138,10 +138,10 @@ async function main(): Promise<void> {
 
   const tiers = new Set(profiles.map((p) => p.subscriptionTier))
   check("A 'small_business' tier account exists", tiers.has("small_business"))
-  check("A 'starter' tier account exists", tiers.has("starter"))
+  check("A 'essentials' tier account exists", tiers.has("essentials"))
 
   const primaryProfile = profiles.find((p) => p.userId === primaryUserId)
-  const starterProfile = profiles.find((p) => p.subscriptionTier === "starter")
+  const starterProfile = profiles.find((p) => p.subscriptionTier === "essentials")
   check("Primary account is on the Small Business tier", primaryProfile?.subscriptionTier === "small_business")
   check("Primary account can use accounting integrations", hasPlanFeature(primaryProfile?.subscriptionTier, "accounting_integrations"))
   check("Starter account can use core features", hasPlanFeature(starterProfile?.subscriptionTier, "accounting_integrations") && hasPlanFeature(starterProfile?.subscriptionTier, "promise_to_pay_tracking"))

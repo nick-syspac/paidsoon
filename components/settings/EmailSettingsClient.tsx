@@ -67,7 +67,7 @@ export function EmailSettingsClient({
       {!canUseCustomReplyTo ? (
         <div className="space-y-3">
           <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-sm text-gray-600">
-            Upgrade to Solo or Small Business to set a custom reply-to address.
+            Upgrade to Business Control or Small Business to set a custom reply-to address.
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -81,7 +81,7 @@ export function EmailSettingsClient({
               placeholder="replies@yourcompany.com"
               className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm bg-gray-100 text-gray-500 cursor-not-allowed"
             />
-            <p className="text-xs text-gray-400 mt-1">Available on Solo and Small Business plans.</p>
+            <p className="text-xs text-gray-400 mt-1">Available on Business Control and Small Business plans.</p>
           </div>
         </div>
       ) : (
@@ -91,7 +91,7 @@ export function EmailSettingsClient({
               ? "Set a custom from-address."
               : canUseCustomSenderName
                 ? "Set a custom sender name and reply-to. Upgrade to Small Business for a verified custom from-address."
-                : "Set a reply-to address. Upgrade to Solo or Small Business to customise the sender name and address."}
+                : "Set a reply-to address. Upgrade to Business Control or Small Business to customise the sender name and address."}
             {settings?.fromEmail && !settings.resendVerified && canUseVerifiedDomain && (
               <span className="text-amber-600 font-medium"> Verification pending for {settings.fromEmail}.</span>
             )}

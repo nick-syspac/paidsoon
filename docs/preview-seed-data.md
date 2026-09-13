@@ -202,6 +202,22 @@ immediately after `npm run db:seed`.
   key metric, provider-run records, and one sent delivery record per
   Business-tier tenant.
 
+### DepositGuard fixtures (seeded)
+
+The primary Coastline account includes deterministic DepositGuard coverage for
+workflow and status testing:
+
+- Draft job with no request sent yet.
+- Awaiting-deposit job with a requested deposit and pending reminder.
+- Partially-paid job with confirmed partial payment and outstanding remainder.
+- Overdue request with sent overdue reminder.
+- Paid request that has unblocked commencement.
+- In-progress job with a linked milestone-generated progress request.
+
+These rows are seeded in `deposit_guard_jobs`, `deposit_requests`,
+`payment_milestones`, `deposit_payments`, `deposit_reminders`, and
+`deposit_guard_settings`.
+
 ---
 
 ## Safety: seeded data cannot cause real activity

@@ -12,6 +12,7 @@ export type OwnersDigestSource =
   | "costguard"
   | "cashplan"
   | "taxbuffer"
+  | "depositguard"
   | "commitguard"
   | "marginguard"
   | "runwayguard"

@@ -3,9 +3,7 @@
 ## Purpose
 
 Define how Owner's Digest normalises module findings into shared signals, filters them by entitlement and materiality, ranks them deterministically, and combines overlapping issues into an explainable owner-facing priority list.
-
 ## Requirements
-
 ### Requirement: Owner's Digest SHALL consume a shared digest signal contract
 
 The system SHALL normalise participating module findings into a shared Owner's Digest signal model that includes source module, severity, summary text, financial impact where available, recommended action, and drill-down context.
@@ -82,3 +80,15 @@ The system SHALL calculate an overall status of Healthy, Watch, Action Required,
 - **WHEN** the digest includes a critical cash, runway, tax, or overdue-risk issue that breaches the configured critical rule set
 - **THEN** the overall status is Critical
 - **AND** the summary explains which conditions caused the status
+
+### Requirement: Owner's Digest SHALL include DepositGuard cash-protection signals when available
+When DepositGuard is entitled and operational for a tenant, Owner's Digest SHALL ingest DepositGuard signals for deposit collection progress, overdue requests, and commencement-blocked jobs.
+
+#### Scenario: DepositGuard contributes mixed outcomes
+- **WHEN** a tenant has paid deposits, overdue requests, and blocked jobs in the digest period
+- **THEN** Owner's Digest includes those DepositGuard signals in ranking and summary calculations
+
+#### Scenario: DepositGuard is unavailable for tenant
+- **WHEN** Owner's Digest runs for a tenant without DepositGuard operational availability
+- **THEN** DepositGuard signals are omitted without marking the digest as failed
+

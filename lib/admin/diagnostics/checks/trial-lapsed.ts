@@ -4,9 +4,8 @@ import type { Diagnostic } from "@/lib/admin/diagnostics/types"
 /**
  * Check: trial-lapsed
  *
- * Flags when a tenant's trial period has expired but their subscription
- * status is still "trialing" (i.e. they have not upgraded or been
- * automatically moved to active).
+ * Flags when Stripe-synchronized trial state appears lapsed while the tenant
+ * remains in "trialing" status.
  */
 export function checkTrialLapsed(snapshot: TenantSnapshot): Diagnostic | null {
   const { profile } = snapshot
@@ -18,14 +17,14 @@ export function checkTrialLapsed(snapshot: TenantSnapshot): Diagnostic | null {
   return {
     slug: "trial-lapsed",
     severity: "error",
-    title: "Trial period has lapsed",
-    description: `The tenant's trial ended on ${profile.trialEndsAt.toLocaleDateString("en-AU")} and their subscription is still in "trialing" status. They may be unable to send follow-up emails.`,
+    title: "Stripe trial period has lapsed",
+    description: `The tenant's Stripe-synchronized trial ended on ${profile.trialEndsAt.toLocaleDateString("en-AU")} and their subscription is still in "trialing" status. Review billing state and extend the Stripe trial only if appropriate.`,
     runbookSlug: "trial-lapsed",
     actions: [
       {
         actionSlug: "extend-trial",
         label: "Extend trial 7 days",
-        description: "Add 7 days to the trial end date to give the tenant more time to upgrade.",
+        description: "Extend the Stripe subscription trial by 7 days and sync the updated trial end date.",
         payload: { days: 7 },
       },
     ],

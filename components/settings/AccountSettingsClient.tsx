@@ -4,20 +4,25 @@ import { useState } from "react"
 import type { SubscriptionTier } from "@/lib/subscriptionPlans"
 
 const TIER_LABELS: Record<string, string> = {
-  starter: "Starter",
-  solo: "Solo",
+  starter: "Essentials",
+  essentials: "Essentials",
+  solo: "Business Control",
+  business_control: "Business Control",
   small_business: "Small Business",
   business_pro: "Business Pro",
   accountant_partner: "Accountant Partner",
-  free: "Starter",
-  pro: "Solo",
+  free: "Essentials",
+  pro: "Business Control",
 }
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Active",
   trialing: "Trial",
+  canceled: "Canceled",
   cancelled: "Cancelled",
   past_due: "Past Due",
+  unpaid: "Unpaid",
+  incomplete: "Incomplete",
 }
 
 function formatDate(date: Date | string): string {
