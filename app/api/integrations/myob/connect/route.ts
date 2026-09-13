@@ -3,7 +3,7 @@
  *
  * Initiates the MYOB OAuth 2.0 authorisation flow.
  * - Verifies the user is authenticated
- * - Checks the accountingIntegrations feature flag (Solo+ required)
+ * - Checks the accountingIntegrations feature flag (Business Control+ required)
  * - Generates a CSRF nonce and stores it in oauth_states (10 min TTL)
  * - Redirects the user to the MYOB authorisation URL
  *

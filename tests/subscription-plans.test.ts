@@ -79,7 +79,7 @@ test("sender-identity ladder is gated by tier", () => {
   assert.equal(hasPlanFeature("business_pro", "verified_from_domain"), true)
 })
 
-test("ai_rewrite and tone_settings are gated at Solo and above", () => {
+test("ai_rewrite and tone_settings are gated at Business Control and above", () => {
   assert.equal(hasPlanFeature("essentials", "ai_rewrite"), false)
   assert.equal(hasPlanFeature("essentials", "tone_settings"), false)
   assert.equal(hasPlanFeature("business_control", "ai_rewrite"), true)
@@ -151,15 +151,15 @@ test("Small Business remains the popular plan while business_control stays the s
   assert.ok(!PLAN_CATALOG.essentials.popular)
 })
 
-test("Essentials includes SpendLeak, while CostGuard and CashPlan stay behind Solo", () => {
+test("Essentials includes SpendLeak, while CostGuard and CashPlan stay behind Business Control", () => {
   const essentialsHighlights = planHighlights("essentials").join(" ")
-  const soloHighlights = planHighlights("business_control").join(" ")
+  const businessControlHighlights = planHighlights("business_control").join(" ")
   const smallBusinessHighlights = planHighlights("small_business").join(" ")
   const businessProHighlights = planHighlights("business_pro").join(" ")
 
   assert.match(essentialsHighlights, /SpendLeak/i)
   assert.doesNotMatch(essentialsHighlights, /CostGuard|CashPlan/i)
-  assert.match(soloHighlights, /SpendLeak|CostGuard|CashPlan/i)
+  assert.match(businessControlHighlights, /SpendLeak|CostGuard|CashPlan/i)
   assert.match(smallBusinessHighlights, /SpendLeak|CostGuard|CashPlan/i)
   assert.match(businessProHighlights, /SpendLeak|CostGuard|CashPlan/i)
 })
