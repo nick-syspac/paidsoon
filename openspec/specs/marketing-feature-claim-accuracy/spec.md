@@ -1,5 +1,7 @@
-## ADDED Requirements
+## Purpose
 
+Define guardrails for public marketing copy so portfolio claims stay aligned with shipped module availability and clearly label planned capabilities.
+## Requirements
 ### Requirement: Marketing module portfolio claims MUST distinguish public modules from planned capabilities
 Marketing portfolio surfaces SHALL describe a module as publicly available only when that module has a reachable public marketing destination and customer-facing product surface. If a page references related capabilities that are not yet implemented or are not yet public, it SHALL label them as planned or coming soon instead of presenting them as live module functionality.
 
@@ -18,3 +20,15 @@ Marketing navigation, homepage portfolio sections, platform overview sections, a
 #### Scenario: Navigation no longer implies a four-module product
 - **WHEN** a visitor opens the Product navigation, homepage portfolio section, or platform overview
 - **THEN** the module list reflects the current public platform portfolio instead of implying that only PaidSoon, SpendLeak, CostGuard, and CashPlan exist
+
+### Requirement: DepositGuard marketing claims MUST separate shipped MVP behavior from planned expansions
+Marketing pages that reference DepositGuard SHALL describe only currently implemented customer-facing capabilities as available and SHALL label future integrations or advanced workflows as planned.
+
+#### Scenario: MVP capability is promoted
+- **WHEN** marketing copy references DepositGuard deposit requests, reminders, or commencement protection
+- **THEN** those claims match implemented MVP behavior and available routes
+
+#### Scenario: Planned integration is referenced
+- **WHEN** marketing copy references Stripe Connect customer payments, advanced reconciliation, or broader quote automation that is not yet operational
+- **THEN** the copy labels those items as planned, coming soon, or setup-required and not currently live
+

@@ -68,6 +68,7 @@ For a brand-new production setup, work through the runbooks in this order:
 13. Verification — see the last section of [supabase.md](./supabase.md), [vercel.md](./vercel.md), [railway.md](./railway.md), and [supabase-environment-rollout-checklist.md](./supabase-environment-rollout-checklist.md).
 14. Accounting integrations — [myob.md](./myob.md) for MYOB Business setup and validation per environment (Xero setup is not yet documented in a dedicated runbook).
 15. MYOB sandbox QA gate (OpenSpec task 15.7) — [myob-sandbox-verification.md](./myob-sandbox-verification.md) for pre-archive verification and evidence capture.
+16. Deposit request operations — [deposit-guard.md](./deposit-guard.md) for reminder dispatch, payment-provider setup, and troubleshooting.
 
 One-off / in-flight change runbooks (not part of the standard bring-up order):
 
@@ -106,6 +107,12 @@ new environment variables. It reuses existing Resend delivery configuration,
 `SUPABASE_SECRET_KEY` for recipient lookup, and `INTERNAL_JOBS_SECRET` for the
 Railway worker's internal job calls.
 
+DepositGuard rollout note: the DepositGuard MVP does **not** require new core
+environment variables for job/request/payment state. Reminder delivery reuses
+`RESEND_*` and worker dispatch uses `INTERNAL_JOBS_SECRET`; optional Stripe
+payment webhook verification can use `STRIPE_DEPOSIT_WEBHOOK_SECRET` (falling
+back to `STRIPE_CONNECT_WEBHOOK_SECRET` when unset).
+
 | Env var | Local (`.env.local`) | Vercel Preview | Vercel Production | Source runbook |
 |---|---|---|---|---|
 | `SUPABASE_PROJECT_REF` | `paidsoon-dev` 20-character project ref | `paidsoon-dev` project ref | `paidsoon-prod` project ref | [supabase.md §2](./supabase.md) |
@@ -132,6 +139,7 @@ Railway worker's internal job calls.
 | `STRIPE_CONNECT_CLIENT_ID` | test `ca_…` | test `ca_…` | live `ca_…` | [stripe.md §4](./stripe.md) |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | Stripe CLI `whsec_…` | not required (no webhook endpoint) | dashboard `whsec_…` (prod endpoint) | [stripe.md §5](./stripe.md) |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | Stripe CLI `whsec_…` | not required (no webhook endpoint) | dashboard `whsec_…` (prod endpoint) | [stripe.md §6](./stripe.md) |
+| `STRIPE_DEPOSIT_WEBHOOK_SECRET` | Stripe CLI `whsec_…` (optional override) | optional | dashboard `whsec_…` (optional override) | [deposit-guard.md §2](./deposit-guard.md) — optional dedicated secret for `POST /api/webhooks/deposit-payments?provider=stripe_connect`; falls back to `STRIPE_CONNECT_WEBHOOK_SECRET` when unset |
 | `RESEND_API_KEY` | dev `re_…` | dev `re_…` | prod `re_…` | [resend.md §2](./resend.md) |
 | `RESEND_FROM_EMAIL` | `onboarding@resend.dev` | `onboarding@resend.dev` | `billing@paidsoon.com` | [resend.md §3](./resend.md) |
 | `RESEND_FROM_NAME` | `PaidSoon (dev)` | `PaidSoon (preview)` | `PaidSoon` | [resend.md §3](./resend.md) |
@@ -241,7 +249,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `LIVE` | [lib/liveMode.ts](../../lib/liveMode.ts), [proxy.ts](../../proxy.ts), [app/layout.tsx](../../app/layout.tsx) |
 | `DEBUG` | [lib/diagnostics/server.ts](../../lib/diagnostics/server.ts) — server-side diagnostic tracing gate; browser code receives only non-secret trace IDs/debug response headers |
 | `CRON_SECRET` | [app/api/cron/send-emails/route.ts](../../app/api/cron/send-emails/route.ts), [app/api/cron/sync-accounting/route.ts](../../app/api/cron/sync-accounting/route.ts), [app/api/cron/invoice-import-cleanup/route.ts](../../app/api/cron/invoice-import-cleanup/route.ts), [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts), [app/api/cron/margin-guard-snapshots/route.ts](../../app/api/cron/margin-guard-snapshots/route.ts), [app/api/cron/runway-guard-snapshots/route.ts](../../app/api/cron/runway-guard-snapshots/route.ts) |
-| `INTERNAL_JOBS_SECRET` | [app/api/internal/jobs/send-reminder/route.ts](../../app/api/internal/jobs/send-reminder/route.ts), [app/api/internal/jobs/sync-connection/route.ts](../../app/api/internal/jobs/sync-connection/route.ts), [app/api/internal/jobs/promise-arrangement-sweep/route.ts](../../app/api/internal/jobs/promise-arrangement-sweep/route.ts), [app/api/internal/jobs/catchup-snooze-sweep/route.ts](../../app/api/internal/jobs/catchup-snooze-sweep/route.ts), [app/api/internal/jobs/send-owners-digest/route.ts](../../app/api/internal/jobs/send-owners-digest/route.ts) |
+| `INTERNAL_JOBS_SECRET` | [app/api/internal/jobs/send-reminder/route.ts](../../app/api/internal/jobs/send-reminder/route.ts), [app/api/internal/jobs/sync-connection/route.ts](../../app/api/internal/jobs/sync-connection/route.ts), [app/api/internal/jobs/promise-arrangement-sweep/route.ts](../../app/api/internal/jobs/promise-arrangement-sweep/route.ts), [app/api/internal/jobs/catchup-snooze-sweep/route.ts](../../app/api/internal/jobs/catchup-snooze-sweep/route.ts), [app/api/internal/jobs/send-owners-digest/route.ts](../../app/api/internal/jobs/send-owners-digest/route.ts), [app/api/internal/jobs/send-deposit-reminder/route.ts](../../app/api/internal/jobs/send-deposit-reminder/route.ts) |
 | `RAILWAY_WORKER_URL` | [lib/providers/accounting/triggerSyncNow.ts](../../lib/providers/accounting/triggerSyncNow.ts) |
 | `WORKER_TRIGGER_SECRET` | [lib/providers/accounting/triggerSyncNow.ts](../../lib/providers/accounting/triggerSyncNow.ts) |
 | `OPS_ALERT_EMAIL` | [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts) |
@@ -256,9 +264,10 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `STRIPE_CONNECT_CLIENT_ID` | [app/api/stripe/connect/authorize/route.ts](../../app/api/stripe/connect/authorize/route.ts) |
 | `STRIPE_BILLING_WEBHOOK_SECRET` | [app/api/webhooks/stripe-billing/route.ts](../../app/api/webhooks/stripe-billing/route.ts) |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | [app/api/webhooks/stripe-connect/route.ts](../../app/api/webhooks/stripe-connect/route.ts) |
-| `RESEND_API_KEY` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendOwnersDigest.ts](../../lib/email/sendOwnersDigest.ts), [app/api/settings/email/route.ts](../../app/api/settings/email/route.ts) |
-| `RESEND_FROM_EMAIL` | [lib/email/send.ts](../../lib/email/send.ts), [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) |
-| `RESEND_FROM_NAME` | [lib/email/send.ts](../../lib/email/send.ts) |
+| `STRIPE_DEPOSIT_WEBHOOK_SECRET` | [lib/depositGuard/payments/stripeConnectProvider.ts](../../lib/depositGuard/payments/stripeConnectProvider.ts) (optional override for deposit-payment webhooks) |
+| `RESEND_API_KEY` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendOwnersDigest.ts](../../lib/email/sendOwnersDigest.ts), [lib/email/sendDepositReminder.ts](../../lib/email/sendDepositReminder.ts), [app/api/settings/email/route.ts](../../app/api/settings/email/route.ts) |
+| `RESEND_FROM_EMAIL` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendDepositReminder.ts](../../lib/email/sendDepositReminder.ts), [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) |
+| `RESEND_FROM_NAME` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendDepositReminder.ts](../../lib/email/sendDepositReminder.ts) |
 | `RESEND_WEBHOOK_SECRET` | [app/api/webhooks/resend/route.ts](../../app/api/webhooks/resend/route.ts) |
 | `OPENAI_API_KEY` | `lib/email/ai-rewrite.ts` (to be created) — server-side only, never browser |
 | `TRAINING_IMPORT_ALLOW_WRITE` | [scripts/import-help-mdx.ts](../../scripts/import-help-mdx.ts) — guard required to enable one-time DB write mode |

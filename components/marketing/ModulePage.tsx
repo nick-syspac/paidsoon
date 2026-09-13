@@ -4,12 +4,15 @@ import { isLiveMode } from "@/lib/liveMode"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
 import {
+  getMarketingModuleLabel,
   getJourneyCta,
   getModuleById,
+  getRelatedModules,
   MARKETING_CTA_BY_STAGE,
   type MarketingModuleId,
 } from "@/components/marketing/marketingContent"
 import { PLAN_CATALOG, type SubscriptionTier } from "@/lib/subscriptionPlans"
+import { canAccessDepositGuard } from "@/lib/dashboard/depositGuardAccess"
 import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
 import { canAccessOwnersDigest } from "@/lib/dashboard/ownersDigestAccess"
 import { canAccessRunwayGuard } from "@/lib/dashboard/runwayGuardAccess"
@@ -35,6 +38,9 @@ function isModuleIncludedOnTier(id: MarketingModuleId, tier: SubscriptionTier): 
   }
   if (id === "cashplan") {
     return true
+  }
+  if (id === "deposit-guard") {
+    return canAccessDepositGuard(tier)
   }
   return false
 }
@@ -64,6 +70,7 @@ export function moduleMetadata(id: MarketingModuleId): Metadata {
 
 export function ModulePage({ id }: { id: MarketingModuleId }) {
   const moduleDef = getModuleById(id)
+  const relatedModules = getRelatedModules(id)
   const moduleLabel = moduleDef.id === "paidsoon" ? "InvoiceGuard" : moduleDef.name
   const liveMode = isLiveMode()
   const heroCta = getJourneyCta("hero", liveMode)
@@ -176,6 +183,24 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
         {moduleDef.disclaimer ? (
           <p className="mt-6 text-xs text-gray-500">{moduleDef.disclaimer}</p>
         ) : null}
+      </section>
+
+      <section className="mx-auto max-w-5xl px-4 py-10">
+        <h2 className="text-2xl font-semibold text-gray-900">Related modules</h2>
+        <p className="mt-3 text-gray-600">
+          Combine {moduleLabel} with adjacent modules to build a practical weekly control rhythm.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          {relatedModules.map((related) => (
+            <Link
+              key={related.id}
+              href={related.href}
+              className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+            >
+              Explore {getMarketingModuleLabel(related)}
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section className="bg-blue-600 py-14">

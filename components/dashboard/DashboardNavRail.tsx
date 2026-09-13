@@ -7,6 +7,7 @@ const TABS = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/invoices", label: "Invoices" },
   { href: "/dashboard/resolved", label: "Resolved Invoices" },
+  { href: "/dashboard/deposit-guard", label: "DepositGuard" },
   { href: "/dashboard/owners-digest", label: "Owner's Digest" },
   { href: "/dashboard/commitguard", label: "CommitGuard" },
   { href: "/dashboard/cost-guard", label: "Cost Guard" },
@@ -15,6 +16,7 @@ const TABS = [
 ]
 
 export function DashboardNavRail({
+  canViewDepositGuard,
   canViewOwnersDigest,
   canViewCommitGuard,
   canViewSpendLeak,
@@ -22,6 +24,7 @@ export function DashboardNavRail({
   canViewMarginGuard,
   canViewRunwayGuard,
 }: {
+  canViewDepositGuard: boolean
   canViewOwnersDigest: boolean
   canViewCommitGuard: boolean
   canViewSpendLeak: boolean
@@ -32,6 +35,7 @@ export function DashboardNavRail({
   const pathname = usePathname()
   const tabs = [
     ...TABS.filter((tab) => {
+      if (tab.href === "/dashboard/deposit-guard") return canViewDepositGuard
       if (tab.href === "/dashboard/owners-digest") return canViewOwnersDigest
       if (tab.href === "/dashboard/commitguard") return canViewCommitGuard
       if (tab.href === "/dashboard/margin-guard") return canViewMarginGuard

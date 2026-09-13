@@ -7,6 +7,7 @@ import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { getDashboardSubscriptionAccessState } from "@/lib/subscriptionStatusPresentation"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
+import { canAccessDepositGuard } from "@/lib/dashboard/depositGuardAccess"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
 import { canAccessMarginGuard } from "@/lib/dashboard/marginguardAccess"
 import { canAccessOwnersDigest } from "@/lib/dashboard/ownersDigestAccess"
@@ -206,6 +207,7 @@ export default async function DashboardLayout({
         </div>
       </nav>
       <DashboardMain
+        canViewDepositGuard={canAccessDepositGuard(tier)}
         canViewOwnersDigest={canAccessOwnersDigest(tier)}
         canViewCommitGuard={hasPlanFeature(tier, "commitguard_core")}
         canViewSpendLeak={canAccessSpendLeak(tier)}

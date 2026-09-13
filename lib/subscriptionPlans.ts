@@ -50,6 +50,14 @@ export type SubscriptionFeature =
   | "contact_suppression" // NOT IMPLEMENTED — do-not-contact / suppression list
   | "team_seats" // NOT IMPLEMENTED — usable multi-user seats beyond 1
   | "multi_client_management" // planned — not yet implemented (Accountant Partner)
+  | "deposit_guard_access"
+  | "deposit_guard_deposit_requests"
+  | "deposit_guard_automatic_reminders"
+  | "deposit_guard_progress_payments"
+  | "deposit_guard_payment_schedules"
+  | "deposit_guard_accounting_sync"
+  | "deposit_guard_cashplan_forecasting"
+  | "deposit_guard_advanced_reporting"
 
 /**
  * Features that are gated in the catalog by their intended tier boundary but are
@@ -89,6 +97,8 @@ export interface PlanLimits {
   commitmentsTracked: number
   /** Maximum open detection candidates surfaced per detection cycle. -1 = unlimited. */
   commitmentDetectionCandidatesPerCycle: number
+  /** Maximum active DepositGuard jobs. -1 = unlimited. */
+  depositGuardActiveJobs: number
 }
 
 export interface PlanDefinition {
@@ -120,6 +130,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       connectedInvoiceSources: 1,
       commitmentsTracked: 25,
       commitmentDetectionCandidatesPerCycle: 25,
+      depositGuardActiveJobs: 0,
     },
     features: {
       basic_email_reminders: true,
@@ -161,6 +172,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: false,
       team_seats: false,
       multi_client_management: false,
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: false,
+      deposit_guard_automatic_reminders: false,
+      deposit_guard_progress_payments: false,
+      deposit_guard_payment_schedules: false,
+      deposit_guard_accounting_sync: false,
+      deposit_guard_cashplan_forecasting: false,
+      deposit_guard_advanced_reporting: false,
     },
   },
   business_control: {
@@ -175,6 +194,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       connectedInvoiceSources: 1,
       commitmentsTracked: 150,
       commitmentDetectionCandidatesPerCycle: 75,
+      depositGuardActiveJobs: 0,
     },
     features: {
       basic_email_reminders: true,
@@ -216,6 +236,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: false,
       team_seats: false,
       multi_client_management: false,
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: false,
+      deposit_guard_automatic_reminders: false,
+      deposit_guard_progress_payments: false,
+      deposit_guard_payment_schedules: false,
+      deposit_guard_accounting_sync: false,
+      deposit_guard_cashplan_forecasting: false,
+      deposit_guard_advanced_reporting: false,
     },
   },
   small_business: {
@@ -231,6 +259,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       connectedInvoiceSources: 1,
       commitmentsTracked: 500,
       commitmentDetectionCandidatesPerCycle: 250,
+      depositGuardActiveJobs: 25,
     },
     features: {
       basic_email_reminders: true,
@@ -272,6 +301,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: true,
       team_seats: true,
       multi_client_management: false,
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: true,
+      deposit_guard_automatic_reminders: true,
+      deposit_guard_progress_payments: false,
+      deposit_guard_payment_schedules: false,
+      deposit_guard_accounting_sync: false,
+      deposit_guard_cashplan_forecasting: true,
+      deposit_guard_advanced_reporting: false,
     },
   },
   business_pro: {
@@ -286,6 +323,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       connectedInvoiceSources: 3,
       commitmentsTracked: 2000,
       commitmentDetectionCandidatesPerCycle: 1000,
+      depositGuardActiveJobs: -1,
     },
     features: {
       basic_email_reminders: true,
@@ -327,6 +365,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: true,
       team_seats: true,
       multi_client_management: false,
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: true,
+      deposit_guard_automatic_reminders: true,
+      deposit_guard_progress_payments: true,
+      deposit_guard_payment_schedules: true,
+      deposit_guard_accounting_sync: true,
+      deposit_guard_cashplan_forecasting: true,
+      deposit_guard_advanced_reporting: true,
     },
   },
   accountant_partner: {
@@ -341,6 +387,7 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       connectedInvoiceSources: -1, // unlimited — exempt from the one-source limit
       commitmentsTracked: -1, // unlimited
       commitmentDetectionCandidatesPerCycle: -1, // unlimited
+      depositGuardActiveJobs: -1, // unlimited
     },
     features: {
       basic_email_reminders: true,
@@ -382,6 +429,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, PlanDefinition> = {
       contact_suppression: true,
       team_seats: true,
       multi_client_management: false, // planned — not yet implemented
+      deposit_guard_access: true,
+      deposit_guard_deposit_requests: true,
+      deposit_guard_automatic_reminders: true,
+      deposit_guard_progress_payments: true,
+      deposit_guard_payment_schedules: true,
+      deposit_guard_accounting_sync: true,
+      deposit_guard_cashplan_forecasting: true,
+      deposit_guard_advanced_reporting: true,
     },
   },
 }

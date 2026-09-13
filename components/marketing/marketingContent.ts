@@ -3,6 +3,7 @@ import { formatIntegrationNameList, getIntegrationsByStatus } from "@/lib/integr
 
 export type MarketingModuleId =
   | "paidsoon"
+  | "deposit-guard"
   | "spendleak"
   | "costguard"
   | "cashplan"
@@ -118,8 +119,8 @@ export const PRACTICAL_CONTROL_GROUPS = [
     id: "cash-coming-in",
     label: "Cash coming in",
     question: "Which overdue invoices need action this week?",
-    benefit: "Automate respectful follow-ups so receivables move without manual chasing.",
-    moduleIds: ["paidsoon"] as MarketingModuleId[],
+    benefit: "Automate respectful follow-ups and protect starts with clear deposit expectations.",
+    moduleIds: ["paidsoon", "deposit-guard"] as MarketingModuleId[],
   },
   {
     id: "money-going-out",
@@ -156,7 +157,7 @@ export const PLATFORM_AREAS: MarketingPlatformArea[] = [
     id: "get-paid",
     name: "Get paid",
     summary: "Keep receivables moving and debtor promises visible before cash slips further out.",
-    moduleIds: ["paidsoon"],
+    moduleIds: ["paidsoon", "deposit-guard"],
   },
   {
     id: "stop-waste",
@@ -222,6 +223,52 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     relatedModules: ["cashplan", "commitguard", "owners-digest"],
     accentClass: "border-sky-200 bg-sky-50 text-sky-900",
+  },
+  {
+    id: "deposit-guard",
+    href: "/deposit-guard",
+    name: "DepositGuard",
+    headline: "Protect commencement by confirming deposits before work starts.",
+    statusLabel: "Available in private beta",
+    availabilityStatus: "private_beta",
+    platformArea: "get-paid",
+    question: "Can we start this job safely?",
+    tagline: "Request deposits, track payment state, and unblock work with confidence.",
+    summary:
+      "DepositGuard helps teams request, track, and reconcile deposit payments so work only starts once required funds are confirmed.",
+    problem:
+      "Jobs often begin before deposits are fully confirmed, leaving teams exposed to avoidable cash-flow and commencement risk.",
+    capabilities: [
+      "Create deposit-backed jobs with server-calculated required amounts",
+      "Generate secure public payment-request links and request timelines",
+      "Track request states across requested, viewed, partial, overdue, and paid",
+      "Automatically unblock commencement once required deposits are confirmed",
+    ],
+    workflow: [
+      "Create a DepositGuard job and review required deposit calculations",
+      "Send a deposit request with a due date and external payment link",
+      "Monitor reminders, views, and partial/overdue payment states",
+      "Record confirmed payments manually while Stripe connected-account collection remains planned",
+    ],
+    outcomes: [
+      "Fewer jobs starting without confirmed upfront cash",
+      "Clearer visibility into at-risk commencements and overdue requests",
+      "Stronger handover from sales promises to delivery readiness",
+    ],
+    faq: [
+      {
+        q: "Does DepositGuard process card payments directly today?",
+        a: "Not in the MVP path. DepositGuard currently uses external payment links and manual confirmation, while connected-account Stripe collection remains planned.",
+      },
+      {
+        q: "Can we use progress-payment milestones?",
+        a: "Yes. You can define milestone schedules and generate linked progress-payment requests from those milestones.",
+      },
+    ],
+    relatedModules: ["paidsoon", "cashplan", "owners-digest"],
+    disclaimer:
+      "DepositGuard improves commencement control and payment visibility. Stripe connected-account automation and advanced reconciliation remain planned expansions.",
+    accentClass: "border-cyan-200 bg-cyan-50 text-cyan-950",
   },
   {
     id: "spendleak",
@@ -586,6 +633,7 @@ export function getMarketingModuleLabel(module: Pick<MarketingModuleDefinition, 
 
 export const MODULE_HREF: Record<MarketingModuleId, string> = {
   paidsoon: "/paidsoon",
+  "deposit-guard": "/deposit-guard",
   spendleak: "/spendleak",
   costguard: "/costguard",
   cashplan: "/cashplan",

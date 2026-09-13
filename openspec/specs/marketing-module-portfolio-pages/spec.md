@@ -1,9 +1,7 @@
 ## Purpose
 
 Define how the marketing site presents the full public PaidSoon module portfolio through shared content, dedicated module pages, and consistent cross-linking so prospects can understand the platform without relying on partial or conflicting page-local copy.
-
-## ADDED Requirements
-
+## Requirements
 ### Requirement: Marketing module portfolio SHALL be defined in one shared public catalog
 The system SHALL define the public marketing module portfolio in one shared source that identifies each module's public route, display name, ordering, status label, positioning summary, and cross-link targets. Marketing navigation, homepage portfolio sections, platform overview surfaces, product index surfaces, and footer product links SHALL read from that shared source rather than maintaining separate hand-written module lists.
 
@@ -37,3 +35,15 @@ Each module in the public marketing catalog SHALL have a dedicated marketing des
 #### Scenario: Module page links to related modules
 - **WHEN** a visitor reads a module page for one public module
 - **THEN** the page provides links to complementary modules in the portfolio so the platform relationship is explicit
+
+### Requirement: Marketing module portfolio SHALL include DepositGuard as a first-class module destination
+The shared marketing module portfolio and product discovery surfaces SHALL include DepositGuard with a dedicated destination and links from navigation and portfolio sections.
+
+#### Scenario: Visitor opens product navigation
+- **WHEN** a visitor opens marketing product navigation or module portfolio surfaces
+- **THEN** DepositGuard appears as a discoverable module entry with the route defined by the shared marketing module catalog
+
+#### Scenario: Visitor selects DepositGuard from portfolio
+- **WHEN** a visitor selects the DepositGuard card or navigation link
+- **THEN** they land on a DepositGuard destination that explains the module outcomes and links to related modules
+

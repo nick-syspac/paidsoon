@@ -78,6 +78,11 @@ export function getCommitmentDetectionCandidateLimitForTier(tier?: string | null
   return limit === -1 ? Number.MAX_SAFE_INTEGER : limit
 }
 
+export function getDepositGuardActiveJobsLimitForTier(tier?: string | null): number {
+  const limit = getPlanByTier(tier).limits.depositGuardActiveJobs
+  return limit === -1 ? Number.MAX_SAFE_INTEGER : limit
+}
+
 export const DEFAULT_INVOICE_LIMIT =
   getPlanByTier(DEFAULT_SUBSCRIPTION_TIER).limits.chasedInvoicesPerMonth
 

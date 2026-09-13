@@ -52,6 +52,21 @@ def send_reminder_task(self, claim_id: str, user_id: str, tracked_invoice_id: st
 
 
 @app.task(
+    name="tasks.send_deposit_reminder", bind=True, base=ClaimTrackingTask, **RETRY_KWARGS
+)
+def send_deposit_reminder_task(self, claim_id: str, user_id: str, reminder_id: str):
+    db.mark_started(claim_id)
+    db.mark_processing(claim_id)
+    result = call_internal_job(
+        "/api/internal/jobs/send-deposit-reminder",
+        {"reminderId": reminder_id},
+    )
+    if result.get("status") == "failed":
+        raise RuntimeError(result.get("reason", "deposit_reminder_send_failed"))
+    return result
+
+
+@app.task(
     name="tasks.sync_connection", bind=True, base=ClaimTrackingTask, **RETRY_KWARGS
 )
 def sync_connection_task(

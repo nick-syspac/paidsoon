@@ -100,6 +100,51 @@ def claim_due_reminder_emails(limit: int = 200) -> list[dict[str, Any]]:
         return claimed
 
 
+def claim_due_deposit_reminders(limit: int = 200) -> list[dict[str, Any]]:
+    """Atomically claims DepositGuard reminders that are ready to dispatch."""
+    with get_conn() as conn, conn.transaction():
+        due = conn.execute(
+            """
+            SELECT r.id, r."userId" AS user_id, r."scheduledFor" AS scheduled_for
+            FROM deposit_reminders r
+            JOIN deposit_requests req ON req.id = r."depositRequestId"
+            WHERE r."deliveryStatus" = 'pending'
+              AND r."scheduledFor" <= now()
+              AND req.status IN ('requested', 'viewed', 'partially_paid', 'overdue')
+            ORDER BY r."scheduledFor", r.id
+            LIMIT %(limit)s
+            FOR UPDATE SKIP LOCKED
+            """,
+            {"limit": limit},
+        ).fetchall()
+
+        claimed: list[dict[str, Any]] = []
+        for row in due:
+            claim_key = _claim_key(row["id"], "deposit_reminder", row["scheduled_for"])
+            inserted = conn.execute(
+                """
+                INSERT INTO scheduled_task_claims
+                    (id, workflow, claim_key, entity_id, user_id, status,
+                     scheduled_for, claimed_at, created_at, updated_at)
+                VALUES
+                    (gen_random_uuid()::text, 'deposit_reminder', %(claim_key)s,
+                     %(entity_id)s, %(user_id)s, 'queued', %(scheduled_for)s,
+                     now(), now(), now())
+                ON CONFLICT (claim_key) DO NOTHING
+                RETURNING id, entity_id, user_id
+                """,
+                {
+                    "claim_key": claim_key,
+                    "entity_id": row["id"],
+                    "user_id": row["user_id"],
+                    "scheduled_for": row["scheduled_for"],
+                },
+            ).fetchone()
+            if inserted:
+                claimed.append(inserted)
+        return claimed
+
+
 def claim_due_accounting_connections(
     limit: int = 100, sync_interval_minutes: int = 1440
 ) -> list[dict[str, Any]]:

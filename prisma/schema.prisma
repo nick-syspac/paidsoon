@@ -10,6 +10,115 @@ datasource db {
   provider = "postgresql"
 }
 
+enum DepositGuardDepositType {
+  none
+  percentage
+  fixed
+}
+
+enum DepositGuardWorkStatus {
+  draft
+  awaiting_deposit
+  ready_to_start
+  in_progress
+  completed
+  cancelled
+}
+
+enum DepositGuardPaymentStatus {
+  draft
+  not_requested
+  requested
+  viewed
+  partially_paid
+  paid
+  overdue
+  cancelled
+  refunded
+}
+
+enum DepositRequestType {
+  deposit
+  progress_payment
+  final_payment
+}
+
+enum DepositRequestStatus {
+  draft
+  requested
+  viewed
+  partially_paid
+  paid
+  overdue
+  cancelled
+  expired
+  failed
+}
+
+enum PaymentMilestoneAmountType {
+  percentage
+  fixed
+}
+
+enum PaymentMilestoneTriggerType {
+  manual
+  date
+  work_status
+}
+
+enum PaymentMilestoneStatus {
+  planned
+  ready
+  requested
+  partially_paid
+  paid
+  overdue
+  cancelled
+}
+
+enum DepositPaymentStatus {
+  pending
+  confirmed
+  failed
+  refunded
+  cancelled
+}
+
+enum DepositReminderType {
+  initial_request
+  before_due
+  due_today
+  overdue_3_days
+  overdue_7_days
+}
+
+enum DepositReminderDeliveryStatus {
+  pending
+  sent
+  failed
+  skipped
+  cancelled
+}
+
+enum DepositGuardEventType {
+  job_created
+  deposit_calculated
+  request_created
+  request_sent
+  request_viewed
+  reminder_scheduled
+  reminder_sent
+  payment_recorded
+  payment_confirmed
+  payment_failed
+  job_unblocked
+  milestone_created
+  milestone_requested
+  request_cancelled
+  job_completed
+  settings_updated
+}
+
 // ---------------------------------------------------------------------------
 // User Profiles
 // ---------------------------------------------------------------------------
@@ -96,6 +205,14 @@ model UserProfile {
   ownersDigestMetrics          OwnersDigestMetric[]
   ownersDigestProviderRuns     OwnersDigestProviderRun[]
   ownersDigestDeliveries       OwnersDigestDelivery[]
+  depositGuardJobs             DepositGuardJob[]
+  depositRequests              DepositRequest[]
+  paymentMilestones            PaymentMilestone[]
+  depositPayments              DepositPayment[]
+  depositReminders             DepositReminder[]
+  depositGuardEvents           DepositGuardEvent[]
+  depositGuardSettings         DepositGuardSetting[]
+  depositPaymentWebhookEvents  DepositPaymentWebhookEvent[]
 
   @@map("user_profiles")
 }
@@ -455,9 +572,251 @@ model Customer {
   financialContact FinancialContact @relation(fields: [financialContactId], references: [id])
   trackedInvoices  TrackedInvoice[]
   arrangements     Arrangement[]
+  depositGuardJobs DepositGuardJob[]
+  depositRequests  DepositRequest[]
 
   @@unique([userId, financialContactId])
   @@map("customers")
+}
+
+// ---------------------------------------------------------------------------
+// DepositGuard
+// ---------------------------------------------------------------------------
+
+model DepositGuardJob {
+  id                         String                   @id @default(cuid())
+  userId                     String                   @map("user_id")
+  customerId                 String?                  @map("customer_id")
+  externalQuoteId            String?                  @map("external_quote_id")
+  externalQuoteNumber        String?                  @map("external_quote_number")
+  accountingProvider         String?                  @map("accounting_provider")
+  name                       String
+  description                String?
+  reference                  String?
+  currency                   String
+  quotedAmountCents          Int?                     @map("quoted_amount_cents")
+  taxAmountCents             Int?                     @map("tax_amount_cents")
+  totalAmountCents           Int                      @map("total_amount_cents")
+  depositType                DepositGuardDepositType  @default(percentage) @map("deposit_type")
+  depositPercentage          Decimal?                 @map("deposit_percentage") @db.Decimal(6, 3)
+  depositFixedAmountCents    Int?                     @map("deposit_fixed_amount_cents")
+  requiredDepositAmountCents Int                      @map("required_deposit_amount_cents")
+  amountPaidCents            Int                      @default(0) @map("amount_paid_cents")
+  outstandingAmountCents     Int                      @map("outstanding_amount_cents")
+  workStatus                 DepositGuardWorkStatus   @default(draft) @map("work_status")
+  paymentStatus              DepositGuardPaymentStatus @default(not_requested) @map("payment_status")
+  commencementBlocked        Boolean                  @default(false) @map("commencement_blocked")
+  expectedStartDate          DateTime?                @map("expected_start_date")
+  expectedCompletionDate     DateTime?                @map("expected_completion_date")
+  createdBy                  String?                  @map("created_by")
+  createdAt                  DateTime                 @default(now()) @map("created_at")
+  updatedAt                  DateTime                 @updatedAt @map("updated_at")
+  archivedAt                 DateTime?                @map("archived_at")
+
+  userProfile UserProfile      @relation(fields: [userId], references: [userId])
+  customer    Customer?        @relation(fields: [customerId], references: [id])
+  requests    DepositRequest[]
+  milestones  PaymentMilestone[]
+  payments    DepositPayment[]
+  events      DepositGuardEvent[]
+
+  @@index([userId, workStatus])
+  @@index([userId, paymentStatus])
+  @@index([customerId])
+  @@index([externalQuoteId])
+  @@map("deposit_guard_jobs")
+}
+
+model DepositRequest {
+  id                       String               @id @default(cuid())
+  userId                   String               @map("user_id")
+  jobId                    String               @map("job_id")
+  customerId               String?              @map("customer_id")
+  requestType              DepositRequestType   @map("request_type")
+  description              String?
+  amountCents              Int                  @map("amount_cents")
+  taxAmountCents           Int?                 @map("tax_amount_cents")
+  totalAmountCents         Int                  @map("total_amount_cents")
+  currency                 String
+  dueDate                  DateTime             @map("due_date")
+  status                   DepositRequestStatus @default(draft)
+  paymentProvider          String?              @map("payment_provider")
+  externalPaymentReference String?              @map("external_payment_reference")
+  externalPaymentUrl       String?              @map("external_payment_url")
+  publicTokenHash          String?              @unique @map("public_token_hash")
+  tokenExpiresAt           DateTime?            @map("token_expires_at")
+  sentAt                   DateTime?            @map("sent_at")
+  firstViewedAt            DateTime?            @map("first_viewed_at")
+  lastViewedAt             DateTime?            @map("last_viewed_at")
+  paidAt                   DateTime?            @map("paid_at")
+  cancelledAt              DateTime?            @map("cancelled_at")
+  createdBy                String?              @map("created_by")
+  createdAt                DateTime             @default(now()) @map("created_at")
+  updatedAt                DateTime             @updatedAt @map("updated_at")
+
+  userProfile UserProfile       @relation(fields: [userId], references: [userId])
+  job         DepositGuardJob   @relation(fields: [jobId], references: [id])
+  customer    Customer?         @relation(fields: [customerId], references: [id])
+  milestones  PaymentMilestone[]
+  payments    DepositPayment[]
+  reminders   DepositReminder[]
+  events      DepositGuardEvent[]
+
+  @@index([userId, status])
+  @@index([userId, dueDate])
+  @@index([jobId, requestType])
+  @@index([customerId])
+  @@map("deposit_requests")
+}
+
+model PaymentMilestone {
+  id                   String                   @id @default(cuid())
+  userId               String                   @map("user_id")
+  jobId                String                   @map("job_id")
+  name                 String
+  description          String?
+  sequence             Int
+  amountType           PaymentMilestoneAmountType @map("amount_type")
+  percentage           Decimal?                 @db.Decimal(6, 3)
+  fixedAmountCents     Int?                     @map("fixed_amount_cents")
+  calculatedAmountCents Int                     @map("calculated_amount_cents")
+  triggerType          PaymentMilestoneTriggerType @default(manual) @map("trigger_type")
+  targetDate           DateTime?                @map("target_date")
+  status               PaymentMilestoneStatus   @default(planned)
+  depositRequestId     String?                  @map("deposit_request_id")
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
+
+  userProfile    UserProfile      @relation(fields: [userId], references: [userId])
+  job            DepositGuardJob  @relation(fields: [jobId], references: [id])
+  depositRequest DepositRequest?  @relation(fields: [depositRequestId], references: [id])
+
+  @@unique([jobId, sequence])
+  @@index([userId, status])
+  @@index([depositRequestId])
+  @@map("payment_milestones")
+}
+
+model DepositPayment {
+  id               String               @id @default(cuid())
+  userId           String               @map("user_id")
+  jobId            String               @map("job_id")
+  depositRequestId String?              @map("deposit_request_id")
+  amountCents      Int                  @map("amount_cents")
+  currency         String
+  paymentMethod    String               @map("payment_method")
+  paymentProvider  String?              @map("payment_provider")
+  externalPaymentId String?             @map("external_payment_id")
+  status           DepositPaymentStatus @default(pending)
+  paidAt           DateTime?            @map("paid_at")
+  recordedBy       String?              @map("recorded_by")
+  notes            String?
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  userProfile    UserProfile     @relation(fields: [userId], references: [userId])
+  job            DepositGuardJob @relation(fields: [jobId], references: [id])
+  depositRequest DepositRequest? @relation(fields: [depositRequestId], references: [id])
+  events         DepositGuardEvent[]
+
+  @@index([userId, status])
+  @@index([jobId, paidAt])
+  @@index([depositRequestId])
+  @@index([paymentProvider, externalPaymentId])
+  @@map("deposit_payments")
+}
+
+model DepositReminder {
+  id               String                       @id @default(cuid())
+  userId           String                       @map("user_id")
+  depositRequestId String                       @map("deposit_request_id")
+  reminderType     DepositReminderType          @map("reminder_type")
+  scheduledFor     DateTime                     @map("scheduled_for")
+  sentAt           DateTime?                    @map("sent_at")
+  deliveryStatus   DepositReminderDeliveryStatus @default(pending) @map("delivery_status")
+  providerMessageId String?                     @map("provider_message_id")
+  failureReason    String?                      @map("failure_reason")
+  createdAt        DateTime                     @default(now()) @map("created_at")
+  updatedAt        DateTime                     @updatedAt @map("updated_at")
+
+  userProfile    UserProfile    @relation(fields: [userId], references: [userId])
+  depositRequest DepositRequest @relation(fields: [depositRequestId], references: [id])
+
+  @@unique([depositRequestId, reminderType, scheduledFor])
+  @@index([userId, scheduledFor])
+  @@index([deliveryStatus])
+  @@map("deposit_reminders")
+}
+
+model DepositGuardEvent {
+  id               String               @id @default(cuid())
+  userId           String               @map("user_id")
+  jobId            String?              @map("job_id")
+  depositRequestId String?              @map("deposit_request_id")
+  depositPaymentId String?              @map("deposit_payment_id")
+  eventType        DepositGuardEventType @map("event_type")
+  actorUserId      String?              @map("actor_user_id")
+  metadata         Json?
+  createdAt        DateTime             @default(now()) @map("created_at")
+
+  userProfile    UserProfile      @relation(fields: [userId], references: [userId])
+  job            DepositGuardJob? @relation(fields: [jobId], references: [id])
+  depositRequest DepositRequest?  @relation(fields: [depositRequestId], references: [id])
+  depositPayment DepositPayment?  @relation(fields: [depositPaymentId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([jobId])
+  @@index([depositRequestId])
+  @@index([depositPaymentId])
+  @@map("deposit_guard_events")
+}
+
+model DepositPaymentWebhookEvent {
+  id                       String    @id @default(cuid())
+  provider                 String
+  providerEventId          String    @map("provider_event_id")
+  eventType                String    @map("event_type")
+  processingStatus         String    @default("received") @map("processing_status")
+  processingNote           String?   @map("processing_note")
+  payloadHash              String?   @map("payload_hash")
+  userId                   String?   @map("user_id")
+  jobId                    String?   @map("job_id")
+  depositRequestId         String?   @map("deposit_request_id")
+  externalPaymentReference String?   @map("external_payment_reference")
+  processedAt              DateTime? @map("processed_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile? @relation(fields: [userId], references: [userId])
+
+  @@unique([provider, providerEventId])
+  @@index([processingStatus, createdAt])
+  @@index([userId, createdAt])
+  @@index([jobId])
+  @@index([depositRequestId])
+  @@map("deposit_payment_webhook_events")
+}
+
+model DepositGuardSetting {
+  id                      String   @id @default(cuid())
+  userId                  String   @map("user_id")
+  autoReminderEnabled     Boolean  @default(true) @map("auto_reminder_enabled")
+  initialReminderOffsetDays Int    @default(0) @map("initial_reminder_offset_days")
+  beforeDueOffsetDays     Int      @default(1) @map("before_due_offset_days")
+  overdue3Enabled         Boolean  @default(true) @map("overdue_3_enabled")
+  overdue7Enabled         Boolean  @default(true) @map("overdue_7_enabled")
+  paymentProviderDefault  String   @default("manual_external_link") @map("payment_provider_default")
+  requireDepositBeforeStart Boolean @default(true) @map("require_deposit_before_start")
+  settingsJson            Json?    @map("settings_json")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@index([updatedAt])
+  @@map("deposit_guard_settings")
 }
 
 // ---------------------------------------------------------------------------

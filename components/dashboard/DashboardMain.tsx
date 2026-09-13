@@ -14,6 +14,7 @@ const WIDE_ROUTES = [
   "/dashboard/cost-guard",
   "/dashboard/tax-buffer",
   "/dashboard/margin-guard",
+  "/dashboard/deposit-guard",
   "/dashboard/runway-guard",
 ]
 
@@ -24,6 +25,7 @@ export function DashboardMain({
   canViewSpendLeak,
   canViewTaxBuffer,
   canViewMarginGuard,
+  canViewDepositGuard,
   canViewRunwayGuard,
 }: {
   children: React.ReactNode
@@ -32,6 +34,7 @@ export function DashboardMain({
   canViewSpendLeak: boolean
   canViewTaxBuffer: boolean
   canViewMarginGuard: boolean
+  canViewDepositGuard: boolean
   canViewRunwayGuard: boolean
 }) {
   const pathname = usePathname()
@@ -46,6 +49,7 @@ export function DashboardMain({
           canViewSpendLeak={canViewSpendLeak}
           canViewTaxBuffer={canViewTaxBuffer}
           canViewMarginGuard={canViewMarginGuard}
+          canViewDepositGuard={canViewDepositGuard}
           canViewRunwayGuard={canViewRunwayGuard}
         />
         <div className="min-w-0 flex-1">{children}</div>
