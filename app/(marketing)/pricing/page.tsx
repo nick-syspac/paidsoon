@@ -3,6 +3,7 @@ import Link from "next/link"
 import { PricingCTA } from "@/components/pricing/PricingCTA"
 import { PricingIntentSelector } from "@/components/pricing/PricingIntentSelector"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 import {
   getPublicPlans,
   isFeatureImplemented,
@@ -25,20 +26,14 @@ import { PRIVATE_BETA_POSITIONING } from "@/components/marketing/marketingConten
 
 const publicPlans = getPublicPlans()
 
-export const metadata: Metadata = {
-  title: "Pricing — PaidSoon",
-  description: `Simple, transparent pricing for PaidSoon. Start a free trial with ${publicPlans
-    .map((plan) => `${plan.name} at ${formatPlanPrice(plan.monthlyPriceAud)} AUD (inc. GST)`)
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "PaidSoon Pricing: Invoice And Cash Flow Software",
+  description: `Compare ${publicPlans
+    .map((plan) => `${plan.name} at ${formatPlanPrice(plan.monthlyPriceAud)} AUD inc. GST`)
     .join(", ")}, or contact us for the ${PLAN_CATALOG.accountant_partner.name} plan.`,
-    alternates: { canonical: "/pricing" },
-    openGraph: {
-      title: "Pricing - PaidSoon",
-      description:
-        "Compare Essentials, Business Control, Small Business, and Business Pro plans across receivables, commitments, tax, margin, digest, and runway controls.",
-      url: "/pricing",
-      type: "website",
-    },
-}
+  canonicalPath: "/pricing",
+  imagePath: "/social/pricing-og.svg",
+})
 
 const PLAN_CTA_LABEL: Record<SubscriptionTier, string> = {
   essentials: "Request early access",
@@ -115,12 +110,29 @@ export default function PricingPage() {
     accountant_partner: PLAN_CATALOG.accountant_partner.name,
   }
 
+  const pricingJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "PaidSoon",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    offers: publicPlans
+      .filter((plan) => plan.monthlyPriceAud !== null)
+      .map((plan) => ({
+        "@type": "Offer",
+        name: plan.name,
+        price: String(plan.monthlyPriceAud),
+        priceCurrency: "AUD",
+      })),
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <MarketingPageViewTracker page="pricing" />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingJsonLd) }} />
       {/* Header */}
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-12 text-center">
-        <h1 className="text-3xl font-bold text-gray-900">Simple, transparent pricing</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Pricing for invoice reminders and cash-flow control</h1>
         <p className="mt-4 text-lg text-gray-500">
           {liveMode
             ? "Start your free trial. No credit card required. Cancel any time - no lock-in contracts."

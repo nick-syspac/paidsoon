@@ -1,11 +1,14 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { getAllBlogPostMeta } from "@/lib/blog/content"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 
-export const metadata: Metadata = {
-  title: "Resources — PaidSoon",
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Cash Flow And Invoice Reminder Resources | PaidSoon",
   description:
-    "PaidSoon resources hub: blog, help centre, documentation, FAQ, and release notes to help you get the most out of automated invoice follow-ups.",
-}
+    "Browse PaidSoon guides, help, documentation, FAQ, and release notes for invoice reminders, integrations, and cash-flow control.",
+  canonicalPath: "/resources",
+})
 
 const resources = [
   {
@@ -40,6 +43,14 @@ const resources = [
   },
 ]
 
+const publishedArticles = getAllBlogPostMeta()
+  .map((article) => ({
+    url: `/blog/${article.slug}`,
+    title: article.title,
+    description: article.description,
+  }))
+  .slice(0, 3)
+
 export default function ResourcesPage() {
   return (
     <div className="min-h-screen bg-white">
@@ -63,6 +74,21 @@ export default function ResourcesPage() {
               <span className="text-sm text-blue-600 font-medium">{resource.cta}</span>
             </Link>
           ))}
+        </div>
+
+        <div className="mt-12 rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-xl font-semibold text-gray-900">Popular guides</h2>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {publishedArticles.map((article) => (
+              <article key={article.url} className="rounded-xl border border-gray-100 p-5">
+                <h3 className="font-semibold text-gray-900">{article.title}</h3>
+                <p className="mt-2 text-sm text-gray-500">{article.description}</p>
+                <Link href={article.url} className="mt-3 inline-block text-sm font-semibold text-blue-600 hover:underline">
+                  Read article
+                </Link>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
     </div>

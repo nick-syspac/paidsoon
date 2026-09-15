@@ -1,33 +1,39 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 
-export const metadata: Metadata = {
-  title: "For Accountants & Bookkeepers — PaidSoon",
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Invoice Reminder Software For Accountants | PaidSoon",
   description:
-    "PaidSoon's Accountant Partner programme is designed for bookkeepers and accountants who want to offer automated invoice follow-up as a value-added service. Multi-client management is coming soon — register your interest today.",
-}
+    "Help clients chase overdue invoices with PaidSoon's accountant and bookkeeper workflow today, with multi-client partner tooling planned next.",
+  canonicalPath: "/accountants",
+  imagePath: "/social/accountants-og.svg",
+})
 
 export default function AccountantsPage() {
   return (
     <div className="min-h-screen bg-white">
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-10 text-center">
-        <h1 className="text-3xl font-bold text-gray-900">For accountants and bookkeepers</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Invoice reminder software for accountants and bookkeepers</h1>
         <p className="mt-4 text-lg text-gray-500">
           Offer automated invoice follow-ups as a value-added service for your clients.
-          Improve cash flow. Reduce debtor days. No awkward conversations.
+          Improve cash flow, reduce debtor days, and keep debtor communication professional without awkward chasing.
+        </p>
+        <p className="mt-3 text-sm text-gray-500">
+          Start with single-client workflows that work today, then register interest for planned multi-client partner tooling.
         </p>
       </section>
 
       {/* What works today, per client */}
       <section className="max-w-4xl mx-auto px-4 pb-4">
         <p className="text-center text-sm font-semibold text-gray-500 uppercase tracking-wide mb-6">
-          Available today, per client
+          Coming soon
         </p>
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
               title: "Automated follow-ups",
-              body: "Connect a client's Stripe account and PaidSoon automatically chases their overdue invoices with a three-stage reminder sequence.",
+              body: "Connect a client's Stripe account, MYOB Business file, Xero organisation, or CSV export and PaidSoon automatically chases overdue invoices with a structured reminder sequence.",
             },
             {
               title: "Promise-to-pay tracking",

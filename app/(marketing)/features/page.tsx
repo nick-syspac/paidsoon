@@ -1,18 +1,21 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 import {
+  getCanonicalModuleHref,
   getMarketingModuleLabel,
   MODULES,
   PLATFORM_AREAS,
   PLATFORM_TAGLINE,
 } from "@/components/marketing/marketingContent"
 
-export const metadata: Metadata = {
-  title: "Features — PaidSoon",
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Features And Financial Control Modules | PaidSoon",
   description:
-    "Explore the public PaidSoon module portfolio across receivables, commitments, tax, margin, runway, and owner-level summaries.",
-}
+    "Explore invoice reminders, recurring expense monitoring, cost control, forecasting, and the rest of the public PaidSoon module portfolio.",
+  canonicalPath: "/features",
+})
 
 export default function FeaturesPage() {
   return (
@@ -43,7 +46,7 @@ export default function FeaturesPage() {
                         <li key={capability}>{capability}</li>
                       ))}
                     </ul>
-                    <Link href={module.href} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:underline">
+                    <Link href={getCanonicalModuleHref(module.id)} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:underline">
                       Explore {getMarketingModuleLabel(module)}
                     </Link>
                   </article>

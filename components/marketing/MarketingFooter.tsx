@@ -4,14 +4,11 @@ import { MARKETING_CTA_BY_STAGE, PRODUCT_LINKS } from "@/components/marketing/ma
 const footerLinks = {
   Company: [
     { label: "About", href: "/about" },
+    { label: "Accountants", href: "/accountants" },
     { label: "Contact", href: "/contact" },
     { label: "Careers", href: "/careers" },
   ],
-  Product: PRODUCT_LINKS.map((link) =>
-    link.href === "/paidsoon"
-      ? { label: "InvoiceGuard", href: "/invoiceguard" }
-      : { label: link.label, href: link.href },
-  ),
+  Product: PRODUCT_LINKS.map((link) => ({ label: link.label, href: link.href })),
   Support: [
     { label: "Help Centre", href: "/help" },
     { label: "FAQ", href: "/faq" },

@@ -1,7 +1,9 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
+import { buildNoIndexMetadata } from "@/lib/marketing/seo"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
@@ -23,6 +25,11 @@ import {
   warnIfProductionDebugEnabled,
 } from "@/lib/diagnostics/server"
 import { summariseAuthForTrace } from "@/lib/diagnostics/shared"
+
+export const metadata: Metadata = buildNoIndexMetadata({
+  title: "PaidSoon dashboard",
+  description: "View and manage your PaidSoon account dashboard.",
+})
 
 export default async function DashboardLayout({
   children,

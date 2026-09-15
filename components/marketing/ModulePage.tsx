@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { MarketingBreadcrumbs } from "@/components/marketing/MarketingBreadcrumbs"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 import { isLiveMode } from "@/lib/liveMode"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
@@ -53,25 +55,19 @@ function firstPlanIncludingModule(id: MarketingModuleId): string {
 
 export function moduleMetadata(id: MarketingModuleId): Metadata {
   const moduleDef = getModuleById(id)
-  const title = `${moduleDef.name} - ${moduleDef.question} | PaidSoon`
-
-  return {
-    title,
-    description: `${moduleDef.summary} ${moduleDef.tagline}`,
-    alternates: { canonical: moduleDef.href },
-    openGraph: {
-      title,
-      description: `${moduleDef.summary} ${moduleDef.tagline}`,
-      url: moduleDef.href,
-      type: "website",
-    },
-  }
+  return buildMarketingMetadata({
+    title: moduleDef.seoTitle ?? `${moduleDef.name} - ${moduleDef.question} | PaidSoon`,
+    description: moduleDef.seoDescription ?? `${moduleDef.summary} ${moduleDef.tagline}`,
+    canonicalPath: moduleDef.canonicalHref ?? moduleDef.href,
+    imagePath: moduleDef.socialImagePath,
+  })
 }
 
 export function ModulePage({ id }: { id: MarketingModuleId }) {
   const moduleDef = getModuleById(id)
   const relatedModules = getRelatedModules(id)
   const moduleLabel = moduleDef.id === "paidsoon" ? "InvoiceGuard" : moduleDef.name
+  const categoryLabel = moduleDef.categoryLabel ?? `${moduleLabel} module`
   const liveMode = isLiveMode()
   const heroCta = getJourneyCta("hero", liveMode)
 
@@ -80,12 +76,21 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
       <MarketingPageViewTracker page={id} />
 
       <section className="mx-auto max-w-5xl px-4 pt-16 pb-12">
+        <MarketingBreadcrumbs
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Features", href: "/features" },
+            { label: moduleLabel, href: moduleDef.canonicalHref ?? moduleDef.href },
+          ]}
+        />
         <div className={`rounded-2xl border p-8 md:p-10 ${moduleDef.accentClass}`}>
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-xs uppercase tracking-[0.16em] font-semibold">{moduleLabel} module</p>
+            <p className="text-xs uppercase tracking-[0.16em] font-semibold">{categoryLabel}</p>
           </div>
-          <h1 className="mt-3 text-3xl md:text-4xl font-bold">{moduleDef.question}</h1>
-          <p className="mt-4 text-base md:text-lg max-w-3xl">{moduleDef.headline}</p>
+          <h1 className="mt-3 text-3xl md:text-4xl font-bold">{moduleDef.headline}</h1>
+          <p className="mt-4 text-base md:text-lg max-w-3xl">
+            {moduleLabel} is PaidSoon&apos;s answer to the question: {moduleDef.question}
+          </p>
           <p className="mt-4 text-sm md:text-base max-w-3xl">{moduleDef.summary}</p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <MarketingCtaLink
@@ -111,7 +116,7 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
           <p className="mt-3 text-gray-600">{moduleDef.problem}</p>
         </article>
         <article className="rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900">What does {moduleLabel} do?</h2>
+          <h2 className="text-xl font-semibold text-gray-900">How does {moduleLabel} help?</h2>
           <ul className="mt-3 space-y-2 text-gray-600">
             {moduleDef.capabilities.map((item) => (
               <li key={item} className="flex gap-2">
@@ -125,7 +130,7 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
 
       <section className="bg-gray-50 py-10">
         <div className="mx-auto max-w-5xl px-4">
-          <h2 className="text-2xl font-semibold text-gray-900">What does the user see?</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">What does the workflow look like?</h2>
           <ol className="mt-5 grid gap-4 md:grid-cols-2">
             {moduleDef.workflow.map((step, index) => (
               <li key={step} className="rounded-xl border border-gray-200 bg-white p-5">
@@ -152,7 +157,7 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
         <div className="mx-auto max-w-5xl px-4">
           <h2 className="text-2xl font-semibold text-gray-900">Who is it for?</h2>
           <p className="mt-3 text-gray-600">
-            {moduleDef.name} is for businesses that want one practical financial control rhythm: get paid, stop waste, control costs, and plan ahead.
+            {moduleLabel} is for businesses that want one practical financial control rhythm: get paid, stop waste, control costs, and plan ahead.
           </p>
           <p className="mt-4 text-sm text-gray-600">
             PaidSoon includes a broader module portfolio across receivables, waste, cost control, margin, commitments, tax planning, runway, and owner-level visibility.

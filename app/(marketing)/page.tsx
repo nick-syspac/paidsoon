@@ -3,6 +3,8 @@ import Link from "next/link"
 import { isLiveMode } from "@/lib/liveMode"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
+import { getAllBlogPostMeta } from "@/lib/blog/content"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 import { getPublicPlans, PLAN_CATALOG } from "@/lib/subscriptionPlans"
 import { formatPlanPrice, lowestTierWithFeature } from "@/lib/planPresentation"
 import {
@@ -11,6 +13,7 @@ import {
   INTEGRATION_STATUS_LABEL,
 } from "@/lib/integrationsCatalog"
 import {
+  getCanonicalModuleHref,
   getMarketingModuleLabel,
   getJourneyCta,
   getPublicPlanSummary,
@@ -20,19 +23,13 @@ import {
   PLATFORM_AREAS,
 } from "@/components/marketing/marketingContent"
 
-export const metadata: Metadata = {
-  title: "PaidSoon - Financial Control for Australian Businesses",
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Cash Flow & Invoice Reminder Software Australia | PaidSoon",
   description:
-    "Your accounting software tells you what happened. PaidSoon helps you control what happens next across receivables, waste, commitments, margins, tax, and runway.",
-  alternates: { canonical: "/" },
-  openGraph: {
-    title: "PaidSoon - Financial Control for Australian Businesses",
-    description:
-      "Get paid, stop waste, control costs, and plan ahead with one connected financial control platform.",
-    url: "/",
-    type: "website",
-  },
-}
+    "Automate overdue invoice reminders, identify recurring waste, monitor margins, and forecast cash flow with PaidSoon for Australian small businesses.",
+  canonicalPath: "/",
+  imagePath: "/social/home-og.svg",
+})
 
 const pricingPreview = getPublicPlans().map((plan) => ({
   id: plan.id,
@@ -49,6 +46,15 @@ const customSenderNameTier = lowestTierWithFeature("custom_sender_name")
 const customSenderNameTierName = customSenderNameTier
   ? PLAN_CATALOG[customSenderNameTier].name
   : "a paid"
+
+const publishedArticles = getAllBlogPostMeta()
+  .map((article) => ({
+    url: `/blog/${article.slug}`,
+    title: article.title,
+    description: article.description,
+    publishedAt: article.publishedAt,
+  }))
+  .slice(0, 3)
 
 export default function HomePage() {
   const liveMode = isLiveMode()
@@ -96,12 +102,32 @@ export default function HomePage() {
     name: "PaidSoon",
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
-    offers: {
-      "@type": "AggregateOffer",
-      lowPrice: "15",
-      highPrice: "149",
-      priceCurrency: "AUD",
-    },
+    areaServed: "AU",
+    offers: getPublicPlans()
+      .filter((plan) => plan.monthlyPriceAud !== null)
+      .map((plan) => ({
+        "@type": "Offer",
+        name: plan.name,
+        price: String(plan.monthlyPriceAud),
+        priceCurrency: "AUD",
+      })),
+  }
+
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "PaidSoon",
+    url: "https://www.paidsoon.com.au",
+    logo: "/paidsoon-logo.png",
+    sameAs: ["https://www.linkedin.com/company/syspac"],
+    areaServed: "AU",
+  }
+
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "PaidSoon",
+    url: "https://www.paidsoon.com.au",
   }
 
   return (
@@ -109,6 +135,8 @@ export default function HomePage() {
       <MarketingPageViewTracker page="homepage" />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
 
       <section className="border-b border-gray-100 bg-gray-50">
         <div className="mx-auto max-w-6xl px-4 py-3 text-center text-sm text-gray-700">
@@ -119,12 +147,12 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-4 pt-16 pb-14">
         <div className="grid items-center gap-8 lg:grid-cols-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">Financial control platform</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">Cash flow and invoice reminder software</p>
             <h1 className="mt-4 text-4xl font-bold leading-tight text-gray-900 md:text-5xl">
-              Know what needs attention in your business before it becomes a cash-flow problem.
+              Control your cash flow before small problems become expensive ones.
             </h1>
             <p className="mt-5 max-w-xl text-lg text-gray-600">
-              PaidSoon works alongside Xero, MYOB or CSV data to help small businesses get paid faster, reduce waste, protect margins and plan their cash.
+              PaidSoon works alongside Xero and MYOB to automate overdue invoice follow-ups, uncover recurring waste, protect margins, and show Australian business owners what needs attention next.
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <MarketingCtaLink
@@ -145,7 +173,7 @@ export default function HomePage() {
           </div>
           <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-blue-50 to-slate-100 p-6">
             <h2 className="text-lg font-semibold text-gray-900">Outcome dashboard</h2>
-            <p className="mt-2 text-sm text-gray-600">Four practical outcomes before full architecture detail.</p>
+            <p className="mt-2 text-sm text-gray-600">Four ways PaidSoon helps you protect cash every week.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {PLATFORM_AREAS.map((area) => (
                 <article key={area.id} className="rounded-xl border border-white bg-white/80 p-4">
@@ -263,7 +291,7 @@ export default function HomePage() {
                     return (
                       <Link
                         key={moduleDef.id}
-                        href={moduleDef.href}
+                        href={getCanonicalModuleHref(moduleDef.id)}
                         className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
                       >
                         {moduleDef.name}
@@ -301,7 +329,7 @@ export default function HomePage() {
                     return (
                       <Link
                         key={moduleDef.id}
-                        href={moduleDef.href}
+                        href={getCanonicalModuleHref(moduleDef.id)}
                         className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
                       >
                         Explore {getMarketingModuleLabel(moduleDef)}
@@ -352,6 +380,30 @@ export default function HomePage() {
                 <span className={`mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-medium ${INTEGRATION_STATUS_BADGE_STYLES[integration.status]}`}>
                   {INTEGRATION_STATUS_LABEL[integration.status]}
                 </span>
+                {integration.href ? (
+                  <Link href={integration.href} className="mt-3 inline-block text-sm font-semibold text-blue-600 hover:underline">
+                    Learn more
+                  </Link>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="text-center text-2xl font-semibold text-gray-900">Popular guides</h2>
+          <p className="mt-3 text-center text-gray-600">Search-focused articles on overdue invoices, reminder timing, and practical cash-flow control.</p>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {publishedArticles.map((article) => (
+              <article key={article.url} className="rounded-xl border border-gray-200 p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{article.publishedAt}</p>
+                <h3 className="mt-2 font-semibold text-gray-900">{article.title}</h3>
+                <p className="mt-2 text-sm text-gray-600">{article.description}</p>
+                <Link href={article.url} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:underline">
+                  Read guide
+                </Link>
               </article>
             ))}
           </div>

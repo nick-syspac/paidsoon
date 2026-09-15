@@ -1,7 +1,5 @@
-import { ModulePage, moduleMetadata } from "@/components/marketing/ModulePage"
-
-export const metadata = moduleMetadata("paidsoon")
+import { permanentRedirect } from "next/navigation"
 
 export default function PaidSoonModulePage() {
-  return <ModulePage id="paidsoon" />
+  permanentRedirect("/invoiceguard")
 }

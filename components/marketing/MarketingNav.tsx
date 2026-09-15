@@ -11,6 +11,7 @@ const MODULE_LINKS = PRODUCT_LINKS.filter((link) => Object.values(MODULE_HREF).i
 const topLinks = [
   { label: "How it works", href: "/how-it-works" },
   { label: "Pricing", href: "/pricing" },
+  { label: "Accountants", href: "/accountants" },
   { label: "Resources", href: "/resources" },
   { label: "Security", href: "/security" },
 ]
