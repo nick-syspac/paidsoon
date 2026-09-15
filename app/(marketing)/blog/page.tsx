@@ -1,61 +1,53 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { getAllBlogPostMeta } from "@/lib/blog/content"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 
-export const metadata: Metadata = {
-  title: "Blog — PaidSoon",
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Invoice Reminder And Cash Flow Guides | PaidSoon",
   description:
-    "Practical articles for small businesses, freelancers, bookkeepers and accountants who want to improve cash flow and reduce time spent chasing overdue invoices.",
-}
+    "Read practical guides on overdue invoice follow-up, reminder email timing, promise tracking, and cash-flow control for Australian small businesses.",
+  canonicalPath: "/blog",
+})
 
-const comingArticles = [
-  {
-    title: "How to follow up overdue invoices without damaging client relationships",
-    description:
-      "A practical guide to sending polite, consistent reminders while keeping the tone professional.",
-  },
-  {
-    title: "What to include in an invoice reminder email",
-    description:
-      "A breakdown of the key details every reminder should include: invoice number, amount due, due date, payment link, and next step.",
-  },
-  {
-    title: "Why consistent follow-up improves cash flow",
-    description:
-      "How small businesses can reduce debtor days by making invoice follow-up systematic rather than ad hoc.",
-  },
-  {
-    title: "Promise-to-pay tracking: why it matters",
-    description:
-      "How recording payment commitments helps you avoid unnecessary reminders and improves client communication.",
-  },
-  {
-    title: "When to pause invoice reminders",
-    description:
-      "How to handle disputes, partial payments and special circumstances without losing track of the invoice.",
-  },
-]
+const publishedArticles = getAllBlogPostMeta().map((article) => ({
+  url: `/blog/${article.slug}`,
+  title: article.title,
+  description: article.description,
+  publishedAt: article.publishedAt,
+}))
 
 export default function BlogPage() {
   return (
     <div className="min-h-screen bg-white">
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-10">
-        <h1 className="text-3xl font-bold text-gray-900">Blog</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Guides for getting paid faster</h1>
         <p className="mt-4 text-lg text-gray-500">
-          Practical articles for small businesses, freelancers, bookkeepers and accountants who want
-          to improve cash flow and reduce time spent chasing overdue invoices.
+          Practical articles for Australian businesses, freelancers, bookkeepers and accountants who
+          want to reduce debtor days and make cash-flow decisions earlier.
         </p>
       </section>
 
       <section className="max-w-3xl mx-auto px-4 pb-16">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-6">
-          Coming articles
+          Published articles
         </h2>
         <div className="space-y-6">
-          {comingArticles.map((article) => (
-            <div key={article.title} className="border-b border-gray-100 pb-6">
-              <h3 className="font-semibold text-gray-900 mb-1">{article.title}</h3>
+          {publishedArticles.map((article) => (
+            <article key={article.url} className="border-b border-gray-100 pb-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {article.publishedAt}
+              </p>
+              <h3 className="mt-2 font-semibold text-gray-900 mb-1">
+                <Link href={article.url} className="hover:text-blue-700">
+                  {article.title}
+                </Link>
+              </h3>
               <p className="text-sm text-gray-500">{article.description}</p>
-            </div>
+              <Link href={article.url} className="mt-3 inline-block text-sm font-semibold text-blue-600 hover:underline">
+                Read article
+              </Link>
+            </article>
           ))}
         </div>
 

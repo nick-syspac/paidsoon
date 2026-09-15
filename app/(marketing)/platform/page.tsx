@@ -3,7 +3,9 @@ import Link from "next/link"
 import { isLiveMode } from "@/lib/liveMode"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 import {
+  getCanonicalModuleHref,
   getMarketingModuleLabel,
   getJourneyCta,
   getModuleById,
@@ -15,19 +17,12 @@ import {
   PLATFORM_TAGLINE,
 } from "@/components/marketing/marketingContent"
 
-export const metadata: Metadata = {
-  title: "Platform Overview - PaidSoon Financial Control Platform",
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Financial Control Platform Overview | PaidSoon",
   description:
-    "See how PaidSoon, SpendLeak, CostGuard, CashPlan, CommitGuard, Owner's Digest, Tax Buffer, MarginGuard, and RunwayGuard work together to help Australian businesses control what happens next.",
-  alternates: { canonical: "/platform" },
-  openGraph: {
-    title: "Platform Overview - PaidSoon",
-    description:
-      "One connected financial control platform for Australian small businesses.",
-    url: "/platform",
-    type: "website",
-  },
-}
+    "See how invoice reminders, spend monitoring, commitments, margins, tax buffers, and cash forecasting work together in PaidSoon.",
+  canonicalPath: "/platform",
+})
 
 export default function PlatformPage() {
   const liveMode = isLiveMode()
@@ -98,7 +93,7 @@ export default function PlatformPage() {
                   return (
                     <Link
                       key={moduleDef.id}
-                      href={moduleDef.href}
+                      href={getCanonicalModuleHref(moduleDef.id)}
                       className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
                     >
                       Explore {getMarketingModuleLabel(moduleDef)}
@@ -161,7 +156,7 @@ export default function PlatformPage() {
                       </div>
                       <p className="mt-2 text-sm text-gray-600">{module.question}</p>
                       <p className="mt-3 text-gray-600">{module.summary}</p>
-                      <Link href={module.href} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:text-blue-800">
+                      <Link href={getCanonicalModuleHref(module.id)} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:text-blue-800">
                         Explore {getMarketingModuleLabel(module)}
                       </Link>
                     </article>

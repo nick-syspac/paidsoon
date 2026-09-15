@@ -1,25 +1,20 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { MarketingCtaLink } from "@/components/marketing/MarketingCtaLink"
 import { MarketingPageViewTracker } from "@/components/marketing/MarketingPageViewTracker"
+import { buildMarketingMetadata } from "@/lib/marketing/seo"
 import {
   getIntegrations,
   INTEGRATION_STATUS_BADGE_STYLES,
   INTEGRATION_STATUS_LABEL,
 } from "@/lib/integrationsCatalog"
 
-export const metadata: Metadata = {
-  title: "Integrations — PaidSoon",
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "Accounting And Invoice Reminder Integrations | PaidSoon",
   description:
-    "PaidSoon integrates with Stripe Connect, MYOB Business, and Xero today, with QuickBooks Online planned. No accounting software? Import invoices from a CSV spreadsheet instead.",
-  alternates: { canonical: "/integrations" },
-  openGraph: {
-    title: "Integrations - PaidSoon",
-    description:
-      "Connect Stripe, MYOB, and Xero, or start with CSV imports and integrate later.",
-    url: "/integrations",
-    type: "website",
-  },
-}
+    "Connect Stripe, Xero, MYOB Business, or start with CSV import to run PaidSoon's invoice reminder and debtor follow-up workflows.",
+  canonicalPath: "/integrations",
+})
 
 const integrations = getIntegrations()
 
@@ -37,7 +32,7 @@ export default function IntegrationsPage() {
       <section className="max-w-4xl mx-auto px-4 pb-16">
         <div className="grid md:grid-cols-2 gap-6">
           {integrations.map((integration) => (
-            <div key={integration.id} className="border border-gray-200 rounded-xl p-6">
+            <article key={integration.id} className="border border-gray-200 rounded-xl p-6">
               <div className="flex items-start justify-between mb-3">
                 <h2 className="font-semibold text-gray-900 text-lg">{integration.name}</h2>
                 <span
@@ -47,7 +42,15 @@ export default function IntegrationsPage() {
                 </span>
               </div>
               <p className="text-sm text-gray-500 leading-relaxed">{integration.description}</p>
-            </div>
+              {integration.href ? (
+                <Link
+                  href={integration.href}
+                  className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:underline"
+                >
+                  Explore {integration.name}
+                </Link>
+              ) : null}
+            </article>
           ))}
         </div>
 

@@ -28,7 +28,13 @@ export type MarketingAvailabilityStatus = "private_beta" | "selected_early_acces
 export interface MarketingModuleDefinition {
   id: MarketingModuleId
   href: string
+  canonicalHref?: string
+  legacyHrefs?: string[]
   name: string
+  categoryLabel?: string
+  seoTitle?: string
+  seoDescription?: string
+  socialImagePath?: string
   headline: string
   statusLabel: string
   availabilityStatus: MarketingAvailabilityStatus
@@ -183,8 +189,15 @@ export const MODULES: MarketingModuleDefinition[] = [
   {
     id: "paidsoon",
     href: "/paidsoon",
-    name: "PaidSoon",
-    headline: "Stop chasing overdue invoices manually.",
+    canonicalHref: "/invoiceguard",
+    legacyHrefs: ["/paidsoon"],
+    name: "InvoiceGuard",
+    categoryLabel: "Automated invoice reminder software",
+    seoTitle: "Automated Invoice Reminder Software Australia | PaidSoon",
+    seoDescription:
+      "Automate overdue invoice reminders, track promises to pay, and pause disputed invoices with InvoiceGuard by PaidSoon for Australian small businesses.",
+    socialImagePath: "/social/invoiceguard-og.svg",
+    headline: "Automated invoice reminder software for Australian small businesses.",
     statusLabel: "Available in private beta",
     availabilityStatus: "private_beta",
     platformArea: "get-paid",
@@ -274,7 +287,12 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "spendleak",
     href: "/spendleak",
     name: "SpendLeak",
-    headline: "Find recurring costs quietly draining your business.",
+    categoryLabel: "Recurring expense monitoring software",
+    seoTitle: "Recurring Expense Monitoring Software | PaidSoon",
+    seoDescription:
+      "Find recurring expense leakage, duplicate tools, and creeping charges with SpendLeak by PaidSoon before they quietly drain cash.",
+    socialImagePath: "/social/spendleak-og.svg",
+    headline: "Recurring expense monitoring for small businesses.",
     statusLabel: "Available in private beta",
     availabilityStatus: "private_beta",
     platformArea: "stop-waste",
@@ -318,7 +336,12 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "costguard",
     href: "/costguard",
     name: "CostGuard",
-    headline: "Spot cost drift before it erodes your margins.",
+    categoryLabel: "Small business cost control software",
+    seoTitle: "Small Business Cost Control Software | PaidSoon",
+    seoDescription:
+      "Monitor cost drift, threshold breaches, and category-level spend pressure with CostGuard by PaidSoon before margins erode further.",
+    socialImagePath: "/social/costguard-og.svg",
+    headline: "Small business cost control software for early cost-drift detection.",
     statusLabel: "Available in private beta",
     availabilityStatus: "private_beta",
     platformArea: "control-costs",
@@ -362,7 +385,12 @@ export const MODULES: MarketingModuleDefinition[] = [
     id: "cashplan",
     href: "/cashplan",
     name: "CashPlan",
-    headline: "See whether upcoming bills will leave you short of cash.",
+    categoryLabel: "Cash flow forecasting software",
+    seoTitle: "Cash Flow Forecasting Software Australia | PaidSoon",
+    seoDescription:
+      "Forecast near-term cash pressure, model shortfalls, and stress-test payment timing with CashPlan by PaidSoon for Australian businesses.",
+    socialImagePath: "/social/cashplan-og.svg",
+    headline: "Cash flow forecasting software for Australian businesses.",
     statusLabel: "Available in private beta",
     availabilityStatus: "private_beta",
     platformArea: "plan-ahead",
@@ -628,11 +656,11 @@ export const MODULES: MarketingModuleDefinition[] = [
 ]
 
 export function getMarketingModuleLabel(module: Pick<MarketingModuleDefinition, "id" | "name">): string {
-  return module.id === "paidsoon" ? "InvoiceGuard" : module.name
+  return module.name
 }
 
 export const MODULE_HREF: Record<MarketingModuleId, string> = {
-  paidsoon: "/paidsoon",
+  paidsoon: "/invoiceguard",
   "deposit-guard": "/deposit-guard",
   spendleak: "/spendleak",
   costguard: "/costguard",
@@ -646,7 +674,7 @@ export const MODULE_HREF: Record<MarketingModuleId, string> = {
 
 export const PRODUCT_LINKS = MODULES.map((moduleDef) => ({
   label: moduleDef.name,
-  href: moduleDef.href,
+  href: moduleDef.canonicalHref ?? moduleDef.href,
 })).concat([
   { label: "Platform", href: "/platform" },
   { label: "Pricing", href: "/pricing" },
@@ -750,6 +778,11 @@ export function getModulesByPlatformArea(areaId: MarketingPlatformAreaId): Marke
 
 export function getRelatedModules(id: MarketingModuleId): MarketingModuleDefinition[] {
   return getModuleById(id).relatedModules.map((moduleId) => getModuleById(moduleId))
+}
+
+export function getCanonicalModuleHref(id: MarketingModuleId): string {
+  const moduleDef = getModuleById(id)
+  return moduleDef.canonicalHref ?? moduleDef.href
 }
 
 export function getPublicPlanSummary(): string[] {

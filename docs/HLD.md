@@ -28,8 +28,8 @@ user-configurable schedule. The product's value proposition is removing the
 emotional friction of chasing payment: the freelancer "hides behind" a neutral
 automated system (`openspec/changes/invoice-nudge-mvp/proposal.md`).
 
-The platform is monetised through tiered subscriptions (Starter A$9 / Solo A$19 / Small Business A$39 /
-Accountant Partner contact-us per month) billed via **Stripe Billing**. Subscription tier
+The platform is monetised through tiered subscriptions (Essentials A$15 / Business Control A$29 /
+Small Business A$69 / Business Pro A$149 / Accountant Partner contact-us) billed via **Stripe Billing**. Subscription tier
 gates feature access and usage limits (number of chased invoices, connected
 Stripe accounts, user seats, custom from-address, reminder templates, accounting
 integrations, AI rewrite, tone settings)

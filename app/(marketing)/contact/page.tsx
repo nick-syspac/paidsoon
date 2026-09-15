@@ -76,8 +76,7 @@ export default function ContactPage() {
             <div className="border border-gray-200 rounded-xl p-6">
               <h3 className="font-semibold text-gray-900 mb-2">Are you an accountant or bookkeeper?</h3>
               <p className="text-sm text-gray-600 mb-3">
-                Learn about our Accountant Partner programme — manage invoice follow-ups for all your clients
-                from one dashboard.
+                Learn about our Accountant Partner programme and how to deliver debtor follow-up support for clients today.
               </p>
               <MarketingCtaLink
                 href="/accountants"
