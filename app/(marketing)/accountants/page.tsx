@@ -27,7 +27,7 @@ export default function AccountantsPage() {
       {/* What works today, per client */}
       <section className="max-w-4xl mx-auto px-4 pb-4">
         <p className="text-center text-sm font-semibold text-gray-500 uppercase tracking-wide mb-6">
-          Available today, per client
+          Coming soon
         </p>
         <div className="grid md:grid-cols-3 gap-6">
           {[
