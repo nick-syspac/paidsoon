@@ -61,6 +61,8 @@ Core handler:
 
 DepositGuard reuses existing environment variables from the central matrix in `docs/runbooks/README.md`.
 
+Service setup remains centralized in `stripe.md`, `resend.md`, and `railway.md`.
+
 Required for reminder dispatch:
 
 - `INTERNAL_JOBS_SECRET`

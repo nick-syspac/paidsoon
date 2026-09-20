@@ -79,6 +79,26 @@ For launch readiness review and final go/no-go criteria, use:
 - [go-live-decision-matrix.md](./go-live-decision-matrix.md) — operator decision matrix with owner, ETA, and evidence fields.
 - [seeded-dev-user-test-plan.md](./seeded-dev-user-test-plan.md) — comprehensive step-by-step QA plan using seeded data in `dev.paidsoon.com`, covering all user and operator modules.
 
+## Module operations runbooks
+
+Use these after environment bring-up when you need module-specific operational context, troubleshooting, or QA guidance.
+
+Receivables modules:
+
+- [invoice-guard.md](./invoice-guard.md) — overdue invoice intake, reminder sequencing, disputes, promises, arrangements, and weekly debtor summaries.
+- [deposit-guard.md](./deposit-guard.md) — deposit requests, reminder dispatch, payment-provider setup, and troubleshooting.
+
+Spend and planning modules:
+
+- [spendleak.md](./spendleak.md) — spend ingestion freshness, findings, detail review, and export.
+- [cost-guard.md](./cost-guard.md) — cost baselines, rules, forecasts, alerts, and CommitGuard handoff points.
+- [commitguard.md](./commitguard.md) — commitment detections, lifecycle actions, free-cash output, and CashPlan integration.
+- [cashplan.md](./cashplan.md) — forecast settings, data quality, explanation, periods, and export.
+- [tax-buffer.md](./tax-buffer.md) — reserve estimation, obligations, overrides, and safe-to-spend troubleshooting.
+- [margin-guard.md](./margin-guard.md) — margin analytics, alerts, opportunities, exports, and snapshot sweeps.
+- [runway-guard.md](./runway-guard.md) — runway summary, scenarios, history, settings, and snapshot sweeps.
+- [owners-digest.md](./owners-digest.md) — digest generation, history, settings, and scheduled email delivery.
+
 ## Release Notes Workflow
 
 For every release, update both release-note documents in lockstep using the same
