@@ -57,7 +57,23 @@ export const MYOB_COMPANY_FILE_LIST_URL = "https://api.myob.com/accountright/"
 // MYOB OData page size (max 1000, MYOB default 400)
 const PAGE_SIZE = 400
 
-const MYOB_SCOPES = ["sme-sales", "sme-contacts-customer", "sme-company-file"].join(" ")
+export const MYOB_RECEIVABLE_SCOPES = [
+  "sme-sales",
+  "sme-contacts-customer",
+  "sme-company-file",
+] as const
+
+export const MYOB_REQUIRED_SPEND_SCOPES = [
+  "sme-purchases",
+  "sme-banking",
+  "sme-general-ledger",
+  "sme-contacts-supplier",
+] as const
+
+export const MYOB_ALL_SCOPES = [
+  ...MYOB_RECEIVABLE_SCOPES,
+  ...MYOB_REQUIRED_SPEND_SCOPES,
+].join(" ")
 
 const MYOB_INVOICE_TYPES = [
   "Service",
@@ -82,6 +98,26 @@ function getConfig() {
     throw new Error("MYOB_CLIENT_ID and MYOB_CLIENT_SECRET must be set")
   }
   return { clientId, clientSecret }
+}
+
+function splitScopes(scopes: string): string[] {
+  return scopes
+    .split(/\s+/)
+    .map((scope) => scope.trim())
+    .filter((scope) => scope.length > 0)
+}
+
+export function normalizeMyobScopes(scopes: string): string {
+  return [...new Set(splitScopes(scopes))].sort().join(" ")
+}
+
+export function getMissingMyobSpendScopes(scopes: string): string[] {
+  const granted = new Set(splitScopes(scopes))
+  return MYOB_REQUIRED_SPEND_SCOPES.filter((scope) => !granted.has(scope))
+}
+
+export function hasRequiredMyobSpendScopes(scopes: string): boolean {
+  return getMissingMyobSpendScopes(scopes).length === 0
 }
 
 /**
@@ -113,6 +149,9 @@ async function handleProviderResponse(res: Response): Promise<unknown> {
 
   const text = await res.text().catch(() => "")
   const summary = summariseMYOBErrorBody(text)
+  if (res.status === 403 && /scope|permission|access denied/i.test(summary)) {
+    throw new AccountingProviderError("scope_insufficient", `MYOB 403: ${summary}`)
+  }
   if (res.status === 401) {
     throw new AccountingProviderError("unauthorized", `MYOB 401: ${summary}`)
   }
@@ -175,7 +214,7 @@ export class MyobProvider implements AccountingProvider {
     url.searchParams.set("client_id", clientId)
     url.searchParams.set("redirect_uri", params.redirectUri)
     url.searchParams.set("response_type", "code")
-    url.searchParams.set("scope", MYOB_SCOPES)
+    url.searchParams.set("scope", MYOB_ALL_SCOPES)
     url.searchParams.set("state", params.state)
     // MYOB's docs describe two authorize URL variants: a "silent" one (no
     // prompt param) that reuses an existing session/grant without
@@ -211,7 +250,7 @@ export class MyobProvider implements AccountingProvider {
       client_secret: clientSecret,
       redirect_uri: params.redirectUri,
       code: params.code,
-      scope: MYOB_SCOPES,
+      scope: MYOB_ALL_SCOPES,
       grant_type: "authorization_code",
     })
 

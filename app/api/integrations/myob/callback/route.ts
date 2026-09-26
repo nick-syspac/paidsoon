@@ -22,7 +22,12 @@ import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/b
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { encryptToken } from "@/lib/providers/accounting/crypto"
 import { syncConnection } from "@/lib/providers/accounting/sync"
-import { MYOB_COMPANY_FILE_LIST_URL } from "@/lib/providers/accounting/myob"
+import {
+  getMissingMyobSpendScopes,
+  MYOB_ALL_SCOPES,
+  MYOB_COMPANY_FILE_LIST_URL,
+  normalizeMyobScopes,
+} from "@/lib/providers/accounting/myob"
 import { NextResponse } from "next/server"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
@@ -113,7 +118,15 @@ export async function GET(request: Request) {
   const encryptedAccessToken = encryptToken(tokens.accessToken)
   const encryptedRefreshToken = encryptToken(tokens.refreshToken)
   const tokenExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000)
-  const scopes = tokens.scope ?? "sme-sales sme-contacts-customer sme-company-settings sme-company-file"
+  const scopes = normalizeMyobScopes(tokens.scope ?? MYOB_ALL_SCOPES)
+  const missingSpendScopes = getMissingMyobSpendScopes(scopes)
+  const scopeUpgradeRequired = missingSpendScopes.length > 0
+
+  console.info("[myob/callback] granted scopes", {
+    organisationId,
+    scopes,
+    missingSpendScopes,
+  })
 
   let connection
   try {
@@ -196,8 +209,9 @@ export async function GET(request: Request) {
     console.error("[myob/callback] initial sync failed to run", err)
   }
 
+  const redirectCode = scopeUpgradeRequired ? "scope_upgrade_required" : "connected"
   return NextResponse.redirect(
-    `${APP_URL}/dashboard/settings/connections?source=myob&code=connected`
+    `${APP_URL}/dashboard/settings/connections?source=myob&code=${redirectCode}`
   )
 }
 

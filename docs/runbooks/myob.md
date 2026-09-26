@@ -50,10 +50,14 @@ value for it.
 
 ## 3. Validating the connection per environment
 
-MYOB scopes requested are `sme-sales` (invoices), `sme-contacts-customer` (contacts), and
-`sme-company-file` — all read-only, granular scopes introduced by MYOB's March 2025 scope
-changes. Do not request the legacy broad `CompanyFile` scope (deprecated 1 September 2026) —
-`sme-company-file` is a distinct granular scope required for company-file-scoped API access.
+MYOB scopes requested include receivables and spend-read scopes:
+
+- Receivables: `sme-sales`, `sme-contacts-customer`, `sme-company-file`
+- Spend-side SpendLeak sync: `sme-purchases`, `sme-banking`, `sme-general-ledger`, `sme-contacts-supplier`
+
+These are all granular scopes introduced by MYOB's March 2025 scope changes. Do not request
+the legacy broad `CompanyFile` scope (deprecated 1 September 2026) — `sme-company-file` is a
+distinct granular scope required for company-file-scoped API access.
 
 MYOB Business (online/cloud) authorises exactly one company file per OAuth grant and returns
 its identifier and display name directly on the callback as `businessId`/`businessName` — the
@@ -91,6 +95,7 @@ gate `G-MYOB2` in [go-live-decision-matrix.md](./go-live-decision-matrix.md).
 | Connection stays in **Importing…** | The inline first sync failed or the process restarted mid-request | Click **Sync now**; if it keeps failing, check `AccountingSyncRun.errorMessage` for that connection via the admin tenant detail page |
 | Connection shows **Sync error** | The first sync ran and failed | Click **Retry sync**; investigate the `errorMessage` on the most recent `AccountingSyncRun` row |
 | 401 errors against real company files | Missing `x-myobapi-key` / `x-myobapi-version` header, or an expired token | Confirm `MYOB_CLIENT_ID` matches the app the token was issued for; tokens expire after 20 minutes and are refreshed automatically before each sync |
+| Spend sync shows `scope_upgrade_required` | Existing connection grant predates current spend-read scope set | Reconnect MYOB from **Settings → Connections** to re-consent with `sme-purchases`, `sme-banking`, `sme-general-ledger`, and `sme-contacts-supplier` |
 
 ---
 

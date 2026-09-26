@@ -49,6 +49,7 @@ import {
 } from "@/lib/financial/ingest"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { isDemoOrganisationId } from "@/lib/providers/accounting/demoGuard"
+import { getMissingMyobSpendScopes } from "@/lib/providers/accounting/myob"
 import {
   AccountingProviderError,
   type AccountingProviderErrorKind,
@@ -246,6 +247,8 @@ async function syncSpendSideData(params: {
   connection: {
     id: string
     userId: string
+    provider: string
+    scopes: string
     organisationId: string
   }
   accessToken: string
@@ -263,6 +266,24 @@ async function syncSpendSideData(params: {
   const { connection, accessToken, modifiedAfter, provider } = params
   const syncedAt = new Date()
   const failures: string[] = []
+
+  if (connection.provider === "myob") {
+    const missingSpendScopes = getMissingMyobSpendScopes(connection.scopes)
+    if (missingSpendScopes.length > 0) {
+      failures.push(
+        `scope_upgrade_required: reconnect MYOB to grant missing spend scopes (${missingSpendScopes.join(", ")})`
+      )
+      return {
+        billsUpserted: 0,
+        transactionsUpserted: 0,
+        suppliersUpserted: 0,
+        spendBills: [],
+        spendTransactions: [],
+        spendSuppliers: [],
+        failures,
+      }
+    }
+  }
 
   let spendBills: ProviderSpendBill[] = []
   let spendTransactions: ProviderSpendBankTransaction[] = []
@@ -443,7 +464,11 @@ async function withRetry<T>(
       lastError = err
       // Don't retry auth errors or rate limits — caller handles them
       if (err instanceof AccountingProviderError) {
-        if (err.kind === "unauthorized" || err.kind === "rate_limited") throw err
+        if (
+          err.kind === "unauthorized" ||
+          err.kind === "scope_insufficient" ||
+          err.kind === "rate_limited"
+        ) throw err
       }
       if (attempt < maxAttempts - 1) {
         const delay = baseDelayMs * Math.pow(4, attempt) // 2s, 8s, 32s
@@ -529,6 +554,7 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       tokenExpiresAt: true,
       lastSyncedAt: true,
       status: true,
+      scopes: true,
     },
   })
 

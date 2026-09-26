@@ -56,6 +56,18 @@ const STATUS_LABELS: Record<string, string> = {
 // Statuses from which the user can trigger (or retry) a sync.
 const SYNCABLE_STATUSES = new Set(["active", "pending_first_sync", "error"])
 
+function isScopeUpgradeRequiredError(errorMessage: string | null): boolean {
+  return typeof errorMessage === "string" && errorMessage.includes("scope_upgrade_required")
+}
+
+function formatRunErrorMessage(errorMessage: string | null): string | null {
+  if (!errorMessage) return null
+  if (isScopeUpgradeRequiredError(errorMessage)) {
+    return "Reconnect MYOB to grant the additional spend-read scopes required for SpendLeak sync."
+  }
+  return errorMessage
+}
+
 function SyncStatusBadge({ status }: { status: string }) {
   const cls = STATUS_BADGES[status] ?? "bg-gray-100 text-gray-600"
   return (
@@ -79,6 +91,9 @@ function ConnectionCard({
   disconnecting: boolean
 }) {
   const [showHistory, setShowHistory] = useState(false)
+  const scopeUpgradeRequired =
+    connection.provider === "myob" &&
+    connection.recentRuns.some((run) => isScopeUpgradeRequiredError(run.errorMessage))
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 space-y-3">
@@ -114,6 +129,13 @@ function ConnectionCard({
         <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2 text-xs text-yellow-800">
           The first invoice import didn&rsquo;t complete successfully. Try syncing again &mdash; if it
           keeps failing, contact support.
+        </div>
+      )}
+
+      {scopeUpgradeRequired && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-xs text-amber-800">
+          Spend sync needs additional MYOB consent scopes. Reconnect this MYOB connection to resume
+          SpendLeak imports.
         </div>
       )}
 
@@ -178,7 +200,7 @@ function ConnectionCard({
                   {run.status}
                   {run.status !== "failed" &&
                     ` — ${run.invoicesCreated} new, ${run.invoicesUpdated} updated`}
-                  {run.errorMessage && ` (${run.errorMessage})`}
+                  {formatRunErrorMessage(run.errorMessage) && ` (${formatRunErrorMessage(run.errorMessage)})`}
                 </span>
               </div>
             ))}
@@ -386,6 +408,8 @@ export function AccountingConnectionsClient({
             ? "Accounting integrations require the Business plan or above."
             : errorMessage === "xero_cancelled" || errorMessage === "myob_cancelled"
             ? "Connection was cancelled."
+            : errorMessage === "scope_upgrade_required"
+            ? "MYOB connected for invoices, but SpendLeak needs extra MYOB consent scopes. Reconnect MYOB to grant access."
             : errorMessage === "no_organisations"
             ? "No organisations found in your account. Ensure you have at least one organisation."
             : `Error: ${errorMessage}`}

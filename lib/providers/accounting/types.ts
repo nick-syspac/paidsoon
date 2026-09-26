@@ -176,6 +176,7 @@ export interface ProviderSpendExpenseAccount {
 
 export type AccountingProviderErrorKind =
   | "unauthorized"     // 401 — token likely revoked or expired
+  | "scope_insufficient" // grant exists but required scopes are missing for this endpoint family
   | "rate_limited"     // 429 — back off and retry
   | "not_found"        // 404
   | "server_error"     // 5xx from provider
