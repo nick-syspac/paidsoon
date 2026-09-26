@@ -3,11 +3,9 @@
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import { Spinner } from "@/components/ui/Spinner"
-import {
-  completePasswordReset,
-  establishRecoverySession,
-} from "@/lib/auth/passwordReset"
+import { completePasswordReset } from "@/lib/auth/passwordReset"
 
 type SessionState = "checking" | "ready" | "invalid"
 
@@ -21,22 +19,26 @@ function ResetPasswordForm() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const code = searchParams.get("code")
-
-    async function verifyRecoveryCode() {
-      if (!code) {
-        setSessionState("invalid")
-        return
-      }
-
-      const result = await establishRecoverySession(code)
-      if (!result.ok) {
-        console.error("Failed to establish password recovery session", result.error)
-      }
-      setSessionState(result.ok ? "ready" : "invalid")
+    // Check if there's an error from Supabase (e.g., link expired)
+    const errorCode = searchParams.get("error_code")
+    if (errorCode) {
+      setSessionState("invalid")
+      return
     }
 
-    verifyRecoveryCode()
+    async function verifyRecoverySession() {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.getSession()
+
+      // If there's an active session, the recovery link was valid
+      if (data?.session) {
+        setSessionState("ready")
+      } else {
+        setSessionState("invalid")
+      }
+    }
+
+    verifyRecoverySession()
   }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent) {

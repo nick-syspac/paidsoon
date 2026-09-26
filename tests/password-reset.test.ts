@@ -2,19 +2,15 @@ import { before, beforeEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
 
 type ResetEmailResult = { error: Error | null }
-type ExchangeCodeResult = { error: Error | null }
 type UpdateUserResult = { error: Error | null }
 
 let resetEmailResult: ResetEmailResult = { error: null }
-let exchangeCodeResult: ExchangeCodeResult = { error: null }
 let updateUserResult: UpdateUserResult = { error: null }
 
 let resetEmailArgs: unknown = null
-let exchangeCodeArgs: unknown = null
 let updateUserArgs: unknown = null
 
 let requestPasswordReset: typeof import("@/lib/auth/passwordReset").requestPasswordReset
-let establishRecoverySession: typeof import("@/lib/auth/passwordReset").establishRecoverySession
 let completePasswordReset: typeof import("@/lib/auth/passwordReset").completePasswordReset
 
 describe("password reset flow", () => {
@@ -27,10 +23,6 @@ describe("password reset flow", () => {
               resetEmailArgs = { email, options }
               return resetEmailResult
             },
-            exchangeCodeForSession: async (code: string) => {
-              exchangeCodeArgs = { code }
-              return exchangeCodeResult
-            },
             updateUser: async (args: unknown) => {
               updateUserArgs = args
               return updateUserResult
@@ -40,16 +32,14 @@ describe("password reset flow", () => {
       },
     })
 
-    ;({ requestPasswordReset, establishRecoverySession, completePasswordReset } =
+    ;({ requestPasswordReset, completePasswordReset } =
       await import("@/lib/auth/passwordReset"))
   })
 
   beforeEach(() => {
     resetEmailResult = { error: null }
-    exchangeCodeResult = { error: null }
     updateUserResult = { error: null }
     resetEmailArgs = null
-    exchangeCodeArgs = null
     updateUserArgs = null
   })
 
@@ -77,22 +67,6 @@ describe("password reset flow", () => {
     )
 
     assert.deepEqual(result, { ok: true })
-  })
-
-  test("establishRecoverySession exchanges the recovery code for a session", async () => {
-    const result = await establishRecoverySession("valid-code")
-
-    assert.deepEqual(result, { ok: true })
-    assert.deepEqual(exchangeCodeArgs, { code: "valid-code" })
-  })
-
-  test("establishRecoverySession reports failure for an invalid or expired code", async () => {
-    exchangeCodeResult = { error: new Error("Token has expired or is invalid") }
-
-    const result = await establishRecoverySession("expired-code")
-
-    assert.equal(result.ok, false)
-    assert.equal(result.error, "Token has expired or is invalid")
   })
 
   test("completePasswordReset updates the password", async () => {
