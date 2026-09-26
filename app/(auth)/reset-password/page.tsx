@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, use, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
@@ -12,34 +12,29 @@ type SessionState = "checking" | "ready" | "invalid"
 function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [sessionState, setSessionState] = useState<SessionState>("checking")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    // Check if there's an error from Supabase (e.g., link expired)
-    const errorCode = searchParams.get("error_code")
-    if (errorCode) {
-      setSessionState("invalid")
-      return
-    }
-
-    async function verifyRecoverySession() {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.getSession()
-
-      // If there's an active session, the recovery link was valid
-      if (data?.session) {
-        setSessionState("ready")
-      } else {
-        setSessionState("invalid")
+  const sessionState = useMemo<Promise<SessionState>>(() => {
+    async function verifyRecoverySession(): Promise<SessionState> {
+      // Check if there's an error from Supabase (e.g., link expired).
+      if (searchParams.get("error_code")) {
+        return "invalid"
       }
+
+      const supabase = createClient()
+      const { data } = await supabase.auth.getSession()
+
+      // If there's an active session, the recovery link was valid.
+      return data?.session ? "ready" : "invalid"
     }
 
-    verifyRecoverySession()
+    return verifyRecoverySession()
   }, [searchParams])
+
+  const sessionStateValue = use(sessionState)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -64,15 +59,7 @@ function ResetPasswordForm() {
     router.refresh()
   }
 
-  if (sessionState === "checking") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Spinner />
-      </div>
-    )
-  }
-
-  if (sessionState === "invalid") {
+  if (sessionStateValue === "invalid") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full bg-white rounded-lg shadow p-8 text-center">
