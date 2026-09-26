@@ -59,8 +59,8 @@ These are independent of each other. Start them while Supabase settles.
 | Variable | Where to get the value |
 |---|---|
 | `STRIPE_SECRET_KEY` | Stripe Dashboard → Developers → API keys (`sk_test_…` / `sk_live_…`) |
-| `STRIPE_STARTER_PRICE_ID` | Stripe Dashboard → Product catalog → Starter price (`price_…`). Must have `tax_behavior: "inclusive"`. |
-| `STRIPE_SOLO_PRICE_ID` | Product catalog → Solo price |
+| `STRIPE_STARTER_PRICE_ID` | Stripe Dashboard → Product catalog → Essentials price (`price_…`). Must have `tax_behavior: "inclusive"`. |
+| `STRIPE_SOLO_PRICE_ID` | Product catalog → Business Control price |
 | `STRIPE_SMALL_BUSINESS_PRICE_ID` | Product catalog → Small Business price |
 | `STRIPE_BUSINESS_PRO_PRICE_ID` | Product catalog → Business Pro price |
 | `STRIPE_CONNECT_CLIENT_ID` | Stripe Dashboard → Connect → Settings (`ca_…`). Connect approval is async — submit on day 1. |

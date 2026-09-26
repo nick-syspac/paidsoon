@@ -120,7 +120,7 @@ refuses to run against the known dev/preview project ref.
 ## Re-running / changing the tier
 
 Re-running the script is a no-op when nothing changed. To change the tier
-(e.g. test `solo` gating), either edit the account via the admin console or
-run with `SUPPORT_ACCOUNT_TIER=solo`. Do not attach Stripe billing to this
+(e.g. test `business_control` gating), either edit the account via the admin console or
+run with `SUPPORT_ACCOUNT_TIER=business_control`. Do not attach Stripe billing to this
 account — a real subscription would start charging and would fight the
 script's no-Stripe invariant on the next run.

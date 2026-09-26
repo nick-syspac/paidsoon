@@ -238,7 +238,7 @@ what is actually present, and explicitly marks absent capabilities.
 | CommitGuard | Commitment registry, detection/review queue, horizon projection, and free-cash guardrails | Implemented | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | `changes/add-commitguard-module` | Bridges spend-side signals to planning by converting recurring commitments into deterministic outflow and free-cash signals |
 | Tax Buffer | Tax reserve control layer and safe-to-spend composition | Implemented | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | `changes/add-tax-buffer-module` | First-time setup suggestions, category-level methods, deduplicated reserve events |
 | Owner's Digest | Cross-module executive briefing, snapshot history, and scheduled email summary | Implemented | `lib/ownersDigest/**`, `app/api/owners-digest/**`, `app/api/internal/jobs/send-owners-digest/route.ts`, `app/dashboard/owners-digest/**`, `app/dashboard/settings/owners-digest/**` | `changes/add-owners-digest-module` | Sits above the FinOps modules, turning deterministic signals into a short prioritized owner briefing with immutable snapshots and deduplicated delivery state |
-| Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/restore-three-tier-pricing/specs/...` | 4 tiers: Starter A$9 / Solo A$19 / Small Business A$39 (public) / Accountant Partner (contact us, hidden) |
+| Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/add-business-pro-subscription-tier/specs/...` | 4 public tiers: Essentials A$15 / Business Control A$29 / Small Business A$69 / Business Pro A$149, plus hidden contact-only Accountant Partner |
 | Live-mode gating | Pre-launch auth lockout + banner | Implemented | `lib/liveMode.ts`, `proxy.ts`, `app/layout.tsx` | `changes/live-mode-auth-gate-banner/specs/...` | `LIVE` env var |
 | Templates | Read/write per-stage reminder templates | Implemented | `app/api/settings/templates/route.ts` | `changes/ai-message-rewrite`, `changes/templates-sidebar-help` | GET/PUT/DELETE; persists to `email_templates`; sidebar with variable chips |
 | AI rewrite | GPT-4o-mini rewrite of reminder text | Implemented | `app/api/settings/ai/route.ts`, `lib/email/ai-rewrite.ts` | `changes/ai-message-rewrite` | Three tone variants; usage logged; embedded in templates page |
@@ -396,12 +396,11 @@ layer. There is no BFF separation — the same Next.js app serves UI and API.
 | `app/api/settings/schedule` | Schedule config | GET/PUT day offsets | Supabase session + feature gate | Implemented |
 | `app/api/settings/email` | Email settings | GET/PUT custom sender | Supabase session + feature gate | Implemented |
 | `app/api/settings/templates` | Templates | GET list / PUT custom | Supabase session + feature gate | GET impl; PUT scaffold |
-| `app/api/settings/ai` | AI rewrite | GET caps / POST rewrite | Supabase session + feature gate | Stub (placeholder text) |
+| `app/api/settings/ai` | AI rewrite | GET caps / POST rewrite | Supabase session + feature gate | Implemented |
 | `app/api/settings/team/invite` | Team seats | GET seats / POST invite | Supabase session | Scaffold (no persistence) |
 
-There are **no deprecated API aliases** in the code. The only legacy-compat
-surface is the `STRIPE_PRO_PRICE_ID` env var, accepted as a fallback for the
-`solo` tier price (`app/api/billing/checkout/route.ts`).
+There are **no deprecated API aliases** in the code. `STRIPE_BUSINESS_PRICE_ID`
+and `STRIPE_PRO_PRICE_ID` are retired and not used by billing routes.
 
 ---
 
@@ -561,10 +560,10 @@ batching) before invoice volume grows.
 
 | Area | Source of truth | Gap | Risk | Recommended follow-up |
 |---|---|---|---|---|
-| Subscription tier default | Code | **Resolved by `changes/restore-three-tier-pricing`** — `prisma/schema.prisma` now defaults `subscriptionTier` to `"starter"`, matching `lib/subscriptionPlans.ts` | Resolved | n/a |
+| Subscription tier default | Code | **Resolved by tier rename work** — `prisma/schema.prisma` now defaults `subscriptionTier` to `"essentials"`, matching `lib/subscriptionPlans.ts` | Resolved | n/a |
 | Subscription tier rename migration | Code | **Resolved by `changes/restore-three-tier-pricing`** — a migration normalises any stray `subscriptionTier` values (e.g. `business`) to the current tier set | Resolved | n/a |
 | New pricing features not in code | Pricing page | **Partially resolved** — `weekly_summary_email` is now implemented and shown where enabled; the remaining unimplemented capabilities (`csv_export`, `approval_mode`, `contact_suppression`, `team_seats`, `customer_specific_sequences`, `multi_template_customer_wording`, `multi_client_management`) stay tracked via `UNIMPLEMENTED_FEATURES`/`isFeatureImplemented()` and continue to render as "Coming soon" where applicable; `promise_to_pay_tracking` remains implemented and enabled on every paid tier | In progress | n/a |
-| `STRIPE_BUSINESS_PRICE_ID` env var | Code | **Resolved by `changes/restore-three-tier-pricing`** — `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired; the canonical set is `STRIPE_STARTER_PRICE_ID` / `STRIPE_SOLO_PRICE_ID` / `STRIPE_SMALL_BUSINESS_PRICE_ID` | Resolved | n/a |
+| `STRIPE_BUSINESS_PRICE_ID` env var | Code | **Resolved by pricing updates** — `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired; the canonical set is `STRIPE_STARTER_PRICE_ID` / `STRIPE_SOLO_PRICE_ID` / `STRIPE_SMALL_BUSINESS_PRICE_ID` / `STRIPE_BUSINESS_PRO_PRICE_ID` | Resolved | n/a |
 | `stripeConnectAccountId` encryption | Code | Schema comment claims app-layer encryption; no code encrypts it | Medium — overstated security control | Implement encryption or correct the comment |
 | `invoice.payment_failed` | OpenSpec | **Resolved by `changes/handle-stripe-payment-failed`** — handler sets `subscriptionStatus = "past_due"` | Resolved | n/a |
 | Env-var drift CI | OpenSpec | Proposed CI check + script not present; no CI workflow at all | Medium — runbook/code drift recurs | Implement `changes/ci-runbook-envvar-drift-check` + add CI |
@@ -587,6 +586,6 @@ batching) before invoice volume grows.
 | Stage | The reminder step (1 friendly → 2 firm → 3 final) for a tracked invoice |
 | Catch-up scan | Cron-time poll of Stripe for newly overdue invoices (`lib/email/catchup.ts`) |
 | Connection | A linked Stripe Connect account (`InvoiceConnection`) supplying invoices |
-| Tier / plan | Subscription level (Starter / Solo / Small Business / Accountant Partner) gating features and limits |
+| Tier / plan | Subscription level (Essentials / Business Control / Small Business / Business Pro / Accountant Partner) gating features and limits |
 | `LIVE` | Env flag controlling pre-launch auth gating (`lib/liveMode.ts`) |
 | Provider | Invoice-source adapter implementing `InvoiceProvider` (`lib/providers/types.ts`) |

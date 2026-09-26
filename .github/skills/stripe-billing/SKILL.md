@@ -4,7 +4,7 @@
 Use when working with Stripe subscription billing, Checkout, Customer Portal, or billing webhooks in PaidSoon.
 
 ## Status
-Confirmed implemented (Stripe `22.1.1`, API `2026-05-27.dahlia`, 3 public tiers + 1 hidden contact-only tier).
+Confirmed implemented (Stripe `22.1.1`, API `2026-05-27.dahlia`, 4 public tiers + 1 hidden contact-only tier).
 
 ## Inputs Required
 - Which billing capability to work on (checkout, portal, webhook, feature gate)
@@ -30,13 +30,15 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 | Tier | Env Var |
 |---|---|
-| `starter` | `STRIPE_STARTER_PRICE_ID` |
-| `solo` | `STRIPE_SOLO_PRICE_ID` |
+| `essentials` | `STRIPE_STARTER_PRICE_ID` |
+| `business_control` | `STRIPE_SOLO_PRICE_ID` |
 | `small_business` | `STRIPE_SMALL_BUSINESS_PRICE_ID` |
+| `business_pro` | `STRIPE_BUSINESS_PRO_PRICE_ID` |
 | `accountant_partner` | none — contact-us pricing, no Stripe Checkout |
 
-No legacy tier aliasing — `normalizeSubscriptionTier` falls back to `starter` for any
-unrecognised value. `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` are retired.
+`normalizeSubscriptionTier` falls back to `essentials` for unknown values and
+accepts compatibility aliases (`starter` → `essentials`, `solo` → `business_control`).
+`STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` are retired.
 
 ## Checkout Pattern
 
@@ -66,7 +68,7 @@ const event = stripe.webhooks.constructEvent(
 Handled events:
 - `checkout.session.completed` → update `subscriptionTier`
 - `customer.subscription.updated` → update tier + status
-- `customer.subscription.deleted` → downgrade to `starter`
+- `customer.subscription.deleted` → downgrade to `essentials`
 
 ## Feature Checks
 

@@ -166,8 +166,8 @@ subsection documents a functional module.
   - `sendP2PNotification` (`lib/email/send.ts`) — sends freelancer notifications for
     promise received and promise broken events. Goes to the freelancer (not the client).
   - `generateP2PToken` (`lib/email/send.ts`) — 32-byte cryptographically random hex token.
-  - `resolveFromAddress` — sender-identity ladder: system address (Starter) →
-    custom reply-to + custom sender name (`custom_reply_to` + `custom_sender_name`, Solo+) →
+  - `resolveFromAddress` — sender-identity ladder: system address (Essentials) →
+    custom reply-to + custom sender name (`custom_reply_to` + `custom_sender_name`, Business Control+) →
     verified custom from-domain (`verified_from_domain`, Small Business+, requires
     Resend verification).
   - `computeNextEmailAt` (`lib/email/schedule.ts`) — `dueDate + dayOffset`.
@@ -179,7 +179,7 @@ subsection documents a functional module.
 - **GET:** returns settings; if a custom `fromEmail` is set but unverified,
   polls `resend.domains.list()` and flips `resendVerified` when the sending
   domain reports `verified`.
-- **PUT:** gated by `custom_reply_to` (available on Solo+); a Resend
+- **PUT:** gated by `custom_reply_to` (available on Business Control+); a Resend
   domain-verification call is only triggered for tiers with `verified_from_domain`.
 
 ### 4.6 Billing & entitlements (`app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts`)
@@ -187,9 +187,9 @@ subsection documents a functional module.
 - **Plan catalog:** `PLAN_CATALOG` defines `essentials`/`business_control`/`small_business`/
   `business_pro` (public, customer-selectable) and `accountant_partner` (contact-only,
   hidden from plan listings via `visibility: "contact_only"`) with `limits` (chased invoices, seats,
-  connected invoice sources; `-1` = unlimited) and a `features` map. There is no
-  legacy alias map — `normalizeSubscriptionTier` falls back to `essentials` for any
-  unrecognised value.
+  connected invoice sources; `-1` = unlimited) and a `features` map.
+  `normalizeSubscriptionTier` falls back to `essentials` for unknown values and
+  keeps compatibility aliases (`starter` → `essentials`, `solo` → `business_control`).
 - **Entitlement checks:** `requireFeature(userId, feature)` reads the tier via
   `withUserContext` and consults `hasPlanFeature`. Limit helpers:
   `getInvoiceLimitForTier`, `getInvoiceSourceLimitForTier` (Stripe Connect +
@@ -218,7 +218,7 @@ subsection documents a functional module.
   `subscriptionCurrentPeriodStart`/`End` from the Stripe invoice
   `period_start`/`period_end`), `customer.subscription.updated` (resolve tier
   from price id, persist the refreshed period start/end), `customer.subscription.deleted`
-  (revert to `starter`, pause invoices over the starter limit — this is a
+  (revert to `essentials`, pause invoices over the essentials limit — this is a
   separate, pre-existing concurrent-count safeguard on downgrade, distinct
   from the chase-volume allowance), and `invoice.payment_failed` (looks up the
   `UserProfile` by Stripe customer id and sets `subscriptionStatus = "past_due"`
@@ -723,8 +723,8 @@ enforced server-side before content is returned.
 | `POST /api/admin/training/[id]/restore` | `app/api/admin/training/[id]/restore/route.ts` | `zod` `{revisionId,changeNote?}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (restore-as-new-revision; state reset to `draft`) |
 | `GET /api/help/content/[slug]` | `app/api/help/content/[slug]/route.ts` | path `slug` | public/signed-in based on audience | `prismaAdmin` + server-side audience filter | → `{item}` | Implemented (published-only) |
 | `GET /api/help/search-db` | `app/api/help/search-db/route.ts` | query `q,limit` (`zod`) | public/signed-in based on audience | `prismaAdmin` + server-side audience filter | → `{results}` | Implemented |
-Canonical vs deprecated: there are no deprecated API aliases. The only
-backward-compat artifact is `STRIPE_PRO_PRICE_ID` accepted as a `solo` fallback.
+Canonical vs deprecated: there are no deprecated API aliases in runtime billing
+paths. `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` are retired.
 
 ## 8. Authentication, Authorization and Tenancy
 
@@ -843,10 +843,10 @@ stateDiagram-v2
 
 | Tier | Visibility | Price/mo | Chased invoices/period | Seats | Connected invoice sources |
 |---|---|---|---|---|---|
-| `starter` | public | A$9 | 10 | 1 | 1 |
-| `solo` | public (marked "Most Popular") | A$19 | 50 | 1 | 1 |
-| `small_business` | public | A$39 | 200 | 3 (usable seats not yet implemented) | 1 |
-| `business_pro` | public | A$99 | 1000 | 10 (usable seats not yet implemented) | 3 |
+| `essentials` | public | A$15 | 10 | 1 | 1 |
+| `business_control` | public | A$29 | 50 | 1 | 1 |
+| `small_business` | public (marked "Most Popular") | A$69 | 250 | 3 (usable seats not yet implemented) | 1 |
+| `business_pro` | public | A$149 | 1000 | 10 (usable seats not yet implemented) | 3 |
 | `accountant_partner` | contact-only (hidden from pricing page & upgrade recommendations) | Contact us | Unlimited | Unlimited | Unlimited |
 
   Feature matrix (✓ = enabled, — = disabled, ◷ = enabled in the catalog but not yet
@@ -922,7 +922,7 @@ stateDiagram-v2
   is `"essentials"`). Access control now follows Stripe-backed status matrix:
   `trialing`/`active` allow access, `past_due` allows with warning,
   `incomplete` blocks, and `unpaid`/`canceled` revoke access.
-- **GST:** all three prices are inclusive of GST. The corresponding Stripe Price
+- **GST:** all four prices are inclusive of GST. The corresponding Stripe Price
   objects must carry `tax_behavior: "inclusive"` — this attribute is immutable
   once set, so it must be confirmed before pricing/checkout changes, not after.
 - **Not implemented:** add-ons; usage events;
@@ -935,7 +935,7 @@ stateDiagram-v2
 ## 12. AI Rewrite Design
 
 `app/api/settings/ai/route.ts` gates on the `ai_rewrite` plan feature
-(`solo` tier and above).
+(`business_control` tier and above).
 
 **GET** returns `{ canRewrite: boolean }`.
 
@@ -1112,7 +1112,7 @@ The exhaustive, code-checked list lives in `docs/runbooks/README.md`
 `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, optional `SUPABASE_DB_POOLER_HOST`,
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_APP_URL`,
 `LIVE`, `CRON_SECRET`, `STRIPE_SECRET_KEY`,
-`STRIPE_{STARTER,SOLO,SMALL_BUSINESS}_PRICE_ID`,
+`STRIPE_{STARTER,SOLO,SMALL_BUSINESS,BUSINESS_PRO}_PRICE_ID`,
 `STRIPE_CONNECT_CLIENT_ID`, `STRIPE_BILLING_WEBHOOK_SECRET`,
 `STRIPE_CONNECT_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
 `RESEND_FROM_NAME`.
@@ -1151,7 +1151,7 @@ automated tests; only pure helpers are unit-tested.
 - **Webhook/cron auth:** Stripe signatures; `CRON_SECRET` bearer.
 - **OAuth CSRF:** Stripe Connect `state == user.id` check.
 - **AI governance:** `ai_usage_logs` records model name, feature, token counts,
-  and estimated cost per call; gated to `solo` tier and above via
+  and estimated cost per call; gated to `business_control` tier and above via
   `requireFeature`.
 - **PII handling:** client name/email and invoice amounts are stored; **no
   documented retention, minimisation, or deletion** policy. RLS prevents

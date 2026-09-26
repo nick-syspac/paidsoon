@@ -2,7 +2,7 @@
 
 Stripe is used **twice** in PaidSoon, for two unrelated purposes:
 
-1. **Stripe Billing** — your customers pay for one of the paid tiers (Starter, Solo, Small Business) on your own Stripe account.
+1. **Stripe Billing** — your customers pay for one of the paid public tiers (Essentials, Business Control, Small Business, Business Pro) on your own Stripe account.
 2. **Stripe Connect** — your customers connect *their* Stripe accounts so the app can read *their* invoices and act on them.
 
 Both halves use the same Stripe account, but they have separate API surfaces, separate webhook endpoints, and separate config items in the dashboard.
@@ -66,7 +66,7 @@ Test mode keys start with `sk_test_…`, live mode with `sk_live_…`. Set per t
 Stripe dashboard → **Products → Add product**. Do this in **both modes** (test for Local/Preview, live for Production).
 
 - **Name**: `PaidSoon Essentials`
-- **Pricing**: Recurring, monthly, **A$9.00 / month, inclusive of GST**
+- **Pricing**: Recurring, monthly, **A$15.00 / month, inclusive of GST**
 - **Tax behavior**: set to **Inclusive** when creating the Price. `tax_behavior` is immutable once set — if it is left `Unspecified` or set to `Exclusive`, Stripe Checkout will add GST on top of the advertised price, and the only fix is creating a new Price object (the existing one cannot be edited). Verify this before capturing the Price ID.
 
 Save, then copy the **Price ID** (starts with `price_…`) and capture it as `STRIPE_STARTER_PRICE_ID` per the matrix.
@@ -78,15 +78,15 @@ self-serve plans.
 Repeat for the other paid tiers (same Inclusive tax behavior applies to both):
 
 - **Name**: `PaidSoon Business Control`
-- **Pricing**: Recurring, monthly, **A$19.00 / month, inclusive of GST**
+- **Pricing**: Recurring, monthly, **A$29.00 / month, inclusive of GST**
 - Capture the Price ID as `STRIPE_SOLO_PRICE_ID`
 
 - **Name**: `PaidSoon Small Business`
-- **Pricing**: Recurring, monthly, **A$39.00 / month, inclusive of GST**
+- **Pricing**: Recurring, monthly, **A$69.00 / month, inclusive of GST**
 - Capture the Price ID as `STRIPE_SMALL_BUSINESS_PRICE_ID`
 
 - **Name**: `PaidSoon Business Pro`
-- **Pricing**: Recurring, monthly, **A$99.00 / month, inclusive of GST**
+- **Pricing**: Recurring, monthly, **A$149.00 / month, inclusive of GST**
 - Capture the Price ID as `STRIPE_BUSINESS_PRO_PRICE_ID`
 
 These are the four canonical Price IDs, read by [app/api/billing/checkout/route.ts](../../app/api/billing/checkout/route.ts) and [app/api/billing/downgrade/route.ts](../../app/api/billing/downgrade/route.ts). There is no legacy Pro/Solo fallback variable — `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` have been retired.
