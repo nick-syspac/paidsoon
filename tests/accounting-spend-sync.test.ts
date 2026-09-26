@@ -97,6 +97,10 @@ describe("accounting spend sync orchestration", () => {
               id: "conn-1",
               userId: "user-1",
               provider: providerName,
+              scopes:
+                providerName === "myob"
+                  ? "sme-sales sme-contacts-customer sme-company-file sme-purchases sme-banking sme-general-ledger sme-contacts-supplier"
+                  : "accounting.transactions accounting.contacts",
               organisationId: "org-1",
               organisationName: "Org",
               encryptedAccessToken: "at",
