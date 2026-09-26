@@ -14,17 +14,6 @@ export async function requestPasswordReset(
   return { ok: true }
 }
 
-export type RecoverySessionResult = { ok: boolean; error?: string }
-
-/** Exchanges the `code` from a Supabase recovery link for a session. */
-export async function establishRecoverySession(
-  code: string
-): Promise<RecoverySessionResult> {
-  const supabase = createClient()
-  const { error } = await supabase.auth.exchangeCodeForSession(code)
-  return error ? { ok: false, error: error.message } : { ok: true }
-}
-
 export type PasswordUpdateResult = { ok: boolean; error?: string }
 
 export async function completePasswordReset(
