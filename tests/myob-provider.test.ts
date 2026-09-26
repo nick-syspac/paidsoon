@@ -4,7 +4,12 @@
  */
 import { test, describe, before, after } from "node:test"
 import assert from "node:assert/strict"
-import { MyobProvider } from "@/lib/providers/accounting/myob"
+import {
+  getMissingMyobSpendScopes,
+  hasRequiredMyobSpendScopes,
+  MyobProvider,
+  normalizeMyobScopes,
+} from "@/lib/providers/accounting/myob"
 
 before(() => {
   process.env.MYOB_CLIENT_ID = "test-myob-client"
@@ -47,7 +52,35 @@ describe("MyobProvider", () => {
       assert.ok(url.includes("sme-sales"))
       assert.ok(url.includes("sme-contacts-customer"))
       assert.ok(url.includes("sme-company-file"))
+      assert.ok(url.includes("sme-purchases"))
+      assert.ok(url.includes("sme-banking"))
+      assert.ok(url.includes("sme-general-ledger"))
+      assert.ok(url.includes("sme-contacts-supplier"))
       assert.ok(url.includes("state=xyz789"))
+    })
+  })
+
+  describe("scope helpers", () => {
+    test("normalizes whitespace and ordering for scope strings", () => {
+      const normalized = normalizeMyobScopes("sme-sales   sme-banking sme-sales")
+      assert.equal(normalized, "sme-banking sme-sales")
+    })
+
+    test("detects missing spend scopes", () => {
+      const missing = getMissingMyobSpendScopes("sme-sales sme-contacts-customer sme-company-file")
+      assert.deepEqual(missing, [
+        "sme-purchases",
+        "sme-banking",
+        "sme-general-ledger",
+        "sme-contacts-supplier",
+      ])
+      assert.equal(hasRequiredMyobSpendScopes("sme-sales sme-company-file"), false)
+      assert.equal(
+        hasRequiredMyobSpendScopes(
+          "sme-sales sme-contacts-customer sme-company-file sme-purchases sme-banking sme-general-ledger sme-contacts-supplier"
+        ),
+        true
+      )
     })
   })
 

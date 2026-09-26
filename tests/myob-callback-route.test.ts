@@ -25,7 +25,7 @@ let exchangeCodeForTokensResult: unknown = {
   accessToken: "at-myob",
   refreshToken: "rt-myob",
   expiresIn: 1200,
-  scope: "sme-sales sme-contacts-customer sme-company-file",
+  scope: "sme-sales sme-contacts-customer sme-company-file sme-purchases sme-banking sme-general-ledger sme-contacts-supplier",
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,7 +121,7 @@ describe("MYOB callback route", () => {
       accessToken: "at-myob",
       refreshToken: "rt-myob",
       expiresIn: 1200,
-      scope: "sme-sales sme-contacts-customer sme-company-file",
+      scope: "sme-sales sme-contacts-customer sme-company-file sme-purchases sme-banking sme-general-ledger sme-contacts-supplier",
     }
   })
 
@@ -228,6 +228,29 @@ describe("MYOB callback route", () => {
       })
     )
     assert.ok(!locationOf(res).includes("select-org"))
+  })
+
+  test("redirects with scope_upgrade_required when spend-read scopes are missing", async () => {
+    exchangeCodeForTokensResult = {
+      accessToken: "at-myob",
+      refreshToken: "rt-myob",
+      expiresIn: 1200,
+      scope: "sme-sales sme-contacts-customer sme-company-file",
+    }
+
+    const res = await callbackRoute(
+      makeRequest({
+        code: "abc",
+        state: "xyz",
+        businessId: "03d16673-d860-426e-a6b7-382ed3cf5cd2",
+        businessName: "Bob Co Pty Ltd",
+      })
+    )
+
+    assert.equal(
+      locationOf(res),
+      "http://localhost:3000/dashboard/settings/connections?source=myob&code=scope_upgrade_required"
+    )
   })
 
   test("redirects with invalid_state when the nonce is unknown", async () => {

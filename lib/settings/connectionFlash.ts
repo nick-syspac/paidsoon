@@ -17,6 +17,7 @@ const ACCOUNTING_ERROR_CODES = new Set([
   "no_organisations",
   "invalid_state",
   "token_exchange_failed",
+  "scope_upgrade_required",
   "org_fetch_failed",
   "connection_save_failed",
   "selection_expired",

@@ -26,6 +26,13 @@ describe("parseConnectionsFlash", () => {
     assert.equal(result.stripeErrorCode, null)
   })
 
+  test("maps myob scope upgrade code for accounting section", () => {
+    const result = parseConnectionsFlash({ source: "myob", code: "scope_upgrade_required" })
+    assert.equal(result.accountingErrorCode, "scope_upgrade_required")
+    assert.equal(result.accountingSuccessCode, null)
+    assert.equal(result.stripeErrorCode, null)
+  })
+
   test("supports legacy stripe success/error values", () => {
     const result = parseConnectionsFlash({ success: "connected", error: "connection_limit_reached" })
     assert.equal(result.stripeSuccessMessage, "Stripe account connected successfully!")

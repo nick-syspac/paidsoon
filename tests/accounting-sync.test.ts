@@ -6,6 +6,7 @@
 import { test, describe } from "node:test"
 import assert from "node:assert/strict"
 import { AccountingProviderError } from "@/lib/providers/accounting/types"
+import { getMissingMyobSpendScopes } from "@/lib/providers/accounting/myob"
 
 // ---------------------------------------------------------------------------
 // Test doubles
@@ -87,6 +88,36 @@ describe("syncConnection — logic tests using mocked dependencies", () => {
     test("a disconnected connection is never resurrected by a sync outcome", () => {
       assert.equal(resolveConnectionStatusAfterSync("disconnected", "success"), null)
       assert.equal(resolveConnectionStatusAfterSync("disconnected", "failed", "unauthorized"), null)
+    })
+
+    test("partial sync from spend-scope upgrade requirement still preserves active lifecycle", () => {
+      assert.equal(resolveConnectionStatusAfterSync("pending_first_sync", "partial"), "active")
+      assert.equal(resolveConnectionStatusAfterSync("active", "partial"), null)
+    })
+  })
+
+  describe("MYOB spend scope readiness", () => {
+    function classifySpendScopeUpgrade(provider: string, scopes: string): string | null {
+      if (provider !== "myob") return null
+      const missing = getMissingMyobSpendScopes(scopes)
+      if (missing.length === 0) return null
+      return `scope_upgrade_required: ${missing.join(",")}`
+    }
+
+    test("flags missing spend scopes while receivables scopes are present", () => {
+      const marker = classifySpendScopeUpgrade(
+        "myob",
+        "sme-sales sme-contacts-customer sme-company-file"
+      )
+      assert.ok(marker?.startsWith("scope_upgrade_required:"))
+    })
+
+    test("clears scope-upgrade marker after reconnect with full scope grant", () => {
+      const marker = classifySpendScopeUpgrade(
+        "myob",
+        "sme-sales sme-contacts-customer sme-company-file sme-purchases sme-banking sme-general-ledger sme-contacts-supplier"
+      )
+      assert.equal(marker, null)
     })
   })
 
