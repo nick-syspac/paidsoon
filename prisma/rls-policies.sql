@@ -71,6 +71,79 @@ ALTER TABLE deposit_guard_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_guard_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_payment_webhook_events ENABLE ROW LEVEL SECURITY;
 
+-- Base table privileges are required in addition to RLS policies.
+-- Keep this explicit so auth-context queries via `SET LOCAL ROLE authenticated`
+-- can access only the table operations that RLS policies then scope by user.
+GRANT SELECT, INSERT, UPDATE ON TABLE user_profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE invoice_connections TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE tracked_invoices TO authenticated;
+GRANT SELECT ON TABLE financial_invoices TO authenticated;
+GRANT SELECT ON TABLE financial_contacts TO authenticated;
+GRANT SELECT ON TABLE email_logs TO authenticated;
+GRANT SELECT ON TABLE promise_to_pay TO authenticated;
+GRANT SELECT ON TABLE promise_escalation_policies TO authenticated;
+GRANT SELECT ON TABLE arrangement_invoice_coverages TO authenticated;
+GRANT SELECT ON TABLE arrangements TO authenticated;
+GRANT SELECT ON TABLE invoice_payments TO authenticated;
+GRANT SELECT ON TABLE customers TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE tax_buffer_configurations TO authenticated;
+GRANT SELECT, INSERT ON TABLE tax_reserve_categories TO authenticated;
+GRANT SELECT ON TABLE tax_buffer_obligations TO authenticated;
+GRANT SELECT, INSERT ON TABLE tax_buffer_snapshots TO authenticated;
+GRANT SELECT ON TABLE tax_buffer_overrides TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE tax_buffer_events TO authenticated;
+GRANT SELECT ON TABLE imported_bills TO authenticated;
+GRANT SELECT ON TABLE cash_forecast_snapshots TO authenticated;
+GRANT SELECT ON TABLE cash_plan_snapshots TO authenticated;
+GRANT SELECT ON TABLE cash_plans TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE commit_guard_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE commitments TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE commitment_events TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE commitment_detection_candidates TO authenticated;
+GRANT SELECT ON TABLE cost_guard_alerts TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE runway_guard_settings TO authenticated;
+GRANT SELECT ON TABLE runway_guard_snapshots TO authenticated;
+GRANT SELECT ON TABLE cash_plan_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE accounting_connections TO authenticated;
+GRANT SELECT ON TABLE accounting_sync_runs TO authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE oauth_states TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE schedules TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE email_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE invoice_import_batches TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE spend_import_batches TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE cost_guard_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE margin_guard_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE margin_guard_targets TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE margin_classification_rules TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE margin_cost_classifications TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE margin_alerts TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE margin_alert_events TO authenticated;
+GRANT SELECT ON TABLE margin_snapshots TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE margin_scenarios TO authenticated;
+GRANT SELECT ON TABLE margin_opportunities TO authenticated;
+GRANT SELECT ON TABLE imported_bank_transactions TO authenticated;
+GRANT SELECT ON TABLE supplier_profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE owners_digest_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE owners_digest_snapshots TO authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE owners_digest_items TO authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE owners_digest_metrics TO authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE owners_digest_provider_runs TO authenticated;
+GRANT SELECT ON TABLE owners_digest_deliveries TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE deposit_guard_jobs TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE deposit_requests TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE payment_milestones TO authenticated;
+GRANT SELECT, INSERT ON TABLE deposit_payments TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE deposit_reminders TO authenticated;
+GRANT SELECT, INSERT ON TABLE deposit_guard_events TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE deposit_guard_settings TO authenticated;
+GRANT SELECT, UPDATE ON TABLE spend_insights TO authenticated;
+GRANT SELECT, INSERT ON TABLE cost_guard_forecasts TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE cost_guard_rules TO authenticated;
+GRANT SELECT ON TABLE cost_guard_baselines TO authenticated;
+GRANT SELECT, UPDATE ON TABLE cost_guard_alerts TO authenticated;
+GRANT SELECT, INSERT ON TABLE cost_guard_alert_events TO authenticated;
+GRANT SELECT ON TABLE financial_payments TO authenticated;
+
 -- ---------------------------------------------------------------------------
 -- user_profiles
 -- ---------------------------------------------------------------------------

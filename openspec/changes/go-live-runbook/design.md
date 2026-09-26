@@ -67,7 +67,7 @@ Phase 2: Supabase
 
 Phase 3: Stripe  ← may run in parallel while waiting for Connect approval
   ├── Apply for Stripe Connect platform access ← do immediately
-  ├── Create PaidSoon Pro product ($19/month)
+  ├── Create four billing prices (Essentials/Business Control/Small Business/Business Pro)
   └── (after approval) Register webhooks
 
         ↓

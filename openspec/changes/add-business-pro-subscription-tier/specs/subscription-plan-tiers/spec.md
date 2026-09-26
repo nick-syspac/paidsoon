@@ -1,20 +1,20 @@
 ## MODIFIED Requirements
 
 ### Requirement: Canonical subscription tiers and pricing
-The system SHALL define exactly four paid public subscription tiers with fixed monthly prices: Starter at $9/month, Solo at $19/month, Small Business at $39/month, and Business Pro at $99/month.
+The system SHALL define exactly four paid public subscription tiers with fixed monthly prices: Essentials at A$15/month, Business Control at A$29/month, Small Business at A$69/month, and Business Pro at A$149/month.
 
 #### Scenario: Plan catalog is requested
 - **WHEN** the application loads subscription plan metadata for checkout or plan display
-- **THEN** it returns Starter ($9/month), Solo ($19/month), Small Business ($39/month), and Business Pro ($99/month) with stable internal plan identifiers
+- **THEN** it returns Essentials (A$15/month), Business Control (A$29/month), Small Business (A$69/month), and Business Pro (A$149/month) with stable internal plan identifiers
 
 ### Requirement: Tier invoice-chasing limits
 
-The system SHALL define a monthly chased-invoice allowance per tier: Starter 10, Solo 50, Small Business 200, and Business Pro 1000. Accountant Partner SHALL have no fixed allowance. The allowance SHALL be consumed once per invoice at its first reminder, measured over the account's current billing period, and reaching it SHALL pause new chases without interrupting sequences already in progress, as defined by the `chase-volume-entitlement` capability.
+The system SHALL define a monthly chased-invoice allowance per tier: Essentials 10, Business Control 50, Small Business 250, and Business Pro 1000. Accountant Partner SHALL have no fixed allowance. The allowance SHALL be consumed once per invoice at its first reminder, measured over the account's current billing period, and reaching it SHALL pause new chases without interrupting sequences already in progress, as defined by the `chase-volume-entitlement` capability.
 
 #### Scenario: Plan allowance is requested
 
 - **WHEN** the application reads the chased-invoice allowance for a tier
-- **THEN** it returns 10 for Starter, 50 for Solo, 200 for Small Business, and 1000 for Business Pro
+- **THEN** it returns 10 for Essentials, 50 for Business Control, 250 for Small Business, and 1000 for Business Pro
 
 #### Scenario: Allowance is displayed on the pricing page
 
@@ -29,7 +29,7 @@ The system SHALL define a monthly chased-invoice allowance per tier: Starter 10,
   upgrade path
 
 ### Requirement: Tier user seat limits
-The system SHALL define user-seat limits by tier: Starter allows 1 user, Solo allows 1 user, Small Business allows up to 3 users, and Business Pro allows up to 10 users. While Team seats are not implemented, these limits SHALL be presented as plan context only and Team invite workflows SHALL remain non-actionable.
+The system SHALL define user-seat limits by tier: Essentials allows 1 user, Business Control allows 1 user, Small Business allows up to 3 users, and Business Pro allows up to 10 users. While Team seats are not implemented, these limits SHALL be presented as plan context only and Team invite workflows SHALL remain non-actionable.
 
 #### Scenario: User invite exceeds plan seat cap
 - **WHEN** Team seats are implemented and an account admin invites a user that would exceed the active tier seat limit
@@ -47,18 +47,18 @@ The system SHALL define user-seat limits by tier: Starter allows 1 user, Solo al
 - **WHEN** `team_seats` is marked implemented and enabled for the active tier
 - **THEN** Team invite workflows may become actionable and enforce the seat limit for that tier
 
-### Requirement: Accounting integrations are gated to Solo and above
+### Requirement: Accounting integrations are gated to Business Control and above
 The system SHALL restrict access to accounting provider connections (Xero, MYOB) to users
-on the Solo, Small Business, or Business Pro subscription tier. Users on the Starter tier SHALL see an
+on the Business Control, Small Business, or Business Pro subscription tier. Users on the Essentials tier SHALL see an
 upgrade prompt when they attempt to initiate an accounting connection and SHALL NOT be able
 to start an OAuth flow.
 
-#### Scenario: Starter user attempts to connect an accounting provider
-- **WHEN** a user on the Starter tier navigates to the integrations settings page and clicks any "Connect" button for an accounting provider
-- **THEN** the system displays a plan upgrade prompt explaining that accounting integrations require Solo or higher, and does NOT initiate an OAuth redirect
+#### Scenario: Essentials user attempts to connect an accounting provider
+- **WHEN** a user on the Essentials tier navigates to the integrations settings page and clicks any "Connect" button for an accounting provider
+- **THEN** the system displays a plan upgrade prompt explaining that accounting integrations require Business Control or higher, and does NOT initiate an OAuth redirect
 
-#### Scenario: Solo user connects Xero
-- **WHEN** a user on the Solo tier clicks "Connect Xero"
+#### Scenario: Business Control user connects Xero
+- **WHEN** a user on the Business Control tier clicks "Connect Xero"
 - **THEN** the system initiates the OAuth flow without presenting an upgrade prompt
 
 #### Scenario: Small Business user connects MYOB
@@ -67,7 +67,7 @@ to start an OAuth flow.
 
 #### Scenario: Feature check via hasPlanFeature
 - **WHEN** `hasPlanFeature(tier, 'accountingIntegrations')` is called
-- **THEN** it returns `true` for `'solo'`, `'small_business'`, and `'business_pro'` tiers and `false` for `'starter'` and legacy `'free'`
+- **THEN** it returns `true` for `'business_control'`, `'small_business'`, and `'business_pro'` tiers and `false` for `'essentials'` and legacy `'free'`
 
 ### Requirement: Subscription plan selector defaults to the current plan
 The subscription settings plan selector SHALL highlight the user's current subscription tier when no valid public-plan selection intent is present.
@@ -77,14 +77,14 @@ An explicit `plan` query parameter SHALL override the initial highlight only whe
 After the page loads, an explicit user selection SHALL take precedence over both query-based selection intent and the current tier.
 
 #### Scenario: Normal settings navigation highlights current plan
-- **WHEN** a Solo subscriber opens Settings → Subscription without a `plan` query parameter
-- **THEN** Solo is highlighted in the plan selector
-- **AND** Starter is not selected by default
+- **WHEN** a Business Control subscriber opens Settings → Subscription without a `plan` query parameter
+- **THEN** Business Control is highlighted in the plan selector
+- **AND** Essentials is not selected by default
 
 #### Scenario: Valid public-plan deep link overrides initial highlight
-- **WHEN** a Solo subscriber opens Settings → Subscription with `?plan=small_business`
+- **WHEN** a Business Control subscriber opens Settings → Subscription with `?plan=small_business`
 - **THEN** Small Business is highlighted initially
-- **AND** the user's current plan remains displayed as Solo
+- **AND** the user's current plan remains displayed as Business Control
 
 #### Scenario: Valid Business Pro deep link overrides initial highlight
 - **WHEN** a Small Business subscriber opens Settings → Subscription with `?plan=business_pro`
@@ -92,13 +92,13 @@ After the page loads, an explicit user selection SHALL take precedence over both
 - **AND** the user's current plan remains displayed as Small Business
 
 #### Scenario: Invalid plan intent falls back to current plan
-- **WHEN** a Solo subscriber opens Settings → Subscription with an unknown `plan` value
-- **THEN** Solo is highlighted
-- **AND** the unknown value is not normalized to Starter
+- **WHEN** a Business Control subscriber opens Settings → Subscription with an unknown `plan` value
+- **THEN** Business Control is highlighted
+- **AND** the unknown value is not normalized to Essentials
 
 #### Scenario: Contact-only plan intent falls back to current plan
-- **WHEN** a Solo subscriber opens Settings → Subscription with `?plan=accountant_partner`
-- **THEN** Solo is highlighted
+- **WHEN** a Business Control subscriber opens Settings → Subscription with `?plan=accountant_partner`
+- **THEN** Business Control is highlighted
 - **AND** the contact-only plan is not selected or exposed in the public plan selector
 
 #### Scenario: User selection has highest precedence

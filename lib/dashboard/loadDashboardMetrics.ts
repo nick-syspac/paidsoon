@@ -59,15 +59,27 @@ export async function loadDashboardMetricsWithTx(
       },
     },
   })
-  const paidInvoices: PaidInvoiceSummary[] = paidRows.map((row) => ({
-    id: row.id,
-    clientEmail: row.financialInvoice.contact?.email ?? "",
-    clientName: row.financialInvoice.contact?.name ?? "",
-    amountDue: row.financialInvoice.amountDueCents,
-    currency: row.financialInvoice.currency,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }))
+  const paidInvoices: PaidInvoiceSummary[] = paidRows.flatMap((row) => {
+    if (!row.financialInvoice) return []
+
+    return [{
+      id: row.id,
+      clientEmail: row.financialInvoice.contact?.email ?? "",
+      clientName: row.financialInvoice.contact?.name ?? "",
+      amountDue: row.financialInvoice.amountDueCents,
+      currency: row.financialInvoice.currency,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }]
+  })
+  if (paidInvoices.length !== paidRows.length) {
+    console.error("Skipping paid invoices missing financial invoice relation", {
+      missingCount: paidRows.length - paidInvoices.length,
+      trackedInvoiceIds: paidRows
+        .filter((row) => !row.financialInvoice)
+        .map((row) => row.id),
+    })
+  }
   const paidCountAllTime = await tx.trackedInvoice.count({ where: { userId, status: "paid" } })
   const manuallyResolvedCountAllTime = await tx.trackedInvoice.count({
     where: { userId, status: "manually_resolved" },

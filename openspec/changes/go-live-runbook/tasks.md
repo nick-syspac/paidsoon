@@ -30,7 +30,7 @@
 > **Do 3.1 immediately** — Connect platform approval can take 1–5 business days. All other phases can proceed while you wait.
 
 - [ ] 3.1 In Stripe dashboard → Connect → Get started: fill out and submit the Connect platform application. Select "Build a platform or marketplace". Note: this is the primary external dependency risk.
-- [ ] 3.2 In Stripe dashboard → Products → Add product: create **PaidSoon Pro**, price = **$19.00 / month** (recurring, USD). Copy the **Price ID** (`price_xxx`) — this goes into `STRIPE_PRO_PRICE_ID` env var
+- [ ] 3.2 In Stripe dashboard → Products: create or confirm the four recurring AUD prices (Essentials A$15, Business Control A$29, Small Business A$69, Business Pro A$149), each with `tax_behavior: "inclusive"`. Capture the four Price IDs into `STRIPE_STARTER_PRICE_ID`, `STRIPE_SOLO_PRICE_ID`, `STRIPE_SMALL_BUSINESS_PRICE_ID`, and `STRIPE_BUSINESS_PRO_PRICE_ID`
 - [ ] 3.3 Copy Stripe API keys: Dashboard → Developers → API keys → copy **Secret key** (`sk_live_xxx`) and **Publishable key** (`pk_live_xxx`)
 - [ ] 3.4 *(After Connect approval)* In Stripe → Connect → Settings: copy the **Client ID** (`ca_xxx`) for OAuth — this is `STRIPE_CONNECT_CLIENT_ID`
 - [ ] 3.5 *(After Vercel deploy in Phase 4)* Register billing webhook: Stripe → Developers → Webhooks → Add endpoint: URL = `https://paidsoon.com/api/webhooks/stripe-billing`, events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the **Signing secret** → `STRIPE_BILLING_WEBHOOK_SECRET`
@@ -51,7 +51,10 @@
   | `STRIPE_SECRET_KEY` | from step 3.3 |
   | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | from step 3.3 |
   | `STRIPE_CONNECT_CLIENT_ID` | from step 3.4 (after Connect approval) |
-  | `STRIPE_PRO_PRICE_ID` | from step 3.2 |
+  | `STRIPE_STARTER_PRICE_ID` | from step 3.2 |
+  | `STRIPE_SOLO_PRICE_ID` | from step 3.2 |
+  | `STRIPE_SMALL_BUSINESS_PRICE_ID` | from step 3.2 |
+  | `STRIPE_BUSINESS_PRO_PRICE_ID` | from step 3.2 |
   | `STRIPE_BILLING_WEBHOOK_SECRET` | from step 3.5 |
   | `STRIPE_CONNECT_WEBHOOK_SECRET` | from step 3.6 |
   | `RESEND_API_KEY` | from Resend dashboard → API Keys |

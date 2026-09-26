@@ -103,26 +103,41 @@ export async function loadDashboardInvoicesWithTx(
     ]),
   )
 
-  return invoices.map((invoice) => ({
-    ...invoice,
-    // Flat canonical invoice facts (legacy field names) so downstream libs read
-    // invoice.amountDue / clientEmail / dueDate without joining themselves.
-    clientEmail: invoice.financialInvoice.contact?.email ?? "",
-    clientName: invoice.financialInvoice.contact?.name ?? "",
-    amountDue: invoice.financialInvoice.amountDueCents,
-    currency: invoice.financialInvoice.currency,
-    dueDate: invoice.financialInvoice.dueDate,
-    paymentUrl: invoice.financialInvoice.paymentUrl,
-    externalId: invoice.financialInvoice.sourceId,
-    provider: invoice.financialInvoice.sourceSystem,
-    emailLogs: emailLogsByInvoice.get(invoice.id) ?? [],
-    promisesToPay: promisesByInvoice.get(invoice.id) ?? [],
-    arrangementCoverages: (coveragesByInvoice.get(invoice.id) ?? []).flatMap((coverage) => {
-      const arrangement = arrangementsById.get(coverage.arrangementId)
-      return arrangement ? [{ ...coverage, arrangement }] : []
-    }),
-    payments: paymentsByInvoice.get(invoice.id) ?? [],
-  }))
+  const hydratedInvoices = invoices.flatMap((invoice) => {
+    if (!invoice.financialInvoice) return []
+
+    return [{
+      ...invoice,
+      // Flat canonical invoice facts (legacy field names) so downstream libs read
+      // invoice.amountDue / clientEmail / dueDate without joining themselves.
+      clientEmail: invoice.financialInvoice.contact?.email ?? "",
+      clientName: invoice.financialInvoice.contact?.name ?? "",
+      amountDue: invoice.financialInvoice.amountDueCents,
+      currency: invoice.financialInvoice.currency,
+      dueDate: invoice.financialInvoice.dueDate,
+      paymentUrl: invoice.financialInvoice.paymentUrl,
+      externalId: invoice.financialInvoice.sourceId,
+      provider: invoice.financialInvoice.sourceSystem,
+      emailLogs: emailLogsByInvoice.get(invoice.id) ?? [],
+      promisesToPay: promisesByInvoice.get(invoice.id) ?? [],
+      arrangementCoverages: (coveragesByInvoice.get(invoice.id) ?? []).flatMap((coverage) => {
+        const arrangement = arrangementsById.get(coverage.arrangementId)
+        return arrangement ? [{ ...coverage, arrangement }] : []
+      }),
+      payments: paymentsByInvoice.get(invoice.id) ?? [],
+    }]
+  })
+
+  if (hydratedInvoices.length !== invoices.length) {
+    console.error("Skipping tracked invoices missing financial invoice relation", {
+      missingCount: invoices.length - hydratedInvoices.length,
+      trackedInvoiceIds: invoices
+        .filter((invoice) => !invoice.financialInvoice)
+        .map((invoice) => invoice.id),
+    })
+  }
+
+  return hydratedInvoices
 }
 
 /**

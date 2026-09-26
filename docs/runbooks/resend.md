@@ -86,11 +86,11 @@ Per the matrix in [README.md](./README.md):
 
 The `(dev)` / `(preview)` suffix on `RESEND_FROM_NAME` is **highly recommended** — it makes test emails visually distinct in the inbox so you don't mistake them for production traffic.
 
-`RESEND_FROM_EMAIL` is also displayed on [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) as the fallback "From" address shown to Starter-tier users in the Email Settings UI.
+`RESEND_FROM_EMAIL` is also displayed on [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) as the fallback "From" address shown to Essentials-tier users in the Email Settings UI.
 
-### 3.1 Pro-tier custom senders
+### 3.1 Tier-gated custom senders
 
-Pro-tier users can configure their own `fromEmail` / `fromName` / `replyTo` in **Settings → Email**. That flow lives in [resolveFromAddress()](../../lib/email/send.ts) and uses Resend's domain-verification API per-user. It does **not** require any additional env vars — the same `RESEND_API_KEY` is used to send on behalf of all users.
+Business Control+ users can configure `replyTo` and `fromName`, and Small Business+ users can use a verified custom `fromEmail` domain in **Settings → Email**. That flow lives in [resolveFromAddress()](../../lib/email/send.ts) and uses Resend's domain-verification API per-user. It does **not** require any additional env vars — the same `RESEND_API_KEY` is used to send on behalf of all users.
 
 ---
 
