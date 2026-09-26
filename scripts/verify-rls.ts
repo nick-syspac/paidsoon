@@ -1074,7 +1074,7 @@ async function main() {
       encryptedAccessToken: "encrypted-access-b",
       encryptedRefreshToken: "encrypted-refresh-b",
       tokenExpiresAt: new Date("2026-01-01T00:00:00.000Z"),
-      scopes: "sme-sales sme-contacts-customer sme-company-file",
+      scopes: "sme-sales sme-contacts-customer sme-company-file sme-purchases sme-banking sme-general-ledger sme-contacts-supplier",
       status: "pending_first_sync",
     },
   })
