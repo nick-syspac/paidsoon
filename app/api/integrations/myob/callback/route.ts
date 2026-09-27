@@ -35,7 +35,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 // Token exchange + an inline first sync (paginated invoice/contact fetches
 // against MYOB) can comfortably exceed Vercel's default serverless function
 // duration. Raise the cap so a slow-but-successful run isn't killed mid-request.
-export const maxDuration = 60
+export const maxDuration = 120
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)

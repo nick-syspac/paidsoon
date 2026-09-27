@@ -19,7 +19,7 @@ import { NextResponse } from "next/server"
 // a while as the user base grows. Raise the duration cap so a slow-but-successful
 // run isn't killed mid-request. Revisit with batching (per the original design's
 // open question) if this ever approaches the cap.
-export const maxDuration = 60
+export const maxDuration = 120
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")

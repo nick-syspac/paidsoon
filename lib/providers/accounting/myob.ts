@@ -278,10 +278,16 @@ export class MyobProvider implements AccountingProvider {
   async refreshTokens(refreshToken: string): Promise<TokenSet> {
     const { clientId, clientSecret } = getConfig()
 
+    // MYOB scope grants are sticky: if the refresh request omits `scope`, the
+    // refreshed token can lose the previously-consented granular spend scopes
+    // (e.g. `sme-purchases`, `sme-banking`, `sme-general-ledger`) even when the
+    // original grant was valid. Include the full bundle so the grant remains
+    // consistent across token renewal.
     const body = new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
       refresh_token: refreshToken,
+      scope: MYOB_ALL_SCOPES,
       grant_type: "refresh_token",
     })
 
