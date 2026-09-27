@@ -116,15 +116,24 @@ describe("MyobProvider", () => {
   })
 
   describe("refreshTokens", () => {
-    test("returns new token set", async () => {
-      mockFetch([
-        {
+    test("returns new token set and preserves the full MYOB scope grant", async () => {
+      globalThis.fetch = async (_url: string | URL | Request, init?: RequestInit) => {
+        const body = new URLSearchParams(String(init?.body ?? ""))
+        assert.equal(body.get("grant_type"), "refresh_token")
+        assert.equal(body.get("scope"), "sme-sales sme-contacts-customer sme-company-file sme-purchases sme-banking sme-general-ledger sme-contacts-supplier")
+        return {
+          ok: true,
           status: 200,
-          body: { access_token: "at-new", refresh_token: "rt-new", expires_in: 1200 },
-        },
-      ])
+          headers: { get: () => null },
+          json: async () => ({ access_token: "at-new", refresh_token: "rt-new", expires_in: 1200 }),
+          text: async () => JSON.stringify({ access_token: "at-new", refresh_token: "rt-new", expires_in: 1200 }),
+        } as unknown as Response
+      }
+
       const tokens = await provider.refreshTokens("rt-old")
       assert.equal(tokens.accessToken, "at-new")
+      assert.equal(tokens.refreshToken, "rt-new")
+      assert.equal(tokens.expiresIn, 1200)
     })
   })
 

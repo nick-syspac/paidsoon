@@ -15,7 +15,7 @@ import { z } from "zod"
 
 // Paginated invoice/contact fetches against the provider can take a while —
 // raise the duration cap so a slow-but-successful sync isn't killed mid-request.
-export const maxDuration = 60
+export const maxDuration = 120
 
 const bodySchema = z.object({
   connectionId: z.string().min(1),
