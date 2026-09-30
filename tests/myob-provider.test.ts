@@ -357,15 +357,19 @@ describe("MyobProvider", () => {
                 UID: "txn-1",
                 Date: "2025-06-01T10:00:00",
                 LastModified: "2025-06-01T11:00:00",
-                Amount: 199.0,
+                AmountPaid: 199.0,
                 Memo: "Vendor debit",
-                ReferenceNumber: "RF-9001",
+                PaymentNumber: "PAY-9001",
                 Account: { Name: "Operating", DisplayID: "1-1100" },
                 Contact: { UID: "sup-1", Name: "Cloud Vendor" },
                 CurrencyCode: "AUD",
               },
             ],
           },
+        },
+        {
+          status: 200,
+          body: { Items: [] },
         },
       ])
 
@@ -375,11 +379,11 @@ describe("MyobProvider", () => {
       })
 
       assert.equal(rows.length, 1)
-      assert.equal(rows[0].providerTransactionId, "txn-1")
+      assert.equal(rows[0].providerTransactionId, "spend:txn-1")
       assert.equal(rows[0].providerSupplierId, "sup-1")
       assert.equal(rows[0].accountCode, "1-1100")
-      assert.equal(rows[0].amount, 199)
-      assert.equal(rows[0].reference, "RF-9001")
+      assert.equal(rows[0].amount, -199)
+      assert.equal(rows[0].reference, "PAY-9001")
     })
   })
 
