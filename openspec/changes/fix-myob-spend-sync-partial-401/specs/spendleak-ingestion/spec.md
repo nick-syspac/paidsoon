@@ -13,3 +13,13 @@ The system SHALL validate that connected provider grants include all required sc
 - **WHEN** a tenant reconnects MYOB and grants the required spend-read scopes
 - **THEN** subsequent spend-side sync attempts ingest bills, bank transactions, suppliers, and expense accounts normally
 - **AND** previously reported scope-upgrade-required state is cleared after successful spend sync
+
+#### Scenario: MYOB banking ingestion uses canonical transaction families
+- **WHEN** spend-side sync retrieves MYOB banking transaction data
+- **THEN** the system SHALL use documented MYOB Business banking endpoint families rather than non-canonical transaction endpoints
+- **AND** it SHALL normalize endpoint-specific payload fields into the internal spend transaction model before persistence
+
+#### Scenario: Unsupported MYOB purchase bill subtype does not cause perpetual partial failures
+- **WHEN** a MYOB tenant does not support a purchase bill subtype path
+- **THEN** spend bill ingestion SHALL avoid unsupported subtype requests in its contract
+- **AND** bills ingestion SHALL continue for supported purchase bill subtypes without deterministic 404 failures on every sync

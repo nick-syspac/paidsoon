@@ -87,9 +87,15 @@ const MYOB_BILL_TYPES = [
   "Service",
   "Item",
   "Professional",
-  "TimeBilling",
   "Miscellaneous",
 ] as const
+
+const MYOB_BANKING_TRANSACTION_ENDPOINTS = [
+  { family: "spend", path: "SpendMoneyTxn" },
+  { family: "receive", path: "ReceiveMoneyTxn" },
+] as const
+
+type MyobBankingFamily = (typeof MYOB_BANKING_TRANSACTION_ENDPOINTS)[number]["family"]
 
 function getConfig() {
   const clientId = process.env.MYOB_CLIENT_ID
@@ -205,6 +211,10 @@ function parseMYOBDate(value: string | undefined): Date | undefined {
   if (!value) return undefined
   const d = new Date(value)
   return isNaN(d.getTime()) ? undefined : d
+}
+
+function formatMYOBDateFilter(date: Date): string {
+  return date.toISOString().replace("Z", "").split(".")[0]
 }
 
 export class MyobProvider implements AccountingProvider {
@@ -627,69 +637,111 @@ export class MyobProvider implements AccountingProvider {
     modifiedAfter?: Date
   }): Promise<ProviderSpendBankTransaction[]> {
     const results: ProviderSpendBankTransaction[] = []
-    let skip = 0
 
-    while (true) {
-      const url = new URL(`${params.organisationId}/Banking/Transaction`)
-      url.searchParams.set("$top", String(PAGE_SIZE))
-      url.searchParams.set("$skip", String(skip))
+    for (const endpoint of MYOB_BANKING_TRANSACTION_ENDPOINTS) {
+      let skip = 0
 
-      if (params.modifiedAfter) {
-        const iso = params.modifiedAfter.toISOString().replace("Z", "").split(".")[0]
-        url.searchParams.set("$filter", `LastModified gt datetime'${iso}'`)
-      }
+      while (true) {
+        const url = new URL(`${params.organisationId}/Banking/${endpoint.path}`)
+        url.searchParams.set("$top", String(PAGE_SIZE))
+        url.searchParams.set("$skip", String(skip))
 
-      const { clientId } = getConfig()
-      const res = await fetch(url.toString(), {
-        headers: {
-          Authorization: `Bearer ${params.accessToken}`,
-          "x-myobapi-cftoken": "",
-          "x-myobapi-key": clientId,
-          "x-myobapi-version": "v2",
-          Accept: "application/json",
-        },
-      })
+        if (params.modifiedAfter) {
+          // Canonical banking families expose `Date`; using that filter avoids
+          // relying on non-uniform `LastModified` support.
+          const iso = formatMYOBDateFilter(params.modifiedAfter)
+          url.searchParams.set("$filter", `Date gt datetime'${iso}'`)
+        }
 
-      const data = (await handleProviderResponse(res)) as {
-        Items?: Array<{
-          UID: string
-          Date?: string
-          LastModified?: string
-          Amount?: number
-          Memo?: string
-          ReferenceNumber?: string
-          Account?: { Name?: string; DisplayID?: string }
-          Contact?: { UID?: string; Name?: string }
-          CurrencyCode?: string
-        }>
-      }
-
-      const items = data.Items ?? []
-      for (const tx of items) {
-        results.push({
-          providerTransactionId: tx.UID,
-          providerSupplierId: tx.Contact?.UID,
-          accountName: tx.Account?.Name,
-          accountCode: tx.Account?.DisplayID,
-          description: tx.Memo ?? tx.ReferenceNumber ?? "Spend transaction",
-          reference: tx.ReferenceNumber,
-          counterpartyName: tx.Contact?.Name,
-          amount: tx.Amount ?? 0,
-          currency: tx.CurrencyCode ?? "AUD",
-          transactionDate: parseMYOBDate(tx.Date) ?? new Date(),
-          providerUpdatedAt: parseMYOBDate(tx.LastModified),
-          rawMetadata: tx as unknown as Record<string, unknown>,
-          taxMetadata: {
-            taxInclusive: true,
+        const { clientId } = getConfig()
+        const res = await fetch(url.toString(), {
+          headers: {
+            Authorization: `Bearer ${params.accessToken}`,
+            "x-myobapi-cftoken": "",
+            "x-myobapi-key": clientId,
+            "x-myobapi-version": "v2",
+            Accept: "application/json",
           },
         })
-      }
 
-      if (items.length < PAGE_SIZE) break
-      skip += PAGE_SIZE
+        const data = (await handleProviderResponse(res)) as {
+          Items?: Array<{
+            UID: string
+            Date?: string
+            LastModified?: string
+            Memo?: string
+            Amount?: number
+            AmountPaid?: number
+            AmountReceived?: number
+            PaymentNumber?: string
+            ReceiptNumber?: string
+            Account?: { Name?: string; DisplayID?: string }
+            Contact?: { UID?: string; Name?: string }
+            CurrencyCode?: string
+            ForeignCurrency?: { Code?: string }
+          }>
+        }
+
+        const items = data.Items ?? []
+        for (const tx of items) {
+          const normalized = this.normalizeMYOBSpendBankTransaction(endpoint.family, tx)
+          if (normalized) results.push(normalized)
+        }
+
+        if (items.length < PAGE_SIZE) break
+        skip += PAGE_SIZE
+      }
     }
 
     return results
+  }
+
+  private normalizeMYOBSpendBankTransaction(
+    family: MyobBankingFamily,
+    tx: {
+      UID: string
+      Date?: string
+      LastModified?: string
+      Memo?: string
+      Amount?: number
+      AmountPaid?: number
+      AmountReceived?: number
+      PaymentNumber?: string
+      ReceiptNumber?: string
+      Account?: { Name?: string; DisplayID?: string }
+      Contact?: { UID?: string; Name?: string }
+      CurrencyCode?: string
+      ForeignCurrency?: { Code?: string }
+    }
+  ): ProviderSpendBankTransaction | null {
+    const transactionDate = parseMYOBDate(tx.Date)
+    if (!transactionDate) return null
+
+    const reference = family === "spend" ? tx.PaymentNumber : tx.ReceiptNumber
+    const rawAmount = family === "spend"
+      ? tx.AmountPaid ?? tx.Amount
+      : tx.AmountReceived ?? tx.Amount
+    const amount = typeof rawAmount === "number" ? Math.abs(rawAmount) : 0
+    const signedAmount = family === "spend" ? -amount : amount
+
+    const providerTransactionId = `${family}:${tx.UID}`
+    return {
+      providerTransactionId,
+      providerSupplierId: tx.Contact?.UID,
+      accountName: tx.Account?.Name,
+      accountCode: tx.Account?.DisplayID,
+      description: tx.Memo ?? reference ?? "Spend transaction",
+      reference,
+      counterpartyName: tx.Contact?.Name,
+      amount: signedAmount,
+      currency: tx.CurrencyCode ?? tx.ForeignCurrency?.Code ?? "AUD",
+      transactionDate,
+      providerUpdatedAt: parseMYOBDate(tx.LastModified) ?? transactionDate,
+      rawMetadata: tx as unknown as Record<string, unknown>,
+      taxMetadata: {
+        taxInclusive: true,
+      },
+    }
   }
 
   async getSpendSuppliers(params: {

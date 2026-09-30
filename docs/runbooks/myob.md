@@ -96,6 +96,8 @@ gate `G-MYOB2` in [go-live-decision-matrix.md](./go-live-decision-matrix.md).
 | Connection shows **Sync error** | The first sync ran and failed | Click **Retry sync**; investigate the `errorMessage` on the most recent `AccountingSyncRun` row |
 | 401 errors against real company files | Missing `x-myobapi-key` / `x-myobapi-version` header, or an expired token | Confirm `MYOB_CLIENT_ID` matches the app the token was issued for; tokens expire after 20 minutes and are refreshed automatically before each sync |
 | Spend sync shows `scope_upgrade_required` | Existing connection grant predates current spend-read scope set | Reconnect MYOB from **Settings → Connections** to re-consent with `sme-purchases`, `sme-banking`, `sme-general-ledger`, and `sme-contacts-supplier` |
+| Spend sync shows `bills:MYOB 404` from `Purchase/Bill/TimeBilling` | MYOB Business company files do not expose purchase TimeBilling bill subtype | Use supported purchase bill families only (`Service`, `Item`, `Professional`, `Miscellaneous`); do not call `Purchase/Bill/TimeBilling` |
+| Spend sync shows `bank-transactions:MYOB 401` on `/Banking/Transaction` while other spend endpoints work | Non-canonical banking transaction path for MYOB Business | Use documented banking families (`/Banking/SpendMoneyTxn`, `/Banking/ReceiveMoneyTxn`, and optional `/Banking/TransferMoneyTxn`/`/Banking/Statement`) |
 
 ---
 

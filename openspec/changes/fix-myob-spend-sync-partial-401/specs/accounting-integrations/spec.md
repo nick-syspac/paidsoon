@@ -21,3 +21,8 @@ The system SHALL allow an authenticated user with the required subscription enti
 - **WHEN** a previously connected MYOB tenant has tokens that were granted before spend-read scopes became required
 - **THEN** receivables sync remains operational
 - **AND** spend-side sync reports scope-upgrade-required until the tenant reconnects and grants the full scope set
+
+#### Scenario: MYOB endpoint contract differs from assumed spend endpoint paths
+- **WHEN** a connection has valid spend scopes and a freshly refreshed token
+- **THEN** the system SHALL use MYOB Business-compatible endpoint families for spend ingestion
+- **AND** it SHALL NOT rely on unsupported purchase bill subtype paths or deprecated/non-canonical banking transaction paths that deterministically fail for supported tenants
