@@ -70,6 +70,7 @@ ALTER TABLE deposit_reminders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_guard_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_guard_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_payment_webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_leak_settings ENABLE ROW LEVEL SECURITY;
 
 -- Base table privileges are required in addition to RLS policies.
 -- Keep this explicit so auth-context queries via `SET LOCAL ROLE authenticated`
@@ -137,6 +138,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE deposit_reminders TO authenticated
 GRANT SELECT, INSERT ON TABLE deposit_guard_events TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE deposit_guard_settings TO authenticated;
 GRANT SELECT, UPDATE ON TABLE spend_insights TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE spend_leak_settings TO authenticated;
 GRANT SELECT, INSERT ON TABLE cost_guard_forecasts TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE cost_guard_rules TO authenticated;
 GRANT SELECT ON TABLE cost_guard_baselines TO authenticated;
@@ -676,6 +678,25 @@ CREATE POLICY "users can insert own spend insights"
 
 REVOKE UPDATE ON TABLE spend_insights FROM authenticated;
 GRANT UPDATE (state, review_action, review_action_at, review_action_by, review_note, evidence_fingerprint, resolved_at, updated_at) ON TABLE spend_insights TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- spend_leak_settings
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own spend leak settings" ON spend_leak_settings;
+CREATE POLICY "users can view own spend leak settings"
+  ON spend_leak_settings FOR SELECT
+  USING (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own spend leak settings" ON spend_leak_settings;
+CREATE POLICY "users can insert own spend leak settings"
+  ON spend_leak_settings FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own spend leak settings" ON spend_leak_settings;
+CREATE POLICY "users can update own spend leak settings"
+  ON spend_leak_settings FOR UPDATE
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
 -- cash_forecast_snapshots

@@ -161,6 +161,7 @@ model UserProfile {
   importedBankTransactions     ImportedBankTransaction[]
   supplierProfiles             SupplierProfile[]
   spendInsights                SpendInsight[]
+  spendLeakSettings            SpendLeakSetting[]
   cashForecastSnapshots        CashForecastSnapshot[]
   costGuardSettings            CostGuardSetting[]
   costGuardRules               CostGuardRule[]
@@ -1193,6 +1194,19 @@ model SpendInsight {
   @@index([userId, state, severity])
   @@index([userId, detectedAt])
   @@map("spend_insights")
+}
+
+model SpendLeakSetting {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  enabledSourceTypes String[] @default(["bills", "bank_transactions", "suppliers"]) @map("enabled_source_types")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([userId])
+  @@map("spend_leak_settings")
 }
 
 // ---------------------------------------------------------------------------

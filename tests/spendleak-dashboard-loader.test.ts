@@ -2,6 +2,11 @@ import assert from "node:assert/strict"
 import { before, beforeEach, describe, mock, test } from "node:test"
 
 let withUserContextUserId: string | null = null
+let enabledSourceTypes: Array<"bills" | "bank_transactions" | "suppliers"> = [
+  "bills",
+  "bank_transactions",
+  "suppliers",
+]
 let mockDbState = {
   findings: [] as Array<{ id: string; findingType: string; estimatedAnnualCents: number | null; severity: string; state: string }>,
   connectionCount: 1,
@@ -16,6 +21,15 @@ let loadSpendLeakDashboard: any
 
 describe("loadSpendLeakDashboard", () => {
   before(async () => {
+    await mock.module("@/lib/spendleak/sourceSettings", {
+      namedExports: {
+        getSpendLeakSourceSettings: async () => ({
+          enabledSourceTypes,
+          isDefault: false,
+        }),
+      },
+    })
+
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
         withUserContext: async (userId: string, fn: (tx: unknown) => Promise<unknown>) => {
@@ -52,6 +66,7 @@ describe("loadSpendLeakDashboard", () => {
 
   beforeEach(() => {
     withUserContextUserId = null
+    enabledSourceTypes = ["bills", "bank_transactions", "suppliers"]
     mockDbState = {
       findings: [],
       connectionCount: 1,
@@ -82,7 +97,24 @@ describe("loadSpendLeakDashboard", () => {
       "f-2": 1,
     })
     assert.equal(result.sourceSyncCount, 2)
+    assert.deepEqual(result.enabledSourceTypes, ["bills", "bank_transactions", "suppliers"])
+    assert.equal(result.expectedSourceCount, 3)
+    assert.equal(result.syncedExpectedSourceCount, 2)
     assert.equal(result.hasAccountingConnection, true)
+  })
+
+  test("status readiness uses selected source expectations", async () => {
+    enabledSourceTypes = ["bills", "suppliers"]
+    mockDbState.latestBillSyncAt = new Date()
+    mockDbState.latestSupplierSyncAt = null
+    mockDbState.latestTxnSyncAt = new Date()
+
+    const result = await loadSpendLeakDashboard("user-1")
+
+    assert.deepEqual(result.enabledSourceTypes, ["bills", "suppliers"])
+    assert.equal(result.expectedSourceCount, 2)
+    assert.equal(result.syncedExpectedSourceCount, 1)
+    assert.equal(result.status.state, "partial_data")
   })
 
   test("reports stale state when no connected source has sync timestamps", async () => {
