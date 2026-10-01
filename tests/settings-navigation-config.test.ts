@@ -4,6 +4,7 @@ import { describe, test } from "node:test"
 import {
   SETTINGS_NAV_GROUPS,
   findActiveSettingsItem,
+  getVisibleSettingsNavGroups,
   isSettingsItemActive,
 } from "@/lib/settings/navigation"
 
@@ -31,7 +32,7 @@ describe("settings navigation configuration", () => {
 
     assert.deepEqual(groups[3], {
       label: "SpendLeak",
-      items: [],
+      items: ["SpendLeak"],
     })
 
     assert.deepEqual(groups[4], {
@@ -88,5 +89,16 @@ describe("settings navigation configuration", () => {
     const active = findActiveSettingsItem("/dashboard/settings/commitguard")
     assert.equal(active?.label, "CommitGuard")
     assert.equal(active?.href, "/dashboard/settings/commitguard")
+  })
+
+  test("shows SpendLeak settings only for eligible tiers", () => {
+    const essentialsGroups = getVisibleSettingsNavGroups("essentials")
+    const smallBusinessGroups = getVisibleSettingsNavGroups("small_business")
+
+    const essentialsSpendLeak = essentialsGroups.find((group) => group.id === "spendleak")
+    const smallBusinessSpendLeak = smallBusinessGroups.find((group) => group.id === "spendleak")
+
+    assert.equal(essentialsSpendLeak, undefined)
+    assert.equal(smallBusinessSpendLeak?.items.some((item) => item.href === "/dashboard/settings/spendleak"), true)
   })
 })

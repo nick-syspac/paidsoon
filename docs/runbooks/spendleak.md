@@ -7,6 +7,7 @@ Current scope reflects shipped behavior:
 - Spend ingestion from normalized provider and import data is live.
 - Deterministic findings and grounded summaries are live.
 - Dashboard, finding detail, and CSV/XLSX export are live.
+- Source-selection settings for readiness expectations are live.
 - SpendLeak remains read-only and does not write back to accounting providers.
 
 ## 1. Operational flows
@@ -60,6 +61,26 @@ Primary paths:
 - `lib/spendleak/exportQuery.ts`
 - `lib/spendleak/export.ts`
 - `lib/spendleak/exportFields.ts`
+
+### 1.4 SpendLeak source-selection settings
+
+Settings endpoint:
+
+- `GET /api/settings/spendleak`
+- `PUT /api/settings/spendleak`
+
+Behavior:
+
+- Users select which source families count toward readiness (`bills`, `bank_transactions`, `suppliers`).
+- Readiness and partial-data state evaluate selected coverage only.
+- Selection does not disable provider/import ingestion.
+
+Primary paths:
+
+- `app/dashboard/settings/spendleak/page.tsx`
+- `components/settings/SpendLeakSettingsClient.tsx`
+- `app/api/settings/spendleak/route.ts`
+- `lib/spendleak/sourceSettings.ts`
 
 ## 2. Environment variables
 
@@ -129,3 +150,16 @@ Actions:
 1. Confirm plan entitlement for `csv_export`.
 2. Retry with the dashboard's active module filter removed.
 3. If rows exist in the dashboard but export is empty, inspect the export query service path.
+
+### 4.4 Dashboard remains in partial-data unexpectedly
+
+Likely causes:
+
+- A selected expected source family has not synced yet.
+- Source-selection settings do not match the tenant's real accounting workflow.
+
+Actions:
+
+1. Open `/dashboard/settings/spendleak` and confirm expected source selection.
+2. Verify selected sources have recent `syncedAt` evidence in imported spend tables.
+3. Trigger accounting sync/import and confirm selected-source coverage updates.

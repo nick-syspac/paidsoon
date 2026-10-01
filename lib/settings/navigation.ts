@@ -1,4 +1,5 @@
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 
 export interface SettingsNavItem {
   href: string
@@ -8,6 +9,7 @@ export interface SettingsNavItem {
   requiresAuth?: boolean
   requiresFeature?: string
   requiresEntitlement?: string
+  isVisible?: (tier: string | null | undefined) => boolean
   match?: (pathname: string, href: string) => boolean
 }
 
@@ -33,6 +35,13 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     order: 1,
     requiresFeature: "deposit_guard_deposit_requests",
   },
+  {
+    href: "/dashboard/settings/spendleak",
+    label: "SpendLeak",
+    group: "spendleak",
+    order: 1,
+    isVisible: canAccessSpendLeak,
+  },
   { href: "/dashboard/settings/owners-digest", label: "Owner's Digest", group: "ownersdigest", order: 1, requiresFeature: "owners_digest_core" },
   { href: "/dashboard/settings/commitguard", label: "CommitGuard", group: "commitguard", order: 1, requiresFeature: "commitguard_core" },
   { href: "/dashboard/settings/cost-guard", label: "Cost Guard", group: "costguard", order: 1, requiresFeature: "accounting_integrations" },
@@ -46,7 +55,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   { id: "general", label: "General", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "general") },
   { id: "paidsoon", label: "InvoiceGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "paidsoon") },
   { id: "depositguard", label: "DepositGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "depositguard") },
-  { id: "spendleak", label: "SpendLeak", items: [] },
+  { id: "spendleak", label: "SpendLeak", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "spendleak") },
   { id: "ownersdigest", label: "Owner's Digest", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "ownersdigest") },
   { id: "commitguard", label: "CommitGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "commitguard") },
   { id: "costguard", label: "CostGuard", items: SETTINGS_NAV_ITEMS.filter((item) => item.group === "costguard") },
@@ -59,11 +68,13 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
 export function getVisibleSettingsNavGroups(tier: string | null | undefined): SettingsNavGroup[] {
   return SETTINGS_NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => {
-      if (!item.requiresFeature) return true
-      return hasPlanFeature(tier, item.requiresFeature as never)
-    }),
-  })).filter((group) => group.items.length > 0 || group.id === "spendleak")
+    items: group.items
+      .filter((item) => {
+        if (item.requiresFeature && !hasPlanFeature(tier, item.requiresFeature as never)) return false
+        return item.isVisible ? item.isVisible(tier) : true
+      })
+      .map(({ isVisible, ...item }) => item),
+  })).filter((group) => group.items.length > 0)
 }
 
 export function isSettingsItemActive(currentUrl: string, href: string): boolean {

@@ -78,6 +78,8 @@ describe("SpendLeak presentation", () => {
       hasAccountingConnection: true,
       latestSyncAt: null,
       sourceSyncCount: 0,
+      expectedSourceCount: 2,
+      syncedExpectedSourceCount: 0,
       now,
     })
 
@@ -85,7 +87,9 @@ describe("SpendLeak presentation", () => {
       findingsCount: 2,
       hasAccountingConnection: true,
       latestSyncAt: new Date("2026-09-02T00:00:00.000Z"),
-      sourceSyncCount: 1,
+      sourceSyncCount: 2,
+      expectedSourceCount: 2,
+      syncedExpectedSourceCount: 1,
       now,
     })
 
@@ -94,6 +98,8 @@ describe("SpendLeak presentation", () => {
       hasAccountingConnection: true,
       latestSyncAt: new Date("2026-09-02T00:00:00.000Z"),
       sourceSyncCount: 3,
+      expectedSourceCount: 2,
+      syncedExpectedSourceCount: 2,
       now,
     })
 

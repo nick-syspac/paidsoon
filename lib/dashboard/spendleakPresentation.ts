@@ -9,8 +9,6 @@ export const SPENDLEAK_STALE_COPY = {
   noConnection: "Connect Xero or MYOB to start SpendLeak insights.",
 } as const
 
-export const SPENDLEAK_TOTAL_SOURCE_COUNT = 3
-
 export type SpendLeakModuleId =
   | "recurring_spend"
   | "duplicate_spend"
@@ -234,12 +232,16 @@ export function buildSpendLeakDashboardStatus({
   hasAccountingConnection,
   latestSyncAt,
   sourceSyncCount,
+  expectedSourceCount = sourceSyncCount,
+  syncedExpectedSourceCount = sourceSyncCount,
   now = new Date(),
 }: {
   findingsCount: number
   hasAccountingConnection: boolean
   latestSyncAt: Date | null
   sourceSyncCount: number
+  expectedSourceCount?: number
+  syncedExpectedSourceCount?: number
   now?: Date
 }): SpendLeakDashboardStatus {
   if (!hasAccountingConnection) {
@@ -250,7 +252,7 @@ export function buildSpendLeakDashboardStatus({
     }
   }
 
-  if (sourceSyncCount === 0) {
+  if (syncedExpectedSourceCount === 0) {
     return {
       state: "initial_sync",
       title: "Initial sync pending",
@@ -268,11 +270,11 @@ export function buildSpendLeakDashboardStatus({
     }
   }
 
-  if (sourceSyncCount < SPENDLEAK_TOTAL_SOURCE_COUNT) {
+  if (syncedExpectedSourceCount < expectedSourceCount) {
     return {
       state: "partial_data",
       title: "Partial spend data",
-      description: `Only ${sourceSyncCount} of ${SPENDLEAK_TOTAL_SOURCE_COUNT} spend sources have completed a sync, so some modules may be incomplete.`,
+      description: `Only ${syncedExpectedSourceCount} of ${expectedSourceCount} selected spend sources have completed a sync, so some modules may be incomplete.`,
     }
   }
 
@@ -280,7 +282,7 @@ export function buildSpendLeakDashboardStatus({
     return {
       state: "empty",
       title: "No spend findings yet",
-      description: "All connected spend sources have synced, but SpendLeak has not identified a supported opportunity yet.",
+      description: "All selected spend sources have synced, but SpendLeak has not identified a supported opportunity yet.",
     }
   }
 
