@@ -13,6 +13,9 @@ let mockDbState = {
   latestBillSyncAt: new Date("2026-09-10T00:00:00.000Z") as Date | null,
   latestTxnSyncAt: new Date("2026-09-11T00:00:00.000Z") as Date | null,
   latestSupplierSyncAt: null as Date | null,
+  billRecordCount: 12,
+  bankTransactionRecordCount: 37,
+  supplierRecordCount: 0,
   linkedCommitments: [] as Array<{ linkedSpendInsightId: string | null }>,
 }
 
@@ -44,12 +47,15 @@ describe("loadSpendLeakDashboard", () => {
             },
             importedBill: {
               findFirst: async () => ({ syncedAt: mockDbState.latestBillSyncAt }),
+              count: async () => mockDbState.billRecordCount,
             },
             importedBankTransaction: {
               findFirst: async () => ({ syncedAt: mockDbState.latestTxnSyncAt }),
+              count: async () => mockDbState.bankTransactionRecordCount,
             },
             supplierProfile: {
               findFirst: async () => ({ syncedAt: mockDbState.latestSupplierSyncAt }),
+              count: async () => mockDbState.supplierRecordCount,
             },
             commitment: {
               findMany: async () => mockDbState.linkedCommitments,
@@ -73,6 +79,9 @@ describe("loadSpendLeakDashboard", () => {
       latestBillSyncAt: new Date("2026-09-10T00:00:00.000Z"),
       latestTxnSyncAt: new Date("2026-09-11T00:00:00.000Z"),
       latestSupplierSyncAt: null,
+      billRecordCount: 12,
+      bankTransactionRecordCount: 37,
+      supplierRecordCount: 0,
       linkedCommitments: [],
     }
   })
@@ -101,6 +110,28 @@ describe("loadSpendLeakDashboard", () => {
     assert.equal(result.expectedSourceCount, 3)
     assert.equal(result.syncedExpectedSourceCount, 2)
     assert.equal(result.hasAccountingConnection, true)
+    assert.deepEqual(result.selectedSourceCoverage, [
+      {
+        sourceType: "bills",
+        synced: true,
+        recordCount: 12,
+        latestSyncedAt: new Date("2026-09-10T00:00:00.000Z"),
+      },
+      {
+        sourceType: "bank_transactions",
+        synced: true,
+        recordCount: 37,
+        latestSyncedAt: new Date("2026-09-11T00:00:00.000Z"),
+      },
+      {
+        sourceType: "suppliers",
+        synced: false,
+        recordCount: 0,
+        latestSyncedAt: null,
+      },
+    ])
+    assert.equal(result.selectedSourcesWithDataCount, 2)
+    assert.equal(result.selectedSourcesWithoutDataCount, 1)
   })
 
   test("status readiness uses selected source expectations", async () => {
@@ -115,6 +146,31 @@ describe("loadSpendLeakDashboard", () => {
     assert.equal(result.expectedSourceCount, 2)
     assert.equal(result.syncedExpectedSourceCount, 1)
     assert.equal(result.status.state, "partial_data")
+  })
+
+  test("returns bank-only selected-source coverage when synced with zero findings", async () => {
+    enabledSourceTypes = ["bank_transactions"]
+    mockDbState.findings = []
+    mockDbState.latestBillSyncAt = null
+    mockDbState.latestTxnSyncAt = new Date()
+    mockDbState.latestSupplierSyncAt = null
+    mockDbState.billRecordCount = 0
+    mockDbState.bankTransactionRecordCount = 24
+    mockDbState.supplierRecordCount = 0
+
+    const result = await loadSpendLeakDashboard("user-1")
+
+    assert.equal(result.status.state, "empty")
+    assert.deepEqual(result.enabledSourceTypes, ["bank_transactions"])
+    assert.equal(result.expectedSourceCount, 1)
+    assert.equal(result.syncedExpectedSourceCount, 1)
+    assert.equal(result.selectedSourceCoverage.length, 1)
+    assert.equal(result.selectedSourceCoverage[0]?.sourceType, "bank_transactions")
+    assert.equal(result.selectedSourceCoverage[0]?.synced, true)
+    assert.equal(result.selectedSourceCoverage[0]?.recordCount, 24)
+    assert.equal(result.selectedSourceCoverage[0]?.latestSyncedAt instanceof Date, true)
+    assert.equal(result.selectedSourcesWithDataCount, 1)
+    assert.equal(result.selectedSourcesWithoutDataCount, 0)
   })
 
   test("reports stale state when no connected source has sync timestamps", async () => {

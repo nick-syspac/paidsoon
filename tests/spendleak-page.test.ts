@@ -5,6 +5,75 @@ let mockUser: { id: string } | null = { id: "user-1" }
 let mockTier: string | null = "small_business"
 let redirectedTo: string | null = null
 let moduleGridModulesLength = 0
+let mockDashboardData = {
+  findings: [
+    {
+      id: "finding-1",
+      userId: "user-1",
+      accountingConnectionId: null,
+      findingType: "duplicate_payment",
+      subjectKey: "sub-1",
+      severity: "high",
+      summary: "Possible duplicate",
+      state: "open",
+      reviewAction: "cancel",
+      reviewActionAt: new Date("2026-09-01T12:00:00.000Z"),
+      reviewActionBy: "user-1",
+      reviewNote: "Cancelled duplicate subscription",
+      estimatedMonthlyCents: null,
+      estimatedAnnualCents: 30000,
+      evidence: { source: "expense_import" },
+      detectedAt: new Date("2026-09-01T00:00:00.000Z"),
+      resolvedAt: null,
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+    },
+  ],
+  modules: [
+    {
+      id: "duplicate_spend",
+      title: "Duplicate spend",
+      description: "desc",
+      findingCount: 1,
+      estimatedAnnualCents: 30000,
+      severity: "red",
+    },
+  ],
+  latestSyncAt: new Date("2026-09-01T00:00:00.000Z"),
+  hasAccountingConnection: true,
+  isStale: false,
+  sourceSyncCount: 3,
+  enabledSourceTypes: ["bills", "bank_transactions", "suppliers"],
+  expectedSourceCount: 3,
+  syncedExpectedSourceCount: 3,
+  selectedSourceCoverage: [
+    {
+      sourceType: "bills",
+      synced: true,
+      recordCount: 3,
+      latestSyncedAt: new Date("2026-09-01T00:00:00.000Z"),
+    },
+    {
+      sourceType: "bank_transactions",
+      synced: true,
+      recordCount: 6,
+      latestSyncedAt: new Date("2026-09-01T00:00:00.000Z"),
+    },
+    {
+      sourceType: "suppliers",
+      synced: true,
+      recordCount: 2,
+      latestSyncedAt: new Date("2026-09-01T00:00:00.000Z"),
+    },
+  ],
+  selectedSourcesWithDataCount: 3,
+  selectedSourcesWithoutDataCount: 0,
+  status: {
+    state: "ready",
+    title: "SpendLeak ready",
+    description: "Spend data is current and SpendLeak findings are available.",
+  },
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let SpendLeakDashboardPage: any
@@ -49,50 +118,7 @@ describe("SpendLeak dashboard page", () => {
 
     await mock.module("@/lib/dashboard/loadSpendLeakDashboard", {
       namedExports: {
-        loadSpendLeakDashboard: async () => ({
-          findings: [
-            {
-              id: "finding-1",
-              userId: "user-1",
-              accountingConnectionId: null,
-              findingType: "duplicate_payment",
-              subjectKey: "sub-1",
-              severity: "high",
-              summary: "Possible duplicate",
-              state: "open",
-              reviewAction: "cancel",
-              reviewActionAt: new Date("2026-09-01T12:00:00.000Z"),
-              reviewActionBy: "user-1",
-              reviewNote: "Cancelled duplicate subscription",
-              estimatedMonthlyCents: null,
-              estimatedAnnualCents: 30000,
-              evidence: { source: "expense_import" },
-              detectedAt: new Date("2026-09-01T00:00:00.000Z"),
-              resolvedAt: null,
-              createdAt: new Date("2026-09-01T00:00:00.000Z"),
-              updatedAt: new Date("2026-09-01T00:00:00.000Z"),
-            },
-          ],
-          modules: [
-            {
-              id: "duplicate_spend",
-              title: "Duplicate spend",
-              description: "desc",
-              findingCount: 1,
-              estimatedAnnualCents: 30000,
-              severity: "red",
-            },
-          ],
-          latestSyncAt: new Date("2026-09-01T00:00:00.000Z"),
-          hasAccountingConnection: true,
-          isStale: false,
-          sourceSyncCount: 3,
-          status: {
-            state: "ready",
-            title: "SpendLeak ready",
-            description: "Spend data is current and SpendLeak findings are available.",
-          },
-        }),
+        loadSpendLeakDashboard: async () => mockDashboardData,
       },
     })
 
@@ -119,6 +145,75 @@ describe("SpendLeak dashboard page", () => {
     mockTier = "small_business"
     redirectedTo = null
     moduleGridModulesLength = 0
+    mockDashboardData = {
+      findings: [
+        {
+          id: "finding-1",
+          userId: "user-1",
+          accountingConnectionId: null,
+          findingType: "duplicate_payment",
+          subjectKey: "sub-1",
+          severity: "high",
+          summary: "Possible duplicate",
+          state: "open",
+          reviewAction: "cancel",
+          reviewActionAt: new Date("2026-09-01T12:00:00.000Z"),
+          reviewActionBy: "user-1",
+          reviewNote: "Cancelled duplicate subscription",
+          estimatedMonthlyCents: null,
+          estimatedAnnualCents: 30000,
+          evidence: { source: "expense_import" },
+          detectedAt: new Date("2026-09-01T00:00:00.000Z"),
+          resolvedAt: null,
+          createdAt: new Date("2026-09-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+        },
+      ],
+      modules: [
+        {
+          id: "duplicate_spend",
+          title: "Duplicate spend",
+          description: "desc",
+          findingCount: 1,
+          estimatedAnnualCents: 30000,
+          severity: "red",
+        },
+      ],
+      latestSyncAt: new Date("2026-09-01T00:00:00.000Z"),
+      hasAccountingConnection: true,
+      isStale: false,
+      sourceSyncCount: 3,
+      enabledSourceTypes: ["bills", "bank_transactions", "suppliers"],
+      expectedSourceCount: 3,
+      syncedExpectedSourceCount: 3,
+      selectedSourceCoverage: [
+        {
+          sourceType: "bills",
+          synced: true,
+          recordCount: 3,
+          latestSyncedAt: new Date("2026-09-01T00:00:00.000Z"),
+        },
+        {
+          sourceType: "bank_transactions",
+          synced: true,
+          recordCount: 6,
+          latestSyncedAt: new Date("2026-09-01T00:00:00.000Z"),
+        },
+        {
+          sourceType: "suppliers",
+          synced: true,
+          recordCount: 2,
+          latestSyncedAt: new Date("2026-09-01T00:00:00.000Z"),
+        },
+      ],
+      selectedSourcesWithDataCount: 3,
+      selectedSourcesWithoutDataCount: 0,
+      status: {
+        state: "ready",
+        title: "SpendLeak ready",
+        description: "Spend data is current and SpendLeak findings are available.",
+      },
+    }
   })
 
   test("redirects to sign-in when unauthenticated", async () => {
@@ -143,5 +238,40 @@ describe("SpendLeak dashboard page", () => {
     const text = collectText(element)
     assert.match(text, /1 Expense import/)
     assert.match(text, /1 Cancel/)
+    assert.equal(text.includes("Synced source coverage"), false)
+  })
+
+  test("renders selected-source coverage in empty state for bank-only synced data", async () => {
+    mockDashboardData = {
+      ...mockDashboardData,
+      findings: [],
+      latestSyncAt: new Date("2026-09-05T08:30:00.000Z"),
+      enabledSourceTypes: ["bank_transactions"],
+      expectedSourceCount: 1,
+      syncedExpectedSourceCount: 1,
+      selectedSourceCoverage: [
+        {
+          sourceType: "bank_transactions",
+          synced: true,
+          recordCount: 24,
+          latestSyncedAt: new Date("2026-09-05T08:30:00.000Z"),
+        },
+      ],
+      selectedSourcesWithDataCount: 1,
+      selectedSourcesWithoutDataCount: 0,
+      status: {
+        state: "empty",
+        title: "No spend findings yet",
+        description:
+          "All selected spend sources have synced, but SpendLeak has not identified a supported opportunity yet.",
+      },
+    }
+
+    const element = await SpendLeakDashboardPage({ searchParams: Promise.resolve({}) })
+    const text = collectText(element)
+    assert.match(text, /Synced source coverage/)
+    assert.match(text, /Bank transactions/)
+    assert.match(text, /24\s+records/)
+    assert.match(text, /alert-grade rule triggers/i)
   })
 })

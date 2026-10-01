@@ -9,6 +9,13 @@ import {
 } from "@/lib/dashboard/spendleakPresentation"
 import { getSpendLeakSourceSettings, type SpendLeakSourceType } from "@/lib/spendleak/sourceSettings"
 
+export interface SpendLeakSourceCoverage {
+  sourceType: SpendLeakSourceType
+  synced: boolean
+  recordCount: number
+  latestSyncedAt: Date | null
+}
+
 export interface SpendLeakDashboardData {
   findings: SpendInsight[]
   linkedCommitmentCountsByFindingId: Record<string, number>
@@ -20,6 +27,9 @@ export interface SpendLeakDashboardData {
   enabledSourceTypes: SpendLeakSourceType[]
   expectedSourceCount: number
   syncedExpectedSourceCount: number
+  selectedSourceCoverage: SpendLeakSourceCoverage[]
+  selectedSourcesWithDataCount: number
+  selectedSourcesWithoutDataCount: number
   status: SpendLeakDashboardStatus
 }
 
@@ -31,7 +41,17 @@ function latestDate(dates: Array<Date | null>): Date | null {
 
 export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakDashboardData> {
   return withUserContext(userId, async (tx) => {
-    const [findings, connectionCount, latestBill, latestTxn, latestSupplier, sourceSettings] = await Promise.all([
+    const [
+      findings,
+      connectionCount,
+      latestBill,
+      latestTxn,
+      latestSupplier,
+      billRecordCount,
+      bankTransactionRecordCount,
+      supplierRecordCount,
+      sourceSettings,
+    ] = await Promise.all([
       tx.spendInsight.findMany({
         where: { userId },
         orderBy: { detectedAt: "desc" },
@@ -54,6 +74,9 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
         orderBy: { syncedAt: "desc" },
         select: { syncedAt: true },
       }),
+      tx.importedBill.count({ where: { userId } }),
+      tx.importedBankTransaction.count({ where: { userId } }),
+      tx.supplierProfile.count({ where: { userId } }),
       getSpendLeakSourceSettings(userId, tx),
     ])
 
@@ -84,6 +107,20 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       bank_transactions: latestTxn?.syncedAt ?? null,
       suppliers: latestSupplier?.syncedAt ?? null,
     }
+    const sourceRecordCountByType: Record<SpendLeakSourceType, number> = {
+      bills: billRecordCount,
+      bank_transactions: bankTransactionRecordCount,
+      suppliers: supplierRecordCount,
+    }
+    const selectedSourceCoverage: SpendLeakSourceCoverage[] = sourceSettings.enabledSourceTypes.map((sourceType) => {
+      const latestSyncedAt = sourceSyncedAtByType[sourceType]
+      return {
+        sourceType,
+        synced: latestSyncedAt instanceof Date,
+        recordCount: sourceRecordCountByType[sourceType],
+        latestSyncedAt,
+      }
+    })
 
     const expectedSourceDates = sourceSettings.enabledSourceTypes.map((sourceType) => sourceSyncedAtByType[sourceType])
     const latestSyncAt = latestDate(expectedSourceDates)
@@ -106,6 +143,9 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       enabledSourceTypes: sourceSettings.enabledSourceTypes,
       expectedSourceCount,
       syncedExpectedSourceCount,
+      selectedSourceCoverage,
+      selectedSourcesWithDataCount: selectedSourceCoverage.filter((source) => source.recordCount > 0).length,
+      selectedSourcesWithoutDataCount: selectedSourceCoverage.filter((source) => source.recordCount === 0).length,
       status: buildSpendLeakDashboardStatus({
         findingsCount: findings.length,
         hasAccountingConnection: connectionCount > 0,

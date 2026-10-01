@@ -106,6 +106,8 @@ describe("SpendLeak presentation", () => {
     assert.equal(initial.state, "initial_sync")
     assert.equal(partial.state, "partial_data")
     assert.equal(empty.state, "empty")
+    assert.match(empty.description, /selected spend sources have synced/i)
+    assert.match(empty.description, /not identified a supported opportunity yet/i)
   })
 
   test("renders duplicate spend evidence into readable sections", () => {
