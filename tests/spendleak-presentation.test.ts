@@ -139,4 +139,82 @@ describe("SpendLeak presentation", () => {
     assert.equal(view.sourceSummary.find((field) => field.label === "Review outcome")?.value, "Cancel")
     assert.equal(view.sourceSummary.find((field) => field.label === "Estimated annual impact")?.value, "$50,400")
   })
+
+  test("renders recurring spend cadence and recent charge rows", () => {
+    const view = buildSpendLeakEvidenceView(
+      makeInsight({
+        id: "5",
+        findingType: "recurring_spend",
+        summary: "Acme Cloud shows a repeat monthly spend pattern.",
+        evidence: {
+          supplier: "Acme Cloud",
+          source: "myob",
+          billCount: 3,
+          averageAmountCents: 120000,
+          cadenceLabel: "monthly",
+          averageIntervalDays: 30,
+          firstObservedDate: "2026-06-01T00:00:00.000Z",
+          latestObservedDate: "2026-08-01T00:00:00.000Z",
+          recentCharges: [
+            {
+              sourceId: "bill-aug",
+              documentNumber: "BILL-1003",
+              supplierReference: "August cloud",
+              amountCents: 120000,
+              dueDate: "2026-08-01T00:00:00.000Z",
+              observedDate: "2026-08-01T00:00:00.000Z",
+            },
+            {
+              sourceId: "bill-jul",
+              documentNumber: null,
+              supplierReference: null,
+              amountCents: 120000,
+              dueDate: null,
+              observedDate: null,
+            },
+          ],
+        },
+      }),
+    )
+
+    const recurringSection = view.sections.find((section) => section.title === "Recurring pattern")
+
+    assert.ok(recurringSection)
+    assert.equal(recurringSection?.fields.find((field) => field.label === "Observed cadence")?.value, "monthly")
+    assert.equal(recurringSection?.fields.find((field) => field.label === "Average interval")?.value, "30 days")
+    assert.equal(recurringSection?.fields.find((field) => field.label === "First seen")?.value, "01/06/2026")
+    assert.equal(recurringSection?.fields.find((field) => field.label === "Latest seen")?.value, "01/08/2026")
+    assert.deepEqual(recurringSection?.table?.columns, ["Date", "Amount", "Document number", "Supplier reference", "Source record"])
+    assert.deepEqual(recurringSection?.table?.rows, [
+      {
+        id: "bill-aug",
+        values: ["01/08/2026", "$1,200", "BILL-1003", "August cloud", "bill-aug"],
+      },
+      {
+        id: "bill-jul",
+        values: ["Not available", "$1,200", "Not available", "Not available", "bill-jul"],
+      },
+    ])
+  })
+
+  test("keeps recurring spend legacy payloads readable when richer evidence is absent", () => {
+    const view = buildSpendLeakEvidenceView(
+      makeInsight({
+        id: "6",
+        findingType: "recurring_spend",
+        evidence: {
+          supplier: "Legacy SaaS",
+          billCount: 2,
+          averageAmountCents: 9900,
+        },
+      }),
+    )
+
+    const recurringSection = view.sections.find((section) => section.title === "Recurring pattern")
+
+    assert.ok(recurringSection)
+    assert.equal(recurringSection?.fields.find((field) => field.label === "Observed cadence")?.value, "Not available")
+    assert.equal(recurringSection?.fields.find((field) => field.label === "First seen")?.value, "Not available")
+    assert.equal(recurringSection?.table, undefined)
+  })
 })

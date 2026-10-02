@@ -90,6 +90,30 @@ describe("buildSpendLeakExportRow", () => {
     assert.equal(row.monthly_cost, null)
     assert.equal(row.annualised_cost, null)
   })
+
+  test("uses recurring charge evidence when direct references are absent", () => {
+    const row = buildSpendLeakExportRow(
+      makeFinding({
+        id: "3",
+        evidence: {
+          supplier: "Acme SaaS",
+          averageAmountCents: 2999,
+          latestObservedDate: "2026-08-15T00:00:00.000Z",
+          recentCharges: [
+            {
+              sourceId: "bill-123",
+              documentNumber: "BILL-123",
+              supplierReference: "August licence",
+            },
+          ],
+          source: "myob",
+        },
+      }),
+    )
+
+    assert.equal(row.source_transaction_reference, "BILL-123")
+    assert.equal(row.transaction_date?.toISOString(), "2026-08-15T00:00:00.000Z")
+  })
 })
 
 describe("generateSpendLeakExportCsv", () => {

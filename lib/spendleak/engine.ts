@@ -5,6 +5,8 @@ export interface SpendBillInput {
   id?: string
   sourceId?: string
   supplierName: string
+  documentNumber?: string | null
+  supplierReference?: string | null
   amountCents: number
   dueDate?: Date | null
   paidDate?: Date | null
@@ -119,6 +121,33 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length
 }
 
+function billObservedDate(bill: SpendBillInput): Date | null {
+  return asDate(bill.dueDate) ?? asDate(bill.paidDate)
+}
+
+function averageDayGap(dates: Date[]): number | null {
+  if (dates.length < 2) return null
+
+  const gaps: number[] = []
+  for (let index = 1; index < dates.length; index += 1) {
+    const diffMs = dates[index].getTime() - dates[index - 1].getTime()
+    gaps.push(Math.abs(diffMs) / (1000 * 60 * 60 * 24))
+  }
+
+  return gaps.length > 0 ? average(gaps) : null
+}
+
+function cadenceLabelFromGap(days: number | null): string {
+  if (days === null) return "recurring"
+  if (days >= 27 && days <= 33) return "monthly"
+  if (days >= 84 && days <= 98) return "quarterly"
+  if (days >= 175 && days <= 190) return "half-yearly"
+  if (days >= 350 && days <= 380) return "annual"
+  return `every ${Math.max(1, Math.round(days))} days`
+}
+
+const RECURRING_RECENT_CHARGE_LIMIT = 4
+
 function monthDistance(from: Date, to: Date): number {
   return (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + (to.getUTCMonth() - from.getUTCMonth())
 }
@@ -145,10 +174,26 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
 
   for (const [supplierName, supplierBills] of groupedBills.entries()) {
     if (supplierBills.length >= 2) {
-      const ordered = [...supplierBills].sort((a, b) => (asDate(a.dueDate)?.getTime() ?? 0) - (asDate(b.dueDate)?.getTime() ?? 0))
+      const ordered = [...supplierBills].sort((a, b) => (billObservedDate(a)?.getTime() ?? 0) - (billObservedDate(b)?.getTime() ?? 0))
       const amounts = ordered.map((bill) => Math.abs(bill.amountCents))
       const avgAmount = average(amounts)
       const annual = Math.max(Math.round(avgAmount * 12), 0)
+      const observedDates = ordered
+        .map((bill) => billObservedDate(bill))
+        .filter((value): value is Date => value instanceof Date)
+      const avgGapDays = averageDayGap(observedDates)
+      const recentCharges = ordered
+        .slice(-RECURRING_RECENT_CHARGE_LIMIT)
+        .reverse()
+        .map((bill) => ({
+          sourceId: bill.sourceId ?? bill.id ?? null,
+          documentNumber: bill.documentNumber ?? null,
+          supplierReference: bill.supplierReference ?? null,
+          amountCents: Math.abs(bill.amountCents),
+          dueDate: bill.dueDate?.toISOString() ?? null,
+          paidDate: bill.paidDate?.toISOString() ?? null,
+          observedDate: billObservedDate(bill)?.toISOString() ?? null,
+        }))
 
       findings.push({
         id: `recurring-spend-${supplierName}`,
@@ -163,6 +208,11 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
           supplier: supplierName,
           billCount: ordered.length,
           averageAmountCents: Math.round(avgAmount),
+          cadenceLabel: cadenceLabelFromGap(avgGapDays),
+          averageIntervalDays: avgGapDays === null ? null : Math.round(avgGapDays),
+          firstObservedDate: observedDates[0]?.toISOString() ?? null,
+          latestObservedDate: observedDates[observedDates.length - 1]?.toISOString() ?? null,
+          recentCharges,
           confidence: confidenceFromSignal("likely"),
         },
         detectedAt: now,

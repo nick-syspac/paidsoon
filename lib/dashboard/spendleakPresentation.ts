@@ -44,6 +44,11 @@ export interface SpendLeakEvidenceSection {
   title: string
   description: string
   fields: SpendLeakEvidenceField[]
+  table?: {
+    title: string
+    columns: string[]
+    rows: Array<{ id: string; values: string[] }>
+  }
 }
 
 export interface SpendLeakEvidenceView {
@@ -173,6 +178,10 @@ function formatRawEvidenceValue(value: unknown): string {
   return String(value)
 }
 
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
 function toEvidenceObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>
@@ -217,6 +226,32 @@ function buildRawEvidenceFields(evidence: unknown): SpendLeakEvidenceField[] {
     label: key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " "),
     value: formatRawEvidenceValue(value),
   }))
+}
+
+function recurringChargeTableRows(evidence: Record<string, unknown>): Array<{ id: string; values: string[] }> {
+  if (!Array.isArray(evidence.recentCharges)) return []
+
+  return evidence.recentCharges.flatMap((charge, index) => {
+    if (!charge || typeof charge !== "object" || Array.isArray(charge)) return []
+
+    const row = charge as Record<string, unknown>
+    const documentNumber = typeof row.documentNumber === "string" && row.documentNumber.trim() ? row.documentNumber : null
+    const supplierReference = typeof row.supplierReference === "string" && row.supplierReference.trim() ? row.supplierReference : null
+    const sourceId = typeof row.sourceId === "string" && row.sourceId.trim() ? row.sourceId : null
+    const dateValue = row.observedDate ?? row.dueDate ?? row.paidDate
+    const amountCents = asFiniteNumber(row.amountCents)
+
+    return [{
+      id: sourceId ?? documentNumber ?? supplierReference ?? `charge-${index + 1}`,
+      values: [
+        formatDateLabel(dateValue as string | Date | null | undefined),
+        amountCents === null ? "Not available" : formatAudCurrency(amountCents),
+        documentNumber ?? "Not available",
+        supplierReference ?? "Not available",
+        sourceId ?? "Not available",
+      ],
+    }]
+  })
 }
 
 function labelKey(value: string): string {
@@ -373,14 +408,28 @@ export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingT
       ],
     })
   } else {
+    const averageIntervalDays = asFiniteNumber(evidence.averageIntervalDays)
+    const recentChargeRows = recurringChargeTableRows(evidence)
+
     sections.push({
       title: "Recurring pattern",
       description: finding.summary,
       fields: [
         { label: "Supplier", value: formatRawEvidenceValue(evidence.supplier) },
         { label: "Bill count", value: typeof evidence.billCount === "number" ? String(evidence.billCount) : "Not available" },
+        { label: "Observed cadence", value: formatRawEvidenceValue(evidence.cadenceLabel) },
+        { label: "Average interval", value: averageIntervalDays === null ? "Not available" : `${Math.round(averageIntervalDays)} days` },
+        { label: "First seen", value: formatDateLabel(evidence.firstObservedDate as string | Date | null | undefined) },
+        { label: "Latest seen", value: formatDateLabel(evidence.latestObservedDate as string | Date | null | undefined) },
         { label: "Average monthly amount", value: typeof evidence.averageAmountCents === "number" ? formatAudCurrency(evidence.averageAmountCents) : "Not available" },
       ],
+      table: recentChargeRows.length > 0
+        ? {
+            title: "Recent recurring charges",
+            columns: ["Date", "Amount", "Document number", "Supplier reference", "Source record"],
+            rows: recentChargeRows,
+          }
+        : undefined,
     })
   }
 

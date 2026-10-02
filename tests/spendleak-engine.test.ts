@@ -38,6 +38,8 @@ describe("SpendLeak engine", () => {
           id: "bill-1",
           sourceId: "src-1",
           supplierName: "Acme Cloud",
+          documentNumber: "INV-001",
+          supplierReference: "August cloud",
           amountCents: 120000,
           dueDate: new Date("2026-08-01T00:00:00.000Z"),
           paidDate: new Date("2026-08-02T00:00:00.000Z"),
@@ -47,6 +49,8 @@ describe("SpendLeak engine", () => {
           id: "bill-2",
           sourceId: "src-2",
           supplierName: "Acme Cloud",
+          documentNumber: "INV-002",
+          supplierReference: "July cloud",
           amountCents: 120000,
           dueDate: new Date("2026-07-01T00:00:00.000Z"),
           paidDate: new Date("2026-07-02T00:00:00.000Z"),
@@ -56,6 +60,8 @@ describe("SpendLeak engine", () => {
           id: "bill-3",
           sourceId: "src-3",
           supplierName: "Acme Cloud",
+          documentNumber: "INV-003",
+          supplierReference: "June cloud",
           amountCents: 210000,
           dueDate: new Date("2026-06-01T00:00:00.000Z"),
           paidDate: new Date("2026-06-02T00:00:00.000Z"),
@@ -92,6 +98,42 @@ describe("SpendLeak engine", () => {
     assert.ok(findings.some((finding) => finding.findingType === "renewal"))
     assert.ok(findings.some((finding) => finding.findingType === "supplier_concentration"))
     assert.ok(findings.some((finding) => finding.findingType === "cash_pressure"))
+
+    const recurring = findings.find((finding) => finding.findingType === "recurring_spend")
+    assert.ok(recurring)
+    assert.equal(recurring?.evidence.cadenceLabel, "monthly")
+    assert.equal(recurring?.evidence.averageIntervalDays, 31)
+    assert.equal(recurring?.evidence.firstObservedDate, "2026-06-01T00:00:00.000Z")
+    assert.equal(recurring?.evidence.latestObservedDate, "2026-08-01T00:00:00.000Z")
+    assert.deepEqual(recurring?.evidence.recentCharges, [
+      {
+        sourceId: "src-1",
+        documentNumber: "INV-001",
+        supplierReference: "August cloud",
+        amountCents: 120000,
+        dueDate: "2026-08-01T00:00:00.000Z",
+        paidDate: "2026-08-02T00:00:00.000Z",
+        observedDate: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        sourceId: "src-2",
+        documentNumber: "INV-002",
+        supplierReference: "July cloud",
+        amountCents: 120000,
+        dueDate: "2026-07-01T00:00:00.000Z",
+        paidDate: "2026-07-02T00:00:00.000Z",
+        observedDate: "2026-07-01T00:00:00.000Z",
+      },
+      {
+        sourceId: "src-3",
+        documentNumber: "INV-003",
+        supplierReference: "June cloud",
+        amountCents: 210000,
+        dueDate: "2026-06-01T00:00:00.000Z",
+        paidDate: "2026-06-02T00:00:00.000Z",
+        observedDate: "2026-06-01T00:00:00.000Z",
+      },
+    ])
   })
 
   test("detects price increases, duplicate payments, spend trend, and cash runway from deterministic inputs", () => {
