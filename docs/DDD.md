@@ -255,7 +255,11 @@ subsection documents a functional module.
   lifecycle state so the same issue updates in place rather than creating a duplicate row.
 - **UI integration:** `loadSpendLeakDashboard()` reads findings and the latest
   spend sync timestamp and groups them into dashboard modules while surfacing
-  stale or initial-sync states without fabricating opportunities.
+  stale or initial-sync states without fabricating opportunities. In `empty`
+  states where selected sources are synced and findings are zero, the dashboard
+  also shows selected-source evidence coverage (sync status, latest sync time,
+  and record counts) to distinguish "data present" from "no alert-grade
+  findings".
 - **Settings contract:** `GET/PUT /api/settings/spendleak` persists tenant
   source-selection expectations (`bills`, `bank_transactions`, `suppliers`) in
   `SpendLeakSetting`; dashboard readiness treats this as expected coverage and

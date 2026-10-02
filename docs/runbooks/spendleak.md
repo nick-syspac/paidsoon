@@ -74,6 +74,9 @@ Behavior:
 - Users select which source families count toward readiness (`bills`, `bank_transactions`, `suppliers`).
 - Readiness and partial-data state evaluate selected coverage only.
 - Selection does not disable provider/import ingestion.
+- When selected sources are synced and findings are zero, the dashboard empty state
+	shows selected-source evidence coverage (record counts and latest sync recency)
+	so users can confirm data is present even when no finding rule has fired.
 
 Primary paths:
 

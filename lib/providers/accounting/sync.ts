@@ -717,6 +717,8 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       bills: spendSync.spendBills.map((bill) => ({
         sourceId: bill.providerBillId,
         supplierName: bill.supplierName,
+        documentNumber: bill.documentNumber ?? null,
+        supplierReference: bill.supplierReference ?? null,
         amountCents: Math.abs(toCents(bill.amountTotal)),
         dueDate: bill.dueDate ?? null,
         paidDate: bill.paidDate ?? null,

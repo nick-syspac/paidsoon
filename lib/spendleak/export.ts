@@ -81,6 +81,17 @@ function sourceReferenceFromEvidence(evidence: Record<string, unknown>): string 
     || asString(evidence.sourceId)
   if (direct) return direct
 
+  if (Array.isArray(evidence.recentCharges)) {
+    for (const charge of evidence.recentCharges) {
+      if (!charge || typeof charge !== "object" || Array.isArray(charge)) continue
+      const row = charge as Record<string, unknown>
+      const recurringReference = asString(row.documentNumber)
+        || asString(row.supplierReference)
+        || asString(row.sourceId)
+      if (recurringReference) return recurringReference
+    }
+  }
+
   const billIds = Array.isArray(evidence.billIds)
     ? evidence.billIds.map((value) => asString(value)).filter(Boolean)
     : []
@@ -104,6 +115,7 @@ function supplierOrCounterpartyFromEvidence(evidence: Record<string, unknown>, s
 function transactionDateFromEvidence(evidence: Record<string, unknown>): Date | null {
   return asDate(evidence.transactionDate)
     ?? asDate(evidence.renewalDate)
+    ?? asDate(evidence.latestObservedDate)
     ?? asDate(evidence.dueDate)
     ?? null
 }

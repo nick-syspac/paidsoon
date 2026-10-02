@@ -24,6 +24,12 @@ const MODULE_IDS: ReadonlySet<SpendLeakModuleId> = new Set([
   "cash_pressure",
 ])
 
+function formatSourceTypeLabel(sourceType: "bills" | "bank_transactions" | "suppliers"): string {
+  if (sourceType === "bank_transactions") return "Bank transactions"
+  if (sourceType === "suppliers") return "Suppliers"
+  return "Bills"
+}
+
 function parseModuleFilter(value: string | undefined): SpendLeakModuleId | null {
   if (!value) return null
   return MODULE_IDS.has(value as SpendLeakModuleId) ? (value as SpendLeakModuleId) : null
@@ -59,6 +65,7 @@ export default async function SpendLeakDashboardPage({
   const selectedModule = parseModuleFilter(module)
   const canExportSpendLeakReport = hasPlanFeature(profile?.subscriptionTier, "csv_export")
   const showEmptyState = data.status.state === "empty"
+  const emptyStateCoverageRows = data.selectedSourceCoverage
   const reviewedFindings = data.findings.filter((finding) => Boolean(finding.reviewAction))
   const reviewOutcomeSummary = reviewedFindings.reduce<Record<string, number>>((summary, finding) => {
     const key = formatSpendLeakReviewAction(finding.reviewAction)
@@ -96,8 +103,25 @@ export default async function SpendLeakDashboardPage({
       )}
 
       {showEmptyState && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
-          SpendLeak is fully synced, but there are no findings in the current data yet. When the next signal appears, it will show up here without needing a refresh.
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">
+          <p className="font-medium text-gray-900">Synced source coverage</p>
+          <p className="mt-1 text-gray-600">
+            Your selected sources are synced and data is present. SpendLeak only creates findings when an alert-grade rule triggers.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {emptyStateCoverageRows.map((source) => (
+              <li key={source.sourceType} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2">
+                <span className="font-medium text-gray-900">{formatSourceTypeLabel(source.sourceType)}</span>
+                <span className="text-gray-600">
+                  {source.recordCount.toLocaleString("en-AU")} records · {source.synced ? "Synced" : "Pending sync"}
+                  {source.latestSyncedAt ? ` · Last synced ${source.latestSyncedAt.toLocaleString("en-AU")}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-gray-600">
+            When a supported leakage pattern appears in this data, it will show up here automatically.
+          </p>
         </div>
       )}
 

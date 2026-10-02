@@ -35,6 +35,33 @@ export function SpendLeakEvidenceDetails({ finding }: { finding: SpendInsight })
                 </div>
               ))}
             </dl>
+            {section.table ? (
+              <div className="mt-4 overflow-x-auto">
+                <p className="text-xs uppercase tracking-wide text-gray-500">{section.table.title}</p>
+                <table className="mt-2 min-w-full divide-y divide-gray-200 text-left text-sm text-gray-900">
+                  <thead>
+                    <tr>
+                      {section.table.columns.map((column) => (
+                        <th key={column} scope="col" className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 first:pl-0 last:pr-0">
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {section.table.rows.map((row) => (
+                      <tr key={row.id}>
+                        {row.values.map((value, index) => (
+                          <td key={`${row.id}-${section.table?.columns[index] ?? index}`} className="px-3 py-2 align-top text-sm text-gray-900 first:pl-0 last:pr-0">
+                            {value}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </section>
         ))}
       </div>
