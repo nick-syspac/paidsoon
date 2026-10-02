@@ -124,6 +124,22 @@ describe("SpendLeak presentation", () => {
           billIds: ["coast-bill-metro-jan", "coast-bill-metro-feb"],
           dayDifference: 30,
           amountCents: 420000,
+          recentCharges: [
+            {
+              sourceId: "dup-jan",
+              documentNumber: "BILL-2001",
+              supplierReference: "January metro",
+              amountCents: 420000,
+              observedDate: "2026-08-01T00:00:00.000Z",
+            },
+            {
+              sourceId: "dup-feb",
+              documentNumber: null,
+              supplierReference: null,
+              amountCents: 420000,
+              observedDate: null,
+            },
+          ],
         },
         estimatedMonthlyCents: 420000,
         estimatedAnnualCents: 5040000,
@@ -135,9 +151,67 @@ describe("SpendLeak presentation", () => {
     assert.ok(duplicateSection)
     assert.equal(duplicateSection?.fields.find((field) => field.label === "Bill references")?.value, "coast-bill-metro-jan · coast-bill-metro-feb")
     assert.equal(duplicateSection?.fields.find((field) => field.label === "Amount")?.value, "$4,200")
+    assert.deepEqual(duplicateSection?.table?.columns, ["Date", "Amount", "Document number", "Supplier reference", "Source record"])
+    assert.deepEqual(duplicateSection?.table?.rows, [
+      {
+        id: "dup-jan",
+        values: ["01/08/2026", "$4,200", "BILL-2001", "January metro", "dup-jan"],
+      },
+      {
+        id: "dup-feb",
+        values: ["Not available", "$4,200", "Not available", "Not available", "dup-feb"],
+      },
+    ])
     assert.equal(view.sourceSummary.find((field) => field.label === "Evidence source")?.value, "Expense import")
     assert.equal(view.sourceSummary.find((field) => field.label === "Review outcome")?.value, "Cancel")
     assert.equal(view.sourceSummary.find((field) => field.label === "Estimated annual impact")?.value, "$50,400")
+  })
+
+  test("renders cash pressure evidence with recent transaction rows", () => {
+    const view = buildSpendLeakEvidenceView(
+      makeInsight({
+        id: "7",
+        findingType: "cash_pressure",
+        summary: "Cash pressure is elevated.",
+        evidence: {
+          negativeBankTransactionCents: 2100000,
+          spendCents: 4500000,
+          transactionCount: 3,
+          recentTransactions: [
+            {
+              sourceId: "txn-1",
+              description: "Operating cash",
+              counterpartyName: "Bank account",
+              amountCents: 2100000,
+              transactionDate: "2026-08-21T00:00:00.000Z",
+            },
+            {
+              sourceId: null,
+              description: "Northwind Office",
+              counterpartyName: null,
+              amountCents: 360000,
+              transactionDate: null,
+            },
+          ],
+        },
+      }),
+    )
+
+    const cashPressureSection = view.sections.find((section) => section.title === "Cash pressure snapshot")
+
+    assert.ok(cashPressureSection)
+    assert.equal(cashPressureSection?.table?.title, "Recent bank transactions")
+    assert.deepEqual(cashPressureSection?.table?.columns, ["Date", "Amount", "Description", "Counterparty", "Source record"])
+    assert.deepEqual(cashPressureSection?.table?.rows, [
+      {
+        id: "txn-1",
+        values: ["21/08/2026", "$21,000", "Operating cash", "Bank account", "txn-1"],
+      },
+      {
+        id: "Northwind Office",
+        values: ["Not available", "$3,600", "Northwind Office", "Not available", "Not available"],
+      },
+    ])
   })
 
   test("renders recurring spend cadence and recent charge rows", () => {

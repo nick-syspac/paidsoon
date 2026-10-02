@@ -24,12 +24,16 @@ function collectText(node: unknown): string {
   return ""
 }
 
-function makeFinding(evidence: unknown): SpendInsight {
+function makeFinding(input: unknown): SpendInsight {
+  const overrides = input && typeof input === "object" && !Array.isArray(input) && "evidence" in input
+    ? (input as Partial<SpendInsight> & { evidence: unknown })
+    : { evidence: input }
+
   return {
-    id: "finding-1",
+    id: overrides.id ?? "finding-1",
     userId: "user-1",
     accountingConnectionId: null,
-    findingType: "recurring_spend",
+    findingType: overrides.findingType ?? "recurring_spend",
     subjectKey: "Acme Cloud",
     severity: "medium",
     summary: "Acme Cloud shows a repeat monthly spend pattern.",
@@ -41,11 +45,12 @@ function makeFinding(evidence: unknown): SpendInsight {
     evidenceFingerprint: null,
     estimatedMonthlyCents: 120000,
     estimatedAnnualCents: 1440000,
-    evidence,
+    evidence: overrides.evidence,
     detectedAt: new Date("2026-09-01T00:00:00.000Z"),
     resolvedAt: null,
     createdAt: new Date("2026-09-01T00:00:00.000Z"),
     updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+    ...overrides,
   }
 }
 
@@ -80,6 +85,66 @@ describe("SpendLeakEvidenceDetails", () => {
     assert.match(text, /Recent recurring charges/)
     assert.match(text, /BILL-1003/)
     assert.match(text, /August cloud/)
+  })
+
+  test("renders shared drillback rows for non-recurring findings", () => {
+    const element = SpendLeakEvidenceDetails({
+      finding: makeFinding({
+        findingType: "duplicate_spend",
+        summary: "Possible duplicate spend for metro saas systems appears within a short time window.",
+        evidence: {
+          supplier: "metro saas systems",
+          source: "expense_import",
+          billIds: ["coast-bill-metro-jan", "coast-bill-metro-feb"],
+          dayDifference: 30,
+          amountCents: 420000,
+          recentCharges: [
+            {
+              sourceId: "dup-jan",
+              documentNumber: "BILL-2001",
+              supplierReference: "January metro",
+              amountCents: 420000,
+              observedDate: "2026-08-01T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    }) as ReactElement
+
+    const text = collectText(element)
+    assert.match(text, /Duplicate comparison/)
+    assert.match(text, /Supporting records/)
+    assert.match(text, /BILL-2001/)
+    assert.match(text, /January metro/)
+  })
+
+  test("renders bank transaction drillback rows for cash pressure", () => {
+    const element = SpendLeakEvidenceDetails({
+      finding: makeFinding({
+        findingType: "cash_pressure",
+        summary: "Cash pressure is elevated.",
+        evidence: {
+          negativeBankTransactionCents: 2100000,
+          spendCents: 4500000,
+          transactionCount: 3,
+          recentTransactions: [
+            {
+              sourceId: "txn-1",
+              description: "Operating cash",
+              counterpartyName: "Bank account",
+              amountCents: 2100000,
+              transactionDate: "2026-08-21T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    }) as ReactElement
+
+    const text = collectText(element)
+    assert.match(text, /Cash pressure snapshot/)
+    assert.match(text, /Recent bank transactions/)
+    assert.match(text, /Operating cash/)
+    assert.match(text, /Bank account/)
   })
 
   test("renders explicit fallback labels for partial recurring evidence", () => {

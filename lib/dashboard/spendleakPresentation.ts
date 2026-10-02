@@ -254,6 +254,56 @@ function recurringChargeTableRows(evidence: Record<string, unknown>): Array<{ id
   })
 }
 
+function bankTransactionTableRows(evidence: Record<string, unknown>): Array<{ id: string; values: string[] }> {
+  if (!Array.isArray(evidence.recentTransactions)) return []
+
+  return evidence.recentTransactions.flatMap((transaction, index) => {
+    if (!transaction || typeof transaction !== "object" || Array.isArray(transaction)) return []
+
+    const row = transaction as Record<string, unknown>
+    const sourceId = typeof row.sourceId === "string" && row.sourceId.trim() ? row.sourceId : null
+    const description = typeof row.description === "string" && row.description.trim() ? row.description : null
+    const counterpartyName = typeof row.counterpartyName === "string" && row.counterpartyName.trim() ? row.counterpartyName : null
+    const amountCents = asFiniteNumber(row.amountCents)
+
+    return [{
+      id: sourceId ?? description ?? counterpartyName ?? `transaction-${index + 1}`,
+      values: [
+        formatDateLabel(row.transactionDate as string | Date | null | undefined),
+        amountCents === null ? "Not available" : formatAudCurrency(amountCents),
+        description ?? "Not available",
+        counterpartyName ?? "Not available",
+        sourceId ?? "Not available",
+      ],
+    }]
+  })
+}
+
+function buildSupportingRecordsTable(
+  findingType: string,
+  evidence: Record<string, unknown>,
+): SpendLeakEvidenceSection["table"] | undefined {
+  const recurringRows = recurringChargeTableRows(evidence)
+  if (recurringRows.length > 0) {
+    return {
+      title: findingType.includes("recurring") ? "Recent recurring charges" : "Supporting records",
+      columns: ["Date", "Amount", "Document number", "Supplier reference", "Source record"],
+      rows: recurringRows,
+    }
+  }
+
+  const transactionRows = bankTransactionTableRows(evidence)
+  if (transactionRows.length > 0) {
+    return {
+      title: findingType.includes("cash") ? "Recent bank transactions" : "Supporting records",
+      columns: ["Date", "Amount", "Description", "Counterparty", "Source record"],
+      rows: transactionRows,
+    }
+  }
+
+  return undefined
+}
+
 function labelKey(value: string): string {
   return value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ")
 }
@@ -331,6 +381,7 @@ export function buildSpendLeakDashboardStatus({
 export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingType" | "subjectKey" | "summary" | "evidence" | "detectedAt" | "createdAt" | "updatedAt" | "estimatedMonthlyCents" | "estimatedAnnualCents" | "reviewAction" | "reviewActionAt" | "reviewNote">): SpendLeakEvidenceView {
   const evidence = toEvidenceObject(finding.evidence)
   const source = getSpendLeakEvidenceSource(finding)
+  const supportingRecordsTable = buildSupportingRecordsTable(finding.findingType, evidence)
   const sourceSummary: SpendLeakEvidenceField[] = [
     { label: "Finding type", value: findingTypeLabel(finding.findingType) },
     { label: "Evidence source", value: formatSpendLeakEvidenceSource(source) },
@@ -376,6 +427,7 @@ export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingT
         { label: "Amount", value: amountCents },
         { label: "Gap", value: dayDifference },
       ],
+      table: supportingRecordsTable,
     })
   } else if (finding.findingType.includes("renewal")) {
     sections.push({
@@ -386,6 +438,7 @@ export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingT
         { label: "Renewal date", value: formatDateLabel(evidence.renewalDate as string | Date | null | undefined) },
         { label: "Supporting bills", value: formatRawEvidenceValue(evidence.measuredBills) },
       ],
+      table: supportingRecordsTable,
     })
   } else if (finding.findingType.includes("supplier")) {
     sections.push({
@@ -396,6 +449,7 @@ export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingT
         { label: "Share of spend", value: typeof evidence.share === "number" ? formatPercentage(evidence.share) : "Not available" },
         { label: "Spend used in calculation", value: typeof evidence.spendCents === "number" ? formatAudCurrency(evidence.spendCents) : "Not available" },
       ],
+      table: supportingRecordsTable,
     })
   } else if (finding.findingType.includes("cash")) {
     sections.push({
@@ -406,10 +460,10 @@ export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingT
         { label: "Spend used in calculation", value: typeof evidence.spendCents === "number" ? formatAudCurrency(evidence.spendCents) : "Not available" },
         { label: "Transaction count", value: typeof evidence.transactionCount === "number" ? String(evidence.transactionCount) : "Not available" },
       ],
+      table: supportingRecordsTable,
     })
   } else {
     const averageIntervalDays = asFiniteNumber(evidence.averageIntervalDays)
-    const recentChargeRows = recurringChargeTableRows(evidence)
 
     sections.push({
       title: "Recurring pattern",
@@ -423,13 +477,7 @@ export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingT
         { label: "Latest seen", value: formatDateLabel(evidence.latestObservedDate as string | Date | null | undefined) },
         { label: "Average monthly amount", value: typeof evidence.averageAmountCents === "number" ? formatAudCurrency(evidence.averageAmountCents) : "Not available" },
       ],
-      table: recentChargeRows.length > 0
-        ? {
-            title: "Recent recurring charges",
-            columns: ["Date", "Amount", "Document number", "Supplier reference", "Source record"],
-            rows: recentChargeRows,
-          }
-        : undefined,
+      table: supportingRecordsTable,
     })
   }
 
