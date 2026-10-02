@@ -148,6 +148,36 @@ function cadenceLabelFromGap(days: number | null): string {
 
 const RECURRING_RECENT_CHARGE_LIMIT = 4
 
+function buildBillEvidenceRow(bill: SpendBillInput): Record<string, unknown> {
+  return {
+    sourceId: bill.sourceId ?? bill.id ?? null,
+    documentNumber: bill.documentNumber ?? null,
+    supplierReference: bill.supplierReference ?? null,
+    amountCents: Math.abs(bill.amountCents),
+    dueDate: bill.dueDate?.toISOString() ?? null,
+    paidDate: bill.paidDate?.toISOString() ?? null,
+    observedDate: billObservedDate(bill)?.toISOString() ?? null,
+  }
+}
+
+function buildTransactionEvidenceRow(transaction: SpendBankTransactionInput): Record<string, unknown> {
+  return {
+    sourceId: transaction.sourceId ?? transaction.id ?? null,
+    description: transaction.description,
+    counterpartyName: transaction.counterpartyName ?? null,
+    amountCents: Math.abs(transaction.amountCents),
+    transactionDate: transaction.transactionDate.toISOString(),
+  }
+}
+
+function recentBillEvidenceRows(bills: SpendBillInput[]): Record<string, unknown>[] {
+  return bills.slice(-RECURRING_RECENT_CHARGE_LIMIT).reverse().map((bill) => buildBillEvidenceRow(bill))
+}
+
+function recentTransactionEvidenceRows(transactions: SpendBankTransactionInput[]): Record<string, unknown>[] {
+  return transactions.slice(-RECURRING_RECENT_CHARGE_LIMIT).reverse().map((transaction) => buildTransactionEvidenceRow(transaction))
+}
+
 function monthDistance(from: Date, to: Date): number {
   return (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + (to.getUTCMonth() - from.getUTCMonth())
 }
@@ -185,15 +215,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
       const recentCharges = ordered
         .slice(-RECURRING_RECENT_CHARGE_LIMIT)
         .reverse()
-        .map((bill) => ({
-          sourceId: bill.sourceId ?? bill.id ?? null,
-          documentNumber: bill.documentNumber ?? null,
-          supplierReference: bill.supplierReference ?? null,
-          amountCents: Math.abs(bill.amountCents),
-          dueDate: bill.dueDate?.toISOString() ?? null,
-          paidDate: bill.paidDate?.toISOString() ?? null,
-          observedDate: billObservedDate(bill)?.toISOString() ?? null,
-        }))
+        .map((bill) => buildBillEvidenceRow(bill))
 
       findings.push({
         id: `recurring-spend-${supplierName}`,
@@ -239,6 +261,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
               billIds: [current.id ?? current.sourceId ?? "unknown", next.id ?? next.sourceId ?? "unknown"],
               dayDifference,
               amountCents: Math.abs(current.amountCents),
+              recentCharges: [buildBillEvidenceRow(current), buildBillEvidenceRow(next)],
               confidence: confidenceFromSignal("confirmed"),
             },
             detectedAt: now,
@@ -267,6 +290,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
               supplier: supplierName,
               renewalDate: upcomingDate.toISOString(),
               measuredBills: ordered.length,
+              recentCharges: recentBillEvidenceRows(ordered),
               confidence: confidenceFromSignal("review"),
             },
             detectedAt: now,
@@ -297,6 +321,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
               baselineAverageCents: Math.round(earlyAverage),
               currentAverageCents: Math.round(recentAverage),
               increaseRatio: Number(increaseRatio.toFixed(4)),
+              recentCharges: recentBillEvidenceRows(ordered),
               confidence: confidenceFromSignal("likely"),
             },
             detectedAt: now,
@@ -336,6 +361,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
                 monthsObserved: months,
                 monthlySlopeCents,
                 growthRatio: Number(growthRatio.toFixed(4)),
+                recentCharges: recentBillEvidenceRows(ordered),
                 confidence: confidenceFromSignal("review"),
               },
               detectedAt: now,
@@ -392,6 +418,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
 
   const topSupplier = [...supplierTotals.entries()].sort((a, b) => b[1] - a[1])[0]
   if (topSupplier && totalSpend > 0 && topSupplier[1] / totalSpend >= 0.6) {
+    const topSupplierBills = groupedBills.get(topSupplier[0]) ?? []
     findings.push({
       id: `supplier-concentration-${topSupplier[0]}`,
       findingType: "supplier_concentration",
@@ -405,6 +432,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
         supplier: topSupplier[0],
         share: Number((topSupplier[1] / totalSpend).toFixed(4)),
         spendCents: topSupplier[1],
+        recentCharges: recentBillEvidenceRows(topSupplierBills),
         confidence: confidenceFromSignal("review"),
       },
       detectedAt: now,
@@ -425,6 +453,8 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
         negativeBankTransactionCents: Math.abs(totalOutflow),
         spendCents: totalSpend,
         transactionCount: bankTransactions.length,
+        recentTransactions: recentTransactionEvidenceRows(bankTransactions),
+        transactionIds: bankTransactions.slice(-RECURRING_RECENT_CHARGE_LIMIT).reverse().map((transaction) => transaction.id ?? transaction.sourceId ?? "unknown"),
         confidence: confidenceFromSignal("review"),
       },
       detectedAt: now,
@@ -451,6 +481,8 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
             openReceivablesCents: input.openReceivablesCents ?? 0,
             modeledMonthlyOutflowCents: monthlyOutflow,
             runwayDays,
+            recentTransactions: recentTransactionEvidenceRows(bankTransactions),
+            transactionIds: bankTransactions.slice(-RECURRING_RECENT_CHARGE_LIMIT).reverse().map((transaction) => transaction.id ?? transaction.sourceId ?? "unknown"),
             confidence: confidenceFromSignal("review"),
           },
           detectedAt: now,

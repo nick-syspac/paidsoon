@@ -134,6 +134,43 @@ describe("SpendLeak engine", () => {
         observedDate: "2026-06-01T00:00:00.000Z",
       },
     ])
+
+    const duplicate = findings.find((finding) => finding.findingType === "duplicate_spend")
+    assert.ok(duplicate)
+    assert.deepEqual(duplicate?.evidence.recentCharges, [
+      {
+        sourceId: "src-2",
+        documentNumber: "INV-002",
+        supplierReference: "July cloud",
+        amountCents: 120000,
+        dueDate: "2026-07-01T00:00:00.000Z",
+        paidDate: "2026-07-02T00:00:00.000Z",
+        observedDate: "2026-07-01T00:00:00.000Z",
+      },
+      {
+        sourceId: "src-1",
+        documentNumber: "INV-001",
+        supplierReference: "August cloud",
+        amountCents: 120000,
+        dueDate: "2026-08-01T00:00:00.000Z",
+        paidDate: "2026-08-02T00:00:00.000Z",
+        observedDate: "2026-08-01T00:00:00.000Z",
+      },
+    ])
+
+    const renewal = findings.find((finding) => finding.findingType === "renewal")
+    assert.ok(renewal)
+    assert.equal(Array.isArray(renewal?.evidence.recentCharges), true)
+    assert.equal((renewal?.evidence.recentCharges as Array<Record<string, unknown>> | undefined)?.length, 2)
+
+    const supplierConcentration = findings.find((finding) => finding.findingType === "supplier_concentration")
+    assert.ok(supplierConcentration)
+    assert.equal(supplierConcentration?.evidence.supplier, "Northwind Office")
+
+    const cashPressure = findings.find((finding) => finding.findingType === "cash_pressure")
+    assert.ok(cashPressure)
+    assert.equal((cashPressure?.evidence.recentTransactions as Array<Record<string, unknown>> | undefined)?.[0]?.sourceId, "txn-1")
+    assert.deepEqual(cashPressure?.evidence.transactionIds, ["txn-1", "txn-3", "txn-2"])
   })
 
   test("detects price increases, duplicate payments, spend trend, and cash runway from deterministic inputs", () => {
