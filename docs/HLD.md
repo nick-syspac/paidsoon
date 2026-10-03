@@ -81,7 +81,7 @@ endpoint (`app/api/settings/team/invite/route.ts`).
 | Product | Single product: overdue-invoice follow-up automation |
 | Tenancy | One user = one tenant; isolation via Postgres RLS |
 | Frontend + Backend | One Next.js 16 app (App Router); API = route handlers |
-| Async processing | Two Vercel Cron jobs → route handlers today (no worker/queue in production yet). A Railway Celery + Redis worker is being introduced to take over scheduled business workflows (dispatcher + queue + retry/backoff) while running in parallel during burn-in — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). Not yet deployed to production. |
+| Async processing | Vercel Cron routes remain the production scheduled-work path; no Railway worker/queue production cutover. Immediate accounting sync delegates to Railway only when both trigger settings are configured, otherwise runs inline; dispatch failure is recorded without inline fallback and remains retryable through Vercel's accounting cron. The Railway Celery + Redis scheduled-work migration is separate and not yet deployed to production — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). |
 | Verticals / RBAC / workflow / control library | **Not present** |
 
 ---

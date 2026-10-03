@@ -106,7 +106,7 @@ GRANT SELECT, INSERT, UPDATE ON TABLE runway_guard_settings TO authenticated;
 GRANT SELECT ON TABLE runway_guard_snapshots TO authenticated;
 GRANT SELECT ON TABLE cash_plan_settings TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE accounting_connections TO authenticated;
-GRANT SELECT ON TABLE accounting_sync_runs TO authenticated;
+GRANT SELECT, INSERT ON TABLE accounting_sync_runs TO authenticated;
 GRANT SELECT, INSERT, DELETE ON TABLE oauth_states TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE schedules TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE email_settings TO authenticated;
@@ -384,8 +384,8 @@ CREATE POLICY "users can delete own accounting connections"
 
 -- ---------------------------------------------------------------------------
 -- accounting_sync_runs
--- Users can read their own sync run history. Writes are performed by the
--- sync cron/manual route via prismaAdmin (service role).
+-- Users can read their own sync run history and record owned worker-dispatch
+-- failures. Background sync writes continue to use prismaAdmin.
 -- ---------------------------------------------------------------------------
 ALTER TABLE accounting_sync_runs ENABLE ROW LEVEL SECURITY;
 
@@ -394,7 +394,20 @@ CREATE POLICY "users can view own sync runs"
   ON accounting_sync_runs FOR SELECT
   USING (auth.uid()::text = "userId");
 
--- No user INSERT/UPDATE policy — cron uses prismaAdmin (service role)
+DROP POLICY IF EXISTS "users can insert own sync runs" ON accounting_sync_runs;
+CREATE POLICY "users can insert own sync runs"
+  ON accounting_sync_runs FOR INSERT
+  WITH CHECK (
+    auth.uid()::text = "userId"
+    AND EXISTS (
+      SELECT 1
+      FROM accounting_connections
+      WHERE accounting_connections.id = accounting_sync_runs.accounting_connection_id
+        AND accounting_connections."userId" = auth.uid()::text
+    )
+  );
+
+-- No user UPDATE/DELETE policy — background sync uses prismaAdmin (service role)
 
 -- ---------------------------------------------------------------------------
 -- provider_invoice_mappings
