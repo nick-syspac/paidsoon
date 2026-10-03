@@ -2,7 +2,9 @@
 
 ## Purpose
 Define the SpendLeak financial-operations foundation, including spend-side ingestion, explainable savings findings, and how SpendLeak signals appear with PaidSoon receivables context.
+
 ## Requirements
+
 ### Requirement: SpendLeak SHALL ingest spend-side accounting data as a read-only analysis layer
 The system SHALL import the spend-side accounting data needed for SpendLeak analyses from Xero and
 MYOB without becoming the source of truth for bookkeeping. Imported records SHALL preserve source
@@ -64,3 +66,25 @@ The system SHALL present SpendLeak findings alongside PaidSoon receivables signa
 - **THEN** the dashboard can request a SpendLeak report export for that current scope
 - **AND** the exported report remains analysis-oriented and traceable to persisted findings
 
+### Requirement: SpendLeak foundation SHALL expose margin-relevant cost semantics
+The shared FinOps foundation SHALL provide SpendLeak cost/category signals in a canonical form that MarginGuard can consume without duplicate spend records.
+
+#### Scenario: Spend category reused by MarginGuard
+- **WHEN** MarginGuard evaluates direct-cost attribution
+- **THEN** it can consume SpendLeak category metadata from canonical records without copying transactions
+
+### Requirement: Spend-side financial foundation SHALL expose GST-credit-eligible signals to Tax Buffer
+The system SHALL allow Tax Buffer to consume spend-side records and recurring commitments as potential GST-credit and deductible-expense inputs when classification confidence is sufficient.
+
+#### Scenario: Eligible GST-inclusive spend detected
+- **WHEN** spend ingestion identifies an expense with sufficient GST treatment evidence
+- **THEN** the Tax Buffer calculation can include a corresponding GST credit estimate
+- **THEN** the source record and confidence level are retained for explainability
+
+### Requirement: Spend-side integration SHALL avoid overconfident tax assumptions
+The system SHALL exclude or flag spend records with ambiguous tax treatment rather than forcing automatic GST-credit inclusion.
+
+#### Scenario: Ambiguous tax treatment
+- **WHEN** a spend record lacks enough information to classify GST treatment
+- **THEN** Tax Buffer marks that portion as estimated or unknown
+- **THEN** recommendations include a cautionary warning instead of implying exact credit certainty

@@ -38,6 +38,13 @@ The system SHALL present alerts in summary form that answer: what changed, why i
 - **WHEN** the owner opens an alert
 - **THEN** the system shows the baseline, variance, supporting transactions, and a human-friendly explanation of the issue
 
+### Requirement: Cost Guard alerts SHALL link commitment-impact context to CommitGuard
+Where a cost increase corresponds to an active commitment, the system SHALL expose linkage context so users can move from anomaly analysis to commitment impact without duplicating analysis logic.
+
+#### Scenario: Supplier commitment increases
+- **WHEN** Cost Guard identifies a sustained increase for a supplier with a mapped commitment
+- **THEN** the alert includes a navigable reference to the related CommitGuard commitment impact view
+
 ## Acceptance Criteria
 
 - Severity labels are persisted and surfaced in the dashboard
