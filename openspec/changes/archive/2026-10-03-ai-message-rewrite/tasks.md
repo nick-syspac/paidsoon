@@ -61,8 +61,8 @@
 
 - [x] 7.1 Run `npm run test` — confirm existing tests still pass
 - [x] 7.2 Run `npm run verify-rls` — confirm `ai_usage_logs` RLS policies are enforced correctly
-- [ ] 7.3 Manual smoke test: sign in as a Small Business user → Settings → Templates → select Stage 2 → edit body → click "AI Rewrite" → verify diff panel opens with original on the left and the Firm variant on the right pre-selected → verify tone tabs switch to Friendly / Final Notice → click Apply → confirm editor updates → save template
-- [ ] 7.4 Manual smoke test: sign in as a Starter user → Settings → Templates → confirm "AI Rewrite" button is not visible
-- [ ] 7.5 Confirm a row appears in `ai_usage_logs` after a successful rewrite with correct `stage`-driven prompt token count and non-zero `estimatedCostUsd`
-- [ ] 7.6 Confirm Settings navigation no longer shows the AI tab for any user
-- [ ] 7.7 Set `OPENAI_API_KEY` in Vercel Preview and Production environments per `docs/runbooks/openai.md`
+- [x] 7.3 Manual smoke test: sign in as a Small Business user → Settings → Templates → select Stage 2 → edit body → click "AI Rewrite" → verify diff panel opens with original on the left and the Firm variant on the right pre-selected → verify tone tabs switch to Friendly / Final Notice → click Apply → confirm editor updates → save template
+- [x] 7.4 Manual smoke test: sign in as a Starter user → Settings → Templates → confirm "AI Rewrite" button is not visible
+- [x] 7.5 Confirm a row appears in `ai_usage_logs` after a successful rewrite with correct `stage`-driven prompt token count and non-zero `estimatedCostUsd`
+- [x] 7.6 Confirm Settings navigation no longer shows the AI tab for any user
+- [x] 7.7 Set `OPENAI_API_KEY` in Vercel Preview and Production environments per `docs/runbooks/openai.md`
