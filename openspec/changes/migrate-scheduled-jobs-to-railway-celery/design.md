@@ -92,11 +92,19 @@ signup bootstrap).
   Hobby-plan-compatible interim; this means a Railway outage could go undetected for up to ~24
   hours. Tightening this to a true 15–30 minute check requires upgrading to Vercel Pro (see
   Open Questions).
-- **Parallel run before cutover.** Railway Celery runs alongside the existing Vercel Cron jobs
-  for a burn-in period; the existing jobs are left in place but their actions must be provably
-  idempotent against Celery's (same claim-key/`EmailLog` semantics), so no user receives
-  duplicate reminders during the overlap. Vercel cron entries are removed from `vercel.json`
-  only after parity is confirmed.
+- **Exclusive scheduler ownership; direct cutover approved.** A parallel burn-in is permitted
+  only after both Railway and legacy Vercel paths acquire the same atomic Postgres claim before
+  performing side effects. The current `/api/cron/send-emails` route queries and sends
+  due invoices without consulting `scheduled_task_claims`; its `EmailLog` check is not a
+  cross-process atomic claim. The current `/api/cron/sync-accounting` route likewise invokes
+  `syncAllActiveConnections()` without consulting that claim table. Therefore the designed
+  shared claim-key protection is not currently present in the Vercel paths, and same-database
+  parallel execution is unsafe. Only one scheduler may own a given database. On 2026-10-03,
+  the operator explicitly approved a direct cutover to Railway Beat instead of a burn-in;
+  `send-emails` and `sync-accounting` are removed from the Vercel schedule, and their
+  `CRON_SECRET`-protected routes remain available for manual rollback/housekeeping. The source
+  change takes effect in Production only after a Vercel deployment, which must be followed by
+  verification that both cron entries have disappeared from Vercel's Cron Jobs settings.
 - **New Python codebase.** This is the first Python component in the repo. It lives as an
   independent deployable (not part of the Next.js app), communicating with Supabase Postgres
   directly (its own DB client, same `DATABASE_URL`-style pooled connection) — it does not go
@@ -109,10 +117,11 @@ signup bootstrap).
   surface area and on-call complexity] → Mitigate with a documented burn-in/parallel-run
   period, the watchdog cron, and keeping the worker codebase small and single-purpose (no
   business logic Vercel doesn't already have a TypeScript equivalent of, at least initially).
-- [Two runtimes (Vercel cron + Railway Celery) processing the same rows during the burn-in
-  period could double-send reminders or double-sync invoices if idempotency isn't airtight] →
-  Enforce the unique claim key as a DB constraint (not just an app-level check) from day one,
-  before Railway starts running, so both systems share the same idempotency guard.
+- [A direct cutover without a parallel burn-in may expose worker/configuration defects after
+  the legacy schedule is removed] → Operator accepted this risk on 2026-10-03. Confirm Railway
+  Beat heartbeats and task outcomes after deployment; rollback by pausing Beat before restoring
+  legacy Vercel schedules. Never run both owners concurrently against the same database because
+  the legacy routes do not use the worker's atomic claim table.
 - [Redis is a new piece of infrastructure holding in-flight queue state] → Treat Redis as fully
   disposable — recovery sweep must reconstruct all in-flight/stuck work from Postgres alone;
   document this explicitly and test a Redis flush/restart scenario before cutover.
@@ -128,24 +137,23 @@ signup bootstrap).
 ## Migration Plan
 
 1. Stand up Railway project (Redis + one Celery worker service + one Celery Beat service);
-   add new Supabase columns/table for claim keys and task status; add RLS policies for any new
-   tables.
-2. Implement the dispatcher + first migrated workflow (reminder emails, since it has the
-   clearest existing idempotency precedent via `EmailLog`) end-to-end, running in parallel with
-   the existing `/api/cron/send-emails` Vercel Cron job — both active, shared claim-key
-   constraint preventing double-sends.
-3. Validate for an agreed burn-in period (proposal specifies "several days") comparing
-   Railway's `EmailLog` writes against what the Vercel cron would have produced; no duplicate
-   sends, no missed sends.
-4. Repeat steps 2–3 for accounting sync, then promise-to-pay follow-ups, weekly debtor
-   summaries, integration retry processing, and reconciliation/stale-job recovery.
-5. Add the Vercel watchdog cron once Railway is the primary path for at least one workflow.
-6. Remove `send-emails` and `sync-accounting` entries from `vercel.json` only after every
-   workflow they cover has been migrated and burned in.
-7. **Rollback strategy**: at any point before a given workflow's Vercel cron entry is removed,
-   disable the corresponding Celery task (pause the Beat schedule for it) and fall back to the
-   existing Vercel Cron job — no schema rollback needed, since the new status/claim columns are
-   additive and unused by the old code path.
+  add new Supabase columns/table for claim keys and task status; add RLS policies for any new
+  tables.
+2. Implement and deploy the scheduled workflows to Railway. The operator confirmed Beat is
+  running against both `paidsoon-dev` and `paidsoon-prod` and approved direct cutover on
+  2026-10-03.
+3. Remove `send-emails` and `sync-accounting` from `vercel.json` without a parallel burn-in;
+  retain the old routes for manual rollback. Deploy the Vercel change and verify the two
+  schedules are absent in the Production Cron Jobs settings. Until that deployment is
+  verified, the old deployed Vercel schedules may still be active.
+4. After cutover, monitor dispatcher heartbeats, `scheduled_task_claims`, `EmailLog`, and
+  `AccountingSyncRun` for missed/failed work. This is post-cutover monitoring, not parity
+  evidence from a dual-scheduler burn-in.
+5. Keep the independent Vercel watchdog cron active.
+6. **Rollback strategy**: pause the Railway Beat tasks (or scale Beat to zero) before restoring
+  the Vercel `send-emails` and `sync-accounting` schedule entries and deploying. Do not enable
+  both schedulers against the same database: legacy routes do not use the worker's atomic claim
+  table. No schema rollback is needed; retain the additive claim/status tables.
 
 ## Open Questions
 

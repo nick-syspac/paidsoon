@@ -81,7 +81,7 @@ endpoint (`app/api/settings/team/invite/route.ts`).
 | Product | Single product: overdue-invoice follow-up automation |
 | Tenancy | One user = one tenant; isolation via Postgres RLS |
 | Frontend + Backend | One Next.js 16 app (App Router); API = route handlers |
-| Async processing | Vercel Cron routes remain the production scheduled-work path; no Railway worker/queue production cutover. Immediate accounting sync delegates to Railway only when both trigger settings are configured, otherwise runs inline; dispatch failure is recorded without inline fallback and remains retryable through Vercel's accounting cron. The Railway Celery + Redis scheduled-work migration is separate and not yet deployed to production — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). |
+| Async processing | Railway Celery Beat owns scheduled reminders/accounting in Preview (`paidsoon-dev`) and Production (`paidsoon-prod`) per operator confirmation. The approved direct cutover removed the old schedules from `vercel.json`; deploy and verify in Production. Protected legacy routes remain for controlled rollback/housekeeping. Immediate accounting sync delegates to Railway only when both trigger settings are configured, otherwise runs inline; dispatch failure is recorded without inline fallback. See [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). |
 | Verticals / RBAC / workflow / control library | **Not present** |
 
 ---
@@ -119,14 +119,16 @@ flowchart TB
 
     subgraph PaidSoon["PaidSoon (Next.js 16 on Vercel)"]
         WEB[Web UI + API route handlers]
-        CRON[Cron route /api/cron/send-emails]
+      JOB[Internal job routes /api/internal/jobs/*]
     end
 
     SUPA[(Supabase: Auth + Postgres)]
+    REDIS[(Railway Redis broker)]
+    WORKER[Railway Celery worker]
     STRIPE_C[Stripe Connect]
     STRIPE_B[Stripe Billing]
     RESEND[Resend email]
-    VCRON[Vercel Cron scheduler]
+    VCRON[Vercel Cron: watchdog + maintenance]
 
     F -->|sign in, dashboard| WEB
     OP -->|provision, migrate| SUPA
@@ -135,9 +137,12 @@ flowchart TB
     WEB -->|checkout, portal| STRIPE_B
     STRIPE_C -->|invoice.overdue / invoice.paid webhooks| WEB
     STRIPE_B -->|subscription webhooks| WEB
-    VCRON -->|daily 09:00 UTC GET| CRON
-    CRON -->|read overdue, send| STRIPE_C
-    CRON -->|send reminder emails| RESEND
+    BEAT[Railway Celery Beat] -->|claim due work| SUPA
+    BEAT -->|enqueue| REDIS
+    REDIS --> WORKER
+    WORKER -->|authenticated task call| JOB
+    JOB -->|business state| SUPA
+    JOB -->|send reminder emails| RESEND
     RESEND -->|deliver| C
 ```
 
@@ -145,21 +150,22 @@ flowchart TB
 
 ## 3. Architecture Overview
 
-PaidSoon is a **single deployable unit**: one Next.js application running on
-Vercel. There is no separate backend service, no standalone worker process, no
-Redis, and no message queue. "Async processing" is a single HTTP route invoked
-by Vercel Cron.
+PaidSoon's web application is a Next.js deployment on Vercel. Scheduled
+reminder and accounting work is dispatched by the Railway Celery worker/Beat
+services using Redis as a transient queue and Supabase Postgres as durable
+orchestration state. Vercel continues to host the dashboard, APIs, webhooks, and
+the independent scheduling watchdog.
 
 | Concern | Implementation | Status |
 |---|---|---|
 | Frontend | Next.js 16 App Router, React 19, Tailwind v4 | Implemented |
 | Backend API | Next.js route handlers under `app/api/**` | Implemented |
 | Server rendering / data fetch | React Server Components (e.g. `app/dashboard/page.tsx`) | Implemented |
-| Async / scheduled work | Vercel Cron → `GET /api/cron/send-emails` (daily 09:00 UTC) | Implemented |
+| Async / scheduled work | Railway Celery Beat dispatches reminder/accounting workflows; Vercel Cron runs the watchdog and other independent maintenance jobs | Implemented; direct cutover pending Vercel deployment verification |
 | Database | Supabase Postgres via Prisma 7 (`@prisma/adapter-pg`) | Implemented |
 | Auth provider | Supabase Auth (email/password + Google OAuth) | Implemented |
 | Object storage | **None** — no file/evidence storage in code | N/A |
-| Redis / queue | **None** | N/A |
+| Redis / queue | Railway Redis broker for Celery; transient queue state only | Implemented |
 | Billing provider | Stripe Billing (subscriptions + portal) | Implemented |
 | Invoice source | Stripe Connect (provider-abstraction layer) | Implemented |
 | Email provider | Resend | Implemented |
@@ -203,7 +209,7 @@ no `apps/*` or `packages/*` workspaces.
 | DB user client | `lib/db/withUserContext.ts` | RLS-enforcing transactional wrapper | In-process | Default for user requests |
 | Invoice providers | `lib/providers/**` | Provider abstraction; Stripe implementation | In-process | `stripe` only today |
 | Email | `lib/email/**` | Templates, schedule math, send, catch-up scan | In-process | Resend |
-| Cron handler | `app/api/cron/send-emails/route.ts` | Catch-up + dispatch sequence | Vercel serverless | Triggered by `vercel.json` cron |
+| Cron handler (rollback) | `app/api/cron/send-emails/route.ts` | Catch-up + dispatch sequence | Vercel serverless | `CRON_SECRET`-protected manual fallback; no longer scheduled |
 | Prisma schema | `prisma/schema.prisma` | 9 application models | Build/migrate | Generated client → `lib/generated/prisma` |
 | RLS policies | `prisma/rls-policies.sql` | Tenant isolation policies (applied manually in Supabase) | Postgres | Not run by `prisma migrate` |
 | Generated Prisma client | `lib/generated/prisma/**` | Generated at `prisma generate` (build step) | In-process | Git-ignored output |
@@ -226,9 +232,9 @@ what is actually present, and explicitly marks absent capabilities.
 | User auth | Account creation, sign-in, session | Implemented | `app/(auth)/**`, `lib/supabase/**`, `app/auth/callback/route.ts` | `changes/invoice-nudge-mvp/specs/user-auth/spec.md` | Supabase Auth; email/pw + Google |
 | Tenant isolation | One user = one tenant via RLS | Implemented | `lib/db/withUserContext.ts`, `prisma/rls-policies.sql` | `changes/enforce-rls-via-prisma/specs/user-auth/spec.md` | See §9 |
 | Invoice connection | Connect Stripe via OAuth; provider abstraction | Implemented | `app/api/stripe/connect/**`, `lib/providers/**` | `changes/invoice-nudge-mvp/specs/invoice-connection/spec.md` | Stripe only |
-| Accounting integrations | Connect Xero/MYOB via OAuth; pull-based invoice sync | Implemented | `app/api/integrations/**`, `lib/providers/accounting/**`, `app/api/cron/sync-accounting/route.ts` | `changes/add-accounting-integrations` | Available on every paid tier; AES-256-GCM token encryption; incremental sync; `AccountingProvider` interface |
+| Accounting integrations | Connect Xero/MYOB via OAuth; pull-based invoice sync | Implemented | `app/api/integrations/**`, `lib/providers/accounting/**`, `worker/paidsoon_worker/**` | `changes/add-accounting-integrations` | Available on every paid tier; AES-256-GCM token encryption; incremental sync; Railway scheduled sync after cutover |
 | Invoice tracking | Detect & track overdue invoices | Implemented | `lib/email/catchup.ts`, `app/api/webhooks/stripe-connect/route.ts` | `.../specs/invoice-tracking/spec.md` | Webhook + cron catch-up |
-| Follow-up sequences | 3-stage escalating reminders | Implemented | `app/api/cron/send-emails/route.ts`, `lib/email/**` | `.../specs/follow-up-sequences/spec.md` | Stages 1/2/3 |
+| Follow-up sequences | 3-stage escalating reminders | Implemented | `worker/paidsoon_worker/**`, `lib/email/**`, `app/api/cron/send-emails/route.ts` (rollback only) | `.../specs/follow-up-sequences/spec.md` | Stages 1/2/3; Railway scheduled dispatch |
 | Schedule config | Per-user day offsets | Implemented | `app/api/settings/schedule/route.ts`, `lib/email/schedule.ts` | `.../specs/schedule-config/spec.md` | Gated to sequence feature |
 | Email settings | Custom verified from-address | Implemented | `app/api/settings/email/route.ts`, `lib/email/send.ts` | `.../specs/email-settings/spec.md` | Resend domain verify polling |
 | Manual invoice actions | Pause / resume / snooze / resolve | Implemented | `app/api/invoices/[id]/**` | `.../specs/dashboard/spec.md` | RLS-scoped |
@@ -480,8 +486,8 @@ terms appear nowhere in the code and must not be treated as part of this system.
 | Concern | Actual configuration | Evidence |
 |---|---|---|
 | Frontend + API hosting | Vercel (single Next.js deployment) | `docs/runbooks/vercel.md`, `vercel.json` |
-| Worker hosting | None in production yet — cron invokes a route on the same deployment. A Railway Celery worker/Beat/Redis stack is scaffolded (`worker/`) and intended to take over, running in parallel during burn-in before the Vercel crons it replaces are removed. | `vercel.json` crons, `worker/`, [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
-| Scheduler | Vercel Cron: `0 9 * * *` → `/api/cron/send-emails`, `0 2 * * *` → `/api/cron/sync-accounting`, `0 12 * * *` → `/api/cron/scheduling-watchdog` | `vercel.json` |
+| Worker hosting | Railway Celery worker, Beat, and Redis are confirmed by the operator in Preview (`paidsoon-dev`) and Production (`paidsoon-prod`). | `worker/`, [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
+| Scheduler | Railway Celery Beat runs in both environments and owns reminders/accounting. Vercel still schedules the watchdog and independent maintenance jobs. The direct cutover removed the reminder/accounting entries from source config; verify deployment to ensure they are absent from Production. | `worker/paidsoon_worker/celery_app.py`, `vercel.json` |
 | Database | Supabase Postgres (`paidsoon-dev`, `paidsoon-prod`) | `docs/runbooks/supabase.md` |
 | DB connections | Derived from `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`: transaction pooler `6543` for runtime and session pooler `5432` for migrations/admin commands | `lib/config/supabaseEnvironment.ts`, `prisma.config.ts`, `lib/db/admin.ts` |
 | Auth | Supabase Auth | `docs/runbooks/supabase.md` |

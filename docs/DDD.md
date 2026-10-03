@@ -127,10 +127,13 @@ subsection documents a functional module.
   whether the invoice is recorded. See the `chase-volume-entitlement` capability
   (`openspec/changes/monthly-chase-volume-limits`).
 
-### 4.4 Follow-up engine (`app/api/cron/send-emails/route.ts`, `lib/email/**`)
+### 4.4 Follow-up engine (`worker/paidsoon_worker/**`, `lib/email/**`)
 
 - **Responsibility:** advance each tracked invoice through stages 1→3 and send.
-- **Flow (cron GET):** auth via `Bearer CRON_SECRET` → `runCatchUpScan()` →
+- **Scheduled flow:** Celery Beat dispatches due reminder claims to Railway workers; the
+  worker invokes the internal Next.js job route for each invoice. The retained
+  `GET /api/cron/send-emails` route is `CRON_SECRET`-protected and is not scheduled
+  after cutover. Its fallback flow is auth via `Bearer CRON_SECRET` → `runCatchupAndSnoozeSweep()` →
   resume snoozed invoices whose `snoozedUntil` elapsed → **detect broken promises**
   (active promises whose `promisedPayBy` has passed; mark `broken`, notify freelancer) →
   **detect expired/broken arrangements** (active arrangements whose payment/expiry date has elapsed) →
@@ -1004,7 +1007,7 @@ The factory function `getAccountingProvider(providerName)` from `lib/providers/a
 
 **Token encryption:** OAuth access/refresh tokens are encrypted at rest using AES-256-GCM via `lib/providers/accounting/crypto.ts`. The `TOKEN_ENCRYPTION_KEY` environment variable (64-char hex = 32 bytes) is required.
 
-**Sync model:** Pull-based polling (no webhooks). A Vercel Cron job (`GET /api/cron/sync-accounting`) at 02:00 UTC retries `active`, `pending_first_sync`, and `error` connections; `revoked` and `disconnected` connections are excluded. Connection finalization triggers the first sync immediately, and users can trigger manual retries for active/pending/error connections. The shared immediate trigger uses the Railway worker only when both `RAILWAY_WORKER_URL` and `WORKER_TRIGGER_SECRET` are configured; otherwise it runs inline. A configured dispatch failure writes a completed, zero-count `AccountingSyncRun` with fixed `worker_dispatch_failed` messaging and does not fall back inline, since the worker may have accepted a job whose acknowledgement was lost. Vercel's daily accounting cron remains a retry surface; configuring the trigger does not imply Railway worker production deployment or scheduled-worker cutover.
+**Sync model:** Pull-based polling (no webhooks). Railway Celery Beat runs `dispatch-accounting-sync` on its configured interval in Preview (`paidsoon-dev`) and Production (`paidsoon-prod`) per operator confirmation and owns scheduled accounting sync after the approved direct cutover. The Vercel `GET /api/cron/sync-accounting` handler remains as a `CRON_SECRET`-protected rollback/housekeeping endpoint but is no longer scheduled in `vercel.json`; the OAuth-state cleanup within that handler is retained for manual housekeeping. Verify removal of the deployed Vercel cron after the next deployment. The worker dispatches due active connections; `revoked` and `disconnected` connections are excluded. Connection finalization triggers the first sync immediately, and users can trigger manual retries for active/pending/error connections. The shared immediate trigger uses the Railway worker only when both `RAILWAY_WORKER_URL` and `WORKER_TRIGGER_SECRET` are configured; otherwise it runs inline. A configured dispatch failure writes a completed, zero-count `AccountingSyncRun` with fixed `worker_dispatch_failed` messaging and does not fall back inline, since the worker may have accepted a job whose acknowledgement was lost.
 
 **Incremental sync:** On subsequent syncs, `modifiedAfter = connection.lastSyncedAt` is passed to the provider. Xero uses the `If-Modified-Since` HTTP header; MYOB uses the `$filter=LastModified gt datetime'...'` OData query parameter.
 
@@ -1076,7 +1079,7 @@ favour of "PaidSoon" / `paidsoon.com`.
 | Local dev | `npm install` → `vercel env pull .env.local` → `npm run dev` | `README.md` |
 | Build | `prisma generate && next build` | `package.json` |
 | API/web runtime | Single Next.js 16 app on Vercel | `docs/runbooks/vercel.md` |
-| Worker runtime | Cron routes on the same Vercel deployment today; a Railway Celery worker + Celery Beat + Redis is being introduced to take over scheduled business workflows (dispatcher claims due work from Postgres, enqueues one task per item onto Redis, tasks call back into `app/api/internal/jobs/*` for the actual business logic) — see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). Not yet deployed; runs in parallel with the existing Vercel Cron jobs during burn-in before the old jobs are removed. | `worker/`, `openspec/changes/migrate-scheduled-jobs-to-railway-celery/` |
+| Worker runtime | Railway Celery worker + Celery Beat + Redis own scheduled business workflows (dispatcher claims due work from Postgres, enqueues one task per item onto Redis, tasks call back into `app/api/internal/jobs/*` for business logic). Direct cutover was approved; the Vercel source schedules were removed, with deployment verification pending. | `worker/`, `vercel.json`, `openspec/changes/migrate-scheduled-jobs-to-railway-celery/` |
 
 ### 17.1 Marketing and SEO Runtime
 
@@ -1099,7 +1102,7 @@ favour of "PaidSoon" / `paidsoon.com`.
 - Marketing page-level analytics tracking uses `@vercel/analytics` through
   `MarketingPageViewTracker`, `MarketingCtaLink`, and pricing CTA tracking in
   `components/pricing/PricingCTA.tsx`.
-| Scheduler | Vercel Cron `0 9 * * *` → `/api/cron/send-emails`; `0 2 * * *` → `/api/cron/sync-accounting`; `0 12 * * *` → `/api/cron/scheduling-watchdog`; `0 3 * * *` → `/api/cron/invoice-import-cleanup`; `0 4 * * *` → `/api/cron/margin-guard-snapshots` (Hobby plan caps cron frequency at once daily) | `vercel.json`, `docs/runbooks/vercel.md` |
+| Scheduler | Railway Celery Beat owns scheduled reminders/accounting in Preview (`paidsoon-dev`) and Production (`paidsoon-prod`). Vercel continues independent scheduled jobs including the watchdog; legacy reminder/accounting route handlers are retained but no longer scheduled in source config. Verify the next Production deployment removes those cron entries. | `worker/paidsoon_worker/celery_app.py`, `vercel.json` |
 | Database | Supabase Postgres; runtime via the shared pooler as `postgres.[ref]`, RLS applied per-transaction by `withUserContext`. Two internal orchestration tables (`scheduled_task_claims`, `dispatcher_heartbeats`) have RLS enabled with no policies — written only by the Railway worker's trusted DB role. | `prisma.config.ts`, `lib/db/admin.ts`, `prisma/schema.prisma` |
 | Migrations | `prisma migrate` via the derived session-pooler URL on port `5432` | `prisma.config.ts` |
 | RLS bootstrap | `prisma/rls-policies.sql` applied manually in Supabase | `prisma/rls-policies.sql`, `docs/runbooks/supabase.md` |

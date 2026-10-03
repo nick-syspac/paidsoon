@@ -1,83 +1,64 @@
+# Proposal
+
 ## Why
 
-PaidSoon's scheduled business workflows (Xero/MYOB sync, overdue-invoice detection, the
-three-stage reminder sequence, promise-to-pay follow-ups) currently run as two Vercel Cron
-jobs (`/api/cron/send-emails`, `/api/cron/sync-accounting`) that invoke ordinary Vercel
-Functions once a day. This gives PaidSoon no queueing, no per-task retry/backoff, no
-controlled concurrency, and no durable "claim" semantics — a slow provider or a function
-timeout can leave a whole day's run half-finished with no recovery path other than waiting
-for the next scheduled invocation. As invoice volume and the number of scheduled workflows
-(sync, reminders, promise follow-ups, weekly debtor summaries, reconciliation, reports) grow,
-this single-shot batch model becomes the primary reliability risk in the product. Railway
-Celery + Celery Beat + Redis is purpose-built for this shape of problem (durable queues,
-per-task retry with exponential backoff, idempotent claiming) and is the architecture Railway
-itself recommends for exactly this kind of background-processing workload.
+PaidSoon's due reminders, accounting syncs, and related scheduled workflows need durable
+per-item claiming, retries, and recovery rather than relying on a single daily Vercel batch.
+Railway Celery Beat and workers are already operating against both Preview and Production;
+this change formalizes Railway as the scheduler and completes the approved direct cutover.
 
 ## What Changes
 
-- Introduce a Railway-hosted Python worker service running Celery workers + a single Celery
-  Beat instance, backed by Redis as the broker/queue.
-- Add a lightweight dispatcher task (run by Celery Beat every 1–5 minutes) that atomically
-  claims Supabase rows whose `next_action_at` is due and enqueues one Celery task per
-  invoice/reminder — replacing the current "iterate everything once a day" batch loop.
-- **BREAKING**: Move ownership of these scheduled workflows off Vercel Cron and onto Railway
-  Celery: Xero/MYOB sync, overdue-invoice detection, three-stage reminder emails,
-  promise-to-pay follow-ups, weekly debtor summaries, integration retry processing,
-  reconciliation/stale-job recovery, and large report generation.
-- Add task-level idempotency: a unique claim key per unit of work (e.g.
-  `invoice_id + reminder_stage + scheduled_date`), a `queued`/`started`/`sent`/`failed`/
-  `retrying`/`processing` status column set, and a recovery sweep that reclaims tasks stuck in
-  `processing` after a worker crash.
-- Add automatic retry with exponential backoff for Xero, MYOB, and Resend (email-provider)
-  failures at the task level, replacing today's single-attempt-per-day behavior.
-- Keep Vercel for the dashboard, all authenticated API routes, webhook receipt/validation, and
-  user-triggered "sync now" actions (these enqueue a Celery task immediately rather than doing
-  the work inline).
-- Add one independent, low-frequency Vercel Cron watchdog that alerts if Railway/Celery Beat
-  has stopped dispatching (Railway scheduling health check).
-- Run Railway Celery in parallel with the existing Vercel Cron jobs for a burn-in period,
-  then **BREAKING**: remove `send-emails` and `sync-accounting` from `vercel.json` once parity
-  is confirmed.
-- Supabase remains the single source of truth for invoice/reminder/sync state; Celery only
-  reads/claims/writes rows there (no new datastore for business data — Redis holds only
-  transient queue/broker state).
+- **BREAKING — scheduler ownership:** make Railway Celery Beat the sole scheduled-work owner
+  for supported workflows in Preview and Production. Remove the `send-emails` and
+  `sync-accounting` schedules from `vercel.json`; retain their `CRON_SECRET`-protected handlers
+  for controlled rollback and OAuth-state housekeeping.
+- Use Postgres-backed `scheduled_task_claims` for atomic dispatch, idempotency, task lifecycle,
+  bounded retries, and recovery of stale work. Redis is only the transient Celery broker.
+- Delegate worker jobs to authenticated Next.js internal routes so existing TypeScript business
+  rules remain authoritative for reminder delivery, accounting sync, catch-up/snooze and
+  promise/arrangement sweeps, and implemented scheduled email features such as weekly debtor
+  summaries and Owner's Digest.
+- Keep Vercel as the dashboard, API and webhook host, and retain the independent daily
+  scheduling-watchdog cron plus unrelated maintenance crons. Existing accounting “sync now”
+  actions continue to enqueue through Railway when configured, with their documented inline
+  fallback when it is not.
+- Cut over directly, without a same-database Vercel/Railway parallel burn-in. The legacy Vercel
+  routes do not acquire the worker's atomic claim, so concurrent scheduling could duplicate
+  side effects. Deploy the schedule removal and verify both entries are absent from Vercel
+  Production; monitor Railway heartbeat, claims, `EmailLog`, and `AccountingSyncRun` after
+  cutover. This direct cutover was explicitly approved by the operator on 2026-10-03; parity
+  from a dual-scheduler burn-in is not claimed.
+- **Out of scope:** inventing new scheduled product features (including large report generation)
+  or adding a per-invoice “send reminder now” dashboard UI; changing reminder/sync business
+  rules; removing the protected legacy route handlers.
 
 ## Capabilities
 
 ### New Capabilities
-- `scheduled-job-orchestration`: The Celery Beat dispatcher + Redis queue + claim/idempotency/
-  retry/recovery contract that all scheduled business workflows (invoice sync, reminder
-  emails, promise follow-ups, debtor summaries, reconciliation, report generation) run under —
-  including the `queued`/`started`/`sent`/`failed`/`retrying`/`processing` status lifecycle,
-  the atomic due-work claim, per-task exponential backoff, and the stale-`processing` recovery
-  sweep.
-- `scheduled-job-health-monitoring`: The independent, low-frequency Vercel Cron watchdog that
-  detects and alerts when Railway/Celery Beat scheduling has stopped running, so a Railway
-  outage isn't silently invisible.
+
+- `scheduled-job-orchestration`: Durable atomic claims, task lifecycle, retries and recovery for
+  supported Railway-scheduled workflows; Redis is not the durable business-state store.
+- `scheduled-job-health-monitoring`: The independent Vercel Cron watchdog that alerts when the
+  Railway Beat heartbeat is stale or missing.
 
 ### Modified Capabilities
+
 - (none — no existing `openspec/specs/` capability currently governs cron/scheduling
   behavior; the current single-shot Vercel Cron behavior is undocumented as a formal spec)
 
 ## Impact
 
-- **Affected code**: `app/api/cron/send-emails/route.ts`, `app/api/cron/sync-accounting/route.ts`,
-  `vercel.json` (cron entries), `lib/email/schedule.ts`, `lib/providers/accounting/sync.ts`,
-  `lib/arrangements.ts`, `lib/promiseEscalationPolicy.ts` — all move from "iterate everything
-  inline" to "enqueue one task per unit of work" callers.
-- **New infrastructure**: Railway project (Celery worker + Celery Beat services), Redis
-  instance (Railway-managed or Upstash), a new Python codebase/package for the worker service.
-- **Database**: new columns/tables in Supabase for per-task status (`queued`/`started`/`sent`/
-  `failed`/`retrying`/`processing`), claim keys, and `next_action_at` scheduling fields on the
-  relevant models (`TrackedInvoice`, `Arrangement`/promise follow-ups, accounting sync runs).
-  RLS policies must be updated for any new tables (`prisma/rls-policies.sql`), and the worker
-  connects as a trusted/admin role (bypassing RLS the same way `prismaAdmin`/the cron routes do
-  today), since it acts on behalf of all tenants.
-- **New environment variables/secrets**: Redis connection URL, Railway service credentials, a
-  shared secret for any Vercel→Railway "trigger now" call, documented in
-  `docs/runbooks/README.md`.
-- **Dependencies**: introduces Python and Celery to the stack for the first time — a
-  deliberate, explicit new-provider decision (per repo convention, documented here rather than
-  added silently).
-- **Docs**: `docs/DDD.md`, `docs/HLD.md`, and `docs/runbooks/README.md` need new sections
-  describing the Railway worker architecture, deployment, and environment variables.
+- **Runtime/configuration**: `worker/` (Celery app, dispatchers and tasks), Railway worker/Beat/
+  trigger services, Redis, `vercel.json`, and the independent watchdog cron.
+- **Application interfaces**: authenticated `app/api/internal/jobs/**` routes and existing
+  TypeScript services for invoice reminders, accounting sync and scheduled email workflows;
+  legacy cron handlers remain available but are unscheduled.
+- **Durable state/security**: Supabase tables for claims and Beat heartbeats, matching schema/RLS
+  definitions, and a trusted worker DB role scoped to these cross-tenant jobs. Internal HTTP
+  calls use server-only shared secrets; do not expose them to clients or logs.
+- **Operations**: document Railway/Vercel environment configuration and rollback in
+  `docs/runbooks/**`, `docs/DDD.md`, and `docs/HLD.md`. Direct cutover has no dual-run parity
+  evidence; deployment verification and post-cutover monitoring are explicit acceptance work.
+- **New runtime/dependency**: Python/Celery is an intentional additional runtime alongside the
+  Next.js/TypeScript app.

@@ -4,9 +4,14 @@ Railway hosts PaidSoon's Celery worker, Celery Beat scheduler, trigger API, and
 Redis broker. This runbook covers initial provisioning, deployment, verification,
 burn-in, rollback, and routine configuration.
 
-The Railway stack is implemented in [`worker/`](../../worker), but production
-cutover is not complete. Keep the existing Vercel cron jobs enabled until the
-burn-in checks in this runbook pass.
+The Railway stack is implemented in [`worker/`](../../worker) and the operator
+has confirmed Beat runs in Preview and Production. Direct cutover to Railway
+was approved on 2026-10-03 without a parallel burn-in because the legacy Vercel
+routes do not acquire the worker's atomic claim rows. The `vercel.json` source
+configuration no longer schedules reminder/accounting crons; deploy this change
+and verify both entries are removed from Vercel Production's Cron Jobs. Until
+then, an already-deployed Vercel schedule may still run. Never run both
+schedulers against the same database.
 
 > Environment-variable values come from the [canonical matrix](./README.md#railway-environment-variable-matrix).
 > Do not put real credentials in this file or in `worker/.env.example`.
@@ -356,26 +361,26 @@ Also inspect worker logs for Vercel HTML or redirects. A `401` response with a
 Vercel sign-in page means `VERCEL_AUTOMATION_BYPASS_SECRET` is missing or does
 not match the protected deployment.
 
-## 8. Production burn-in and cutover
+## 8. Production cutover and monitoring
 
-Keep these Vercel cron routes enabled during the initial Railway burn-in:
+The operator approved a direct cutover without parallel burn-in. The legacy
+Vercel routes do not consult `scheduled_task_claims`, so running them concurrently
+with Railway Beat against the same database could duplicate sends or syncs.
+The reminder/accounting entries have been removed from `vercel.json`; deploy and
+verify the Production Cron Jobs page no longer lists either entry. Until that
+deployment is complete, the old deployed schedules may still fire.
 
-- `/api/cron/send-emails`
-- `/api/cron/sync-accounting`
-- `/api/cron/scheduling-watchdog`
+After cutover, monitor:
 
-Run Railway and the legacy schedules in parallel for several days. For each
-workflow, compare:
-
-- reminder claims against `EmailLog` records, checking for duplicates and gaps;
-- accounting claims against `AccountingSyncRun` records;
-- failed and retrying claims against Railway worker logs;
+- Railway dispatcher heartbeats and Beat/worker logs;
+- `scheduled_task_claims` for queued, retrying, failed, or stale processing work;
+- `EmailLog` and `AccountingSyncRun` for missed or failed outcomes;
 - heartbeat continuity across deployments and Redis restarts;
 - recovery of claims left in `processing` beyond the configured threshold.
 
-Do not remove a legacy cron until parity has been demonstrated for every
-workflow it owns. The watchdog cron remains after cutover because it observes
-Railway independently through Postgres.
+The independent Vercel watchdog remains scheduled because it observes Railway
+through Postgres. The old cron route handlers remain protected by `CRON_SECRET`
+for rollback/housekeeping; pause Railway Beat before invoking them manually.
 
 ## 9. Rollback
 
@@ -392,9 +397,9 @@ Before cutover, rollback is configuration-only:
 No schema rollback or Redis restoration is required. Do not delete Postgres
 claim history during an incident.
 
-After final cutover, restoring the removed Vercel cron routes requires a normal
-code deployment; document and rehearse that release rollback before deleting
-the legacy routes.
+After final cutover, restoring the removed Vercel schedules requires a normal
+code deployment. Keep the legacy route handlers in place; pause Railway Beat
+before restoring their schedules to avoid concurrent processing.
 
 ## 10. Secret rotation
 

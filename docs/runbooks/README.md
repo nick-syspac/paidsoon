@@ -9,13 +9,13 @@ For a condensed per-subsystem env-var checklist (Vercel / Supabase / Railway) wi
 | Name | Where it runs | Supabase project | Stripe mode | Resend sender | Cron |
 |---|---|---|---|---|---|
 | **Local** | `npm run dev` on your machine | `paidsoon-dev` | test | `onboarding@resend.dev` | manual `curl` only |
-| **Vercel Preview** | every PR / preview deploy | `paidsoon-dev` (shared with Local) | test (shared) | `onboarding@resend.dev` | not scheduled — production only |
-| **Production** | `paidsoon.com` on Vercel | `paidsoon-prod` | live | `billing@paidsoon.com` | daily cron suite (`send-emails`, `sync-accounting`, `invoice-import-cleanup`, `margin-guard-snapshots`, `runway-guard-snapshots`, `scheduling-watchdog`) |
+| **Vercel Preview** | every PR / preview deploy | `paidsoon-dev` (shared with Local) | test (shared) | `onboarding@resend.dev` | Vercel Cron is not scheduled; Railway Celery Beat runs the Preview scheduled workflows against `paidsoon-dev` |
+| **Production** | `paidsoon.com` on Vercel; Railway worker services | `paidsoon-prod` | live | `billing@paidsoon.com` | Railway Celery Beat owns reminders/accounting; Vercel retains independent watchdog and other cron jobs. Deploy the cutover and verify legacy schedules are removed. |
 
 Two operating principles:
 
 - **Previews share dev backends.** Local and Preview both point at `paidsoon-dev` (Supabase) and Stripe test mode. There is no per-PR webhook plumbing; previews are UI-only with respect to Stripe webhooks. See [stripe.md](./stripe.md) for the rationale.
-- **Cron only runs in Production.** Vercel does not schedule cron jobs on preview deployments. See [vercel.md](./vercel.md) for how to trigger the cron manually for testing.
+- **Vercel Cron only runs in Production.** Vercel does not schedule cron jobs on preview deployments. Railway Celery Beat is operator-confirmed in both Preview and Production and now owns reminders/accounting. The legacy routes remain available for controlled rollback, but their schedule entries have been removed from source config; deploy and verify the Production Cron Jobs page. Never run both schedulers against the same database. See [vercel.md](./vercel.md) for manual cron-route guidance.
 
 ## Recommended execution order for a fresh environment
 

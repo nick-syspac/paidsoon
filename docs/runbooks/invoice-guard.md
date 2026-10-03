@@ -165,13 +165,14 @@ Current provider boundaries:
 Likely causes:
 
 - Missing or incorrect `CRON_SECRET`.
-- Cron not running because the deployment is Preview, not Production.
+- Railway Beat or its worker is stopped/misconfigured; scheduled reminders run there in both Preview and Production.
+- The legacy Vercel route is no longer scheduled after cutover.
 
 Actions:
 
 1. Confirm the request carries `Authorization: Bearer CRON_SECRET`.
-2. Confirm the target environment is Production if relying on scheduled Vercel cron.
-3. For local or preview testing, trigger the route manually as documented in `vercel.md`.
+2. Check the Railway Beat heartbeat and worker logs for scheduled processing.
+3. For emergency rollback only, pause Beat first, then invoke the `CRON_SECRET`-protected route as documented in `vercel.md`.
 
 ### 4.2 Invoices appear on the dashboard but never start chasing
 
