@@ -2,21 +2,23 @@ schema: spec-driven
 githubCopilot:
   cloudAgent: true
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  PaidSoon follows a model-routing policy: OpenSpec artifacts must be precise enough that implementation can normally be completed by a lower-cost coding model. Planning must remove ambiguity before implementation. Before implementation begins, define explicit requirements, acceptance scenarios, important edge cases, architectural decisions, affected components, actionable tasks, and testing expectations. The implementation model should not be expected to invent missing product requirements or architecture. If implementation uncovers ambiguity, stop and update the relevant OpenSpec artifact instead of silently inventing behaviour.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Clearly state the business problem, scope, and explicit non-scope.
+    - Identify affected modules or components, backward-compatibility concerns, migration implications, and meaningful risks.
+    - Call out security, tenant-isolation, and external integration implications early.
+  specs:
+    - Define observable behaviour and acceptance criteria in clear Given/When/Then or equivalent scenarios.
+    - Cover normal flows, boundaries, and important failure cases.
+    - Prefer explicit assumptions over implicit ones.
+    - Avoid implementation detail unless behaviour depends on it.
+  design:
+    - For substantial changes, describe architecture, affected services or components, data flow, data-model changes, API or interface changes, async processing, security or authorization boundaries, error handling, observability, migration or rollback considerations, and key trade-offs.
+    - Keep design proportional to the change; do not force a large design document for trivial work.
+  tasks:
+    - Keep each task small enough for a single implementation pass without redesigning the feature.
+    - Ensure each task has a clear result, references the relevant spec or design requirement where useful, and includes tests where applicable.
+    - Avoid mixing unrelated changes and make ordering or dependencies obvious.
