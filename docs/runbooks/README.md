@@ -165,6 +165,7 @@ back to `STRIPE_CONNECT_WEBHOOK_SECRET` when unset).
 | `RESEND_FROM_NAME` | `PaidSoon (dev)` | `PaidSoon (preview)` | `PaidSoon` | [resend.md §3](./resend.md) |
 | `RESEND_WEBHOOK_SECRET` | Resend CLI/dashboard `whsec_…` | dashboard `whsec_…` (preview endpoint) | dashboard `whsec_…` (prod endpoint) | [resend.md §4](./resend.md) — signs `POST /api/webhooks/resend` delivery events |
 | `OPENAI_API_KEY` | dev `sk-proj-…` | dev `sk-proj-…` | prod `sk-proj-…` | [openai.md §1](./openai.md) |
+| `TYPESAFE_API_KEY` | omit unless testing Jev with an approved test account | configure only after opt-in disclosure and worker readiness are approved | configure only after production privacy, worker, and monitoring readiness are approved | Server-only TypeSafe API credential; never expose to browser or logs. See [TypeSafe external spend classification](#typesafe-external-spend-classification) |
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` (64 hex chars) | `openssl rand -hex 32` | `openssl rand -hex 32` | Server-side only — never expose to Xero/MYOB, the frontend, or logs. See [myob.md §2](./myob.md) |
 | `XERO_CLIENT_ID` | Xero developer app client ID | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) |
 | `XERO_CLIENT_SECRET` | Xero developer app client secret | same | same | From [Xero developer portal](https://developer.xero.com/app/manage) — server-side only |
@@ -190,6 +191,77 @@ back to `STRIPE_CONNECT_WEBHOOK_SECRET` when unset).
 | `ADMIN_MAX_FAILED_ATTEMPTS` | `10` | `10` | `5` — failed challenge attempts before temporary lockout | [app/api/admin/challenges/route.ts](../../app/api/admin/challenges/route.ts) |
 | `PLATFORM_OWNER_EMAIL` | Supabase user email of first platform owner | — | Supabase user email of first platform owner | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only; never read at runtime |
 | `ADMIN_SSH_PUBLIC_KEY` | contents of `~/.ssh/id_ed25519.pub` (optional device enrol) | — | contents of operator public key (optional first-device enrol) | [scripts/seed-admin-owner.ts](../../scripts/seed-admin-owner.ts) — seed script only; server never stores or uses the private key |
+
+## TypeSafe external spend classification
+
+`TYPESAFE_API_KEY` is a server-only credential for `@typesafe-ai/sdk`. Keep it unset
+until the classification worker is ready and a tenant has received the external-
+processing disclosure and explicitly enabled Jev classification. The default is
+opted out. Do not place the key in a `NEXT_PUBLIC_*` variable, source control, or
+logs.
+
+For an opted-in tenant, PaidSoon sends only an unresolved queued transaction's
+minimized context: sanitized/truncated description when present, merchant when
+available, normalized direction, currency, and active category IDs/names/
+descriptions as Choice options. The integration pins `jev-1.13.0`; do not change
+the model alias/version without rerunning the reviewed evaluation. It does not send
+source record/provider IDs, contact identifiers or names, references, exact
+amounts, or raw provider payloads. An opt-out or non-eligible record makes no
+provider request. Jev output is an unconfirmed suggestion, never a bookkeeping or
+tax decision.
+
+TypeSafe's [Privacy Policy](https://typesafe.ai/legal/privacy-policy) says its
+Services are hosted in the United States, that it does not train or fine-tune
+models on customer inputs, and that personal data is retained as reasonably
+necessary for service/business purposes (subject to legal requirements). Its
+[Data Processing Addendum](https://typesafe.ai/legal/data-processing) states
+retention for as long as necessary for processing purposes and applicable law. The
+public [Legal documentation](https://docs.typesafe.ai/legal) describes zero-data-
+retention (ZDR) as an enterprise offering; do not imply ZDR applies to PaidSoon's
+account unless separately contracted and verified. US processing and provider
+retention remain relevant even though requests are minimized and not used for
+training. Recheck the linked terms before enabling external processing or making
+customer-facing privacy claims.
+
+Before enabling a tenant, verify operationally that the worker is succeeding and
+that the append-only `SpendClassificationEvent` records per-attempt model version,
+input/output token counts, outcome, and retry class/attempt count, without
+transaction content or API credentials. These events do **not** currently record
+request latency or estimated token cost; those remain an explicit monitoring gap
+and must be supplied by external approved telemetry before production opt-in.
+TypeSafe's [model documentation](https://docs.typesafe.ai/models) reports
+`usage.input_tokens` and `usage.output_tokens` and currently lists Jev 1.13 at
+US$0.042 per million input tokens, with output tokens free. Recheck published
+pricing before enabling or estimating costs; do not persist a stale price as if
+it were authoritative.
+
+### Worker readiness, retry observability, and rollback
+
+The classification worker is scheduled daily at 06:00 UTC by
+[vercel.json](../../vercel.json). Before enabling any tenant, verify in the
+Production Vercel Cron Jobs page that the route is deployed and scheduled, confirm
+`CRON_SECRET` and `TYPESAFE_API_KEY` are present only in the approved server
+environment, and exercise an authorized invocation with an approved test tenant.
+The endpoint returns aggregate `claimed`, `completed`, `needsReview`,
+`retryScheduled`, `stale`, `failed`, and `skipped` counters; it never returns
+record identifiers or provider error text. Investigate non-zero `failed`,
+`retryScheduled`, or `needsReview` counters using classification event records,
+which store safe error codes and bounded attempt state.
+
+Retry behavior is limited to network, timeout, HTTP 429, and provider 529 failures:
+2 seconds after the first failure, 8 seconds after the second, and then
+`needs_review` after the third attempt. A longer provider `Retry-After` is honored.
+Permanent provider/response failures go directly to `needs_review`. No raw error
+messages are retained.
+
+To roll back or pause external classification, first set tenant Jev opt-in to
+disabled through the authenticated classification settings surface, then remove
+`TYPESAFE_API_KEY` from the affected Vercel environment and redeploy. If the
+scheduled worker itself must stop, remove its cron entry from `vercel.json` in a
+reviewed deployment. Do not delete imported records, classifications, refund
+links, or audit events; they remain available for review and reporting. The
+feature is default-off and imports remain successful when classification is
+disabled or unavailable. Re-enable only after the readiness checks above pass.
 
 ## Railway environment-variable matrix
 

@@ -50,6 +50,7 @@ import {
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { isDemoOrganisationId } from "@/lib/providers/accounting/demoGuard"
 import { getMissingMyobSpendScopes } from "@/lib/providers/accounting/myob"
+import { handoffImportedSpendForClassification } from "@/lib/spendClassification/handoff"
 import {
   AccountingProviderError,
   type AccountingProviderErrorKind,
@@ -99,12 +100,12 @@ async function upsertImportedSpendBill(params: {
   bill: ProviderSpendBill
   expenseAccountsByCode: Map<string, ProviderSpendExpenseAccount>
   syncedAt: Date
-}): Promise<void> {
+}): Promise<string> {
   const { userId, accountingConnectionId, bill, expenseAccountsByCode, syncedAt } = params
   const accountFromBill = bill.expenseAccountCode?.trim().toLowerCase()
   const matchedAccount = accountFromBill ? expenseAccountsByCode.get(accountFromBill) : undefined
 
-  await prismaAdmin.importedBill.upsert({
+  const billRow = await prismaAdmin.importedBill.upsert({
     where: {
       accountingConnectionId_sourceId: {
         accountingConnectionId,
@@ -148,7 +149,9 @@ async function upsertImportedSpendBill(params: {
       syncedAt,
       rawSourceData: asJsonOrDbNull(bill.rawMetadata),
     },
+    select: { id: true },
   })
+  return billRow.id
 }
 
 async function upsertImportedSpendBankTransaction(params: {
@@ -156,10 +159,10 @@ async function upsertImportedSpendBankTransaction(params: {
   accountingConnectionId: string
   transaction: ProviderSpendBankTransaction
   syncedAt: Date
-}): Promise<void> {
+}): Promise<string> {
   const { userId, accountingConnectionId, transaction, syncedAt } = params
 
-  await prismaAdmin.importedBankTransaction.upsert({
+  const transactionRow = await prismaAdmin.importedBankTransaction.upsert({
     where: {
       accountingConnectionId_sourceId: {
         accountingConnectionId,
@@ -173,10 +176,13 @@ async function upsertImportedSpendBankTransaction(params: {
       sourceContactId: transaction.providerSupplierId ?? null,
       accountName: transaction.accountName ?? null,
       accountCode: transaction.accountCode ?? null,
+      expenseAccountName: transaction.expenseAccountName ?? null,
+      expenseAccountCode: transaction.expenseAccountCode ?? null,
       description: transaction.description,
       reference: transaction.reference ?? null,
       counterpartyName: transaction.counterpartyName ?? null,
       amountCents: toCents(transaction.amount),
+      direction: transaction.direction,
       currency: transaction.currency,
       transactionDate: transaction.transactionDate,
       sourceUpdatedAt: transaction.providerUpdatedAt ?? null,
@@ -187,17 +193,22 @@ async function upsertImportedSpendBankTransaction(params: {
       sourceContactId: transaction.providerSupplierId ?? null,
       accountName: transaction.accountName ?? null,
       accountCode: transaction.accountCode ?? null,
+      expenseAccountName: transaction.expenseAccountName ?? null,
+      expenseAccountCode: transaction.expenseAccountCode ?? null,
       description: transaction.description,
       reference: transaction.reference ?? null,
       counterpartyName: transaction.counterpartyName ?? null,
       amountCents: toCents(transaction.amount),
+      direction: transaction.direction,
       currency: transaction.currency,
       transactionDate: transaction.transactionDate,
       sourceUpdatedAt: transaction.providerUpdatedAt ?? null,
       syncedAt,
       rawSourceData: asJsonOrDbNull(transaction.rawMetadata),
     },
+    select: { id: true },
   })
+  return transactionRow.id
 }
 
 async function upsertImportedSpendSupplier(params: {
@@ -348,13 +359,19 @@ async function syncSpendSideData(params: {
 
   for (const bill of spendBills) {
     try {
-      await upsertImportedSpendBill({
+      const sourceRecordId = await upsertImportedSpendBill({
         userId: connection.userId,
         accountingConnectionId: connection.id,
         bill,
         expenseAccountsByCode,
         syncedAt,
       })
+      try {
+        await handoffImportedSpendForClassification(connection.userId, "imported_bill", sourceRecordId)
+      } catch {
+        // Classification is best-effort and must not turn a successful source upsert into a failed import.
+        console.error("[sync] spend bill classification handoff failed")
+      }
     } catch (err) {
       failures.push(`bill-upsert:${err instanceof Error ? err.message : "unknown error"}`)
     }
@@ -362,12 +379,28 @@ async function syncSpendSideData(params: {
 
   for (const transaction of spendTransactions) {
     try {
-      await upsertImportedSpendBankTransaction({
+      const expenseAccount = transaction.expenseAccountCode
+        ? expenseAccountsByCode.get(transaction.expenseAccountCode.trim().toLowerCase())
+        : undefined
+      const sourceRecordId = await upsertImportedSpendBankTransaction({
         userId: connection.userId,
         accountingConnectionId: connection.id,
-        transaction,
+        transaction: {
+          ...transaction,
+          expenseAccountName: transaction.expenseAccountName ?? expenseAccount?.accountName,
+        },
         syncedAt,
       })
+      try {
+        await handoffImportedSpendForClassification(
+          connection.userId,
+          "imported_bank_transaction",
+          sourceRecordId,
+        )
+      } catch {
+        // Classification is best-effort and must not turn a successful source upsert into a failed import.
+        console.error("[sync] bank transaction classification handoff failed")
+      }
     } catch (err) {
       failures.push(`bank-transaction-upsert:${err instanceof Error ? err.message : "unknown error"}`)
     }

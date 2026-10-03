@@ -3,12 +3,13 @@ import { createHash } from "node:crypto"
 import { NextResponse } from "next/server"
 
 import { withUserContext } from "@/lib/db/withUserContext"
-import { parseSpendImportDate, parseSpendImportMoney } from "@/lib/spendImport/mapping"
+import { getSpendImportDirection, parseSpendImportDate, parseSpendImportMoney } from "@/lib/spendImport/mapping"
 import { type SpendImportCanonicalField } from "@/lib/spendImport/template"
 import { createClient } from "@/lib/supabase/server"
 import { detectSpendFindings } from "@/lib/spendleak/engine"
 import { upsertSpendFindings } from "@/lib/spendleak/persist"
 import { Prisma } from "@/lib/generated/prisma/client"
+import { handoffImportedSpendForClassification } from "@/lib/spendClassification/handoff"
 
 type Params = { params: Promise<{ batchId: string }> }
 
@@ -16,6 +17,11 @@ type CommitResult = {
   recordsUpserted: number
   findingsUpserted: number
   recordsSkipped: number
+}
+
+type ClassificationHandoff = {
+  sourceType: "imported_bill" | "imported_bank_transaction"
+  sourceRecordId: string
 }
 
 const SPEND_IMPORT_CONNECTION_PROVIDER = "csv_import"
@@ -121,6 +127,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       findingsUpserted: 0,
       recordsSkipped: 0,
     }
+    const classificationHandoffs: ClassificationHandoff[] = []
 
     for (const row of rows) {
       const values = (row.normalized ?? {}) as Partial<Record<SpendImportCanonicalField, string>>
@@ -136,6 +143,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       const sourceId = buildSourceId(values, row.rowNumber)
       const currency = (values.currency?.trim() || batch.defaultCurrency || "AUD").toUpperCase()
       const sourceType = normalizeSourceType(values.source_type)
+      const direction = getSpendImportDirection(sourceType, amount)
       const evidenceSourceData = {
         importBatchId: batchId,
         sourceType,
@@ -166,7 +174,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       })
 
       if (sourceType === "transaction") {
-        await tx.importedBankTransaction.upsert({
+        const importedTransaction = await tx.importedBankTransaction.upsert({
           where: {
             accountingConnectionId_sourceId: {
               accountingConnectionId: sourceConnection.id,
@@ -178,12 +186,15 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
             accountingConnectionId: sourceConnection.id,
             sourceId,
             sourceContactId: supplierSourceId,
-            accountName: values.account_name?.trim() || null,
-            accountCode: values.account_code?.trim() || null,
+            accountName: null,
+            accountCode: null,
+            expenseAccountName: values.account_name?.trim() || null,
+            expenseAccountCode: values.account_code?.trim() || null,
             description: values.description?.trim() || values.reference?.trim() || "Imported spend transaction",
             reference: values.reference?.trim() || null,
             counterpartyName: supplierName,
             amountCents: -Math.abs(toCents(amount)),
+            direction,
             currency,
             transactionDate,
             syncedAt: new Date(),
@@ -194,12 +205,15 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
           },
           update: {
             sourceContactId: supplierSourceId,
-            accountName: values.account_name?.trim() || null,
-            accountCode: values.account_code?.trim() || null,
+            accountName: null,
+            accountCode: null,
+            expenseAccountName: values.account_name?.trim() || null,
+            expenseAccountCode: values.account_code?.trim() || null,
             description: values.description?.trim() || values.reference?.trim() || "Imported spend transaction",
             reference: values.reference?.trim() || null,
             counterpartyName: supplierName,
             amountCents: -Math.abs(toCents(amount)),
+            direction,
             currency,
             transactionDate,
             syncedAt: new Date(),
@@ -208,10 +222,15 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
               values,
             }),
           },
+          select: { id: true },
+        })
+        classificationHandoffs.push({
+          sourceType: "imported_bank_transaction",
+          sourceRecordId: importedTransaction.id,
         })
       } else {
         const dueDate = parseSpendImportDate(values.due_date ?? "")
-        await tx.importedBill.upsert({
+        const importedBill = await tx.importedBill.upsert({
           where: {
             accountingConnectionId_sourceId: {
               accountingConnectionId: sourceConnection.id,
@@ -258,7 +277,9 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
               values,
             }),
           },
+          select: { id: true },
         })
+        classificationHandoffs.push({ sourceType: "imported_bill", sourceRecordId: importedBill.id })
       }
 
       commitResult.recordsUpserted += 1
@@ -319,7 +340,7 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       },
     })
 
-    return { ok: true as const, batch: updated, commitResult, replay: false }
+    return { ok: true as const, batch: updated, commitResult, replay: false, classificationHandoffs }
   })
 
   if (!result.ok) {
@@ -327,6 +348,17 @@ export async function POST(_request: Request, { params }: Params): Promise<NextR
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
     return NextResponse.json({ error: "Batch is not ready for commit" }, { status: 409 })
+  }
+
+  if (!result.replay && "classificationHandoffs" in result && result.classificationHandoffs) {
+    for (const handoff of result.classificationHandoffs) {
+      try {
+        await handoffImportedSpendForClassification(user.id, handoff.sourceType, handoff.sourceRecordId)
+      } catch {
+        // CSV/XLSX commit success is independent from the best-effort classification handoff.
+        console.error("[spend-import] classification handoff failed")
+      }
+    }
   }
 
   return NextResponse.json({

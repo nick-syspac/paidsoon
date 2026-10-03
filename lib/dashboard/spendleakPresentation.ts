@@ -139,6 +139,16 @@ export function buildSpendLeakModuleSummaries(findings: SpendInsight[]): SpendLe
   })
 }
 
+export {
+  buildSpendClassificationSummary as buildSpendLeakCategorySpendSummaries,
+  type ConfirmedSpendCategoryTotal as SpendLeakCategorySpendSummary,
+  type ImportedSpendSummaryRecord as SpendLeakImportedSpendRecord,
+  type SpendClassificationSummary as SpendLeakCategorySpendSummaries,
+  type ImportedSpendSummaryBucket as SpendLeakSpendSummaryBucket,
+  type ImportedSpendSourceType as SpendLeakSpendSourceType,
+  type UnresolvedSpendTotal as SpendLeakUnresolvedSpendSummary,
+} from "@/lib/spendClassification/summaries"
+
 export function isSpendLeakDataStale(
   latestSyncAt: Date | null,
   now: Date = new Date(),

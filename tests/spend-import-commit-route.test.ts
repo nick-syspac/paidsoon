@@ -15,6 +15,10 @@ let mockBatch: {
 
 let stagingRowsRead = false
 let capturedFindings: Array<{ evidence: Record<string, unknown> }> = []
+let mockSourceType: "bill" | "transaction" = "bill"
+let capturedBankTransaction: Record<string, unknown> | null = null
+const classificationHandoffs: Array<{ userId: string; sourceType: string; sourceRecordId: string }> = []
+let classificationHandoffFails = false
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let POST: any
@@ -53,6 +57,15 @@ describe("Spend import commit route", () => {
       },
     })
 
+    await mock.module("@/lib/spendClassification/handoff", {
+      namedExports: {
+        handoffImportedSpendForClassification: async (userId: string, sourceType: string, sourceRecordId: string) => {
+          classificationHandoffs.push({ userId, sourceType, sourceRecordId })
+          if (classificationHandoffFails) throw new Error("classification unavailable")
+        },
+      },
+    })
+
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
         withUserContext: async (_userId: string, fn: (tx: unknown) => unknown) => {
@@ -75,7 +88,9 @@ describe("Spend import commit route", () => {
                       supplier_name: "Acme Pty Ltd",
                       amount: "100.00",
                       transaction_date: "2026-09-01",
-                      source_type: "bill",
+                      source_type: mockSourceType,
+                      account_name: "Software subscriptions",
+                      account_code: "620",
                     },
                     status: "valid",
                   },
@@ -105,7 +120,10 @@ describe("Spend import commit route", () => {
               ],
             },
             importedBankTransaction: {
-              upsert: async () => ({ id: "txn-1" }),
+              upsert: async (args: { create: Record<string, unknown> }) => {
+                capturedBankTransaction = args.create
+                return { id: "txn-1" }
+              },
               findMany: async () => [],
             },
             spendInsight: {
@@ -136,6 +154,10 @@ describe("Spend import commit route", () => {
     }
     stagingRowsRead = false
     capturedFindings = []
+    mockSourceType = "bill"
+    capturedBankTransaction = null
+    classificationHandoffs.length = 0
+    classificationHandoffFails = false
   })
 
   test("returns 401 when unauthenticated", async () => {
@@ -166,6 +188,7 @@ describe("Spend import commit route", () => {
     assert.equal(body.replay, true)
     assert.equal(body.recordsUpserted, 4)
     assert.equal(stagingRowsRead, false)
+    assert.equal(classificationHandoffs.length, 0)
   })
 
   test("committed findings are tagged as expense import source", async () => {
@@ -176,5 +199,56 @@ describe("Spend import commit route", () => {
     assert.equal(res.status, 200)
     assert.equal(capturedFindings.length, 1)
     assert.equal(capturedFindings[0]?.evidence.source, "expense_import")
+    assert.deepEqual(classificationHandoffs, [
+      { userId: "user-1", sourceType: "imported_bill", sourceRecordId: "bill-1" },
+    ])
+  })
+
+  test("row re-import invokes the same idempotent classification handoff for the existing source record", async () => {
+    const first = await POST(new Request("http://localhost/api/spend-imports/batch-1/commit", { method: "POST" }), {
+      params: Promise.resolve({ batchId: "batch-1" }),
+    })
+    mockBatch = { ...mockBatch, id: "batch-2", status: "validated" }
+    const second = await POST(new Request("http://localhost/api/spend-imports/batch-2/commit", { method: "POST" }), {
+      params: Promise.resolve({ batchId: "batch-2" }),
+    })
+
+    assert.equal(first.status, 200)
+    assert.equal(second.status, 200)
+    assert.deepEqual(classificationHandoffs, [
+      { userId: "user-1", sourceType: "imported_bill", sourceRecordId: "bill-1" },
+      { userId: "user-1", sourceType: "imported_bill", sourceRecordId: "bill-1" },
+    ])
+  })
+
+  test("classification handoff failures do not fail the committed spend import", async () => {
+    classificationHandoffFails = true
+    const res = await POST(new Request("http://localhost/api/spend-imports/batch-1/commit", { method: "POST" }), {
+      params: Promise.resolve({ batchId: "batch-1" }),
+    })
+    const body = await res.json()
+
+    assert.equal(res.status, 200)
+    assert.equal(body.status, "completed")
+    assert.equal(body.recordsUpserted, 1)
+    assert.equal(classificationHandoffs.length, 1)
+  })
+
+  test("stores CSV transaction direction and expense coding separately from bank account fields", async () => {
+    mockSourceType = "transaction"
+    const res = await POST(new Request("http://localhost/api/spend-imports/batch-1/commit", { method: "POST" }), {
+      params: Promise.resolve({ batchId: "batch-1" }),
+    })
+
+    assert.equal(res.status, 200)
+    assert.equal(capturedBankTransaction?.amountCents, -10000)
+    assert.equal(capturedBankTransaction?.direction, "unknown")
+    assert.equal(capturedBankTransaction?.accountName, null)
+    assert.equal(capturedBankTransaction?.accountCode, null)
+    assert.equal(capturedBankTransaction?.expenseAccountName, "Software subscriptions")
+    assert.equal(capturedBankTransaction?.expenseAccountCode, "620")
+    assert.deepEqual(classificationHandoffs, [
+      { userId: "user-1", sourceType: "imported_bank_transaction", sourceRecordId: "txn-1" },
+    ])
   })
 })

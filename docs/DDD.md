@@ -49,6 +49,7 @@ below maps logical areas to code modules (there are no Django apps).
 | Billing & entitlements | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | Plans, checkout, gating | `UserProfile.subscriptionTier`; `PLAN_CATALOG` | `changes/restore-three-tier-pricing`, `.../specs/subscription-plan-tiers` |
 | Dashboard & upsell | `app/dashboard/**`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | Views + upgrade prompts | `DashboardUpsellModel` | `changes/sample-overdue-preview-upsell`, `changes/add-dashboard-overview` |
 | SpendLeak brain | `lib/spendleak/**`, `lib/dashboard/loadSpendLeakDashboard.ts`, `app/api/spend-insights/[id]/route.ts`, `app/api/spendleak/export/route.ts`, `app/api/settings/spendleak/route.ts`, `prisma/schema.prisma` | Read-only spend ingestion, deterministic detection, grounded summaries, selected-source readiness settings, and analysis-only CSV/XLSX report export | `ImportedBill`, `ImportedBankTransaction`, `SupplierProfile`, `SpendInsight`, `SpendLeakSetting`; `SPENDLEAK_EXPORT_FIELDS`, `loadSpendLeakFindingsForExport`, `generateSpendLeakExportCsv`, `generateSpendLeakExportXlsx` | `changes/build-spendleak-brain`, `changes/export-spendleak-report`, `changes/configure-spendleak-source-selection` |
+| Imported-spend classification foundation | `lib/providers/accounting/**`, `lib/spendImport/**`, `app/api/spend-imports/**`, `app/api/spend-classification/**`, `app/dashboard/spendleak/review/**`, `components/dashboard/spendleak/**`, `prisma/schema.prisma`, `prisma/rls-policies.sql` | Tenant-owned analytical category/tag/assignment schema, provider-independent transaction direction, deterministic resolver, authenticated review/correction APIs and UI, category and external-processing settings UI, and guarded TypeSafe worker are implemented; FinOps consumer integrations remain in progress | `SpendClassificationSetting`, `SpendCategory`, `SpendTag`, `SpendClassification`, `SpendClassificationRule`, `SpendClassificationEvent`, `SpendClassificationTag`, `SpendDirection` | `changes/classify-imported-spend-with-jev` |
 | Cost Guard foundation | `lib/costGuard/**`, `prisma/schema.prisma`, `prisma/rls-policies.sql` | Shared cost-risk baseline, rule catalog, alerts, and month-end forecast state for the read-only Cost Guard module | `CostGuardSetting`, `CostGuardRule`, `CostGuardBaseline`, `CostGuardAlert`, `CostGuardAlertEvent`, `CostGuardForecast`; `calculateBaseline`, `evaluateMateriality`, `buildDefaultCostGuardRules` | `changes/cost-guard-foundation` |
 | RunwayGuard | `lib/runwayGuard/**`, `app/api/runway-guard/**` | Cash resilience summary, runway timeline, scenario simulation, alert transitions, and tenant-scoped settings for the RunwayGuard module | `RunwayGuardSetting`, `RunwayGuardSnapshot`, `RunwayGuardAlert`, `RunwayGuardAlertEvent`, `RunwayGuardScenario`; `buildRunwaySummary`, `simulateRunwayScenario`, `buildRunwayGuardServiceOutput` | `changes/implement-runwayguard-finops-module` |
 | Tax Buffer | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | Tax reserve estimation, safe-to-spend composition, obligation tracking, and reserve override audit trail | `TaxBufferConfiguration`, `TaxReserveCategory`, `TaxBufferObligation`, `TaxBufferSnapshot`, `TaxBufferOverride`, `TaxBufferEvent`; `buildTaxBufferSummary`, `loadTaxBufferSummary`, `saveTaxBufferSettings` | `changes/add-tax-buffer-module` |
@@ -256,13 +257,80 @@ subsection documents a functional module.
   `SupplierProfile` retain provider provenance and timestamps; `SpendInsight`
   stores the subject key, finding type, evidence payload, estimated impact, and
   lifecycle state so the same issue updates in place rather than creating a duplicate row.
+- **Import flow and source boundary:** Xero/MYOB spend sync normalizes provider rows in
+  `lib/providers/accounting/{xero,myob}.ts` and upserts them in
+  `lib/providers/accounting/sync.ts`; CSV/XLSX rows pass through staging and validated
+  commit in `app/api/spend-imports/**`, then become imported bills or bank transactions.
+  Provider source records are not the PaidSoon classification store: user review and
+  classification data belong in the separate `SpendClassification` family, and no
+  classification is written back to Xero or MYOB. Provider sync writes source records
+  through `prismaAdmin`; the authenticated CSV commit can write only rows linked to the
+  tenant's dedicated `csv_import` / `spend-import` connection under the RLS policies.
+- **Transaction semantics:** `ImportedBankTransaction.direction` uses `SpendDirection`
+  (`outflow`, `inflow`, `unknown`) independently of `amountCents`. Xero `SPEND` is
+  `outflow` even when Xero supplies a positive amount; MYOB direction follows its
+  `SpendMoneyTxn` or `ReceiveMoneyTxn` family. CSV transaction rows with a negative
+  signed amount are outflows; a positive amount alone does not prove a refund/inflow
+  and remains `unknown`. The CSV commit retains its established negative outflow amount
+  convention, while the submitted values remain in `rawSourceData`.
+- **Account semantics:** `accountName` / `accountCode` on imported bank transactions
+  describe the cash/bank account. `expenseAccountName` / `expenseAccountCode` are
+  separate fields populated only from explicit expense coding (for example Xero bank
+  transaction line items when exactly one account code is present, or CSV expense
+  account columns). MYOB bill category coding remains on the bill's expense-account
+  fields. A cash account is never substituted for expense coding.
+- **Classification data boundary and status:** the additive schema provides one
+  tenant-scoped `SpendClassification` per imported bill or bank transaction, optional
+  `SpendClassificationTag` links, tenant-owned `SpendCategory` and `SpendTag` records,
+  a default-disabled `SpendClassificationSetting`, tenant rules, and append-only
+  `SpendClassificationEvent` history. `SpendClassification.refundForClassificationId`
+  is an optional same-tenant self-reference for a user-confirmed refund link; the
+  service validates source direction, currency, confirmed category, and cumulative
+  credit amount. Composite tenant/source/category foreign keys,
+  the exactly-one-source constraint, RLS, and explicit grants protect tenant data.
+  `SpendClassificationClaim` stores service-only per-assignment claim tokens,
+  fingerprints, and expiries; `SpendClassificationWorkerLease` is the service-only
+  singleton that fences overlapping worker runs. Both tables have RLS enabled and no
+  `anon` or `authenticated` privileges. Provider sync and CSV/XLSX finalization now
+  hand off persisted records to deterministic classification and queue opted-in
+  unresolved outflows. `runSpendClassificationBatch()` claims at most 25 records with
+  concurrency capped at three, makes Jev requests outside database transactions, and
+  fences completion against changed fingerprints and manual decisions. Network,
+  timeout, 429, and 529 failures use three total attempts with durable 2s/8s backoff
+  and a longer provider `Retry-After` when supplied; permanent or exhausted failures
+  move to review with only a safe error code persisted. The `CRON_SECRET`-guarded
+  cron route is scheduled daily at 06:00 UTC. Review APIs/UI support authenticated
+  corrections, explicit future-only rules, manual transfer exclusions, and explicit
+  refund links. Same-source refunds reduce that category/source subtotal; cross-source
+  refunds remain separate credits and never net bills against bank transactions.
 - **UI integration:** `loadSpendLeakDashboard()` reads findings and the latest
   spend sync timestamp and groups them into dashboard modules while surfacing
-  stale or initial-sync states without fabricating opportunities. In `empty`
+  stale or initial-sync states without fabricating opportunities. It also
+  summarizes confirmed category assignments from imported bills and bank
+  transactions, keeping source types and currencies separate and retaining
+  imported record IDs for traceability. Same-source linked refund IDs are included
+  in net category traceability; cross-source credits are displayed separately with
+  both sides' source IDs. Unclassified and unconfirmed outflows,
+  unknown-direction transactions, and excluded/voided/draft records are reported
+  in separate buckets; inflows are not counted as spend. This additive summary
+  includes imported records regardless of finding-source selection and preserves
+  historical category IDs after a merge. In `empty`
   states where selected sources are synced and findings are zero, the dashboard
   also shows selected-source evidence coverage (sync status, latest sync time,
   and record counts) to distinguish "data present" from "no alert-grade
   findings".
+- **Cost Guard category analysis:** `GET /api/cost-guard/categories` groups only
+  confirmed PaidSoon category assignments from imported bills and normalized
+  bank outflows. It keeps source types/currencies separate, returns unclassified
+  and unconfirmed/excluded totals independently, and omits inflows and unknown
+  direction from confirmed spend. Same-source linked refunds reduce their original
+  category subtotal; cross-source refund credits are returned separately, and
+  provider expense-account names are not used as the shared category taxonomy.
+- **MarginGuard category context:** its summary returns confirmed PaidSoon
+  spending-category totals beside the independent MarginGuard cost class for
+  eligible imported outflows. `DIRECT_COST`, `VARIABLE_COST`, `OVERHEAD`, and
+  their existing margin calculations remain unchanged; category labels provide
+  context only.
 - **Settings contract:** `GET/PUT /api/settings/spendleak` persists tenant
   source-selection expectations (`bills`, `bank_transactions`, `suppliers`) in
   `SpendLeakSetting`; dashboard readiness treats this as expected coverage and
@@ -529,6 +597,18 @@ erDiagram
 | `WeeklyDebtorSummaryDelivery` | `prisma/schema.prisma` | Internal idempotency/audit log for weekly debtor summary sends | `userId`, `weekStart`, `status`, `resendMessageId`, `lastError`, `subject`, `sentAt` | — | No (service role only) | Unique `(userId, weekStart)`; used by the weekly debtor summary sender to ensure one send per tenant per week |
 | `EmailTemplate` | `prisma/schema.prisma` | Per-user custom stage template | `userId`, `stage` (1–3), `subject`, `htmlBody`, `textBody` | N—1 profile | Yes | Unique `(userId, stage)`; upserted by templates PUT; deleted by templates DELETE |
 | `AiUsageLog` | `prisma/schema.prisma` | AI token usage + cost record | `userId`, `model`, `feature`, `promptTokens`, `completionTokens`, `estimatedCostUsd` | N—1 profile | Yes (SELECT only; INSERT via `prismaAdmin`) | Written after each GPT-4o-mini rewrite call |
+| `ImportedBill` | `prisma/schema.prisma` | Imported provider or CSV/XLSX bill facts | `userId`, `accountingConnectionId`, `sourceId`, supplier/reference/document fields, `expenseAccountCode`, `expenseAccountName`, `amountCents`, `gstCents`, `currency`, dates/status, `rawSourceData` | N—1 profile and accounting connection; optional classifications and tax obligations | Yes (tenant RLS; provider sync via `prismaAdmin`; authenticated writes restricted to the tenant's CSV-import connection) | Unique `(accountingConnectionId, sourceId)`; source facts remain separate from analytical category assignments |
+| `ImportedBankTransaction` | `prisma/schema.prisma` | Imported provider or CSV/XLSX bank transaction facts | `userId`, `accountingConnectionId`, `sourceId`, cash/bank `accountName`/`accountCode`, `expenseAccountName`/`expenseAccountCode`, description/reference/counterparty, `amountCents`, `direction`, `currency`, `transactionDate`, `rawSourceData` | N—1 profile and accounting connection; optional classifications, MarginGuard classifications, and Tax Buffer obligations | Yes (tenant RLS; provider sync via `prismaAdmin`; authenticated writes restricted to the tenant's CSV-import connection) | Unique `(accountingConnectionId, sourceId)`; `direction` is `SpendDirection` (`outflow`/`inflow`/`unknown`) and does not replace the amount or raw source representation |
+| `SupplierProfile` | `prisma/schema.prisma` | Provider-linked or CSV-import supplier identity and source defaults | `userId`, `accountingConnectionId`, `sourceId`, `supplierName`, contact/default-account metadata, `rawSourceData` | N—1 profile and accounting connection | Yes (tenant RLS; provider sync via `prismaAdmin`; authenticated writes restricted to the tenant's CSV-import connection) | Unique `(accountingConnectionId, sourceId)`; supplier/account metadata is not itself a PaidSoon category |
+| `SpendClassificationSetting` | `prisma/schema.prisma` | Tenant opt-in setting for external spend classification | `userId`, `enabled` (default false), timestamps | 1—1 profile | Yes (tenant RLS) | Default-off opt-in API and disclosure UI are implemented |
+| `SpendCategory` | `prisma/schema.prisma` | Tenant-owned analytical spending category | `userId`, stable `id`, optional `key`, `name`, `normalizedName`, `description`, `isSystem`, lifecycle `status`, `mergedIntoCategoryId` | N—1 profile; optional merge target; 1—N classifications/rules | Yes (tenant RLS) | Unique `(userId, normalizedName)` and `(userId, key)`; default taxonomy provisioning, rename/merge/retire behavior, reserved `Other` protections, authenticated API, and settings UI are implemented |
+| `SpendTag` | `prisma/schema.prisma` | Tenant-owned optional analytical label | `userId`, `name`, `normalizedName`, lifecycle `status` | N—1 profile; linked through `SpendClassificationTag` | Yes (tenant RLS) | Unique `(userId, normalizedName)`; lifecycle service and authenticated management API are implemented |
+| `SpendClassification` | `prisma/schema.prisma` | One current analytical assignment/suggestion per imported source, with optional refund link | `userId`, optional source FKs (`importedBillId` / `importedBankTransactionId`), `sourceType`, `sourceRecordId`, optional `categoryId` and same-tenant `refundForClassificationId`, `status`, `origin`, confidence/probabilities/model/rule, fingerprint, retry/claim fields | N—1 profile/category/rule; one imported source; optional self-reference to original spend; 1—N events/tag links; optional active worker claim | Yes (tenant RLS; composite tenant FKs; exactly-one-source DB check) | Unique per tenant/source; provider/CSV handoff and deterministic resolution are implemented; Jev suggestions are asynchronous and non-authoritative; refund links are explicit, same-currency, confirmed-outflow links; user-marked transfers are excluded with audit history |
+| `SpendClassificationClaim` | `prisma/schema.prisma` | Durable service-only claim for one classification assignment | `userId`, `classificationId`, unique `claimToken`, `sourceFingerprint`, `leaseExpiresAt`, `claimedAt` | 1—1 classification (cascade delete) | No (RLS enabled; no `PUBLIC`, `anon`, or `authenticated` privileges; worker service only) | Expired claims can be reclaimed; token and fingerprint fence completion |
+| `SpendClassificationWorkerLease` | `prisma/schema.prisma` | Global singleton lease preventing overlapping classification batches | singleton `id`, `ownerToken`, `leaseExpiresAt`, `updatedAt` | — | No (RLS enabled; no `PUBLIC`, `anon`, or `authenticated` privileges; worker service only) | Owner-token release and expiry recovery; one invocation claims at most 25 records with concurrency capped at three |
+| `SpendClassificationRule` | `prisma/schema.prisma` | Tenant-owned deterministic classification rule | `userId`, `name`, `ruleType`, `categoryId`, `priority`, `enabled`, `matchConfig`, actor/timestamps | N—1 profile/category; 1—N classifications | Yes (tenant RLS) | Deterministic source mapping/rule resolution, conflict-to-review, authenticated rule APIs, and explicit future-only rules from corrections are implemented |
+| `SpendClassificationEvent` | `prisma/schema.prisma` | Append-only assignment/category audit history | `userId`, optional `classificationId`, `eventType`, `actorId`, old/new category IDs, `reason`, `metadata`, `createdAt` | N—1 profile and optional classification | Yes (tenant RLS; authenticated SELECT/INSERT only, no UPDATE/DELETE) | Assignment, category lifecycle, Jev completion, retry, transfer exclusion, and refund-link event writes are implemented |
+| `SpendClassificationTag` | `prisma/schema.prisma` | Tenant-scoped join between an assignment and optional tag | `userId`, `classificationId`, `tagId`, `createdAt` | N—1 assignment and tag | Yes (tenant RLS) | Unique `(userId, classificationId, tagId)` |
 | `PromiseToPay` | `prisma/schema.prisma` | Client payment commitment history per invoice | `trackedInvoiceId`, `userId`, `promisedPayBy`, `promisedAmount`, `clientNotes`, `status`, `breachNotifiedAt` | N—1 tracked invoice | Yes (SELECT only; INSERT/UPDATE via `prismaAdmin`) | `status`: `active` → `kept` / `broken` / `superseded`; indexes on `(trackedInvoiceId, createdAt)` and `(status, promisedPayBy)` |
 | `Arrangement` | `prisma/schema.prisma` | Freelancer-managed agreement for one debtor (single or multi-invoice scope) | `userId`, `debtorEmail`, `arrangementType`, `status`, `promisedPayBy`, `agreedAmount`, `planSchedule`, `expiresAt`, `breachedAt`, `fulfilledAt` | N—1 profile; 1—N coverages | Yes (RLS CRUD) | `arrangementType`: `full_payment` / `partial_payment` / `instalment_plan`; `status`: `active` → `broken` / `fulfilled` / `expired` / `cancelled` |
 | `ArrangementInvoiceCoverage` | `prisma/schema.prisma` | Joins arrangements to covered invoices for suppression/resume behavior | `arrangementId`, `trackedInvoiceId`, `userId` | N—1 arrangement; N—1 tracked invoice | Yes (RLS CRUD) | Unique `(arrangementId, trackedInvoiceId)`; FK `(arrangementId, userId)` → arrangements |
@@ -612,8 +692,20 @@ enforced server-side before content is returned.
 | `POST /api/webhooks/stripe-connect` | `.../stripe-connect/route.ts` | provider signature | signature | `prismaAdmin` by account id | Stripe event → `{received}` | Implemented |
 | `POST /api/webhooks/resend` | `.../resend/route.ts` | Svix-style signature (`svix-id`/`svix-timestamp`/`svix-signature`, HMAC-SHA256, 5-min tolerance) | signature | `prismaAdmin` by `resendMessageId` | Resend delivery event → `{received}` | Implemented — updates `EmailLog.status`; always returns 200 for unmatched/unknown events |
 | `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed,held,usageByAccount}` | Implemented |
-| `GET /api/cron/scheduling-watchdog` | `.../cron/scheduling-watchdog/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{ok,stale,lastRunAt}` | Implemented — alerts via email if the Railway Celery Beat heartbeat is stale/missing; see [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
+| `GET /api/cron/scheduling-watchdog` | `.../cron/scheduling-watchdog/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{ok,stale,lastRunAt}` | Implemented — alerts via email if the Railway Celery Beat heartbeat is stale/missing |
 | `GET /api/cron/margin-guard-snapshots` | `.../cron/margin-guard-snapshots/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{ok,snapshots,alerts,opportunities}` | Implemented — runs tenant snapshot upserts first, then alert and opportunity sweeps |
+| `GET /api/cron/spend-classification` | `app/api/cron/spend-classification/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` worker service | → `{ok,leaseAcquired,claimed,completed,needsReview,retryScheduled,stale,failed,skipped}` | Implemented — daily at 06:00 UTC; response contains aggregate operational counters only |
+| `GET/POST /api/spend-classification/categories` | `app/api/spend-classification/categories/route.ts` | list; strict `{name,description?}` | session | tenant-scoped category service (`withUserContext`) | → `{categories}` / `{category}` | Implemented — GET idempotently provisions the tenant's default categories |
+| `PATCH /api/spend-classification/categories/[categoryId]` | `app/api/spend-classification/categories/[categoryId]/route.ts` | path ID; strict rename/retire/merge action | session | tenant-scoped category service (`withUserContext`) | action → `{category}` | Implemented — reserved `Other` protections enforced by service |
+| `GET/POST /api/spend-classification/tags` | `app/api/spend-classification/tags/route.ts` | list; strict `{name}` | session | tenant-scoped tag service (`withUserContext`) | → `{tags}` / `{tag}` | Implemented |
+| `PATCH /api/spend-classification/tags/[tagId]` | `app/api/spend-classification/tags/[tagId]/route.ts` | path ID; strict `{action:"retire"}` | session | tenant-scoped tag service (`withUserContext`) | → `{tag}` | Implemented |
+| `GET/POST /api/spend-classification/rules` | `app/api/spend-classification/rules/route.ts` | list; strict source-account, merchant, or text-match payload | session | tenant-scoped rule service (`withUserContext`) | → `{rules}` / `{rule}` | Implemented |
+| `PATCH /api/spend-classification/rules/[ruleId]` | `app/api/spend-classification/rules/[ruleId]/route.ts` | path ID; strict `{enabled:boolean}` | session | tenant-scoped rule service (`withUserContext`) | → `{rule}` | Implemented |
+| `GET/PATCH /api/spend-classification/settings` | `app/api/spend-classification/settings/route.ts` | list; strict `{enabled:boolean}` | session | tenant-scoped settings service (`withUserContext`) | → `{enabled}` | Implemented — Jev processing is opt-in and defaults off |
+| `GET /api/spend-classification/review` | `app/api/spend-classification/review/route.ts` | optional status, limit (≤100), offset | session | tenant-scoped review service (`withUserContext`) | → `{items}` | Implemented — returns safe imported-source context, rule details, and linked original-spend context |
+| `GET /api/spend-classification/review/[classificationId]` | `app/api/spend-classification/review/[classificationId]/route.ts` | path classification ID | session | tenant-scoped refund-candidate query (`withUserContext`) | → `{candidates}` | Implemented — returns only same-currency confirmed outflows with enough remaining unrefunded value |
+| `PATCH /api/spend-classification/review/[classificationId]` | `app/api/spend-classification/review/[classificationId]/route.ts` | path ID; strict correction, `mark_transfer`, `link_refund`, or `unlink_refund` action | session | atomic tenant-scoped review service (`withUserContext`) | → `{classification}` | Implemented — transfer exclusion and refund-link actions are explicit and audited; refunds cannot exceed original spend |
+| `POST /api/spend-classification/review/bulk-confirm` | `app/api/spend-classification/review/bulk-confirm/route.ts` | strict explicit unique ID list (1–100), category, optional reason | session | atomic tenant-scoped review service (`withUserContext`) | → `{classifications}` | Implemented — one audit event per assignment; manual assignments cannot be overwritten |
 | `POST /api/internal/jobs/send-reminder` | `.../internal/jobs/send-reminder/route.ts` | `zod` `{userId,trackedInvoiceId}` | `Bearer INTERNAL_JOBS_SECRET` | `withUserContext` | → `{outcome,...}` | Implemented — called by the Railway Celery `reminder_email` task, not public |
 | `GET/POST /api/deposit-guard/jobs` | `app/api/deposit-guard/jobs/route.ts` | query `includeArchived?`; create payload (`zod`) | session + DepositGuard entitlement checks | `withUserContext` via service | → `{jobs}` / `{job}` | Implemented — supports preview-mode and active-job-limit upgrade responses |
 | `PATCH/DELETE /api/deposit-guard/jobs/[jobId]` | `app/api/deposit-guard/jobs/[jobId]/route.ts` | path `jobId`; patch payload (`zod`) | session + DepositGuard entitlement checks | `withUserContext` via service | → `{job}` / `{archived}` | Implemented |

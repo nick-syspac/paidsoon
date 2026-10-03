@@ -301,6 +301,7 @@ describe("XeroProvider", () => {
                 BankTransactionID: "txn-1",
                 Contact: { ContactID: "sup-1", Name: "Cloud Vendor" },
                 BankAccount: { Name: "Business Account", Code: "090" },
+                LineItems: [{ AccountCode: "620" }],
                 Reference: "May subscription",
                 Total: 199.0,
                 CurrencyCode: "AUD",
@@ -321,6 +322,9 @@ describe("XeroProvider", () => {
       assert.equal(rows[0].providerTransactionId, "txn-1")
       assert.equal(rows[0].providerSupplierId, "sup-1")
       assert.equal(rows[0].accountName, "Business Account")
+      assert.equal(rows[0].accountCode, "090")
+      assert.equal(rows[0].expenseAccountCode, "620")
+      assert.equal(rows[0].direction, "outflow")
       assert.equal(rows[0].amount, 199)
       assert.equal(rows[0].currency, "AUD")
     })

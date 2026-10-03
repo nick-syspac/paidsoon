@@ -17,6 +17,15 @@ let mockDbState = {
   bankTransactionRecordCount: 37,
   supplierRecordCount: 0,
   linkedCommitments: [] as Array<{ linkedSpendInsightId: string | null }>,
+  importedBills: [] as Array<{ id: string; amountCents: number; currency: string; status: string }>,
+  importedBankTransactions: [] as Array<{ id: string; amountCents: number; currency: string; direction: "outflow" | "inflow" | "unknown" }>,
+  classifications: [] as Array<{
+    sourceType: string
+    sourceRecordId: string
+    status: string
+    category: { id: string; name: string; status: string } | null
+    refundFor?: { sourceType: string; sourceRecordId: string; status: string; category: { id: string; name: string } | null } | null
+  }>,
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,10 +57,15 @@ describe("loadSpendLeakDashboard", () => {
             importedBill: {
               findFirst: async () => ({ syncedAt: mockDbState.latestBillSyncAt }),
               count: async () => mockDbState.billRecordCount,
+              findMany: async () => mockDbState.importedBills,
             },
             importedBankTransaction: {
               findFirst: async () => ({ syncedAt: mockDbState.latestTxnSyncAt }),
               count: async () => mockDbState.bankTransactionRecordCount,
+              findMany: async () => mockDbState.importedBankTransactions,
+            },
+            spendClassification: {
+              findMany: async () => mockDbState.classifications,
             },
             supplierProfile: {
               findFirst: async () => ({ syncedAt: mockDbState.latestSupplierSyncAt }),
@@ -83,7 +97,86 @@ describe("loadSpendLeakDashboard", () => {
       bankTransactionRecordCount: 37,
       supplierRecordCount: 0,
       linkedCommitments: [],
+      importedBills: [],
+      importedBankTransactions: [],
+      classifications: [],
     }
+  })
+
+  test("loads confirmed and unresolved category totals with source traceability", async () => {
+    mockDbState.importedBills = [
+      { id: "bill-1", amountCents: 12500, currency: "AUD", status: "open" },
+      { id: "bill-2", amountCents: 5000, currency: "AUD", status: "open" },
+    ]
+    mockDbState.importedBankTransactions = [
+      { id: "txn-1", amountCents: 7000, currency: "AUD", direction: "outflow" },
+      { id: "txn-unknown", amountCents: -3200, currency: "AUD", direction: "unknown" },
+    ]
+    mockDbState.classifications = [
+      {
+        sourceType: "imported_bill",
+        sourceRecordId: "bill-1",
+        status: "confirmed",
+        category: { id: "category-software", name: "Software & Cloud", status: "active" },
+      },
+      {
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: "txn-1",
+        status: "confirmed",
+        category: { id: "category-software", name: "Software & Cloud", status: "active" },
+      },
+      {
+        sourceType: "imported_bill",
+        sourceRecordId: "bill-2",
+        status: "suggested",
+        category: { id: "category-software", name: "Software & Cloud", status: "active" },
+      },
+    ]
+
+    const result = await loadSpendLeakDashboard("user-1")
+
+    assert.deepEqual(result.categorySpendSummaries.confirmed, [
+      {
+        sourceType: "bank_transactions",
+        currency: "AUD",
+        categoryId: "category-software",
+        categoryName: "Software & Cloud",
+        amountCents: 7000,
+        recordCount: 1,
+        sourceRecordIds: ["txn-1"],
+        refundRecordCount: 0,
+        refundRecordIds: [],
+      },
+      {
+        sourceType: "bills",
+        currency: "AUD",
+        categoryId: "category-software",
+        categoryName: "Software & Cloud",
+        amountCents: 12500,
+        recordCount: 1,
+        sourceRecordIds: ["bill-1"],
+        refundRecordCount: 0,
+        refundRecordIds: [],
+      },
+    ])
+    assert.deepEqual(result.categorySpendSummaries.unresolved, [
+      {
+        sourceType: "bank_transactions",
+        currency: "AUD",
+        bucket: "unknown_direction",
+        amountCents: 3200,
+        recordCount: 1,
+        sourceRecordIds: ["txn-unknown"],
+      },
+      {
+        sourceType: "bills",
+        currency: "AUD",
+        bucket: "unconfirmed",
+        amountCents: 5000,
+        recordCount: 1,
+        sourceRecordIds: ["bill-2"],
+      },
+    ])
   })
 
   test("aggregates linked commitment counts by finding id", async () => {

@@ -5,6 +5,7 @@ import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { getSpendLeakSourceSettings } from "@/lib/spendleak/sourceSettings"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { SpendLeakSettingsClient } from "@/components/settings/SpendLeakSettingsClient"
+import { SpendClassificationSettingsClient } from "@/components/settings/SpendClassificationSettingsClient"
 
 export default async function SpendLeakSettingsPage() {
   const {
@@ -29,6 +30,16 @@ export default async function SpendLeakSettingsPage() {
       </div>
 
       <SpendLeakSettingsClient initialSettings={settings} />
+
+      <div className="border-t border-gray-200 pt-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Imported spend classification</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Manage your analytical spending categories and choose whether unresolved items may be sent to TypeSafe for Jev suggestions.
+          </p>
+        </div>
+        <SpendClassificationSettingsClient />
+      </div>
     </div>
   )
 }

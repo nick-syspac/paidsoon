@@ -19,6 +19,7 @@ import {
   type MarginClassificationRuleSnapshot,
   type MarginCostClass,
 } from "@/lib/marginguard/classification"
+import { buildMarginSpendingCategoryContext } from "@/lib/marginguard/spendingCategoryContext"
 
 export type MarginPeriodPreset = "30d" | "3m" | "6m" | "12m" | "fy"
 export type MarginAlertState = "open" | "acknowledged" | "resolved" | "dismissed"
@@ -165,7 +166,15 @@ async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset) {
   const { from, to } = parsePeriodBounds(period)
 
   return withUserContext(userId, async (tx) => {
-    const [invoices, importedBills, importedBankTransactions, classifications, alertsOpen, targets] = await Promise.all([
+    const [
+      invoices,
+      importedBills,
+      importedBankTransactions,
+      classifications,
+      spendClassifications,
+      alertsOpen,
+      targets,
+    ] = await Promise.all([
       tx.financialInvoice.findMany({
         where: {
           userId,
@@ -185,14 +194,14 @@ async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset) {
           userId,
           dueDate: { gte: from, lte: to },
         },
-        select: { id: true, amountCents: true, supplierName: true, expenseAccountName: true },
+        select: { id: true, amountCents: true, supplierName: true, expenseAccountName: true, currency: true, status: true },
       }),
       tx.importedBankTransaction.findMany({
         where: {
           userId,
           transactionDate: { gte: from, lte: to },
         },
-        select: { id: true, amountCents: true, counterpartyName: true, description: true, accountName: true },
+        select: { id: true, amountCents: true, counterpartyName: true, description: true, accountName: true, currency: true, direction: true },
       }),
       tx.marginCostClassification.findMany({
         where: { userId },
@@ -205,6 +214,19 @@ async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset) {
           importedBillId: true,
           importedBankTransactionId: true,
           financialInvoiceId: true,
+        },
+      }),
+      tx.spendClassification.findMany({
+        where: {
+          userId,
+          status: "confirmed",
+          sourceType: { in: ["imported_bill", "imported_bank_transaction"] },
+        },
+        select: {
+          sourceType: true,
+          sourceRecordId: true,
+          status: true,
+          category: { select: { id: true, name: true } },
         },
       }),
       tx.marginAlert.count({ where: { userId, status: "open" } }),
@@ -227,6 +249,7 @@ async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset) {
       importedBills,
       importedBankTransactions,
       classifications,
+      spendClassifications,
       alertsOpen,
       targets,
     }
@@ -294,6 +317,12 @@ export async function getMarginSummary(userId: string, requestedPeriod?: string)
     importedBills: facts.importedBills,
     importedBankTransactions: facts.importedBankTransactions,
     classifications: facts.classifications,
+  })
+  const spendingCategoryContext = buildMarginSpendingCategoryContext({
+    importedBills: facts.importedBills,
+    importedBankTransactions: facts.importedBankTransactions,
+    spendClassifications: facts.spendClassifications,
+    marginClassifications: facts.classifications,
   })
 
   const gross = calculateGrossMargin({
@@ -370,6 +399,7 @@ export async function getMarginSummary(userId: string, requestedPeriod?: string)
     revenueCents,
     directCostCents: costTotals.directCostCents,
     variableCostCents: costTotals.variableCostCents,
+    spendingCategoryContext,
     grossProfitCents: gross.grossProfitCents,
     grossMarginPercent: asPercent(gross.grossMarginPercent),
     contributionMarginCents: contribution.contributionMarginCents,

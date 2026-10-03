@@ -120,6 +120,8 @@ After DNS propagates (usually <10 min), Vercel will auto-provision the TLS certi
   "crons": [
     { "path": "/api/cron/invoice-import-cleanup", "schedule": "0 3 * * *" },
     { "path": "/api/cron/margin-guard-snapshots", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/runway-guard-snapshots", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/spend-classification", "schedule": "0 6 * * *" },
     { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" }
   ]
 }
@@ -130,9 +132,14 @@ Vercel auto-detects this on import. Verify in **Settings → Cron Jobs** that th
 - **Schedules**:
   - `0 3 * * *` → `/api/cron/invoice-import-cleanup`
   - `0 4 * * *` → `/api/cron/margin-guard-snapshots`
+  - `0 5 * * *` → `/api/cron/runway-guard-snapshots`
+  - `0 6 * * *` → `/api/cron/spend-classification`
   - `0 12 * * *` → `/api/cron/scheduling-watchdog`
 - **Paths**: handlers live under [app/api/cron](../../app/api/cron).
 - **Auth**: the route checks `Authorization: Bearer $CRON_SECRET` and returns 401 otherwise. Vercel sets this header automatically for its own cron invocations using the `CRON_SECRET` env var you set in §2.
+- **Spend classification**: the daily 06:00 UTC job returns aggregate claim/completion/retry/review counters only. It does not include source IDs, descriptions, or provider error text.
+- Before enabling an opted-in tenant, verify the Production Cron Jobs entry, server-only `CRON_SECRET` and `TYPESAFE_API_KEY`, and event-based retry observability. Per-attempt model, token usage, outcome, safe failure code, and attempt count are retained; latency and estimated token cost are not currently persisted and require approved external telemetry. See [README.md — TypeSafe external spend classification](./README.md#worker-readiness-retry-observability-and-rollback).
+- To pause or roll back classification, disable tenant opt-in, remove `TYPESAFE_API_KEY` from the affected Vercel environment and redeploy; if needed, remove the classification cron schedule in a reviewed deployment. Keep classification data and audit history. See the runbook's [rollback procedure](./README.md#worker-readiness-retry-observability-and-rollback).
 
 > **Cron does NOT fire on Preview deployments.** Vercel only schedules cron jobs against the Production deployment. To exercise independent maintenance routes on a preview (or locally), use §6 below. Reminder sends and scheduled accounting sync are owned by Railway Celery Beat; do not invoke their legacy Vercel routes unless Railway Beat has first been paused for that database.
 

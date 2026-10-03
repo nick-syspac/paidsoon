@@ -734,6 +734,7 @@ export class MyobProvider implements AccountingProvider {
       reference,
       counterpartyName: tx.Contact?.Name,
       amount: signedAmount,
+      direction: family === "spend" ? "outflow" : "inflow",
       currency: tx.CurrencyCode ?? tx.ForeignCurrency?.Code ?? "AUD",
       transactionDate,
       providerUpdatedAt: parseMYOBDate(tx.LastModified) ?? transactionDate,
