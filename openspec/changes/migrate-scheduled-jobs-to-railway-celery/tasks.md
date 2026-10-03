@@ -156,11 +156,11 @@
       — intentionally retained rather than deleted: the sync route also cleans expired OAuth
       state, and keeping both routes enables a controlled rollback. They are no longer scheduled
       by `vercel.json`; pause Railway Beat before invoking them for rollback.
-- [ ] 8.6 Deploy the Vercel configuration and verify `send-emails` and `sync-accounting` are
+- [x] 8.6 Deploy the Vercel configuration and verify `send-emails` and `sync-accounting` are
       absent from Production's Cron Jobs settings
-      — source config is updated, but deployment/console verification requires the operator's
-      Vercel access. Do not treat source removal alone as confirmation that the active Vercel
-      schedules have stopped.
+      — deployed to Production on 2026-10-03; `vercel crons list` confirmed only
+      `/api/cron/invoice-import-cleanup`, `/api/cron/margin-guard-snapshots`,
+      `/api/cron/runway-guard-snapshots`, and `/api/cron/scheduling-watchdog` remain.
 - [x] 8.4 Update `docs/DDD.md` and `docs/HLD.md` with the new Railway worker architecture
       — updated to document the operator-confirmed Railway deployment, direct cutover decision,
       and pending Vercel deployment verification without claiming parity
