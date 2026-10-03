@@ -38,6 +38,13 @@ The system SHALL calculate and persist baseline values for suppliers and categor
 - **WHEN** a single large charge exists in the historical sample
 - **THEN** the system stores the median baseline and uses it as a stable reference point alongside the average
 
+### Requirement: CostGuard foundation SHALL provide reusable cost intelligence for MarginGuard
+CostGuard foundational outputs for baselines, drift, and category-level cost movement SHALL be reusable by MarginGuard opportunity and impact detection flows.
+
+#### Scenario: Cost drift reused for opportunity signal
+- **WHEN** CostGuard baseline drift indicates significant delivery-cost increase
+- **THEN** MarginGuard can reference that signal to generate explainable margin impact opportunities
+
 ## Acceptance Criteria
 
 - Cost Guard can be loaded from shared financial data without a parallel ledger

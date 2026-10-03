@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change add-dashboard-overview. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Dashboard tab navigation
 The `/dashboard` area SHALL present three tabs — Overview, Invoices, and
 Resolved Invoices — routed at `/dashboard`, `/dashboard/invoices`, and
@@ -186,3 +188,40 @@ For tenants with DepositGuard access, the overview SHALL include summary-level s
 - **THEN** operational risk counts are not exposed from unauthorized data
 - **AND** the overview may show a non-operational upgrade prompt instead
 
+### Requirement: Dashboard overview SHALL include MarginGuard summary module
+The system SHALL include a concise MarginGuard summary in the FinOps dashboard overview showing gross margin, target margin, trend direction, alert count, and a navigation action to MarginGuard detail.
+
+#### Scenario: Entitled user sees overview summary
+- **WHEN** an entitled user loads dashboard overview
+- **THEN** MarginGuard summary metrics render alongside existing module summaries with consistent formatting semantics
+
+#### Scenario: Non-entitled user does not see summary
+- **WHEN** user plan lacks MarginGuard access
+- **THEN** MarginGuard summary is hidden or replaced with upgrade messaging consistent with existing gating patterns
+
+### Requirement: Dashboard overview SHALL include Tax Buffer control-layer summary
+The system SHALL include a Tax Buffer summary surface in the primary financial-operations overview alongside PaidSoon, SpendLeak, Cost Guard, and CashPlan signals.
+
+#### Scenario: User opens dashboard overview
+- **WHEN** the overview renders for an entitled user
+- **THEN** it includes required reserve, reserved amount, reserve gap, and Tax Buffer status summary
+- **THEN** selecting the summary navigates to the Tax Buffer module route
+
+### Requirement: Dashboard overview SHALL expose a unified safe-to-spend metric
+The system SHALL expose safe-to-spend output as a composited metric derived from available cash, committed obligations, and Tax Buffer reserve requirements.
+
+#### Scenario: Tax reserve shortfall exists
+- **WHEN** tax reserve requirements increase while committed obligations remain constant
+- **THEN** safe-to-spend decreases accordingly in the overview summary
+- **THEN** the view indicates that reserve status is under target rather than implying unrestricted cash availability
+
+### Requirement: Overview SHALL include CommitGuard cash-position summary
+The dashboard overview SHALL display CommitGuard contributed metrics for committed cash and free cash alongside receivables and other FinOps summary signals.
+
+#### Scenario: User has CommitGuard data
+- **WHEN** a tenant has active commitment forecasts
+- **THEN** overview renders committed cash and free-cash summary values with status context
+
+#### Scenario: User has no CommitGuard setup
+- **WHEN** no commitments or detection setup exists
+- **THEN** overview renders a clear empty/setup state rather than zero-values that imply commitments were fully evaluated

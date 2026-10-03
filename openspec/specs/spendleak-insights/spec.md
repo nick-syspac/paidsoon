@@ -2,13 +2,15 @@
 
 ## Purpose
 Define the deterministic insight engine that turns normalized spend data into explainable, persisted SpendLeak findings.
+
 ## Requirements
+
 ### Requirement: SpendLeak shall generate explainable spend findings
 The system SHALL generate persisted findings for recurring spend, price increases, duplicate spend, renewal alerts, supplier concentration/trend, and near-term cash-pressure risk. Each finding SHALL include supporting evidence and an estimated impact when one can be derived.
 
 #### Scenario: Recurring spend is detected
 - **WHEN** the imported spend history shows repeated charges from the same supplier on a stable cadence
-- **THEN** the system creates a recurring-spend finding with supplier, amount, cadence, and supporting evidence
+- **THEN** the system creates a recurring-spend finding with supplier, amount, cadence, observed bill dates, and supporting source-record evidence
 
 #### Scenario: Duplicate spend is detected
 - **WHEN** two bills or payments from the same supplier match the duplicate-detection heuristics
@@ -40,3 +42,9 @@ The system SHALL retain the evidence needed to explain why a finding was raised,
 - **WHEN** a user dismisses a finding
 - **THEN** the detector output remains auditable while the finding's lifecycle state changes
 
+### Requirement: SpendLeak insights SHALL expose commitment linkage metadata
+When a SpendLeak insight concerns a supplier tied to an active commitment, the system SHALL surface that commitment linkage so users can distinguish avoidable waste from currently committed obligations.
+
+#### Scenario: Potentially unused subscription is still committed
+- **WHEN** SpendLeak flags a potentially unused subscription with a mapped active commitment
+- **THEN** insight output includes a link or indicator that the cost is currently tracked as committed cash in CommitGuard

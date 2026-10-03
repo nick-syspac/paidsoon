@@ -2,7 +2,9 @@
 
 ## Purpose
 Give users one Settings location for the related invoice import, expense import, and invoice export workflows so they can move data in and out of PaidSoon without switching between separate tabs.
+
 ## Requirements
+
 ### Requirement: Settings exposes one combined import/export tab
 The system SHALL present invoice import, expense import, and invoice export from a single Settings tab rather than as separate top-level tabs.
 
@@ -35,3 +37,24 @@ The system SHALL avoid repeating a standalone invoice-export heading above the e
 - **THEN** the section appears as part of the shared import/export page structure
 - **AND** the page does not present a redundant extra invoice-export header above the workflow controls
 
+### Requirement: Export settings SHALL include MarginGuard datasets
+The import/export settings and export APIs SHALL include MarginGuard-supported exports (summary, trend, customer profitability, alerts) where user entitlement permits.
+
+#### Scenario: MarginGuard export available to entitled user
+- **WHEN** an entitled user opens export settings
+- **THEN** MarginGuard export options are listed with format options supported by existing export infrastructure
+
+#### Scenario: MarginGuard export blocked by entitlement
+- **WHEN** a non-entitled user attempts MarginGuard export
+- **THEN** export request is rejected using existing entitlement error semantics
+
+### Requirement: Settings import/export SHALL include CommitGuard module settings
+The settings import/export system SHALL include CommitGuard configuration values in module-scoped payloads using the same validation and compatibility behavior as existing settings modules.
+
+#### Scenario: User exports module settings
+- **WHEN** a user exports settings
+- **THEN** CommitGuard settings fields are included with stable keys and schema-consistent value formats
+
+#### Scenario: User imports settings missing CommitGuard keys
+- **WHEN** an import payload omits CommitGuard fields
+- **THEN** existing CommitGuard settings remain unchanged and import processing follows existing partial-import semantics

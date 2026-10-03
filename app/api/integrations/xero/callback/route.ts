@@ -16,11 +16,15 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
 import { getAccountingProvider } from "@/lib/providers/accounting"
 import { encryptToken } from "@/lib/providers/accounting/crypto"
+import { triggerSyncNow } from "@/lib/providers/accounting/triggerSyncNow"
 import { NextResponse } from "next/server"
 import { randomBytes } from "crypto"
 import { cookies } from "next/headers"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
+
+// Match the Xero organisation-selection route's allowance for inline sync.
+export const maxDuration = 60
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -103,8 +107,9 @@ export async function GET(request: Request) {
   if (organisations.length === 1) {
     // Single org: store connection directly
     const org = organisations[0]
+    let connectionId: string
     try {
-      await withUserContext(user.id, async (tx) => {
+      const connection = await withUserContext(user.id, async (tx) => {
         const existing = await tx.accountingConnection.findUnique({
           where: {
             userId_provider_organisationId: {
@@ -128,7 +133,7 @@ export async function GET(request: Request) {
           }
         }
 
-        await tx.accountingConnection.upsert({
+        return tx.accountingConnection.upsert({
           where: {
             userId_provider_organisationId: {
               userId: user.id,
@@ -142,7 +147,7 @@ export async function GET(request: Request) {
             encryptedRefreshToken,
             tokenExpiresAt,
             scopes,
-            status: "active",
+            status: "pending_first_sync",
             lastSyncedAt: null,
           },
           create: {
@@ -154,10 +159,11 @@ export async function GET(request: Request) {
             encryptedRefreshToken,
             tokenExpiresAt,
             scopes,
-            status: "active",
+            status: "pending_first_sync",
           },
         })
       })
+      connectionId = connection.id
     } catch (err) {
       if (err instanceof Error && err.message === "CONNECTION_LIMIT_REACHED") {
         return NextResponse.redirect(
@@ -168,6 +174,14 @@ export async function GET(request: Request) {
       return NextResponse.redirect(
         `${APP_URL}/dashboard/settings/connections?source=xero&code=connection_save_failed`
       )
+    }
+
+    try {
+      await triggerSyncNow(connectionId, user.id)
+    } catch {
+      // Keep the OAuth return path reliable; sync outcome is recorded by the
+      // shared trigger or the existing Vercel cron retry surface.
+      console.error("[xero/callback] initial sync trigger failed")
     }
 
     return NextResponse.redirect(

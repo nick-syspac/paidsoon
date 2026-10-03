@@ -1,13 +1,5 @@
 {
   "crons": [
-    { 
-      "path": "/api/cron/send-emails",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/sync-accounting",
-      "schedule": "0 2 * * *"
-    },
     {
       "path": "/api/cron/scheduling-watchdog",
       "schedule": "0 12 * * *"

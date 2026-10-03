@@ -118,8 +118,6 @@ After DNS propagates (usually <10 min), Vercel will auto-provision the TLS certi
 ```json
 {
   "crons": [
-    { "path": "/api/cron/send-emails", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/sync-accounting", "schedule": "0 2 * * *" },
     { "path": "/api/cron/invoice-import-cleanup", "schedule": "0 3 * * *" },
     { "path": "/api/cron/margin-guard-snapshots", "schedule": "0 4 * * *" },
     { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" }
@@ -130,15 +128,20 @@ After DNS propagates (usually <10 min), Vercel will auto-provision the TLS certi
 Vercel auto-detects this on import. Verify in **Settings → Cron Jobs** that the entry appears.
 
 - **Schedules**:
-  - `0 2 * * *` → `/api/cron/sync-accounting`
   - `0 3 * * *` → `/api/cron/invoice-import-cleanup`
   - `0 4 * * *` → `/api/cron/margin-guard-snapshots`
-  - `0 9 * * *` → `/api/cron/send-emails`
   - `0 12 * * *` → `/api/cron/scheduling-watchdog`
 - **Paths**: handlers live under [app/api/cron](../../app/api/cron).
 - **Auth**: the route checks `Authorization: Bearer $CRON_SECRET` and returns 401 otherwise. Vercel sets this header automatically for its own cron invocations using the `CRON_SECRET` env var you set in §2.
 
-> **Cron does NOT fire on Preview deployments.** Vercel only schedules cron jobs against the Production deployment. To exercise the email path on a preview (or locally), use the manual trigger in §6 below.
+> **Cron does NOT fire on Preview deployments.** Vercel only schedules cron jobs against the Production deployment. To exercise independent maintenance routes on a preview (or locally), use §6 below. Reminder sends and scheduled accounting sync are owned by Railway Celery Beat; do not invoke their legacy Vercel routes unless Railway Beat has first been paused for that database.
+
+Reminder sending and scheduled accounting sync are owned by Railway Celery Beat.
+The old `send-emails` and `sync-accounting` route handlers remain protected by
+`CRON_SECRET` for controlled rollback/housekeeping, but are no longer scheduled
+in `vercel.json`. After deploying the cutover, verify that neither entry remains
+in **Settings → Cron Jobs**. Pause Railway Beat before restoring or manually
+invoking either legacy route.
 
 ### 4.1 Function duration overrides
 
@@ -171,7 +174,7 @@ The value never appears in any client bundle; it is only read by cron route hand
 
 ## 6. Manually triggering the cron (testing)
 
-The cron runs once a day in production. To test the email-sending path on demand from any environment:
+The legacy reminder route is no longer scheduled and is retained only for controlled rollback. **Pause Railway Beat for the target database before invoking it**; otherwise the same invoices may be processed by both paths. To manually run the legacy path:
 
 ```bash
 # Production

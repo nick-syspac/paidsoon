@@ -2,13 +2,16 @@
 
 ## Purpose
 TBD - created by archiving change expand-how-it-works-with-plan-gated-features. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: How-it-works includes templates and AI steps
-The landing page SHALL present a "How it works" workflow that includes reminder templates and AI integration in addition to reminder-sequence messaging.
+The landing page SHALL present a “How it works” workflow only after the hero and problem-to-outcome framing establish the core business context. The workflow SHALL still include reminder templates and AI integration in addition to reminder-sequence messaging.
 
 #### Scenario: Visitor scans workflow cards
-- **WHEN** a visitor views the "How it works" section on the homepage
-- **THEN** the section includes at least one templates-focused workflow item and at least one AI-integration workflow item
+- **WHEN** a visitor views the “How it works” section on the homepage
+- **THEN** the section appears after the problem and outcome framing
+- **AND** it includes at least one templates-focused workflow item and at least one AI-integration workflow item
 
 ### Requirement: Higher-plan workflow items are marked
 Any workflow item in "How it works" that represents a higher-plan capability MUST display a visible asterisk marker next to its label.
@@ -18,16 +21,17 @@ Any workflow item in "How it works" that represents a higher-plan capability MUS
 - **THEN** the item label includes an asterisk marker directly adjacent to the item text
 
 ### Requirement: Asterisk meaning is explained in section context
-The homepage SHALL include explanatory copy in or immediately below the "How it works" section that defines the asterisk marker as higher-plan availability.
+The homepage SHALL include explanatory copy in or immediately below the “How it works” section that defines the marker language for limited or higher-plan availability, using private-beta-safe wording and avoiding ambiguous “available now” phrasing.
 
 #### Scenario: Visitor needs marker clarification
-- **WHEN** the visitor reads the "How it works" section containing asterisk-marked items
-- **THEN** the section includes text explaining that asterisk-marked items are available on higher plans
+- **WHEN** the visitor reads the “How it works” section containing availability markers
+- **THEN** the section includes text explaining marker meaning in private-beta-safe terms
+- **AND** the explanation does not imply universal public signup availability
 
 ### Requirement: Core reminder-sequence message is retained
-The updated "How it works" section MUST continue to communicate the automated escalating reminder sequence.
+The updated “How it works” section MUST continue to communicate the automated escalating reminder sequence while presenting PaidSoon as part of a broader financial-control cycle rather than an isolated feature list.
 
 #### Scenario: Visitor evaluates core value proposition
 - **WHEN** the visitor reads the updated workflow section
-- **THEN** the section still describes the escalating reminder flow rather than replacing it with unrelated feature-only messaging
-
+- **THEN** the section still describes the escalating reminder flow
+- **AND** it connects that flow to broader control outcomes without replacing the core reminder message

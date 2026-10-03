@@ -9,13 +9,13 @@ For a condensed per-subsystem env-var checklist (Vercel / Supabase / Railway) wi
 | Name | Where it runs | Supabase project | Stripe mode | Resend sender | Cron |
 |---|---|---|---|---|---|
 | **Local** | `npm run dev` on your machine | `paidsoon-dev` | test | `onboarding@resend.dev` | manual `curl` only |
-| **Vercel Preview** | every PR / preview deploy | `paidsoon-dev` (shared with Local) | test (shared) | `onboarding@resend.dev` | not scheduled — production only |
-| **Production** | `paidsoon.com` on Vercel | `paidsoon-prod` | live | `billing@paidsoon.com` | daily cron suite (`send-emails`, `sync-accounting`, `invoice-import-cleanup`, `margin-guard-snapshots`, `runway-guard-snapshots`, `scheduling-watchdog`) |
+| **Vercel Preview** | every PR / preview deploy | `paidsoon-dev` (shared with Local) | test (shared) | `onboarding@resend.dev` | Vercel Cron is not scheduled; Railway Celery Beat runs the Preview scheduled workflows against `paidsoon-dev` |
+| **Production** | `paidsoon.com` on Vercel; Railway worker services | `paidsoon-prod` | live | `billing@paidsoon.com` | Railway Celery Beat owns reminders/accounting; Vercel retains independent watchdog and other cron jobs. Deploy the cutover and verify legacy schedules are removed. |
 
 Two operating principles:
 
 - **Previews share dev backends.** Local and Preview both point at `paidsoon-dev` (Supabase) and Stripe test mode. There is no per-PR webhook plumbing; previews are UI-only with respect to Stripe webhooks. See [stripe.md](./stripe.md) for the rationale.
-- **Cron only runs in Production.** Vercel does not schedule cron jobs on preview deployments. See [vercel.md](./vercel.md) for how to trigger the cron manually for testing.
+- **Vercel Cron only runs in Production.** Vercel does not schedule cron jobs on preview deployments. Railway Celery Beat is operator-confirmed in both Preview and Production and now owns reminders/accounting. The legacy routes remain available for controlled rollback, but their schedule entries have been removed from source config; deploy and verify the Production Cron Jobs page. Never run both schedulers against the same database. See [vercel.md](./vercel.md) for manual cron-route guidance.
 
 ## Recommended execution order for a fresh environment
 
@@ -145,7 +145,7 @@ back to `STRIPE_CONNECT_WEBHOOK_SECRET` when unset).
 | `DEBUG` | `false` by default; set `true` only during local diagnostics | `false` by default; set `true` only for targeted preview diagnostics | `false` by default; set `true` only for approved, time-boxed production diagnostics | Server-side diagnostic tracing for login-to-dashboard flow; never expose as `NEXT_PUBLIC_DEBUG` |
 | `CRON_SECRET` | any `openssl rand -hex 32` | not required (cron does not fire) | `openssl rand -hex 32` | [vercel.md §5](./vercel.md) |
 | `INTERNAL_JOBS_SECRET` | any `openssl rand -hex 32` | separate `openssl rand -hex 32` | separate `openssl rand -hex 32` | Must match the same value set on the Railway worker; see [openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md](../../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
-| `RAILWAY_WORKER_URL` | omit until Railway worker is deployed | Railway worker's public URL (preview environment) | Railway worker's public URL (production environment) | Optional — when unset, "sync now" falls back to running inline on Vercel (see [lib/providers/accounting/triggerSyncNow.ts](../../lib/providers/accounting/triggerSyncNow.ts)) |
+| `RAILWAY_WORKER_URL` | omit until the HTTP trigger endpoint is deployed | omit until the HTTP trigger endpoint is deployed; a running scheduled worker alone is insufficient | omit until the HTTP trigger endpoint is deployed | Set together with `WORKER_TRIGGER_SECRET` to delegate immediate accounting sync; with either absent, execution is inline. A configured dispatch failure is recorded for retry and never falls back inline. |
 | `WORKER_TRIGGER_SECRET` | omit until Railway worker is deployed | separate `openssl rand -hex 32` | separate `openssl rand -hex 32` | Must match the same value set on the Railway worker |
 | `OPS_ALERT_EMAIL` | your own email (optional) | ops team email | ops team email | [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts) — recipient for the Railway-scheduling-stopped alert; watchdog logs a warning instead of alerting if unset |
 | `DISPATCH_INTERVAL_SECONDS` | `120` (must match the Railway worker's value) | `120` (must match the Railway worker's value) | `120` (must match the Railway worker's value) | [app/api/cron/scheduling-watchdog/route.ts](../../app/api/cron/scheduling-watchdog/route.ts) — the worker's own heartbeat cadence in seconds; the watchdog's staleness threshold is computed from this, not hardcoded. See [worker/README.md](../../worker/README.md) |

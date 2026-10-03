@@ -1,9 +1,9 @@
 ## 1. Infrastructure Setup
 
-- [ ] 1.1 Create the Railway project with a Redis instance, one Celery worker service, and one
+- [x] 1.1 Create the Railway project with a Redis instance, one Celery worker service, and one
       Celery Beat service (decide Railway-managed Redis vs. external provider first — see
       design.md Open Questions)
-      — **requires your own Railway account/CLI login; cannot be done from this environment.**
+      — user confirmed Railway Beat is running in both Preview (`paidsoon-dev`) and Production (`paidsoon-prod`) (2026-10-03).
       `worker/README.md` has the exact deploy steps for the scaffolding below.
 - [x] 1.2 Scaffold the new Python worker codebase (independent deployable, own dependency
       manifest, own DB client) as its own top-level directory, not inside the Next.js app
@@ -12,12 +12,11 @@
 - [x] 1.3 Configure the worker's Supabase Postgres connection (trusted/admin role, same
       posture as `prismaAdmin`) and document the RLS-bypass rationale in code and in
       `docs/runbooks/README.md` — `worker/paidsoon_worker/db.py`, `worker/.env.example`
-- [ ] 1.4 Add new environment variables/secrets (Redis URL, Railway service credentials, any
+- [x] 1.4 Add new environment variables/secrets (Redis URL, Railway service credentials, any
       shared secret for Vercel→Railway "trigger now" calls) to Railway's secret store and to
       `docs/runbooks/README.md`
-      — docs done (README.md env matrix updated with `INTERNAL_JOBS_SECRET`,
-      `RAILWAY_WORKER_URL`, `WORKER_TRIGGER_SECRET`, `OPS_ALERT_EMAIL`); actually setting real
-      secret values in Railway's dashboard/CLI requires your own account (see 1.1)
+      — docs/env matrix updated; operator confirmed Railway trigger service and matching
+      Vercel/Railway trigger credentials are configured in both environments (2026-10-03).
 
 ## 2. Database Schema Changes
 
@@ -64,16 +63,17 @@
 - [x] 4.2 Wire the dispatcher to enqueue this task for invoices with `nextEmailAt <= now()`
       using the new claim-key table — `worker/paidsoon_worker/dispatcher.py`
       (`dispatch_reminder_emails`)
-- [ ] 4.3 Run this Celery task in parallel with the existing Vercel Cron job for the agreed
-      burn-in period; compare `EmailLog` output between both paths for duplicates/gaps
-      — operational step; requires Railway actually deployed (task 1.1) and running for
-      several days
-- [ ] 4.4 Add a "trigger now" path from the dashboard that enqueues an immediate Celery task
+- [x] 4.3 Decide whether to run this Celery task in parallel with the existing Vercel Cron job
+      for a burn-in period; compare `EmailLog` output between both paths for duplicates/gaps
+      — dual-scheduler burn-in explicitly waived by the operator (2026-10-03). The Vercel route
+      does not use the worker's atomic claim table, so direct exclusive cutover was chosen to
+      avoid unsafe same-database concurrency; parity is not claimed.
+- [x] 4.4 Add a "trigger now" path from the dashboard that enqueues an immediate Celery task
       instead of running inline on Vercel
       — backend capability implemented (`worker/paidsoon_worker/http_server.py`
       `POST /trigger/send-reminder`), but there is no existing per-invoice "send reminder now"
-      UI/route in the dashboard to wire it to (confirmed: none exists today) — building that UI
-      is a new feature beyond this migration's scope, left for a follow-up change
+      UI/route in the dashboard to wire it to. Scope this new UI feature out of the migration;
+      track it separately if requested.
 
 ## 5. Migrate Accounting Sync (second workflow)
 
@@ -84,10 +84,11 @@
 - [x] 5.2 Wire the dispatcher to enqueue this task per active `AccountingConnection` on its due
       schedule — `worker/paidsoon_worker/db.py` (`claim_due_accounting_connections`),
       `worker/paidsoon_worker/dispatcher.py` (`dispatch_accounting_sync`)
-- [ ] 5.3 Run in parallel with `/api/cron/sync-accounting` for the agreed burn-in period;
-      compare `AccountingSyncRun` output between both paths
-      — operational step; requires Railway actually deployed (task 1.1) and running for
-      several days
+- [x] 5.3 Decide whether to run in parallel with `/api/cron/sync-accounting` for a burn-in
+      period; compare `AccountingSyncRun` output between both paths
+      — dual-scheduler burn-in explicitly waived by the operator (2026-10-03). The Vercel route
+      does not use the worker's atomic claim table, so direct exclusive cutover was chosen to
+      avoid unsafe same-database concurrency; parity is not claimed.
 - [x] 5.4 Add a "sync now" path from the dashboard that enqueues an immediate Celery task
       instead of running inline on Vercel
       — `lib/providers/accounting/triggerSyncNow.ts`, wired into the existing
@@ -107,11 +108,13 @@
 - [x] 6.2 Migrate arrangement breach/expiry detection to a Celery task
       — same shared sweep function/task as 6.1 (both were one combined step in the original
       cron route)
-- [ ] 6.3 Migrate weekly debtor summaries to a Celery task (confirm current implementation
+- [x] 6.3 Migrate weekly debtor summaries to a Celery task (confirm current implementation
       location, or build net-new if this doesn't exist yet)
-      — confirmed: no weekly-debtor-summary feature exists anywhere in the codebase today.
-      There is nothing to migrate; building this from scratch is a new feature and out of
-      scope for this migration change
+      — implemented: `worker/paidsoon_worker/celery_app.py` schedules the weekly dispatcher;
+      `dispatcher.py` claims tenants idempotently; `tasks.py` calls the authenticated
+      `app/api/internal/jobs/send-weekly-debtor-summary` route, which delegates to
+      `lib/email/sendWeeklyDebtorSummary.ts`. Pure summary/email/week-boundary logic is covered
+      by `tests/weekly-debtor-summary.test.ts`.
 - [x] 6.4 Migrate integration retry processing to rely on the new task-level retry/backoff
       instead of any existing ad-hoc retry logic
       — Celery's `autoretry_for`/`retry_backoff` on `sync_connection_task` (task 3.3) is the new
@@ -142,22 +145,25 @@
 
 ## 8. Cutover and Cleanup
 
-- [ ] 8.1 Confirm burn-in parity (no duplicate sends/syncs, no missed due work) for every
-      migrated workflow
-      — operational step; requires Railway actually deployed and running in production
-      alongside the existing Vercel crons for the agreed burn-in period. Intentionally not
-      done yet — see design.md Migration Plan
-- [ ] 8.2 Remove the `send-emails` and `sync-accounting` cron entries from `vercel.json`
-      — intentionally NOT done: must only happen after 8.1 confirms parity in production
-- [ ] 8.3 Remove or archive `app/api/cron/send-emails/route.ts` and
-      `app/api/cron/sync-accounting/route.ts` once Railway is the sole owner
-      — intentionally NOT done, same reason as 8.2 (both routes now share their sweep/breach
-      logic with the Celery path via `lib/email/breachSweep.ts`, so removing them later is a
-      simple deletion, not a behavior change)
+- [x] 8.1 Obtain explicit cutover decision and designate one scheduler owner per database
+      — operator approved direct Railway cutover in lieu of dual-scheduler parity burn-in
+      (2026-10-03). This is not a claim that parity was measured.
+- [x] 8.2 Remove the `send-emails` and `sync-accounting` cron entries from `vercel.json`
+      — removed from source config. A Vercel Production deployment is still required before
+      the deployed schedule changes; verify both entries are absent in Vercel Cron Jobs.
+- [x] 8.3 Retain `app/api/cron/send-emails/route.ts` and
+      `app/api/cron/sync-accounting/route.ts` as `CRON_SECRET`-protected manual rollback routes
+      — intentionally retained rather than deleted: the sync route also cleans expired OAuth
+      state, and keeping both routes enables a controlled rollback. They are no longer scheduled
+      by `vercel.json`; pause Railway Beat before invoking them for rollback.
+- [x] 8.6 Deploy the Vercel configuration and verify `send-emails` and `sync-accounting` are
+      absent from Production's Cron Jobs settings
+      — deployed to Production on 2026-10-03; `vercel crons list` confirmed only
+      `/api/cron/invoice-import-cleanup`, `/api/cron/margin-guard-snapshots`,
+      `/api/cron/runway-guard-snapshots`, and `/api/cron/scheduling-watchdog` remain.
 - [x] 8.4 Update `docs/DDD.md` and `docs/HLD.md` with the new Railway worker architecture
-      — updated (infra runtime tables, new internal API routes, scheduler row) to describe the
-      migration as in-progress/not-yet-deployed, per "never document planned integrations as
-      implemented"
+      — updated to document the operator-confirmed Railway deployment, direct cutover decision,
+      and pending Vercel deployment verification without claiming parity
 - [x] 8.5 Update `docs/runbooks/README.md` with the full environment variable matrix for the
       new Railway/Redis infrastructure
       — added `INTERNAL_JOBS_SECRET`, `RAILWAY_WORKER_URL`, `WORKER_TRIGGER_SECRET`,

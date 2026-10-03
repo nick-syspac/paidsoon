@@ -48,6 +48,15 @@ yet implemented.
 
 ---
 
+## OpenSpec Working Rules
+
+- When implementing an active OpenSpec change, treat the current proposal, spec, design, and task list as the authoritative requirements for the change.
+- Do not invent behaviour that conflicts with the approved OpenSpec artifacts.
+- Use the cost-effective model routing in the project OpenSpec config: Sol for architecture and ambiguity removal, Terra for spec/design and verification, Luna for routine implementation and tests.
+- If implementation reveals missing requirements or ambiguity, stop and update the relevant OpenSpec artifact instead of guessing.
+
+---
+
 ## Coding Standards
 
 - TypeScript strict mode is required (`tsconfig.json`).
