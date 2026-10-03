@@ -13,6 +13,11 @@ type MockSpendBankTransaction = {
   providerTransactionId: string
   description: string
   amount: number
+  direction: "outflow" | "inflow" | "unknown"
+  accountName?: string
+  accountCode?: string
+  expenseAccountName?: string
+  expenseAccountCode?: string
   currency: string
   transactionDate: Date
 }
@@ -29,11 +34,15 @@ let spendSuppliers: MockSpendSupplier[] = []
 
 const upsertBillKeys = new Set<string>()
 const upsertTxnKeys = new Set<string>()
+const persistedSpendTransactions: Array<Record<string, unknown>> = []
+const classificationHandoffs: Array<{ userId: string; sourceType: string; sourceRecordId: string }> = []
 const upsertSupplierKeys = new Set<string>()
 const upsertFindingKeys = new Set<string>()
+let classificationHandoffFails = false
 
 let syncConnection: ((connectionId: string) => Promise<{
   status: string
+  errorMessage?: string
   spendBillsUpserted: number
   spendTransactionsUpserted: number
   spendSuppliersUpserted: number
@@ -67,6 +76,15 @@ describe("accounting spend sync orchestration", () => {
       namedExports: {
         decryptToken: (value: string) => value,
         encryptToken: (value: string) => value,
+      },
+    })
+
+    await mock.module("@/lib/spendClassification/handoff", {
+      namedExports: {
+        handoffImportedSpendForClassification: async (userId: string, sourceType: string, sourceRecordId: string) => {
+          classificationHandoffs.push({ userId, sourceType, sourceRecordId })
+          if (classificationHandoffFails) throw new Error("classification unavailable")
+        },
       },
     })
 
@@ -119,14 +137,18 @@ describe("accounting spend sync orchestration", () => {
             upsert: async (args: { where: { accountingConnectionId_sourceId: { accountingConnectionId: string; sourceId: string } } }) => {
               const key = `${args.where.accountingConnectionId_sourceId.accountingConnectionId}:${args.where.accountingConnectionId_sourceId.sourceId}`
               upsertBillKeys.add(key)
-              return null
+              return { id: "db-bill-1" }
             },
           },
-          importedBankTransaction: {
-            upsert: async (args: { where: { accountingConnectionId_sourceId: { accountingConnectionId: string; sourceId: string } } }) => {
+            importedBankTransaction: {
+              upsert: async (args: {
+                where: { accountingConnectionId_sourceId: { accountingConnectionId: string; sourceId: string } }
+                create: Record<string, unknown>
+              }) => {
               const key = `${args.where.accountingConnectionId_sourceId.accountingConnectionId}:${args.where.accountingConnectionId_sourceId.sourceId}`
               upsertTxnKeys.add(key)
-              return null
+                persistedSpendTransactions.push(args.create)
+              return { id: "db-transaction-1" }
             },
           },
           supplierProfile: {
@@ -168,6 +190,9 @@ describe("accounting spend sync orchestration", () => {
   beforeEach(() => {
     upsertBillKeys.clear()
     upsertTxnKeys.clear()
+    persistedSpendTransactions.length = 0
+    classificationHandoffs.length = 0
+    classificationHandoffFails = false
     upsertSupplierKeys.clear()
     upsertFindingKeys.clear()
 
@@ -184,7 +209,12 @@ describe("accounting spend sync orchestration", () => {
       {
         providerTransactionId: "txn-1",
         description: providerName === "xero" ? "Xero spend" : "MYOB spend",
-        amount: -199,
+        amount: 199,
+        direction: "outflow",
+        accountName: "Main Bank",
+        accountCode: "090",
+        expenseAccountName: "Software subscriptions",
+        expenseAccountCode: "620",
         currency: "AUD",
         transactionDate: new Date("2026-09-01T00:00:00.000Z"),
       },
@@ -208,8 +238,32 @@ describe("accounting spend sync orchestration", () => {
     assert.equal(result?.spendSuppliersUpserted, 1)
     assert.equal(upsertBillKeys.size, 1)
     assert.equal(upsertTxnKeys.size, 1)
+    assert.equal(persistedSpendTransactions[0]?.amountCents, 19900)
+    assert.equal(persistedSpendTransactions[0]?.direction, "outflow")
+    assert.equal(persistedSpendTransactions[0]?.accountName, "Main Bank")
+    assert.equal(persistedSpendTransactions[0]?.accountCode, "090")
+    assert.equal(persistedSpendTransactions[0]?.expenseAccountName, "Software subscriptions")
+    assert.equal(persistedSpendTransactions[0]?.expenseAccountCode, "620")
     assert.equal(upsertSupplierKeys.size, 1)
     assert.equal(upsertFindingKeys.size > 0, true)
+    assert.deepEqual(classificationHandoffs, [
+      { userId: "user-1", sourceType: "imported_bill", sourceRecordId: "db-bill-1" },
+      { userId: "user-1", sourceType: "imported_bank_transaction", sourceRecordId: "db-transaction-1" },
+    ])
+  })
+
+  test("classification handoff failure does not fail provider spend import", async () => {
+    providerName = "xero"
+    classificationHandoffFails = true
+
+    const result = await syncConnection?.("conn-1")
+
+    assert.ok(result)
+    assert.equal(result?.status, "success")
+    assert.equal(result?.spendBillsUpserted, 1)
+    assert.equal(result?.spendTransactionsUpserted, 1)
+    assert.equal(result?.errorMessage, undefined)
+    assert.equal(classificationHandoffs.length, 2)
   })
 
   test("remains idempotent for repeated sync windows using stable upsert keys", async () => {

@@ -1,9 +1,12 @@
 import { withUserContext } from "@/lib/db/withUserContext"
 import type { SpendInsight } from "@/lib/generated/prisma/client"
 import {
+  buildSpendLeakCategorySpendSummaries,
   buildSpendLeakDashboardStatus,
   buildSpendLeakModuleSummaries,
   isSpendLeakDataStale,
+  type SpendLeakCategorySpendSummaries,
+  type SpendLeakImportedSpendRecord,
   type SpendLeakDashboardStatus,
   type SpendLeakModuleSummary,
 } from "@/lib/dashboard/spendleakPresentation"
@@ -20,6 +23,7 @@ export interface SpendLeakDashboardData {
   findings: SpendInsight[]
   linkedCommitmentCountsByFindingId: Record<string, number>
   modules: SpendLeakModuleSummary[]
+  categorySpendSummaries: SpendLeakCategorySpendSummaries
   latestSyncAt: Date | null
   hasAccountingConnection: boolean
   isStale: boolean
@@ -51,6 +55,9 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       bankTransactionRecordCount,
       supplierRecordCount,
       sourceSettings,
+      importedBills,
+      importedBankTransactions,
+      classifications,
     ] = await Promise.all([
       tx.spendInsight.findMany({
         where: { userId },
@@ -78,7 +85,78 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       tx.importedBankTransaction.count({ where: { userId } }),
       tx.supplierProfile.count({ where: { userId } }),
       getSpendLeakSourceSettings(userId, tx),
+      tx.importedBill.findMany({
+        where: { userId },
+        select: { id: true, amountCents: true, currency: true, status: true },
+      }),
+      tx.importedBankTransaction.findMany({
+        where: { userId },
+        select: { id: true, amountCents: true, currency: true, direction: true },
+      }),
+      tx.spendClassification.findMany({
+        where: { userId },
+        select: {
+          sourceType: true,
+          sourceRecordId: true,
+          status: true,
+          category: { select: { id: true, name: true, status: true } },
+          refundFor: {
+            select: {
+              sourceType: true,
+              sourceRecordId: true,
+              status: true,
+              category: { select: { id: true, name: true } },
+            },
+          },
+        },
+      }),
     ])
+
+    const classificationBySource = new Map(
+      classifications.map((classification) => [
+        JSON.stringify([classification.sourceType, classification.sourceRecordId]),
+        classification,
+      ]),
+    )
+    const spendRecords: SpendLeakImportedSpendRecord[] = [
+      ...importedBills.map((bill) => {
+        const classification = classificationBySource.get(JSON.stringify(["imported_bill", bill.id]))
+        return {
+          sourceType: "bills" as const,
+          sourceRecordId: bill.id,
+          amountCents: bill.amountCents,
+          currency: bill.currency,
+          direction: "outflow" as const,
+          sourceStatus: bill.status,
+          classificationStatus: classification?.status ?? null,
+          category: classification?.category ?? null,
+          refundFor: classification?.refundFor ? {
+            ...classification.refundFor,
+            sourceType: classification.refundFor.sourceType === "imported_bill" ? "bills" as const : "bank_transactions" as const,
+            classificationStatus: classification.refundFor.status,
+          } : null,
+        }
+      }),
+      ...importedBankTransactions.map((transaction) => {
+        const classification = classificationBySource.get(JSON.stringify(["imported_bank_transaction", transaction.id]))
+        return {
+          sourceType: "bank_transactions" as const,
+          sourceRecordId: transaction.id,
+          amountCents: transaction.amountCents,
+          currency: transaction.currency,
+          direction: transaction.direction,
+          sourceStatus: null,
+          classificationStatus: classification?.status ?? null,
+          category: classification?.category ?? null,
+          refundFor: classification?.refundFor ? {
+            ...classification.refundFor,
+            sourceType: classification.refundFor.sourceType === "imported_bill" ? "bills" as const : "bank_transactions" as const,
+            classificationStatus: classification.refundFor.status,
+          } : null,
+        }
+      }),
+    ]
+    const categorySpendSummaries = buildSpendLeakCategorySpendSummaries(spendRecords)
 
     const findingIds = findings.map((finding) => finding.id)
     const linkedCommitments = findingIds.length
@@ -136,6 +214,7 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       findings,
       linkedCommitmentCountsByFindingId,
       modules: buildSpendLeakModuleSummaries(findings),
+      categorySpendSummaries,
       latestSyncAt,
       hasAccountingConnection: connectionCount > 0,
       isStale: isSpendLeakDataStale(latestSyncAt),

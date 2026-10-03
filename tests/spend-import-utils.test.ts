@@ -5,6 +5,7 @@ import * as XLSX from "xlsx"
 import {
   applySpendImportMapping,
   getMissingRequiredSpendMappingFields,
+  getSpendImportDirection,
   inferSpendImportColumnMapping,
   parseSpendImportDate,
   parseSpendImportMoney,
@@ -60,6 +61,13 @@ describe("spend import parser", () => {
 })
 
 describe("spend import mapping", () => {
+  test("normalizes imported bill and signed transaction direction", () => {
+    assert.equal(getSpendImportDirection("bill", 125.5), "outflow")
+    assert.equal(getSpendImportDirection("transaction", -40.25), "outflow")
+    assert.equal(getSpendImportDirection("transaction", 40.25), "unknown")
+    assert.equal(getSpendImportDirection("transaction", 0), "unknown")
+  })
+
   test("infers field mapping and detects required mapping gaps", () => {
     const mapping = inferSpendImportColumnMapping(["supplier", "amount", "date", "reference"])
 

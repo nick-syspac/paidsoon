@@ -478,6 +478,7 @@ export class XeroProvider implements AccountingProvider {
           BankTransactionID: string
           Contact?: { ContactID?: string; Name?: string }
           BankAccount?: { Name?: string; Code?: string }
+          LineItems?: Array<{ AccountCode?: string }>
           Reference?: string
           Type?: string
           SubTotal?: number
@@ -490,15 +491,24 @@ export class XeroProvider implements AccountingProvider {
 
       const items = data.BankTransactions ?? []
       for (const tx of items) {
+        const expenseAccountCodes = [...new Set(
+          (tx.LineItems ?? [])
+            .map((line) => line.AccountCode?.trim())
+            .filter((code): code is string => Boolean(code)),
+        )]
         allTransactions.push({
           providerTransactionId: tx.BankTransactionID,
           providerSupplierId: tx.Contact?.ContactID,
           accountName: tx.BankAccount?.Name,
           accountCode: tx.BankAccount?.Code,
+          ...(expenseAccountCodes.length === 1
+            ? { expenseAccountCode: expenseAccountCodes[0] }
+            : {}),
           description: tx.Reference ?? tx.Contact?.Name ?? "Spend transaction",
           reference: tx.Reference,
           counterpartyName: tx.Contact?.Name,
           amount: tx.Total ?? tx.SubTotal ?? 0,
+          direction: "outflow",
           currency: tx.CurrencyCode ?? "AUD",
           transactionDate: parseXeroDate(tx.Date) ?? new Date(),
           providerUpdatedAt: parseXeroDate(tx.UpdatedDateUTC),

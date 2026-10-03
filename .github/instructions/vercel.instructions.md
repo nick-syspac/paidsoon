@@ -54,18 +54,19 @@ applyTo: "**/vercel.json,**/next.config*,**/app/api/cron/**"
 
 - Cron jobs are defined in `vercel.json`:
   ```json
-  { "path": "/api/cron/send-emails", "schedule": "0 9 * * *" },
-  { "path": "/api/cron/sync-accounting", "schedule": "0 2 * * *" },
-  { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" },
-  { "path": "/api/cron/invoice-import-cleanup", "schedule": "0 3 * * *" }
+  { "path": "/api/cron/invoice-import-cleanup", "schedule": "0 3 * * *" },
+  { "path": "/api/cron/margin-guard-snapshots", "schedule": "0 4 * * *" },
+  { "path": "/api/cron/runway-guard-snapshots", "schedule": "0 5 * * *" },
+  { "path": "/api/cron/spend-classification", "schedule": "0 6 * * *" },
+  { "path": "/api/cron/scheduling-watchdog", "schedule": "0 12 * * *" }
   ```
-- `send-emails` runs daily at 09:00 UTC, `sync-accounting` daily at 02:00 UTC, `invoice-import-cleanup` daily at 03:00 UTC.
+- `invoice-import-cleanup`, `margin-guard-snapshots`, `runway-guard-snapshots`, and `spend-classification` run daily at 03:00, 04:00, 05:00, and 06:00 UTC respectively.
 - `scheduling-watchdog` runs daily at 12:00 UTC and alerts if the Railway Celery Beat dispatcher's heartbeat (see
   [migrate-scheduled-jobs-to-railway-celery](../../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md))
   is stale — Vercel Hobby plan caps cron frequency at once daily, so this is the most frequent schedule available
   without upgrading to Pro.
 - **Authentication:** The cron handler checks `Authorization: Bearer CRON_SECRET`. Never remove this check.
-- Cron jobs must use `prismaAdmin` (RLS bypass is intentional — cron processes all users).
+- Cron jobs must use `prismaAdmin` (RLS bypass is intentional — cron processes all users). The spend-classification handler returns aggregate counters only and never logs transaction content.
 - Do not add additional cron jobs without updating `vercel.json` and documenting in `docs/DDD.md`.
 
 ## Preview Deployment Rules

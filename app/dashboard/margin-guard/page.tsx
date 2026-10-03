@@ -21,6 +21,18 @@ function formatCurrency(cents: number): string {
   }).format(cents / 100)
 }
 
+function formatContextCurrency(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(cents / 100)
+  } catch {
+    return `${currency} ${(cents / 100).toFixed(2)}`
+  }
+}
+
 function formatPercent(value: number | null): string {
   if (value === null) return "Not available"
   return `${value.toFixed(1)}%`
@@ -92,6 +104,7 @@ export default async function MarginGuardPage({
     preset,
   )
   const alerts = (await listMarginAlerts(user.id, "open", 5)) as AlertRow[]
+  const spendingCategoryContext = summary.spendingCategoryContext ?? []
 
   const invoiceRows: Array<{
     key: string
@@ -192,6 +205,47 @@ export default async function MarginGuardPage({
           <p className="mt-2 text-2xl font-semibold text-gray-900">{summary.completenessPercent.toFixed(1)}%</p>
           <p className="mt-1 text-xs text-gray-500">Confidence: {summary.confidence.replace("_", " ")}</p>
         </article>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Confirmed spending categories</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            PaidSoon spending categories are context only. MarginGuard cost classes remain separate and continue to drive margin calculations.
+          </p>
+        </div>
+        {spendingCategoryContext.length === 0 ? (
+          <p className="text-sm text-gray-600">No confirmed spending categories are available for this period.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+                  <th scope="col" className="py-2 pr-4">PaidSoon category</th>
+                  <th scope="col" className="py-2 pr-4">Source</th>
+                  <th scope="col" className="py-2 pr-4">Currency</th>
+                  <th scope="col" className="py-2 pr-4">MarginGuard cost class</th>
+                  <th scope="col" className="py-2">Amount / records</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {spendingCategoryContext.map((row) => (
+                  <tr key={`${row.sourceType}:${row.currency}:${row.categoryId}:${row.marginCostClass}`}>
+                    <th scope="row" className="py-3 pr-4 font-medium text-gray-900">{row.categoryName}</th>
+                    <td className="py-3 pr-4 text-gray-700">
+                      {row.sourceType === "imported_bill" ? "Bills" : "Bank transactions"}
+                    </td>
+                    <td className="py-3 pr-4 text-gray-700">{row.currency}</td>
+                    <td className="py-3 pr-4 text-gray-700">{row.marginCostClass.replaceAll("_", " ")}</td>
+                    <td className="py-3 text-gray-900">
+                      {formatContextCurrency(row.amountCents, row.currency)} · {row.recordCount.toLocaleString()} records
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">

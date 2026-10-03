@@ -28,6 +28,23 @@ const PROBE_EXTERNAL_A = "rls-verify-invoice-a"
 const PROBE_EXTERNAL_B = "rls-verify-invoice-b"
 const PROBE_ACCOUNTING_ORG_A = "rls-verify-accounting-org-a"
 const PROBE_ACCOUNTING_ORG_B = "rls-verify-accounting-org-b"
+const PROBE_CSV_IMPORT_ORG_A = "spend-import"
+const PROBE_CSV_BILL_A = "rls-verify-csv-bill-a"
+const PROBE_CSV_TRANSACTION_A = "rls-verify-csv-transaction-a"
+const PROBE_CSV_SUPPLIER_A = "rls-verify-csv-supplier-a"
+const PROBE_SPEND_CATEGORY_A = "rls-spend-category-a"
+const PROBE_SPEND_CATEGORY_B = "rls-spend-category-b"
+const PROBE_SPEND_BILL_CROSS = "rls-spend-bill-cross-tenant-check"
+const PROBE_SPEND_TAG_A = "rls-spend-tag-a"
+const PROBE_SPEND_TAG_B = "rls-spend-tag-b"
+const PROBE_SPEND_CLASSIFICATION_A = "rls-spend-classification-a"
+const PROBE_SPEND_CLASSIFICATION_B = "rls-spend-classification-b"
+const PROBE_SPEND_RULE_A = "rls-spend-rule-a"
+const PROBE_SPEND_RULE_B = "rls-spend-rule-b"
+const PROBE_SPEND_EVENT_A = "rls-spend-event-a"
+const PROBE_SPEND_EVENT_B = "rls-spend-event-b"
+const PROBE_SPEND_TAG_ASSIGNMENT_A = "rls-spend-tag-assignment-a"
+const PROBE_SPEND_TAG_ASSIGNMENT_B = "rls-spend-tag-assignment-b"
 const PROBE_SPEND_INSIGHT_A = "rls-verify-spend-insight-a"
 const PROBE_SPEND_INSIGHT_B = "rls-verify-spend-insight-b"
 const PROBE_CUSTOMER_EMAIL_A = "rls-verify-customer-a@example.com"
@@ -881,6 +898,36 @@ async function cleanup() {
   await prismaAdmin.ownersDigestDelivery.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
   })
+  await prismaAdmin.spendClassificationEvent.deleteMany({
+    where: { id: { in: [PROBE_SPEND_EVENT_A, PROBE_SPEND_EVENT_B] } },
+  })
+  await prismaAdmin.spendClassificationTag.deleteMany({
+    where: { id: { in: [PROBE_SPEND_TAG_ASSIGNMENT_A, PROBE_SPEND_TAG_ASSIGNMENT_B] } },
+  })
+  await prismaAdmin.spendClassification.deleteMany({
+    where: { id: { in: [PROBE_SPEND_CLASSIFICATION_A, PROBE_SPEND_CLASSIFICATION_B] } },
+  })
+  await prismaAdmin.spendClassificationRule.deleteMany({
+    where: { id: { in: [PROBE_SPEND_RULE_A, PROBE_SPEND_RULE_B] } },
+  })
+  await prismaAdmin.spendCategory.deleteMany({
+    where: { id: { in: [PROBE_SPEND_CATEGORY_A, PROBE_SPEND_CATEGORY_B] } },
+  })
+  await prismaAdmin.spendTag.deleteMany({
+    where: { id: { in: [PROBE_SPEND_TAG_A, PROBE_SPEND_TAG_B] } },
+  })
+  await prismaAdmin.spendClassificationSetting.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.importedBill.deleteMany({
+    where: { sourceId: { in: ["rls-verify-spend-bill-a", "rls-verify-spend-bill-b", "rls-verify-spend-bill-cross-check", PROBE_CSV_BILL_A] } },
+  })
+  await prismaAdmin.importedBankTransaction.deleteMany({
+    where: { sourceId: { in: ["rls-verify-spend-transaction-a", "rls-verify-spend-transaction-b", PROBE_CSV_TRANSACTION_A] } },
+  })
+  await prismaAdmin.supplierProfile.deleteMany({
+    where: { sourceId: { in: [PROBE_CSV_SUPPLIER_A, "rls-verify-spend-supplier-a"] } },
+  })
   await prismaAdmin.ownersDigestProviderRun.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
   })
@@ -960,7 +1007,7 @@ async function cleanup() {
     where: { userId: { in: [USER_A, USER_B] } },
   })
   await prismaAdmin.accountingConnection.deleteMany({
-    where: { organisationId: { in: [PROBE_ACCOUNTING_ORG_A, PROBE_ACCOUNTING_ORG_B] } },
+    where: { organisationId: { in: [PROBE_ACCOUNTING_ORG_A, PROBE_ACCOUNTING_ORG_B, PROBE_CSV_IMPORT_ORG_A] } },
   })
   await prismaAdmin.trackedInvoice.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
@@ -1065,7 +1112,23 @@ async function main() {
   }
   console.log("  ✓ inserted A accounting connection")
 
-  await prismaAdmin.accountingConnection.create({
+  const csvImportConnectionA = await withUserContext(USER_A, (tx) =>
+    tx.accountingConnection.create({
+      data: {
+        userId: USER_A,
+        provider: "csv_import",
+        organisationId: PROBE_CSV_IMPORT_ORG_A,
+        organisationName: "RLS Verify CSV Import A",
+        encryptedAccessToken: "n/a",
+        encryptedRefreshToken: "n/a",
+        tokenExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
+        scopes: "read_only",
+        status: "active",
+      },
+    }),
+  )
+
+  const accountingB = await prismaAdmin.accountingConnection.create({
     data: {
       userId: USER_B,
       provider: "myob",
@@ -1076,6 +1139,190 @@ async function main() {
       tokenExpiresAt: new Date("2026-01-01T00:00:00.000Z"),
       scopes: "sme-sales sme-contacts-customer sme-company-file sme-purchases sme-banking sme-general-ledger sme-contacts-supplier",
       status: "pending_first_sync",
+    },
+  })
+
+  const spendBillA = await prismaAdmin.importedBill.create({
+    data: {
+      userId: USER_A,
+      accountingConnectionId: accountingA.id,
+      sourceId: "rls-verify-spend-bill-a",
+      supplierName: "RLS Verify Supplier A",
+      amountCents: 1500,
+      currency: "AUD",
+      status: "open",
+    },
+  })
+  await prismaAdmin.importedBankTransaction.create({
+    data: {
+      userId: USER_A,
+      accountingConnectionId: accountingA.id,
+      sourceId: "rls-verify-spend-transaction-a",
+      description: "RLS Verify Provider Transaction A",
+      amountCents: -500,
+      currency: "AUD",
+      transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+    },
+  })
+  await prismaAdmin.supplierProfile.create({
+    data: {
+      userId: USER_A,
+      accountingConnectionId: accountingA.id,
+      sourceId: "rls-verify-spend-supplier-a",
+      supplierName: "RLS Verify Provider Supplier A",
+    },
+  })
+  await prismaAdmin.importedBill.create({
+    data: {
+      id: PROBE_SPEND_BILL_CROSS,
+      userId: USER_A,
+      accountingConnectionId: accountingA.id,
+      sourceId: "rls-verify-spend-bill-cross-check",
+      supplierName: "RLS Verify Cross-Tenant Check",
+      amountCents: 1800,
+      currency: "AUD",
+      status: "open",
+    },
+  })
+  await prismaAdmin.importedBill.create({
+    data: {
+      userId: USER_B,
+      accountingConnectionId: accountingB.id,
+      sourceId: "rls-verify-spend-bill-b",
+      supplierName: "RLS Verify Supplier B",
+      amountCents: 2500,
+      currency: "AUD",
+      status: "open",
+    },
+  })
+  const spendTransactionB = await prismaAdmin.importedBankTransaction.create({
+    data: {
+      userId: USER_B,
+      accountingConnectionId: accountingB.id,
+      sourceId: "rls-verify-spend-transaction-b",
+      description: "RLS Verify Transaction B",
+      amountCents: -500,
+      currency: "AUD",
+      transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+    },
+  })
+
+  await prismaAdmin.spendClassificationSetting.create({
+    data: { userId: USER_A, enabled: true },
+  })
+  await prismaAdmin.spendClassificationSetting.create({
+    data: { userId: USER_B, enabled: false },
+  })
+  const spendCategoryA = await prismaAdmin.spendCategory.create({
+    data: {
+      id: PROBE_SPEND_CATEGORY_A,
+      userId: USER_A,
+      key: "rls-verify-a",
+      name: "RLS Verify A",
+      normalizedName: "rls verify a",
+    },
+  })
+  const spendCategoryB = await prismaAdmin.spendCategory.create({
+    data: {
+      id: PROBE_SPEND_CATEGORY_B,
+      userId: USER_B,
+      key: "rls-verify-b",
+      name: "RLS Verify B",
+      normalizedName: "rls verify b",
+    },
+  })
+  const spendTagA = await prismaAdmin.spendTag.create({
+    data: {
+      id: PROBE_SPEND_TAG_A,
+      userId: USER_A,
+      name: "RLS Verify Tag A",
+      normalizedName: "rls verify tag a",
+    },
+  })
+  const spendTagB = await prismaAdmin.spendTag.create({
+    data: {
+      id: PROBE_SPEND_TAG_B,
+      userId: USER_B,
+      name: "RLS Verify Tag B",
+      normalizedName: "rls verify tag b",
+    },
+  })
+  await prismaAdmin.spendClassificationRule.create({
+    data: {
+      id: PROBE_SPEND_RULE_A,
+      userId: USER_A,
+      name: "RLS Verify Rule A",
+      ruleType: "merchant",
+      categoryId: spendCategoryA.id,
+      matchConfig: { merchant: "RLS Verify Supplier A" },
+    },
+  })
+  await prismaAdmin.spendClassificationRule.create({
+    data: {
+      id: PROBE_SPEND_RULE_B,
+      userId: USER_B,
+      name: "RLS Verify Rule B",
+      ruleType: "merchant",
+      categoryId: spendCategoryB.id,
+      matchConfig: { merchant: "RLS Verify Supplier B" },
+    },
+  })
+  const spendClassificationA = await prismaAdmin.spendClassification.create({
+    data: {
+      id: PROBE_SPEND_CLASSIFICATION_A,
+      userId: USER_A,
+      importedBillId: spendBillA.id,
+      categoryId: spendCategoryA.id,
+      sourceType: "imported_bill",
+      sourceRecordId: spendBillA.id,
+      status: "confirmed",
+      origin: "manual",
+    },
+  })
+  const spendClassificationB = await prismaAdmin.spendClassification.create({
+    data: {
+      id: PROBE_SPEND_CLASSIFICATION_B,
+      userId: USER_B,
+      importedBankTransactionId: spendTransactionB.id,
+      categoryId: spendCategoryB.id,
+      sourceType: "imported_bank_transaction",
+      sourceRecordId: spendTransactionB.id,
+      status: "confirmed",
+      origin: "manual",
+    },
+  })
+  await prismaAdmin.spendClassificationTag.create({
+    data: {
+      id: PROBE_SPEND_TAG_ASSIGNMENT_A,
+      userId: USER_A,
+      classificationId: spendClassificationA.id,
+      tagId: spendTagA.id,
+    },
+  })
+  await prismaAdmin.spendClassificationTag.create({
+    data: {
+      id: PROBE_SPEND_TAG_ASSIGNMENT_B,
+      userId: USER_B,
+      classificationId: spendClassificationB.id,
+      tagId: spendTagB.id,
+    },
+  })
+  await prismaAdmin.spendClassificationEvent.create({
+    data: {
+      id: PROBE_SPEND_EVENT_A,
+      userId: USER_A,
+      classificationId: spendClassificationA.id,
+      eventType: "confirmed",
+      newCategoryId: spendCategoryA.id,
+    },
+  })
+  await prismaAdmin.spendClassificationEvent.create({
+    data: {
+      id: PROBE_SPEND_EVENT_B,
+      userId: USER_B,
+      classificationId: spendClassificationB.id,
+      eventType: "confirmed",
+      newCategoryId: spendCategoryB.id,
     },
   })
 
@@ -1090,6 +1337,130 @@ async function main() {
     fail(`expected exactly A's accounting row, got ${JSON.stringify(accountingRows.map((r) => r.organisationId))}`)
   }
   console.log("  ✓ saw only A accounting connection")
+
+  console.log("\nCheck 4d: authenticated writes are limited to the owner's CSV-import sources")
+  const csvWriteResults = await withUserContext(USER_A, async (tx) => {
+    await tx.supplierProfile.create({
+      data: {
+        userId: USER_A,
+        accountingConnectionId: csvImportConnectionA.id,
+        sourceId: PROBE_CSV_SUPPLIER_A,
+        supplierName: "RLS Verify CSV Supplier A",
+      },
+    })
+    await tx.importedBill.create({
+      data: {
+        userId: USER_A,
+        accountingConnectionId: csvImportConnectionA.id,
+        sourceId: PROBE_CSV_BILL_A,
+        supplierName: "RLS Verify CSV Supplier A",
+        amountCents: 1200,
+        currency: "AUD",
+        status: "open",
+      },
+    })
+    await tx.importedBankTransaction.create({
+      data: {
+        userId: USER_A,
+        accountingConnectionId: csvImportConnectionA.id,
+        sourceId: PROBE_CSV_TRANSACTION_A,
+        description: "RLS Verify CSV spend",
+        amountCents: -1200,
+        direction: "outflow",
+        currency: "AUD",
+        transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    })
+
+    const [providerBillUpdate, providerTransactionUpdate, providerSupplierUpdate] = await Promise.all([
+      tx.importedBill.updateMany({
+        where: { userId: USER_A, sourceId: "rls-verify-spend-bill-a" },
+        data: { supplierName: "Should not update provider bill" },
+      }),
+      tx.importedBankTransaction.updateMany({
+        where: { userId: USER_A, sourceId: "rls-verify-spend-transaction-a" },
+        data: { description: "Should not update provider transaction" },
+      }),
+      tx.supplierProfile.updateMany({
+        where: { userId: USER_A, sourceId: "rls-verify-spend-supplier-a" },
+        data: { supplierName: "Should not update provider supplier" },
+      }),
+    ])
+    return [providerBillUpdate.count, providerTransactionUpdate.count, providerSupplierUpdate.count]
+  })
+  if (csvWriteResults.some((count) => count !== 0)) {
+    await cleanup()
+    fail(`expected provider-synced rows to remain read-only, got update counts ${csvWriteResults.join(", ")}`)
+  }
+  console.log("  ✓ CSV sources are writable; provider-synced source rows remain read-only")
+
+  console.log("\nCheck 4a: classification tables isolate every record by tenant")
+  const [settings, categories, tags, classifications, rules, classificationEvents, tagAssignments] =
+    await withUserContext(USER_A, async (tx) =>
+      Promise.all([
+        tx.spendClassificationSetting.findMany({ where: { userId: { in: [USER_A, USER_B] } } }),
+        tx.spendCategory.findMany({ where: { id: { in: [PROBE_SPEND_CATEGORY_A, PROBE_SPEND_CATEGORY_B] } } }),
+        tx.spendTag.findMany({ where: { id: { in: [PROBE_SPEND_TAG_A, PROBE_SPEND_TAG_B] } } }),
+        tx.spendClassification.findMany({ where: { id: { in: [PROBE_SPEND_CLASSIFICATION_A, PROBE_SPEND_CLASSIFICATION_B] } } }),
+        tx.spendClassificationRule.findMany({ where: { id: { in: [PROBE_SPEND_RULE_A, PROBE_SPEND_RULE_B] } } }),
+        tx.spendClassificationEvent.findMany({ where: { id: { in: [PROBE_SPEND_EVENT_A, PROBE_SPEND_EVENT_B] } } }),
+        tx.spendClassificationTag.findMany({ where: { id: { in: [PROBE_SPEND_TAG_ASSIGNMENT_A, PROBE_SPEND_TAG_ASSIGNMENT_B] } } }),
+      ]),
+    )
+  if (
+    settings.length !== 1 || settings[0].userId !== USER_A ||
+    categories.length !== 1 || categories[0].id !== PROBE_SPEND_CATEGORY_A ||
+    tags.length !== 1 || tags[0].id !== PROBE_SPEND_TAG_A ||
+    classifications.length !== 1 || classifications[0].id !== PROBE_SPEND_CLASSIFICATION_A ||
+    rules.length !== 1 || rules[0].id !== PROBE_SPEND_RULE_A ||
+    classificationEvents.length !== 1 || classificationEvents[0].id !== PROBE_SPEND_EVENT_A ||
+    tagAssignments.length !== 1 || tagAssignments[0].id !== PROBE_SPEND_TAG_ASSIGNMENT_A
+  ) {
+    await cleanup()
+    fail("expected USER_A to see only their row in every spend classification table")
+  }
+  console.log("  ✓ all classification tables are tenant-scoped")
+
+  console.log("\nCheck 4b: composite foreign keys reject a cross-tenant category assignment")
+  let blockedCrossTenantCategory = false
+  try {
+    await withUserContext(USER_A, (tx) =>
+      tx.spendClassification.create({
+        data: {
+          userId: USER_A,
+          importedBillId: PROBE_SPEND_BILL_CROSS,
+          categoryId: PROBE_SPEND_CATEGORY_B,
+          sourceType: "imported_bill",
+          sourceRecordId: PROBE_SPEND_BILL_CROSS,
+        },
+      }),
+    )
+  } catch {
+    blockedCrossTenantCategory = true
+  }
+  if (!blockedCrossTenantCategory) {
+    await cleanup()
+    fail("expected a composite tenant foreign key to reject USER_B's category for USER_A")
+  }
+  console.log("  ✓ cross-tenant category assignment rejected")
+
+  console.log("\nCheck 4c: spend classification events are append-only for authenticated users")
+  let blockedEventUpdate = false
+  try {
+    await withUserContext(USER_A, (tx) =>
+      tx.spendClassificationEvent.update({
+        where: { id: PROBE_SPEND_EVENT_A },
+        data: { reason: "tampered" },
+      }),
+    )
+  } catch (err) {
+    blockedEventUpdate = /permission denied|insufficient privilege/i.test(errorMessage(err))
+  }
+  if (!blockedEventUpdate) {
+    await cleanup()
+    fail("expected authenticated users to be unable to update spend classification events")
+  }
+  console.log("  ✓ event updates are denied")
 
   console.log("\nCheck 5: raw connection as `authenticated` role with no claims sees nothing")
   // Run a query that switches role but does NOT set request.jwt.claims.

@@ -1,10 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron/scheduling-watchdog",
-      "schedule": "0 12 * * *"
-    },
-    {
       "path": "/api/cron/invoice-import-cleanup",
       "schedule": "0 3 * * *"
     },
@@ -15,6 +11,14 @@
     {
       "path": "/api/cron/runway-guard-snapshots",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/spend-classification",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/scheduling-watchdog",
+      "schedule": "0 12 * * *"
     }
   ]
 }

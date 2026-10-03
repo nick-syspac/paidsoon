@@ -1,5 +1,6 @@
 import { before, beforeEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
+import type { SpendClassificationSummary } from "@/lib/spendClassification/summaries"
 
 let mockUser: { id: string } | null = { id: "user-1" }
 let mockTier: string | null = "small_business"
@@ -39,6 +40,11 @@ let mockDashboardData = {
       severity: "red",
     },
   ],
+  categorySpendSummaries: {
+    confirmed: [],
+    unresolved: [],
+    refundCredits: [],
+  } as SpendClassificationSummary,
   latestSyncAt: new Date("2026-09-01T00:00:00.000Z"),
   hasAccountingConnection: true,
   isStale: false,
@@ -93,6 +99,22 @@ function collectText(node: unknown): string {
   return ""
 }
 
+function findProp(node: unknown, name: string): unknown {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findProp(child, name)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+  if (!node || typeof node !== "object") return undefined
+
+  const props = (node as { props?: Record<string, unknown> }).props
+  if (!props) return undefined
+  if (name in props) return props[name]
+  return findProp(props.children, name)
+}
+
 describe("SpendLeak dashboard page", () => {
   before(async () => {
     await mock.module("next/navigation", {
@@ -128,6 +150,28 @@ describe("SpendLeak dashboard page", () => {
           moduleGridModulesLength = modules.length
           return { type: "mock-module-grid" } as unknown
         },
+      },
+    })
+
+    await mock.module("@/components/dashboard/spendleak/SpendLeakCategorySpendSummary", {
+      namedExports: {
+        SpendLeakCategorySpendSummary: ({ summaries }: {
+          summaries: {
+            confirmed: Array<{ categoryName: string; sourceRecordIds: string[] }>
+            unresolved: Array<{ bucket: string; sourceRecordIds: string[] }>
+            refundCredits: Array<{ refundRecordIds: string[]; originalSourceRecordIds: string[] }>
+          }
+        }) => ({
+          type: "mock-category-summary",
+          props: {
+            children: [
+              "Imported spend by category",
+              ...summaries.confirmed.flatMap((summary) => [summary.categoryName, ...summary.sourceRecordIds]),
+              ...summaries.unresolved.flatMap((summary) => [summary.bucket, ...summary.sourceRecordIds]),
+              ...summaries.refundCredits.flatMap((credit) => [...credit.refundRecordIds, ...credit.originalSourceRecordIds]),
+            ],
+          },
+        }),
       },
     })
 
@@ -179,6 +223,11 @@ describe("SpendLeak dashboard page", () => {
           severity: "red",
         },
       ],
+      categorySpendSummaries: {
+        confirmed: [],
+        unresolved: [],
+        refundCredits: [],
+      } as SpendClassificationSummary,
       latestSyncAt: new Date("2026-09-01T00:00:00.000Z"),
       hasAccountingConnection: true,
       isStale: false,
@@ -239,6 +288,39 @@ describe("SpendLeak dashboard page", () => {
     assert.match(text, /1 Expense import/)
     assert.match(text, /1 Cancel/)
     assert.equal(text.includes("Synced source coverage"), false)
+  })
+
+  test("renders confirmed category totals and unresolved amounts", async () => {
+    mockDashboardData = {
+      ...mockDashboardData,
+      categorySpendSummaries: {
+        confirmed: [{
+          sourceType: "bills",
+          currency: "AUD",
+          categoryId: "category-software",
+          categoryName: "Software & Cloud",
+          amountCents: 12000,
+          recordCount: 1,
+          sourceRecordIds: ["bill-source-1"],
+          refundRecordCount: 0,
+          refundRecordIds: [],
+        }],
+        unresolved: [{
+          sourceType: "bank_transactions",
+          currency: "AUD",
+          bucket: "unconfirmed",
+          amountCents: 4500,
+          recordCount: 1,
+          sourceRecordIds: ["transaction-source-1"],
+        }],
+        refundCredits: [],
+      },
+    }
+
+    const element = await SpendLeakDashboardPage({ searchParams: Promise.resolve({}) })
+    const summaries = findProp(element, "summaries") as typeof mockDashboardData.categorySpendSummaries | undefined
+
+    assert.deepEqual(summaries, mockDashboardData.categorySpendSummaries)
   })
 
   test("renders selected-source coverage in empty state for bank-only synced data", async () => {

@@ -12,6 +12,7 @@ import {
   getSpendLeakEvidenceSource,
 } from "@/lib/dashboard/spendleakPresentation"
 import { SpendLeakModuleGrid } from "@/components/dashboard/spendleak/SpendLeakModuleGrid"
+import { SpendLeakCategorySpendSummary } from "@/components/dashboard/spendleak/SpendLeakCategorySpendSummary"
 import { SpendLeakFindingsTable } from "@/components/dashboard/spendleak/SpendLeakFindingsTable"
 import { SpendLeakStatusBanner } from "@/components/dashboard/spendleak/SpendLeakStatusBanner"
 import { SpendLeakExportButton } from "@/components/dashboard/spendleak/SpendLeakExportButton"
@@ -91,7 +92,12 @@ export default async function SpendLeakDashboardPage({
           <h1 className="text-xl font-semibold text-gray-900">SpendLeak</h1>
           <p className="mt-1 text-sm text-gray-600">Spend-side risks and savings opportunities from your connected accounting data.</p>
         </div>
-        {canExportSpendLeakReport ? <SpendLeakExportButton selectedModule={selectedModule} /> : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/dashboard/spendleak/review" className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Review imported spend
+          </Link>
+          {canExportSpendLeakReport ? <SpendLeakExportButton selectedModule={selectedModule} /> : null}
+        </div>
       </div>
 
       {data.status.state !== "ready" && <SpendLeakStatusBanner status={data.status} />}
@@ -135,6 +141,8 @@ export default async function SpendLeakDashboardPage({
       )}
 
       <SpendLeakModuleGrid modules={data.modules} />
+
+      <SpendLeakCategorySpendSummary summaries={data.categorySpendSummaries} />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">

@@ -60,6 +60,16 @@ describe("MarginGuard dashboard page", () => {
           revenueCents: 200_000,
           directCostCents: 120_000,
           grossProfitCents: 80_000,
+          spendingCategoryContext: [{
+            sourceType: "imported_bill",
+            currency: "AUD",
+            categoryId: "category-software",
+            categoryName: "Software & Cloud",
+            marginCostClass: "OVERHEAD",
+            amountCents: 120_000,
+            recordCount: 1,
+            sourceRecordIds: ["bill-1"],
+          }],
           grossMarginPercent: 40,
           targetGrossMarginPercent: 45,
           marginVariancePercent: -5,
@@ -177,6 +187,9 @@ describe("MarginGuard dashboard page", () => {
 
     assert.match(text, /MarginGuard/)
     assert.match(text, /Gross Margin/)
+    assert.match(text, /Confirmed spending categories/)
+    assert.match(text, /Software & Cloud/)
+    assert.match(text, /OVERHEAD/)
     assert.match(text, /Customer profitability/)
     assert.match(text, /Invoice margin basis/)
     assert.match(text, /Customer below warning/)

@@ -118,10 +118,14 @@ describe("MyobProvider spend endpoint contracts", () => {
     assert.ok(receive)
 
     assert.equal(spend?.amount, -125.5)
+    assert.equal(spend?.direction, "outflow")
     assert.equal(spend?.reference, "PMT-001")
     assert.equal(spend?.counterpartyName, "Acme Supplies")
+    assert.equal(spend?.accountName, "Main Bank")
+    assert.equal(spend?.expenseAccountName, undefined)
 
     assert.equal(receive?.amount, 40.25)
+    assert.equal(receive?.direction, "inflow")
     assert.equal(receive?.reference, "RCT-777")
     assert.equal(receive?.counterpartyName, "Vendor Refunds")
 

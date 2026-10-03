@@ -71,6 +71,15 @@ ALTER TABLE deposit_guard_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_guard_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_payment_webhook_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE spend_leak_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_classification_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_classifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_classification_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_classification_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_classification_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_classification_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spend_classification_worker_leases ENABLE ROW LEVEL SECURITY;
 
 -- Base table privileges are required in addition to RLS policies.
 -- Keep this explicit so auth-context queries via `SET LOCAL ROLE authenticated`
@@ -93,7 +102,7 @@ GRANT SELECT ON TABLE tax_buffer_obligations TO authenticated;
 GRANT SELECT, INSERT ON TABLE tax_buffer_snapshots TO authenticated;
 GRANT SELECT ON TABLE tax_buffer_overrides TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE tax_buffer_events TO authenticated;
-GRANT SELECT ON TABLE imported_bills TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE imported_bills TO authenticated;
 GRANT SELECT ON TABLE cash_forecast_snapshots TO authenticated;
 GRANT SELECT ON TABLE cash_plan_snapshots TO authenticated;
 GRANT SELECT ON TABLE cash_plans TO authenticated;
@@ -122,8 +131,8 @@ GRANT SELECT, INSERT, UPDATE ON TABLE margin_alert_events TO authenticated;
 GRANT SELECT ON TABLE margin_snapshots TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE margin_scenarios TO authenticated;
 GRANT SELECT ON TABLE margin_opportunities TO authenticated;
-GRANT SELECT ON TABLE imported_bank_transactions TO authenticated;
-GRANT SELECT ON TABLE supplier_profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE imported_bank_transactions TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE supplier_profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE owners_digest_settings TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE owners_digest_snapshots TO authenticated;
 GRANT SELECT, INSERT, DELETE ON TABLE owners_digest_items TO authenticated;
@@ -138,6 +147,17 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE deposit_reminders TO authenticated
 GRANT SELECT, INSERT ON TABLE deposit_guard_events TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE deposit_guard_settings TO authenticated;
 GRANT SELECT, UPDATE ON TABLE spend_insights TO authenticated;
+REVOKE ALL ON TABLE spend_classification_settings, spend_categories, spend_tags,
+  spend_classifications, spend_classification_rules,
+  spend_classification_events, spend_classification_tags,
+  spend_classification_claims, spend_classification_worker_leases FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE spend_classification_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE spend_categories TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE spend_tags TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE spend_classifications TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE spend_classification_rules TO authenticated;
+GRANT SELECT, INSERT ON TABLE spend_classification_events TO authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE spend_classification_tags TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE spend_leak_settings TO authenticated;
 GRANT SELECT, INSERT ON TABLE cost_guard_forecasts TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE cost_guard_rules TO authenticated;
@@ -597,8 +617,9 @@ CREATE POLICY "users can update own margin opportunities"
 
 -- ---------------------------------------------------------------------------
 -- imported_bills
--- Users can read their own imported bills. Writes are performed by sync code
--- via prismaAdmin.
+-- Users can read their own imported bills. Authenticated writes are limited to
+-- rows linked to their dedicated CSV-import connection; provider sync uses
+-- prismaAdmin.
 -- ---------------------------------------------------------------------------
 ALTER TABLE imported_bills ENABLE ROW LEVEL SECURITY;
 
@@ -609,19 +630,47 @@ CREATE POLICY "users can view own imported bills"
 
 DROP POLICY IF EXISTS "users can insert own imported bills" ON imported_bills;
 CREATE POLICY "users can insert own imported bills"
-  ON imported_bills FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id);
+  ON imported_bills FOR INSERT TO authenticated
+  WITH CHECK (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = imported_bills.accounting_connection_id
+        AND c."userId" = imported_bills.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  );
 
 DROP POLICY IF EXISTS "users can update own imported bills" ON imported_bills;
 CREATE POLICY "users can update own imported bills"
-  ON imported_bills FOR UPDATE
-  USING (auth.uid()::text = user_id)
-  WITH CHECK (auth.uid()::text = user_id);
+  ON imported_bills FOR UPDATE TO authenticated
+  USING (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = imported_bills.accounting_connection_id
+        AND c."userId" = imported_bills.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  )
+  WITH CHECK (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = imported_bills.accounting_connection_id
+        AND c."userId" = imported_bills.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- imported_bank_transactions
--- Users can read their own imported bank transactions. Writes are performed by
--- sync code via prismaAdmin.
+-- Users can read their own imported bank transactions. Authenticated writes are
+-- limited to rows linked to their dedicated CSV-import connection; provider
+-- sync uses prismaAdmin.
 -- ---------------------------------------------------------------------------
 ALTER TABLE imported_bank_transactions ENABLE ROW LEVEL SECURITY;
 
@@ -632,19 +681,174 @@ CREATE POLICY "users can view own imported bank transactions"
 
 DROP POLICY IF EXISTS "users can insert own imported bank transactions" ON imported_bank_transactions;
 CREATE POLICY "users can insert own imported bank transactions"
-  ON imported_bank_transactions FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id);
+  ON imported_bank_transactions FOR INSERT TO authenticated
+  WITH CHECK (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = imported_bank_transactions.accounting_connection_id
+        AND c."userId" = imported_bank_transactions.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  );
 
 DROP POLICY IF EXISTS "users can update own imported bank transactions" ON imported_bank_transactions;
 CREATE POLICY "users can update own imported bank transactions"
-  ON imported_bank_transactions FOR UPDATE
+  ON imported_bank_transactions FOR UPDATE TO authenticated
+  USING (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = imported_bank_transactions.accounting_connection_id
+        AND c."userId" = imported_bank_transactions.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  )
+  WITH CHECK (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = imported_bank_transactions.accounting_connection_id
+        AND c."userId" = imported_bank_transactions.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  );
+
+-- Prisma's schema language does not currently express this XOR constraint.
+-- Keep the database invariant alongside the post-migration RLS setup: every
+-- classification must reference exactly one tenant-owned imported source, and
+-- its typed source identity must agree with that foreign key.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'spend_classifications_exactly_one_source_check'
+  ) THEN
+    ALTER TABLE spend_classifications
+      ADD CONSTRAINT spend_classifications_exactly_one_source_check
+      CHECK (
+        (
+          source_type = 'imported_bill'
+          AND imported_bill_id IS NOT NULL
+          AND imported_bank_transaction_id IS NULL
+          AND source_record_id = imported_bill_id
+        )
+        OR
+        (
+          source_type = 'imported_bank_transaction'
+          AND imported_bank_transaction_id IS NOT NULL
+          AND imported_bill_id IS NULL
+          AND source_record_id = imported_bank_transaction_id
+        )
+      );
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- spend classification taxonomy and review history
+-- Every mutable row is tenant-owned. Event history is insert-only for users.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "users can view own spend classification settings" ON spend_classification_settings;
+CREATE POLICY "users can view own spend classification settings"
+  ON spend_classification_settings FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can insert own spend classification settings" ON spend_classification_settings;
+CREATE POLICY "users can insert own spend classification settings"
+  ON spend_classification_settings FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can update own spend classification settings" ON spend_classification_settings;
+CREATE POLICY "users can update own spend classification settings"
+  ON spend_classification_settings FOR UPDATE TO authenticated
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 
+DROP POLICY IF EXISTS "users can view own spend categories" ON spend_categories;
+CREATE POLICY "users can view own spend categories"
+  ON spend_categories FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can insert own spend categories" ON spend_categories;
+CREATE POLICY "users can insert own spend categories"
+  ON spend_categories FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can update own spend categories" ON spend_categories;
+CREATE POLICY "users can update own spend categories"
+  ON spend_categories FOR UPDATE TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own spend tags" ON spend_tags;
+CREATE POLICY "users can view own spend tags"
+  ON spend_tags FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can insert own spend tags" ON spend_tags;
+CREATE POLICY "users can insert own spend tags"
+  ON spend_tags FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can update own spend tags" ON spend_tags;
+CREATE POLICY "users can update own spend tags"
+  ON spend_tags FOR UPDATE TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own spend classifications" ON spend_classifications;
+CREATE POLICY "users can view own spend classifications"
+  ON spend_classifications FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can insert own spend classifications" ON spend_classifications;
+CREATE POLICY "users can insert own spend classifications"
+  ON spend_classifications FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can update own spend classifications" ON spend_classifications;
+CREATE POLICY "users can update own spend classifications"
+  ON spend_classifications FOR UPDATE TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own spend classification rules" ON spend_classification_rules;
+CREATE POLICY "users can view own spend classification rules"
+  ON spend_classification_rules FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can insert own spend classification rules" ON spend_classification_rules;
+CREATE POLICY "users can insert own spend classification rules"
+  ON spend_classification_rules FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can update own spend classification rules" ON spend_classification_rules;
+CREATE POLICY "users can update own spend classification rules"
+  ON spend_classification_rules FOR UPDATE TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own spend classification events" ON spend_classification_events;
+CREATE POLICY "users can view own spend classification events"
+  ON spend_classification_events FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can insert own spend classification events" ON spend_classification_events;
+CREATE POLICY "users can insert own spend classification events"
+  ON spend_classification_events FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own spend classification tags" ON spend_classification_tags;
+CREATE POLICY "users can view own spend classification tags"
+  ON spend_classification_tags FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can insert own spend classification tags" ON spend_classification_tags;
+CREATE POLICY "users can insert own spend classification tags"
+  ON spend_classification_tags FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users can delete own spend classification tags" ON spend_classification_tags;
+CREATE POLICY "users can delete own spend classification tags"
+  ON spend_classification_tags FOR DELETE TO authenticated
+  USING (auth.uid()::text = user_id);
+
 -- ---------------------------------------------------------------------------
 -- supplier_profiles
--- Users can read their own supplier profiles. Writes are performed by sync
--- code via prismaAdmin.
+-- Users can read their own supplier profiles. Authenticated writes are limited
+-- to rows linked to their dedicated CSV-import connection; provider sync uses
+-- prismaAdmin.
 -- ---------------------------------------------------------------------------
 ALTER TABLE supplier_profiles ENABLE ROW LEVEL SECURITY;
 
@@ -655,14 +859,41 @@ CREATE POLICY "users can view own supplier profiles"
 
 DROP POLICY IF EXISTS "users can insert own supplier profiles" ON supplier_profiles;
 CREATE POLICY "users can insert own supplier profiles"
-  ON supplier_profiles FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id);
+  ON supplier_profiles FOR INSERT TO authenticated
+  WITH CHECK (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = supplier_profiles.accounting_connection_id
+        AND c."userId" = supplier_profiles.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  );
 
 DROP POLICY IF EXISTS "users can update own supplier profiles" ON supplier_profiles;
 CREATE POLICY "users can update own supplier profiles"
-  ON supplier_profiles FOR UPDATE
-  USING (auth.uid()::text = user_id)
-  WITH CHECK (auth.uid()::text = user_id);
+  ON supplier_profiles FOR UPDATE TO authenticated
+  USING (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = supplier_profiles.accounting_connection_id
+        AND c."userId" = supplier_profiles.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  )
+  WITH CHECK (
+    auth.uid()::text = user_id
+    AND EXISTS (
+      SELECT 1 FROM accounting_connections c
+      WHERE c.id = supplier_profiles.accounting_connection_id
+        AND c."userId" = supplier_profiles.user_id
+        AND c.provider = 'csv_import'
+        AND c.organisation_id = 'spend-import'
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- spend_insights

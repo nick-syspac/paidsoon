@@ -67,6 +67,15 @@ export function parseSpendImportMoney(value: string): number | null {
   return amount
 }
 
+export function getSpendImportDirection(
+  sourceType: "bill" | "transaction",
+  amount: number,
+): "outflow" | "inflow" | "unknown" {
+  if (sourceType === "bill") return "outflow"
+  if (amount < 0) return "outflow"
+  return "unknown"
+}
+
 export function parseSpendImportDate(value: string): Date | null {
   const trimmed = value.trim()
   if (!trimmed) return null

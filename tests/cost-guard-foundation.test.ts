@@ -541,10 +541,25 @@ describe("cost guard supplier and category routes", () => {
     { supplierName: "Acme Pty Ltd", _sum: { amountCents: 25000 }, _count: { id: 3 } },
     { supplierName: "Northwind", _sum: { amountCents: 12000 }, _count: { id: 2 } },
   ]
-  let categoryRows: Array<{ expenseAccountName: string | null; _sum: { amountCents: number | null }; _count: { id: number } }> = [
-    { expenseAccountName: "Software", _sum: { amountCents: 40000 }, _count: { id: 4 } },
-    { expenseAccountName: "Office", _sum: { amountCents: 15000 }, _count: { id: 2 } },
-  ]
+  let billRows: Array<{ id: string; amountCents: number; currency: string; status: string }> = []
+  let transactionRows: Array<{
+    id: string
+    amountCents: number
+    currency: string
+    direction: "outflow" | "inflow" | "unknown"
+  }> = []
+  let classificationRows: Array<{
+    sourceType: string
+    sourceRecordId: string
+    status: string
+    category: { id: string; name: string; status: string } | null
+    refundFor?: {
+      sourceType: string
+      sourceRecordId: string
+      status: string
+      category: { id: string; name: string } | null
+    } | null
+  }> = []
 
   let getSuppliers: (typeof import("@/app/api/cost-guard/suppliers/route"))["GET"]
   let getCategories: (typeof import("@/app/api/cost-guard/categories/route"))["GET"]
@@ -565,16 +580,25 @@ describe("cost guard supplier and category routes", () => {
           fn: (tx: {
             importedBill: {
               groupBy: (args: { by: string[]; _sum: Record<string, boolean>; _count: Record<string, boolean> }) => Promise<Array<{ supplierName: string; _sum: { amountCents: number | null }; _count: { id: number } }> | Array<{ expenseAccountName: string | null; _sum: { amountCents: number | null }; _count: { id: number } }>>
+              findMany: () => Promise<typeof billRows>
             }
+            importedBankTransaction: { findMany: () => Promise<typeof transactionRows> }
+            spendClassification: { findMany: () => Promise<typeof classificationRows> }
           }) => unknown,
         ) => {
           const tx = {
             importedBill: {
               groupBy: async ({ by, _sum, _count }: { by: string[]; _sum: Record<string, boolean>; _count: Record<string, boolean> }) => {
                 if (by.includes("supplierName")) return supplierRows
-                if (by.includes("expenseAccountName")) return categoryRows
                 return []
               },
+              findMany: async () => billRows,
+            },
+            importedBankTransaction: {
+              findMany: async () => transactionRows,
+            },
+            spendClassification: {
+              findMany: async () => classificationRows,
             },
           }
           return fn(tx)
@@ -592,10 +616,9 @@ describe("cost guard supplier and category routes", () => {
       { supplierName: "Acme Pty Ltd", _sum: { amountCents: 25000 }, _count: { id: 3 } },
       { supplierName: "Northwind", _sum: { amountCents: 12000 }, _count: { id: 2 } },
     ]
-    categoryRows = [
-      { expenseAccountName: "Software", _sum: { amountCents: 40000 }, _count: { id: 4 } },
-      { expenseAccountName: "Office", _sum: { amountCents: 15000 }, _count: { id: 2 } },
-    ]
+    billRows = []
+    transactionRows = []
+    classificationRows = []
   })
 
   test("returns supplier totals for the current user", async () => {
@@ -611,15 +634,139 @@ describe("cost guard supplier and category routes", () => {
   })
 
   test("returns category totals for the current user", async () => {
+    billRows = [
+      { id: "bill-1", amountCents: 40000, currency: "AUD", status: "open" },
+      { id: "bill-2", amountCents: 5000, currency: "AUD", status: "open" },
+    ]
+    transactionRows = [
+      { id: "txn-1", amountCents: -12000, currency: "AUD", direction: "outflow" },
+      { id: "txn-inflow", amountCents: 6000, currency: "AUD", direction: "inflow" },
+      { id: "txn-refund-bank", amountCents: 2000, currency: "AUD", direction: "inflow" },
+      { id: "txn-transfer", amountCents: -8000, currency: "AUD", direction: "outflow" },
+      { id: "txn-unknown", amountCents: -3000, currency: "AUD", direction: "unknown" },
+    ]
+    classificationRows = [
+      {
+        sourceType: "imported_bill",
+        sourceRecordId: "bill-1",
+        status: "confirmed",
+        category: { id: "category-software", name: "Software & Cloud", status: "active" },
+      },
+      {
+        sourceType: "imported_bill",
+        sourceRecordId: "bill-2",
+        status: "suggested",
+        category: { id: "category-software", name: "Software & Cloud", status: "active" },
+      },
+      {
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: "txn-1",
+        status: "confirmed",
+        category: { id: "category-software", name: "Software & Cloud", status: "active" },
+      },
+      {
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: "txn-inflow",
+        status: "confirmed",
+        category: { id: "category-software", name: "Software & Cloud", status: "active" },
+        refundFor: {
+          sourceType: "imported_bill",
+          sourceRecordId: "bill-1",
+          status: "confirmed",
+          category: { id: "category-software", name: "Software & Cloud" },
+        },
+      },
+      {
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: "txn-refund-bank",
+        status: "confirmed",
+        category: null,
+        refundFor: {
+          sourceType: "bank_transactions",
+          sourceRecordId: "txn-1",
+          status: "confirmed",
+          category: { id: "category-software", name: "Software & Cloud" },
+        },
+      },
+      {
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: "txn-transfer",
+        status: "excluded",
+        category: null,
+      },
+      {
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: "txn-unknown",
+        status: "confirmed",
+        category: { id: "category-software", name: "Software & Cloud", status: "active" },
+      },
+    ]
+
     const res = await getCategories(new Request("http://localhost/api/cost-guard/categories?limit=10"))
     assert.equal(res.status, 200)
     const body = await res.json()
-    assert.deepEqual(body.categories[0], {
-      id: "Software",
-      categoryName: "Software",
-      totalSpendCents: 40000,
-      billCount: 4,
-    })
+    assert.deepEqual(body.categories, [
+      {
+        id: "category-software",
+        categoryId: "category-software",
+        categoryName: "Software & Cloud",
+        totalSpendCents: 40000,
+        currency: "AUD",
+        sourceType: "bills",
+        recordCount: 1,
+        sourceRecordIds: ["bill-1"],
+        refundRecordCount: 0,
+        refundRecordIds: [],
+      },
+      {
+        id: "category-software",
+        categoryId: "category-software",
+        categoryName: "Software & Cloud",
+        totalSpendCents: 10000,
+        currency: "AUD",
+        sourceType: "bank_transactions",
+        recordCount: 1,
+        sourceRecordIds: ["txn-1"],
+        refundRecordCount: 1,
+        refundRecordIds: ["txn-refund-bank"],
+      },
+    ])
+    assert.deepEqual(body.unresolved, [
+      {
+        status: "unknown_direction",
+        totalSpendCents: 3000,
+        currency: "AUD",
+        sourceType: "bank_transactions",
+        recordCount: 1,
+        sourceRecordIds: ["txn-unknown"],
+      },
+      {
+        status: "excluded",
+        totalSpendCents: 8000,
+        currency: "AUD",
+        sourceType: "bank_transactions",
+        recordCount: 1,
+        sourceRecordIds: ["txn-transfer"],
+      },
+      {
+        status: "unconfirmed",
+        totalSpendCents: 5000,
+        currency: "AUD",
+        sourceType: "bills",
+        recordCount: 1,
+        sourceRecordIds: ["bill-2"],
+      },
+    ])
+    assert.deepEqual(body.refundCredits, [{
+      sourceType: "bank_transactions",
+      currency: "AUD",
+      categoryId: "category-software",
+      categoryName: "Software & Cloud",
+      creditCents: 6000,
+      refundRecordIds: ["txn-inflow"],
+      originalSourceType: "bills",
+      originalSourceRecordIds: ["bill-1"],
+    }])
   })
 
   test("rejects unauthenticated requests", async () => {

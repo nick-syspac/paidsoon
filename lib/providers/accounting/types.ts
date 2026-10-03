@@ -103,6 +103,7 @@ export interface ProviderContact {
 // ---------------------------------------------------------------------------
 
 export type ProviderSpendBillStatus = "open" | "paid" | "voided" | "draft" | "unknown"
+export type ProviderSpendDirection = "outflow" | "inflow" | "unknown"
 
 export interface ProviderSpendBill {
   providerBillId: string
@@ -131,12 +132,17 @@ export interface ProviderSpendBill {
 export interface ProviderSpendBankTransaction {
   providerTransactionId: string
   providerSupplierId?: string
+  /** Cash/bank account that the transaction moves money through. */
   accountName?: string
   accountCode?: string
+  /** Expense coding only when the provider explicitly supplies it. */
+  expenseAccountName?: string
+  expenseAccountCode?: string
   description: string
   reference?: string
   counterpartyName?: string
   amount: number
+  direction: ProviderSpendDirection
   currency: string
   transactionDate: Date
   providerUpdatedAt?: Date
