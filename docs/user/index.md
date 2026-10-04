@@ -5,12 +5,14 @@ This repository manual explains how to set up PaidSoon and use its Settings and 
 ## Start here
 
 1. [Getting started](getting-started.md) — sign in, configure your account, connect a data source, and follow the recommended setup order.
-2. [General settings](general-settings.md) — Account, Connections, and Subscription.
-3. [InvoiceGuard](invoiceguard.md) — Schedule, Email, Templates, and Import / Export.
-4. Read the guides for the modules you use. Availability and controls can depend on your subscription and connected data.
+2. [Dashboard guide](dashboard.md) — understand Overview, invoice workspaces, and the financial-operation sections.
+3. [General settings](general-settings.md) — Account, Connections, and Subscription.
+4. [InvoiceGuard](invoiceguard.md) — Schedule, Email, Templates, and Import / Export.
+5. Read the guides for the modules you use. Availability and controls can depend on your subscription and connected data.
 
 ## Settings and module guides
 
+- [Dashboard guide](dashboard.md) — Overview, Invoices, Resolved Invoices, and the financial-operation workspaces.
 - [General settings](general-settings.md) — Account, Connections, and Subscription.
 - [InvoiceGuard](invoiceguard.md) — reminder schedule, email identity, templates, and supported data transfers.
 - [DepositGuard](depositguard.md) — deposits, job setup, reminders, and work status.
