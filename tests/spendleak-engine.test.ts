@@ -236,6 +236,54 @@ describe("SpendLeak engine", () => {
     assert.ok(findings.some((finding) => finding.findingType === "cash_runway"))
   })
 
+  test("includes source-linked rows for the two transactions that triggered a duplicate payment", () => {
+    const findings = detectSpendFindings({
+      bills: [],
+      bankTransactions: [
+        {
+          id: "txn-first",
+          sourceId: "source-first",
+          description: "Cloud hosting payment",
+          counterpartyName: "Acme Cloud",
+          amountCents: -120000,
+          transactionDate: new Date("2026-08-01T00:00:00.000Z"),
+        },
+        {
+          id: "txn-second",
+          sourceId: "source-second",
+          description: "Acme Cloud payment",
+          counterpartyName: "Acme Cloud",
+          amountCents: -120000,
+          transactionDate: new Date("2026-08-07T00:00:00.000Z"),
+        },
+      ],
+      suppliers: [],
+      now: new Date("2026-09-01T00:00:00.000Z"),
+    })
+
+    const duplicatePayment = findings.find((finding) => finding.findingType === "duplicate_payment")
+
+    assert.ok(duplicatePayment)
+    assert.equal(duplicatePayment?.evidence.counterparty, "Acme Cloud")
+    assert.deepEqual(duplicatePayment?.evidence.transactionIds, ["txn-first", "txn-second"])
+    assert.deepEqual(duplicatePayment?.evidence.recentTransactions, [
+      {
+        sourceId: "source-first",
+        description: "Cloud hosting payment",
+        counterpartyName: "Acme Cloud",
+        amountCents: 120000,
+        transactionDate: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        sourceId: "source-second",
+        description: "Acme Cloud payment",
+        counterpartyName: "Acme Cloud",
+        amountCents: 120000,
+        transactionDate: "2026-08-07T00:00:00.000Z",
+      },
+    ])
+  })
+
   test("builds grounded summary and safe fallbacks without inventing unsupported claims", () => {
     const summary = buildGroundedSummary({
       findings: [

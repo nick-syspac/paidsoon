@@ -404,6 +404,7 @@ export function detectSpendFindings(input: SpendSyncInput): SpendFinding[] {
             evidence: {
               counterparty,
               transactionIds: [current.id ?? current.sourceId ?? "unknown", next.id ?? next.sourceId ?? "unknown"],
+              recentTransactions: [buildTransactionEvidenceRow(current), buildTransactionEvidenceRow(next)],
               dayDifference,
               amountCents: amount,
               confidence: confidenceFromSignal("confirmed"),
