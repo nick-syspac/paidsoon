@@ -305,7 +305,11 @@ function buildSupportingRecordsTable(
   const transactionRows = bankTransactionTableRows(evidence)
   if (transactionRows.length > 0) {
     return {
-      title: findingType.includes("cash") ? "Recent bank transactions" : "Supporting records",
+      title: findingType === "duplicate_payment"
+        ? "Matched transactions"
+        : findingType.includes("cash")
+          ? "Recent bank transactions"
+          : "Supporting records",
       columns: ["Date", "Amount", "Description", "Counterparty", "Source record"],
       rows: transactionRows,
     }
@@ -424,7 +428,9 @@ export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingT
   const sections: SpendLeakEvidenceSection[] = []
 
   if (finding.findingType.includes("duplicate")) {
-    const billIds = Array.isArray(evidence.billIds) ? evidence.billIds.map((item) => formatRawEvidenceValue(item)).join(" · ") : "Not available"
+    const isDuplicatePayment = finding.findingType === "duplicate_payment"
+    const referenceIds = isDuplicatePayment ? evidence.transactionIds : evidence.billIds
+    const references = Array.isArray(referenceIds) ? referenceIds.map((item) => formatRawEvidenceValue(item)).join(" · ") : "Not available"
     const amountCents = typeof evidence.amountCents === "number" ? formatAudCurrency(evidence.amountCents) : "Not available"
     const dayDifference = typeof evidence.dayDifference === "number" ? `${Math.round(evidence.dayDifference)} days apart` : "Not available"
 
@@ -432,8 +438,11 @@ export function buildSpendLeakEvidenceView(finding: Pick<SpendInsight, "findingT
       title: "Duplicate comparison",
       description: finding.summary,
       fields: [
-        { label: "Supplier", value: formatRawEvidenceValue(evidence.supplier) },
-        { label: "Bill references", value: billIds },
+        {
+          label: isDuplicatePayment ? "Counterparty" : "Supplier",
+          value: formatRawEvidenceValue(isDuplicatePayment ? evidence.counterparty ?? evidence.supplier : evidence.supplier),
+        },
+        { label: isDuplicatePayment ? "Transaction references" : "Bill references", value: references },
         { label: "Amount", value: amountCents },
         { label: "Gap", value: dayDifference },
       ],

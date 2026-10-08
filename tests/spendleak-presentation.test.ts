@@ -319,7 +319,7 @@ describe("SpendLeak presentation", () => {
     const view = buildSpendLeakEvidenceView(
       makeInsight({
         id: "4",
-        findingType: "duplicate_payment",
+        findingType: "duplicate_spend",
         reviewAction: "cancel",
         reviewActionAt: new Date("2026-09-03T00:00:00.000Z"),
         reviewNote: "Duplicate confirmed",
@@ -370,6 +370,78 @@ describe("SpendLeak presentation", () => {
     assert.equal(view.sourceSummary.find((field) => field.label === "Evidence source")?.value, "Expense import")
     assert.equal(view.sourceSummary.find((field) => field.label === "Review outcome")?.value, "Cancel")
     assert.equal(view.sourceSummary.find((field) => field.label === "Estimated annual impact")?.value, "$50,400")
+  })
+
+  test("renders matched duplicate-payment transactions and uses counterparty evidence", () => {
+    const view = buildSpendLeakEvidenceView(
+      makeInsight({
+        id: "payment-1",
+        findingType: "duplicate_payment",
+        summary: "Possible duplicate payment detected for Acme Cloud within a short timeframe.",
+        evidence: {
+          counterparty: "Acme Cloud",
+          transactionIds: ["txn-first", "txn-second"],
+          amountCents: 120000,
+          dayDifference: 6,
+          recentTransactions: [
+            {
+              sourceId: "txn-first",
+              description: "Cloud hosting payment",
+              counterpartyName: "Acme Cloud",
+              amountCents: 120000,
+              transactionDate: "2026-08-01T00:00:00.000Z",
+            },
+            {
+              sourceId: "txn-second",
+              description: "Acme Cloud payment",
+              counterpartyName: "Acme Cloud",
+              amountCents: 120000,
+              transactionDate: "2026-08-07T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    )
+
+    const duplicateSection = view.sections.find((section) => section.title === "Duplicate comparison")
+
+    assert.ok(duplicateSection)
+    assert.equal(duplicateSection?.fields.find((field) => field.label === "Counterparty")?.value, "Acme Cloud")
+    assert.equal(duplicateSection?.fields.find((field) => field.label === "Transaction references")?.value, "txn-first · txn-second")
+    assert.equal(duplicateSection?.table?.title, "Matched transactions")
+    assert.deepEqual(duplicateSection?.table?.columns, ["Date", "Amount", "Description", "Counterparty", "Source record"])
+    assert.deepEqual(duplicateSection?.table?.rows, [
+      {
+        id: "txn-first",
+        values: ["01/08/2026", "$1,200", "Cloud hosting payment", "Acme Cloud", "txn-first"],
+      },
+      {
+        id: "txn-second",
+        values: ["07/08/2026", "$1,200", "Acme Cloud payment", "Acme Cloud", "txn-second"],
+      },
+    ])
+  })
+
+  test("keeps aggregate fallbacks for legacy duplicate-payment evidence without transaction rows", () => {
+    const view = buildSpendLeakEvidenceView(
+      makeInsight({
+        id: "legacy-payment",
+        findingType: "duplicate_payment",
+        evidence: {
+          counterparty: "Acme Cloud",
+          transactionIds: ["txn-old-1", "txn-old-2"],
+          amountCents: 120000,
+        },
+      }),
+    )
+
+    const duplicateSection = view.sections.find((section) => section.title === "Duplicate comparison")
+
+    assert.ok(duplicateSection)
+    assert.equal(duplicateSection?.fields.find((field) => field.label === "Counterparty")?.value, "Acme Cloud")
+    assert.equal(duplicateSection?.fields.find((field) => field.label === "Transaction references")?.value, "txn-old-1 · txn-old-2")
+    assert.equal(duplicateSection?.fields.find((field) => field.label === "Gap")?.value, "Not available")
+    assert.equal(duplicateSection?.table, undefined)
   })
 
   test("renders cash pressure evidence with recent transaction rows", () => {

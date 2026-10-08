@@ -118,6 +118,46 @@ describe("SpendLeakEvidenceDetails", () => {
     assert.match(text, /January metro/)
   })
 
+  test("renders both matched duplicate-payment transactions with source references", () => {
+    const element = SpendLeakEvidenceDetails({
+      finding: makeFinding({
+        findingType: "duplicate_payment",
+        summary: "Possible duplicate payment detected for Acme Cloud within a short timeframe.",
+        evidence: {
+          counterparty: "Acme Cloud",
+          transactionIds: ["txn-first", "txn-second"],
+          amountCents: 120000,
+          dayDifference: 6,
+          recentTransactions: [
+            {
+              sourceId: "txn-first",
+              description: "Cloud hosting payment",
+              counterpartyName: "Acme Cloud",
+              amountCents: 120000,
+              transactionDate: "2026-08-01T00:00:00.000Z",
+            },
+            {
+              sourceId: "txn-second",
+              description: "Acme Cloud payment",
+              counterpartyName: "Acme Cloud",
+              amountCents: 120000,
+              transactionDate: "2026-08-07T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    }) as ReactElement
+
+    const text = collectText(element)
+    assert.match(text, /Counterparty/)
+    assert.match(text, /Acme Cloud/)
+    assert.match(text, /Matched transactions/)
+    assert.match(text, /Cloud hosting payment/)
+    assert.match(text, /Acme Cloud payment/)
+    assert.match(text, /txn-first/)
+    assert.match(text, /txn-second/)
+  })
+
   test("renders bank transaction drillback rows for cash pressure", () => {
     const element = SpendLeakEvidenceDetails({
       finding: makeFinding({
