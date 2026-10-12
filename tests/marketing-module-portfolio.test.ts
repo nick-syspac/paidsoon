@@ -5,12 +5,43 @@ import {
   getModuleById,
   getModulesByPlatformArea,
   getRelatedModules,
+  getJourneyCta,
   MODULE_HREF,
   MODULES,
   PRODUCT_LINKS,
 } from "@/components/marketing/marketingContent"
 
 describe("marketing module portfolio", () => {
+  test("exposes all ten product modules through their canonical routes", () => {
+    const expectedRoutes = [
+      "/invoiceguard",
+      "/deposit-guard",
+      "/spendleak",
+      "/owners-digest",
+      "/costguard",
+      "/commitguard",
+      "/margin-guard",
+      "/cashplan",
+      "/tax-buffer",
+      "/runway-guard",
+    ]
+
+    for (const route of expectedRoutes) {
+      assert.equal(PRODUCT_LINKS.some((link) => link.href === route), true, `${route} is discoverable`)
+    }
+  })
+
+  test("uses consistent primary CTA wording and destinations for each signup mode", () => {
+    assert.deepEqual(
+      (({ label, href }) => ({ label, href }))(getJourneyCta("hero", true)),
+      { label: "Start your free trial", href: "/sign-up" },
+    )
+    assert.deepEqual(
+      (({ label, href }) => ({ label, href }))(getJourneyCta("hero", false)),
+      { label: "Request early access", href: "/contact" },
+    )
+  })
+
   test("includes DepositGuard in the shared module catalog and route map", () => {
     const depositGuard = getModuleById("deposit-guard")
 

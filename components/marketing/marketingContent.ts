@@ -692,7 +692,7 @@ export function getModuleById(id: MarketingModuleId): MarketingModuleDefinition 
 export function getCtaForLiveMode(liveMode: boolean): { label: string; href: string; helper: string } {
   if (liveMode) {
     return {
-      label: "Start free trial",
+      label: "Start your free trial",
       href: "/sign-up",
       helper: "14-day trial. No credit card required.",
     }
