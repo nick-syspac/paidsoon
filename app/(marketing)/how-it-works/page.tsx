@@ -20,20 +20,20 @@ const operatingCycle = [
   },
   {
     n: "2",
-    title: "Stop waste",
-    modules: "SpendLeak",
+    title: "Stop Waste",
+    modules: "Unnecessary Spending",
     body: "Surface recurring spend leakage and stale subscriptions before they quietly drain operating cash.",
   },
   {
     n: "3",
-    title: "Protect margins",
-    modules: "CostGuard + MarginGuard + CommitGuard",
+    title: "Control Costs",
+    modules: "Spending Controls + Profit Monitor + Upcoming Bills & Commitments",
     body: "Track cost drift, commitment pressure, and profitability deterioration early enough to adjust pricing, spend, and renewal decisions.",
   },
   {
     n: "4",
     title: "Plan ahead",
-    modules: "CashPlan + Tax Buffer + RunwayGuard + Owner's Digest",
+    modules: "Cash Flow Planner + Tax Set-Aside + Cash Runway + Your Business Snapshot",
     body: "Model upcoming cash pressure, protect tax reserves, monitor runway, and review one owner-level digest so next-week decisions are proactive.",
   },
 ]
@@ -49,7 +49,7 @@ const workflow = [
   },
   {
     title: "Take action module by module",
-    body: "Move from invoice follow-up to waste reduction, cost control, and cash planning without switching tools or rebuilding context.",
+    body: "Move from InvoiceGuard follow-ups to spending review, cost control, and cash planning within PaidSoon.",
   },
 ]
 

@@ -20,7 +20,7 @@ import {
 export const metadata: Metadata = buildMarketingMetadata({
   title: "Financial Control Platform Overview | PaidSoon",
   description:
-    "See how invoice reminders, spend monitoring, commitments, margins, tax buffers, and cash forecasting work together in PaidSoon.",
+    "See how InvoiceGuard, spending controls, upcoming bills, profit monitoring and cash planning work together in PaidSoon.",
   canonicalPath: "/platform",
 })
 
@@ -34,7 +34,7 @@ export default function PlatformPage() {
       <MarketingPageViewTracker page="platform" />
 
       <section className="mx-auto max-w-5xl px-4 pt-16 pb-12 text-center">
-        <h1 className="text-4xl font-bold text-gray-900">Financial control for small business</h1>
+        <h1 className="text-4xl font-bold text-gray-900">Financial control for Australian businesses</h1>
         <p className="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">{PLATFORM_TAGLINE}</p>
       </section>
 
@@ -66,7 +66,7 @@ export default function PlatformPage() {
             </ul>
           </article>
           <article className="rounded-xl border border-blue-200 bg-blue-50 p-5">
-            <h3 className="font-semibold text-blue-900">PaidSoon</h3>
+            <h3 className="font-semibold text-blue-900">PaidSoon financial control</h3>
             <ul className="mt-3 space-y-2 text-sm text-blue-900">
               <li>Tells you what needs attention</li>
               <li>Highlights emerging risks</li>
@@ -111,15 +111,15 @@ export default function PlatformPage() {
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           <article className="rounded-xl border border-gray-200 p-5">
             <h3 className="font-semibold text-gray-900">Monday: prioritise receivables and risks</h3>
-            <p className="mt-2 text-sm text-gray-600">Review what needs attention in PaidSoon, SpendLeak, and CostGuard.</p>
+            <p className="mt-2 text-sm text-gray-600">Review what needs attention in InvoiceGuard, Unnecessary Spending, and Spending Controls.</p>
           </article>
           <article className="rounded-xl border border-gray-200 p-5">
             <h3 className="font-semibold text-gray-900">Midweek: protect commitments and margins</h3>
-            <p className="mt-2 text-sm text-gray-600">Use CommitGuard and MarginGuard signals to adjust spend and pricing decisions.</p>
+            <p className="mt-2 text-sm text-gray-600">Use Upcoming Bills & Commitments and Profit Monitor signals to review spend and pricing decisions.</p>
           </article>
           <article className="rounded-xl border border-gray-200 p-5">
             <h3 className="font-semibold text-gray-900">End of week: plan cash ahead</h3>
-            <p className="mt-2 text-sm text-gray-600">Validate CashPlan, Tax Buffer, and RunwayGuard before upcoming obligations.</p>
+            <p className="mt-2 text-sm text-gray-600">Review the Cash Flow Planner, Tax Set-Aside, and Cash Runway before upcoming obligations.</p>
           </article>
         </div>
       </section>

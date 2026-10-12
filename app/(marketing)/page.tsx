@@ -16,6 +16,7 @@ import {
   getCanonicalModuleHref,
   getMarketingModuleLabel,
   getJourneyCta,
+  HOMEPAGE_HERO,
   MODULES,
 } from "@/components/marketing/marketingContent"
 
@@ -40,22 +41,22 @@ const publicPlans = getPublicPlans().map((plan) => ({
 
 const outcomeGroups = [
   {
-    title: "Control costs",
+    title: "Control Costs",
     description: "Review category-level cost movement, known commitments and margin pressure.",
     modules: ["costguard", "commitguard", "margin-guard"] as const,
   },
   {
-    title: "Stop waste",
+    title: "Stop Waste",
     description: "Review recurring spend and potential waste before it becomes accepted overhead.",
     modules: ["spendleak"] as const,
   },
   {
-    title: "Get paid",
-    description: "Keep overdue invoice follow-ups moving and track deposit requests.",
+    title: "Get Paid",
+    description: "Follow up overdue invoices and track deposit requests with InvoiceGuard and Deposits & Upfront Payments.",
     modules: ["paidsoon", "deposit-guard"] as const,
   },
   {
-    title: "Plan ahead",
+    title: "Plan Ahead",
     description: "Review expected cash movement, tax reserves and runway for upcoming decisions.",
     modules: ["cashplan", "tax-buffer", "runway-guard"] as const,
   },
@@ -64,7 +65,7 @@ const outcomeGroups = [
 export default function HomePage() {
   const liveMode = isLiveMode()
   const primaryCta = getJourneyCta("hero", liveMode)
-  const walkthroughCta = { label: "See how it works", href: "/how-it-works" }
+  const walkthroughCta = { label: HOMEPAGE_HERO.secondaryCta, href: HOMEPAGE_HERO.secondaryHref }
   const faq = [
     {
       q: "What is FinOps for a small business?",
@@ -80,7 +81,7 @@ export default function HomePage() {
     },
     {
       q: "Does PaidSoon include invoice follow-ups?",
-      a: "Yes. InvoiceGuard is PaidSoon’s invoice follow-up capability. Plan-specific features and invoice limits are shown on the pricing page.",
+      a: "Yes. InvoiceGuard provides automated invoice follow-ups to help you get paid sooner. Plan-specific features and invoice limits are shown on the pricing page.",
     },
     {
       q: "What is involved in getting started?",
@@ -146,13 +147,13 @@ export default function HomePage() {
         <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
-              Financial control software for Australian small businesses
+              {HOMEPAGE_HERO.eyebrow}
             </p>
             <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight text-gray-900 md:text-5xl">
-              Control spending. Protect cash flow. Make better financial decisions.
+              {HOMEPAGE_HERO.headline}
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-relaxed text-gray-600">
-              PaidSoon helps Australian businesses control spending, protect cash flow and make better financial decisions. Invoice follow-ups are one part of that broader platform. It brings spending, payments and cash-flow information together so you can see what needs attention and decide what to do next.
+              {HOMEPAGE_HERO.supporting} {HOMEPAGE_HERO.invoiceModule}
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <MarketingCtaLink
@@ -178,7 +179,7 @@ export default function HomePage() {
           <aside aria-label="PaidSoon financial-control outcomes" className="rounded-2xl border border-gray-200 bg-gradient-to-br from-blue-50 via-white to-slate-50 p-6 md:p-8">
             <p className="text-sm font-semibold text-blue-800">A broader view of business finances</p>
             <p className="mt-2 text-sm leading-relaxed text-gray-600">
-              FinOps, in plain English, means bringing spending, payments and cash-flow information together to support better day-to-day decisions.
+              {HOMEPAGE_HERO.finopsExplanation}
             </p>
             <ul className="mt-6 grid gap-3 sm:grid-cols-2">
               {outcomeGroups.map((outcome) => (
@@ -195,16 +196,25 @@ export default function HomePage() {
       <section className="bg-gray-50 py-14 md:py-16">
         <div className="mx-auto max-w-6xl px-4">
           <div className="mx-auto max-w-3xl text-center">
-            <h2 className="text-3xl font-bold text-gray-900">Get a clearer view of the money coming in and going out</h2>
-            <p className="mt-4 text-gray-600">
-              For a small business, cost control software and business expense management work best alongside a clear view of small business cash flow.
-            </p>
+            <h2 className="text-3xl font-bold text-gray-900">Your accounting software records what happened. PaidSoon helps with what to do next.</h2>
+            <p className="mt-4 text-gray-600">Keep your accounting system. Add a practical view of the financial activity that may need attention.</p>
           </div>
+          <div className="mx-auto mt-8 grid max-w-4xl gap-4 md:grid-cols-2">
+            <article className="rounded-xl border border-gray-200 bg-white p-6">
+              <h3 className="font-semibold text-gray-900">Accounting software</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600">Keeps your books and records invoices, bills, and transactions.</p>
+            </article>
+            <article className="rounded-xl border border-blue-200 bg-blue-50 p-6">
+              <h3 className="font-semibold text-blue-950">PaidSoon</h3>
+              <p className="mt-2 text-sm leading-relaxed text-blue-900">Helps surface overdue receivables, recurring spend to review, upcoming commitments, and cash-planning information.</p>
+            </article>
+          </div>
+          <h2 className="mt-10 text-center text-2xl font-bold text-gray-900">Start with the issue you want to address</h2>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { title: "Recurring costs go unnoticed", copy: "Review recurring spend and potential waste with SpendLeak.", href: "/spendleak", link: "Explore recurring-spend review" },
+              { title: "Recurring costs go unnoticed", copy: "Review recurring spend and potential waste with Unnecessary Spending.", href: "/features/unnecessary-spending", link: "Explore unnecessary-spending review" },
               { title: "Costs are hard to monitor", copy: "Review cost patterns, commitments and margin pressure with the relevant modules.", href: "/platform#control-costs", link: "Explore cost control" },
-              { title: "Invoices become overdue", copy: "Keep follow-ups consistent and see which invoices need attention with InvoiceGuard.", href: "/invoiceguard", link: "Explore invoice follow-ups" },
+              { title: "Invoices become overdue", copy: "Keep follow-ups consistent and see which invoices need attention with InvoiceGuard.", href: "/features/invoiceguard", link: "Explore invoice follow-ups" },
               { title: "Upcoming cash pressure is unclear", copy: "Review planning information for cash, obligations, tax reserves and runway.", href: "/platform#plan-cash", link: "Explore planning tools" },
             ].map((problem) => (
               <article key={problem.title} className="rounded-xl border border-gray-200 bg-white p-5">
@@ -253,9 +263,9 @@ export default function HomePage() {
         </div>
         <article className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-6">
           <h3 className="text-xl font-semibold text-blue-950">See what matters across your business</h3>
-          <p className="mt-2 max-w-3xl text-blue-900">Owner&apos;s Digest brings eligible financial signals together so owners can review priorities and follow links back to the relevant module.</p>
-          <Link href="/owners-digest" className="mt-4 inline-flex min-h-10 items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            Explore Owner&apos;s Digest
+          <p className="mt-2 max-w-3xl text-blue-900">Your Business Snapshot brings eligible financial signals together so owners can review priorities and follow links back to the relevant module.</p>
+          <Link href="/features/business-snapshot" className="mt-4 inline-flex min-h-10 items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+            Explore Your Business Snapshot
           </Link>
         </article>
         <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
@@ -296,7 +306,7 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-4 py-14 md:py-16">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="max-w-3xl">
-            <h2 className="text-3xl font-bold text-gray-900">One platform, ten connected modules</h2>
+            <h2 className="text-3xl font-bold text-gray-900">One platform for connected financial control</h2>
             <p className="mt-3 text-gray-600">Explore the product areas that support getting paid, stopping waste, controlling costs and planning ahead. Availability varies by module and plan.</p>
           </div>
           <Link href="/platform" className="shrink-0 font-semibold text-blue-700 underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">View the platform overview</Link>

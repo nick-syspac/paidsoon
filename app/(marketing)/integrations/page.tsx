@@ -12,7 +12,7 @@ import {
 export const metadata: Metadata = buildMarketingMetadata({
   title: "Accounting And Invoice Reminder Integrations | PaidSoon",
   description:
-    "Connect Stripe, Xero, MYOB Business, or start with CSV import to run PaidSoon's invoice reminder and debtor follow-up workflows.",
+    "Connect Stripe, Xero, MYOB Business, or start with CSV import to run InvoiceGuard invoice reminders and follow-ups within PaidSoon.",
   canonicalPath: "/integrations",
 })
 
@@ -25,7 +25,7 @@ export default function IntegrationsPage() {
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-10 text-center">
         <h1 className="text-3xl font-bold text-gray-900">Integrations</h1>
         <p className="mt-4 text-lg text-gray-500">
-          PaidSoon connects to the tools you already use to manage your invoices.
+          PaidSoon connects to the tools you already use. InvoiceGuard uses supported invoice sources to follow up overdue payments.
         </p>
       </section>
 

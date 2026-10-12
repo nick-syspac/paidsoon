@@ -11,9 +11,9 @@ import {
 } from "@/components/marketing/marketingContent"
 
 export const metadata: Metadata = buildMarketingMetadata({
-  title: "Features And Financial Control Modules | PaidSoon",
+  title: "Financial Control Features for Australian Businesses | PaidSoon",
   description:
-    "Explore invoice reminders, recurring expense monitoring, cost control, forecasting, and the rest of the public PaidSoon module portfolio.",
+    "Explore InvoiceGuard, spending controls, cash planning, and other PaidSoon features for Australian businesses.",
   canonicalPath: "/features",
 })
 
@@ -22,7 +22,7 @@ export default function FeaturesPage() {
     <div className="min-h-screen bg-white">
       <MarketingPageViewTracker page="features" />
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-10 text-center">
-        <h1 className="text-3xl font-bold text-gray-900">Features across the full portfolio</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Financial control features for your business</h1>
         <p className="mt-4 text-lg text-gray-500">
           {PLATFORM_TAGLINE}
         </p>

@@ -27,7 +27,7 @@ import { PRIVATE_BETA_POSITIONING } from "@/components/marketing/marketingConten
 const publicPlans = getPublicPlans()
 
 export const metadata: Metadata = buildMarketingMetadata({
-  title: "PaidSoon Pricing: Invoice And Cash Flow Software",
+  title: "PaidSoon Pricing: Financial Control Plans for Australian Businesses",
   description: `Compare ${publicPlans
     .map((plan) => `${plan.name} at ${formatPlanPrice(plan.monthlyPriceAud)} AUD inc. GST`)
     .join(", ")}, or contact us for the ${PLAN_CATALOG.accountant_partner.name} plan.`,
@@ -89,12 +89,12 @@ const comparisonRows: ComparisonRow[] = [
   featureRow("AI-assisted reminder wording", "ai_rewrite"),
   featureRow("Promise-to-pay tracking", "promise_to_pay_tracking"),
   featureRow("Dispute pause", "dispute_pause"),
-  customRow("CommitGuard", (tier) => (PLAN_CATALOG[tier].features.commitguard_core ? "Included" : "—")),
-  customRow("Tax Buffer", (tier) => (canAccessTaxBuffer(tier) ? "Included" : "—")),
-  customRow("Owner's Digest", (tier) => (canAccessOwnersDigest(tier) ? "Included" : "—")),
-  customRow("MarginGuard", (tier) => (canAccessMarginGuard(tier) ? "Included" : "—")),
-  customRow("RunwayGuard", (tier) => (canAccessRunwayGuard(tier) ? "Included" : "—")),
-  featureRow("Owner's Digest email delivery", "owners_digest_email"),
+  customRow("Upcoming Bills & Commitments", (tier) => (PLAN_CATALOG[tier].features.commitguard_core ? "Included" : "—")),
+  customRow("Tax Set-Aside", (tier) => (canAccessTaxBuffer(tier) ? "Included" : "—")),
+  customRow("Your Business Snapshot", (tier) => (canAccessOwnersDigest(tier) ? "Included" : "—")),
+  customRow("Profit Monitor", (tier) => (canAccessMarginGuard(tier) ? "Included" : "—")),
+  customRow("Cash Runway", (tier) => (canAccessRunwayGuard(tier) ? "Included" : "—")),
+  featureRow("Your Business Snapshot email delivery", "owners_digest_email"),
   featureRow("CSV export", "csv_export"),
   featureRow("Accounting integrations (MYOB, Xero)", "accounting_integrations"),
 ]
@@ -195,8 +195,8 @@ export default function PricingPage() {
         </div>
 
         <p className="mt-8 text-center text-sm text-gray-500">
-          Managing invoice follow-ups for multiple clients?{" "}
-          <Link href="/contact?type=partnership" className="text-blue-600 hover:underline">
+          Managing invoice follow-ups for clients?{" "}
+          <Link href="/features/client-manager" className="text-blue-600 hover:underline">
             Contact us about {PLAN_CATALOG.accountant_partner.name}
           </Link>
           .

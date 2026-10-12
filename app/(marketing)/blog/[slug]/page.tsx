@@ -113,7 +113,7 @@ export default async function BlogArticlePage({
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6">
           <h2 className="text-xl font-semibold text-gray-900">Put this into practice</h2>
           <p className="mt-3 text-sm leading-6 text-gray-600">
-            Move from advice to action with PaidSoon&apos;s invoice reminder workflow.
+            Move from advice to action with InvoiceGuard&apos;s invoice reminder workflow by PaidSoon.
           </p>
           <div className="mt-4 flex flex-wrap gap-4">
             <Link

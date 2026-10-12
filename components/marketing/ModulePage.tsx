@@ -60,6 +60,7 @@ export function moduleMetadata(id: MarketingModuleId): Metadata {
     description: moduleDef.seoDescription ?? `${moduleDef.summary} ${moduleDef.tagline}`,
     canonicalPath: moduleDef.canonicalHref ?? moduleDef.href,
     imagePath: moduleDef.socialImagePath,
+    imageAlt: `${moduleDef.name} by PaidSoon`,
   })
 }
 

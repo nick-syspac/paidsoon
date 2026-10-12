@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     return new URL(appUrl.startsWith("http") ? appUrl : `https://${appUrl}`)
   })(),
   title: "PaidSoon",
-  description: "Automatic, escalating invoice follow-ups so freelancers never have to play bad cop.",
+  description: "Financial control software for Australian businesses, including InvoiceGuard automated invoice follow-ups.",
 };
 
 export default function RootLayout({

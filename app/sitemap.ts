@@ -2,22 +2,13 @@ import type { MetadataRoute } from "next"
 import { getAllBlogPostMeta } from "@/lib/blog/content"
 import { getIntegrationLandingPages } from "@/lib/integrationsCatalog"
 import {
-  DEFAULT_MARKETING_LAST_MODIFIED,
-  PUBLIC_MARKETING_ROUTES,
-  PUBLIC_MARKETING_ROUTE_LAST_MODIFIED,
+  getStaticMarketingSitemapRoutes,
+  MARKETING_SITE_ORIGIN,
 } from "@/lib/marketing/seo"
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.paidsoon.com.au"
-  const baseUrl = appUrl.startsWith("http") ? appUrl : `https://${appUrl}`
-  const staticRoutes = PUBLIC_MARKETING_ROUTES.map((route) => ({
-    url: `${baseUrl}${route}`,
-    lastModified: new Date(
-      PUBLIC_MARKETING_ROUTE_LAST_MODIFIED[route] ?? DEFAULT_MARKETING_LAST_MODIFIED,
-    ),
-    changeFrequency: route === "/" ? ("weekly" as const) : ("monthly" as const),
-    priority: route === "/" ? 1 : 0.7,
-  }))
+  const baseUrl = MARKETING_SITE_ORIGIN
+  const staticRoutes = getStaticMarketingSitemapRoutes()
 
   const integrationRoutes = getIntegrationLandingPages()
     .filter((integration) => integration.href)

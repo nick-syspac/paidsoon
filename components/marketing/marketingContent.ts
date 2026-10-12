@@ -1,5 +1,5 @@
-import { PLAN_CATALOG } from "@/lib/subscriptionPlans"
-import { formatIntegrationNameList, getIntegrationsByStatus } from "@/lib/integrationsCatalog"
+import { PLAN_CATALOG } from "../../lib/subscriptionPlans"
+import { formatIntegrationNameList, getIntegrationsByStatus } from "../../lib/integrationsCatalog"
 
 export type MarketingModuleId =
   | "paidsoon"
@@ -12,6 +12,7 @@ export type MarketingModuleId =
   | "tax-buffer"
   | "margin-guard"
   | "runway-guard"
+  | "client-manager"
 
 export type MarketingPlatformAreaId = "get-paid" | "stop-waste" | "control-costs" | "plan-ahead"
 
@@ -62,6 +63,18 @@ export interface MarketingPlatformArea {
 export const PLATFORM_TAGLINE =
   "Your accounting software tells you what happened. PaidSoon helps you control what happens next."
 
+export const HOMEPAGE_HERO = {
+  eyebrow: "Financial control for Australian businesses",
+  headline: "Take control of your cash flow, costs and business finances",
+  supporting:
+    "See where your money goes, spot unnecessary spending, plan upcoming bills and follow up overdue invoices—with PaidSoon.",
+  invoiceModule: "InvoiceGuard — automated invoice follow-ups to help you get paid sooner.",
+  finopsExplanation:
+    "FinOps means managing business spending, cash flow and financial performance. PaidSoon brings that information together to support better day-to-day decisions.",
+  secondaryCta: "Explore the features",
+  secondaryHref: "/features",
+} as const
+
 export const HOMEPAGE_JOURNEY_ORDER = [
   "problem",
   "outcome",
@@ -91,32 +104,32 @@ export const MARKETING_CTA_BY_STAGE: Record<MarketingCtaStage, string> = {
 }
 
 export const PLATFORM_CYCLE = [
-  "Get paid",
-  "Stop waste",
-  "Protect margins",
-  "Plan ahead",
+  "Get Paid",
+  "Control Costs",
+  "Plan Ahead",
+  "Stop Waste",
 ]
 
 export const SOLUTION_GROUPS = [
   {
     id: "get-paid",
-    label: "Get paid",
+    label: "Get Paid",
     href: "/platform#get-paid",
   },
   {
-    id: "stop-waste",
-    label: "Stop waste",
-    href: "/platform#stop-waste",
-  },
-  {
     id: "control-costs",
-    label: "Control costs",
+    label: "Control Costs",
     href: "/platform#control-costs",
   },
   {
     id: "plan-cash",
-    label: "Plan cash",
+    label: "Plan Ahead",
     href: "/platform#plan-cash",
+  },
+  {
+    id: "stop-waste",
+    label: "Stop Waste",
+    href: "/platform#stop-waste",
   },
 ] as const
 
@@ -151,7 +164,7 @@ export const PRACTICAL_CONTROL_GROUPS = [
   },
   {
     id: "business-visibility",
-    label: "Business visibility",
+    label: "Your business snapshot",
     question: "What should owners focus on first this week?",
     benefit: "Summarise the most material cross-module signals into one action-oriented digest.",
     moduleIds: ["owners-digest"] as MarketingModuleId[],
@@ -161,41 +174,41 @@ export const PRACTICAL_CONTROL_GROUPS = [
 export const PLATFORM_AREAS: MarketingPlatformArea[] = [
   {
     id: "get-paid",
-    name: "Get paid",
+    name: "Get Paid",
     summary: "Keep receivables moving and debtor promises visible before cash slips further out.",
-    moduleIds: ["paidsoon", "deposit-guard"],
-  },
-  {
-    id: "stop-waste",
-    name: "Stop waste",
-    summary: "Find recurring spend worth reviewing before leakage becomes normal operating cost.",
-    moduleIds: ["spendleak", "owners-digest"],
+    moduleIds: ["paidsoon", "deposit-guard", "client-manager"],
   },
   {
     id: "control-costs",
-    name: "Control costs",
+    name: "Control Costs",
     summary: "Monitor commitments, category drift, and margin pressure while there is still room to act.",
     moduleIds: ["costguard", "commitguard", "margin-guard"],
   },
   {
     id: "plan-ahead",
-    name: "Plan ahead",
+    name: "Plan Ahead",
     summary: "Protect tax cash, model shortfalls, and make funding decisions earlier.",
     moduleIds: ["cashplan", "tax-buffer", "runway-guard"],
+  },
+  {
+    id: "stop-waste",
+    name: "Stop Waste",
+    summary: "Find recurring spend worth reviewing before leakage becomes normal operating cost.",
+    moduleIds: ["spendleak", "owners-digest"],
   },
 ]
 
 export const MODULES: MarketingModuleDefinition[] = [
   {
     id: "paidsoon",
-    href: "/paidsoon",
-    canonicalHref: "/invoiceguard",
-    legacyHrefs: ["/paidsoon"],
+    href: "/features/invoiceguard",
+    canonicalHref: "/features/invoiceguard",
+    legacyHrefs: ["/paidsoon", "/invoiceguard"],
     name: "InvoiceGuard",
     categoryLabel: "Automated invoice reminder software",
-    seoTitle: "Automated Invoice Reminder Software Australia | PaidSoon",
+    seoTitle: "InvoiceGuard: Automated Invoice Follow-Ups | PaidSoon",
     seoDescription:
-      "Automate overdue invoice reminders, track promises to pay, and pause disputed invoices with InvoiceGuard by PaidSoon for Australian small businesses.",
+      "Follow up overdue invoices with InvoiceGuard by PaidSoon. Automate payment reminders and keep track of outstanding payments.",
     socialImagePath: "/social/invoiceguard-og.svg",
     headline: "Automated invoice reminder software for Australian small businesses.",
     statusLabel: "Available in private beta",
@@ -239,16 +252,21 @@ export const MODULES: MarketingModuleDefinition[] = [
   },
   {
     id: "deposit-guard",
-    href: "/deposit-guard",
-    name: "DepositGuard",
-    headline: "Protect commencement by confirming deposits before work starts.",
+    href: "/features/deposits-upfront-payments",
+    canonicalHref: "/features/deposits-upfront-payments",
+    legacyHrefs: ["/deposit-guard"],
+    name: "Deposits & Upfront Payments",
+    categoryLabel: "Deposit and upfront payment management",
+    seoTitle: "Deposits & Upfront Payments for Australian Businesses | PaidSoon",
+    seoDescription: "Request and track deposits and upfront payments so teams can confirm required funds before work starts.",
+    headline: "Manage deposits and upfront payments before work starts.",
     statusLabel: "Available in private beta",
     availabilityStatus: "private_beta",
     platformArea: "get-paid",
     question: "Can we start this job safely?",
     tagline: "Request deposits, track payment state, and unblock work with confidence.",
     summary:
-      "DepositGuard helps teams request, track, and reconcile deposit payments so work only starts once required funds are confirmed.",
+      "Request and track deposit payments so work only starts once required funds are confirmed.",
     problem:
       "Jobs often begin before deposits are fully confirmed, leaving teams exposed to avoidable cash-flow and commencement risk.",
     capabilities: [
@@ -258,7 +276,7 @@ export const MODULES: MarketingModuleDefinition[] = [
       "Automatically unblock commencement once required deposits are confirmed",
     ],
     workflow: [
-      "Create a DepositGuard job and review required deposit calculations",
+      "Create a deposit-backed job and review required deposit calculations",
       "Send a deposit request with a due date and external payment link",
       "Monitor reminders, views, and partial/overdue payment states",
       "Record confirmed payments manually while Stripe connected-account collection remains planned",
@@ -270,8 +288,8 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     faq: [
       {
-        q: "Does DepositGuard process card payments directly today?",
-        a: "Not in the MVP path. DepositGuard currently uses external payment links and manual confirmation, while connected-account Stripe collection remains planned.",
+        q: "Does this feature process card payments directly today?",
+        a: "Not in the MVP path. It currently uses external payment links and manual confirmation, while connected-account Stripe collection remains planned.",
       },
       {
         q: "Can we use progress-payment milestones?",
@@ -280,17 +298,19 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     relatedModules: ["paidsoon", "cashplan", "owners-digest"],
     disclaimer:
-      "DepositGuard improves commencement control and payment visibility. Stripe connected-account automation and advanced reconciliation remain planned expansions.",
+      "This feature improves commencement control and payment visibility. Stripe connected-account automation and advanced reconciliation remain planned expansions.",
     accentClass: "border-cyan-200 bg-cyan-50 text-cyan-950",
   },
   {
     id: "spendleak",
-    href: "/spendleak",
-    name: "SpendLeak",
+    href: "/features/unnecessary-spending",
+    canonicalHref: "/features/unnecessary-spending",
+    legacyHrefs: ["/spendleak"],
+    name: "Unnecessary Spending",
     categoryLabel: "Recurring expense monitoring software",
-    seoTitle: "Recurring Expense Monitoring Software | PaidSoon",
+    seoTitle: "Unnecessary Spending: Recurring Cost Review | PaidSoon",
     seoDescription:
-      "Find recurring expense leakage, duplicate tools, and creeping charges with SpendLeak by PaidSoon before they quietly drain cash.",
+      "Find recurring expenses, duplicate tools, and creeping charges worth reviewing before they quietly drain business cash.",
     socialImagePath: "/social/spendleak-og.svg",
     headline: "Recurring expense monitoring for small businesses.",
     statusLabel: "Available in private beta",
@@ -310,7 +330,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     workflow: [
       "Import spend data",
-      "SpendLeak groups recurring charges",
+      "Recurring spending is grouped for review",
       "Potential leaks are surfaced for review",
       "You confirm, keep, renegotiate, or cancel where appropriate",
     ],
@@ -322,7 +342,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     faq: [
       {
         q: "Should every flagged item be cancelled?",
-        a: "No. SpendLeak highlights items that need review, not automatic cancellation decisions.",
+        a: "No. Unnecessary Spending highlights items that need review, not automatic cancellation decisions.",
       },
       {
         q: "What types of businesses is it for?",
@@ -334,12 +354,14 @@ export const MODULES: MarketingModuleDefinition[] = [
   },
   {
     id: "costguard",
-    href: "/costguard",
-    name: "CostGuard",
+    href: "/features/spending-controls",
+    canonicalHref: "/features/spending-controls",
+    legacyHrefs: ["/costguard"],
+    name: "Spending Controls",
     categoryLabel: "Small business cost control software",
-    seoTitle: "Small Business Cost Control Software | PaidSoon",
+    seoTitle: "Spending Controls for Australian Businesses | PaidSoon",
     seoDescription:
-      "Monitor cost drift, threshold breaches, and category-level spend pressure with CostGuard by PaidSoon before margins erode further.",
+      "Monitor cost drift, threshold breaches, and category-level spending pressure before margins erode further.",
     socialImagePath: "/social/costguard-og.svg",
     headline: "Small business cost control software for early cost-drift detection.",
     statusLabel: "Available in private beta",
@@ -359,7 +381,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     workflow: [
       "Set categories and guardrails",
-      "CostGuard monitors trend and variance movement",
+      "Spending Controls monitors trend and variance movement",
       "Alerts surface unusual movement",
       "You investigate and act before drift hardens",
     ],
@@ -370,12 +392,12 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     faq: [
       {
-        q: "How is CostGuard different from SpendLeak?",
-        a: "SpendLeak focuses on individual recurring expenses and possible waste. CostGuard monitors broader category movement, trends, and exceptions.",
+        q: "How do spending controls differ from unnecessary-spending review?",
+        a: "Unnecessary-spending review focuses on individual recurring expenses and possible waste. Spending Controls monitors broader category movement, trends, and exceptions.",
       },
       {
         q: "Does it set my budgets automatically?",
-        a: "No. You set targets and thresholds; CostGuard helps you monitor and respond.",
+        a: "No. You set targets and thresholds; Spending Controls helps you monitor and respond.",
       },
     ],
     relatedModules: ["spendleak", "margin-guard", "owners-digest"],
@@ -383,12 +405,14 @@ export const MODULES: MarketingModuleDefinition[] = [
   },
   {
     id: "cashplan",
-    href: "/cashplan",
-    name: "CashPlan",
+    href: "/features/cash-flow-planner",
+    canonicalHref: "/features/cash-flow-planner",
+    legacyHrefs: ["/cashplan"],
+    name: "Cash Flow Planner",
     categoryLabel: "Cash flow forecasting software",
-    seoTitle: "Cash Flow Forecasting Software Australia | PaidSoon",
+    seoTitle: "Cash Flow Planner for Australian Businesses | PaidSoon",
     seoDescription:
-      "Forecast near-term cash pressure, model shortfalls, and stress-test payment timing with CashPlan by PaidSoon for Australian businesses.",
+      "Plan business cash flow, forecast near-term pressure, and model shortfalls to make decisions earlier.",
     socialImagePath: "/social/cashplan-og.svg",
     headline: "Cash flow forecasting software for Australian businesses.",
     statusLabel: "Available in private beta",
@@ -419,22 +443,27 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     faq: [
       {
-        q: "Is CashPlan financial advice?",
-        a: "No. CashPlan is a decision-support and forecasting tool, not financial advice.",
+        q: "Is the Cash Flow Planner financial advice?",
+        a: "No. It is a decision-support and forecasting tool, not financial advice.",
       },
       {
         q: "Can it predict cash perfectly?",
-        a: "No forecast is perfect. CashPlan helps you see likely outcomes earlier and stress-test assumptions.",
+        a: "No forecast is perfect. The planner helps you see likely outcomes earlier and stress-test assumptions.",
       },
     ],
     relatedModules: ["tax-buffer", "runway-guard", "commitguard"],
-    disclaimer: "CashPlan provides planning support only and does not guarantee future cash outcomes.",
+    disclaimer: "The Cash Flow Planner provides planning support only and does not guarantee future cash outcomes.",
     accentClass: "border-violet-200 bg-violet-50 text-violet-900",
   },
   {
     id: "commitguard",
-    href: "/commitguard",
-    name: "CommitGuard",
+    href: "/features/upcoming-bills-commitments",
+    canonicalHref: "/features/upcoming-bills-commitments",
+    legacyHrefs: ["/commitguard"],
+    name: "Upcoming Bills & Commitments",
+    categoryLabel: "Upcoming bills and business commitments",
+    seoTitle: "Upcoming Bills & Commitments | PaidSoon",
+    seoDescription: "Track known business commitments, renewal windows, and upcoming bills to make clearer free-cash decisions.",
     headline: "Track committed cash before renewals become expensive surprises.",
     statusLabel: "Included in selected early-access plans",
     availabilityStatus: "selected_early_access",
@@ -453,7 +482,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     workflow: [
       "Capture or confirm commitments and renewal terms",
-      "CommitGuard projects those obligations across upcoming horizons",
+      "Upcoming Bills & Commitments projects obligations across upcoming horizons",
       "The module highlights renewals, committed cash, and free-cash pressure",
       "Your team acts earlier on renewals, spend decisions, or reprioritisation",
     ],
@@ -464,8 +493,8 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     faq: [
       {
-        q: "Is CommitGuard the same as CashPlan?",
-        a: "No. CommitGuard focuses on obligations you already know about, while CashPlan models broader expected inflows and outflows.",
+        q: "How does this compare with the Cash Flow Planner?",
+        a: "Upcoming Bills & Commitments focuses on obligations you already know about, while the Cash Flow Planner models broader expected inflows and outflows.",
       },
       {
         q: "Does it replace contract management?",
@@ -477,8 +506,13 @@ export const MODULES: MarketingModuleDefinition[] = [
   },
   {
     id: "owners-digest",
-    href: "/owners-digest",
-    name: "Owner's Digest",
+    href: "/features/business-snapshot",
+    canonicalHref: "/features/business-snapshot",
+    legacyHrefs: ["/owners-digest"],
+    name: "Your Business Snapshot",
+    categoryLabel: "Business financial snapshot",
+    seoTitle: "Your Business Snapshot | PaidSoon",
+    seoDescription: "Review important financial signals across your business in one action-oriented snapshot.",
     headline: "See the week in one owner-level financial briefing.",
     statusLabel: "Included in selected early-access plans",
     availabilityStatus: "selected_early_access",
@@ -496,8 +530,8 @@ export const MODULES: MarketingModuleDefinition[] = [
       "Clear drill-down links back to the source module behind each alert or opportunity",
     ],
     workflow: [
-      "PaidSoon collects signals from receivables, spend, commitments, margin, tax, and runway modules",
-      "Owner's Digest filters and ranks the most material items",
+      "PaidSoon collects signals from receivables, spending, commitments, margin, tax, and runway modules",
+      "Your Business Snapshot filters and ranks the most material items",
       "You review one summary instead of opening every module first",
       "Then you drill into the specific module that needs action",
     ],
@@ -509,7 +543,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     faq: [
       {
         q: "Is the digest only an email?",
-        a: "No. It has an in-app dashboard and history view, with email delivery on entitled plans where that delivery path is enabled.",
+        a: "No. It has an in-app dashboard and history view, with email delivery on eligible plans where that delivery path is enabled.",
       },
       {
         q: "Does it use every module automatically?",
@@ -521,8 +555,13 @@ export const MODULES: MarketingModuleDefinition[] = [
   },
   {
     id: "tax-buffer",
-    href: "/tax-buffer",
-    name: "Tax Buffer",
+    href: "/features/tax-set-aside",
+    canonicalHref: "/features/tax-set-aside",
+    legacyHrefs: ["/tax-buffer"],
+    name: "Tax Set-Aside",
+    categoryLabel: "Business tax reserve planning",
+    seoTitle: "Tax Set-Aside for Australian Businesses | PaidSoon",
+    seoDescription: "Set and monitor cash reserves for upcoming tax obligations with clear reserve targets and shortfall visibility.",
     headline: "Protect tax reserves before they get spent elsewhere.",
     statusLabel: "Included in selected early-access plans",
     availabilityStatus: "selected_early_access",
@@ -541,7 +580,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     workflow: [
       "Configure the tax categories and reserve rules that matter to your business",
-      "Tax Buffer estimates reserve requirements and upcoming obligations",
+      "Tax Set-Aside estimates reserve requirements and upcoming obligations",
       "The module compares protected cash against target reserve needs",
       "You transfer or protect cash earlier when a gap appears",
     ],
@@ -552,22 +591,27 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     faq: [
       {
-        q: "Is Tax Buffer tax advice?",
+        q: "Is Tax Set-Aside tax advice?",
         a: "No. It is a cash-planning and reserve-support tool, not tax advice or lodgement software.",
       },
       {
         q: "Can I customise reserve categories?",
-        a: "Yes. The module supports custom reserve categories alongside the core tax reserve categories.",
+        a: "Yes. It supports custom reserve categories alongside the core tax reserve categories.",
       },
     ],
     relatedModules: ["cashplan", "commitguard", "runway-guard"],
-    disclaimer: "Tax Buffer supports planning and reserve discipline only. It does not provide tax advice or prepare tax filings.",
+    disclaimer: "Tax Set-Aside supports planning and reserve discipline only. It does not provide tax advice or prepare tax filings.",
     accentClass: "border-orange-200 bg-orange-50 text-orange-950",
   },
   {
     id: "margin-guard",
-    href: "/margin-guard",
-    name: "MarginGuard",
+    href: "/features/profit-monitor",
+    canonicalHref: "/features/profit-monitor",
+    legacyHrefs: ["/margin-guard"],
+    name: "Profit Monitor",
+    categoryLabel: "Business profit and margin monitoring",
+    seoTitle: "Profit Monitor for Australian Businesses | PaidSoon",
+    seoDescription: "Track profitability and margin changes with threshold alerts and confidence indicators.",
     headline: "Catch margin erosion before it becomes a cash-flow problem.",
     statusLabel: "Included in selected early-access plans",
     availabilityStatus: "selected_early_access",
@@ -586,7 +630,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     workflow: [
       "Set margin targets and thresholds",
-      "MarginGuard evaluates recent performance and underlying cost movement",
+      "Profit Monitor evaluates recent performance and underlying cost movement",
       "Alerts and trends show where profitability is deteriorating",
       "You investigate the drivers and adjust pricing, mix, or cost controls sooner",
     ],
@@ -597,12 +641,12 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     faq: [
       {
-        q: "Does MarginGuard replace management reporting?",
+        q: "Does Profit Monitor replace management reporting?",
         a: "No. It complements management reporting with earlier warnings and action-oriented margin signals.",
       },
       {
         q: "Can it explain data quality gaps?",
-        a: "Yes. MarginGuard surfaces confidence and completeness signals so you can judge how much weight to put on each view.",
+        a: "Yes. Profit Monitor surfaces confidence and completeness signals so you can judge how much weight to put on each view.",
       },
     ],
     relatedModules: ["costguard", "runway-guard", "owners-digest"],
@@ -610,9 +654,14 @@ export const MODULES: MarketingModuleDefinition[] = [
   },
   {
     id: "runway-guard",
-    href: "/runway-guard",
-    name: "RunwayGuard",
-    headline: "Keep runway pressure visible before urgency takes over.",
+    href: "/features/cash-runway",
+    canonicalHref: "/features/cash-runway",
+    legacyHrefs: ["/runway-guard"],
+    name: "Cash Runway",
+    categoryLabel: "Business cash runway monitoring",
+    seoTitle: "Cash Runway: How Long Will Your Cash Last? | PaidSoon",
+    seoDescription: "Estimate how long business cash may last using current cash, burn, obligations, and forecast shifts.",
+    headline: "How long will your cash last? Keep runway pressure visible before urgency takes over.",
     statusLabel: "Included in selected early-access plans",
     availabilityStatus: "selected_early_access",
     platformArea: "plan-ahead",
@@ -630,7 +679,7 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     workflow: [
       "Set runway policy and key assumptions",
-      "RunwayGuard combines cash, burn, and adjustment inputs into a runway view",
+      "Cash Runway combines cash, burn, and adjustment inputs into a runway view",
       "The module highlights deteriorating runway earlier",
       "Your team can intervene on costs, receivables, or financing before urgency increases",
     ],
@@ -641,17 +690,69 @@ export const MODULES: MarketingModuleDefinition[] = [
     ],
     faq: [
       {
-        q: "Is RunwayGuard only for startups?",
+        q: "Is Cash Runway only for startups?",
         a: "No. Any business that needs a clearer view of cash duration and timing pressure can use it.",
       },
       {
         q: "Does it work by itself?",
-        a: "It is strongest when used alongside CashPlan, CommitGuard, MarginGuard, and Tax Buffer because those modules sharpen the underlying assumptions.",
+        a: "It is strongest when used alongside the Cash Flow Planner, Upcoming Bills & Commitments, Profit Monitor, and Tax Set-Aside because those features sharpen the underlying assumptions.",
       },
     ],
     relatedModules: ["cashplan", "commitguard", "tax-buffer"],
-    disclaimer: "RunwayGuard is a planning and monitoring tool. It does not guarantee future liquidity outcomes or financing availability.",
+    disclaimer: "Cash Runway is a planning and monitoring tool. It does not guarantee future liquidity outcomes or financing availability.",
     accentClass: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-950",
+  },
+  {
+    id: "client-manager",
+    href: "/features/client-manager",
+    canonicalHref: "/features/client-manager",
+    legacyHrefs: ["/accountants"],
+    name: "Client Manager",
+    categoryLabel: "Invoice follow-up for accountants and bookkeepers",
+    seoTitle: "Client Manager for Accountants & Bookkeepers | PaidSoon",
+    seoDescription:
+      "Use InvoiceGuard follow-up workflows for individual client accounts. Multi-client management tools are planned.",
+    headline: "Support client invoice follow-ups with a practical workflow.",
+    statusLabel: "Multi-client tools coming soon",
+    availabilityStatus: "coming_soon",
+    platformArea: "get-paid",
+    question: "How can I support a client's invoice follow-up?",
+    tagline: "Use invoice follow-up workflows for one client account at a time.",
+    summary:
+      "Accountants and bookkeepers can use InvoiceGuard's existing invoice follow-up capabilities for individual client accounts. A unified multi-client workspace is planned, not yet available.",
+    problem:
+      "Client invoice follow-up takes time, while multi-client visibility and onboarding tools are not yet available in one shared workspace.",
+    capabilities: [
+      "Automated invoice reminders for an individual client account",
+      "Promise-to-pay tracking for that client's invoices",
+      "Pause reminders while an invoice dispute is active",
+      "Multi-client dashboard and onboarding tools are planned, not yet available",
+    ],
+    workflow: [
+      "Use an individual client's account and connected invoice source",
+      "Configure the client's reminder schedule and sender details",
+      "Review that client's overdue invoices, promises, and disputes",
+      "Contact PaidSoon to register interest in planned multi-client partner tools",
+    ],
+    outcomes: [
+      "More consistent invoice follow-up for an individual client",
+      "Clearer visibility into that client's promises and disputes",
+      "A contact path to discuss planned multi-client tooling",
+    ],
+    faq: [
+      {
+        q: "Can I manage several clients from one account today?",
+        a: "No. The current workflow supports one client account at a time. Multi-client management and a shared debtor dashboard are planned.",
+      },
+      {
+        q: "How do I ask about the accountant partner programme?",
+        a: "Contact PaidSoon to discuss the programme and register interest in planned multi-client features.",
+      },
+    ],
+    relatedModules: ["paidsoon", "deposit-guard", "owners-digest"],
+    disclaimer:
+      "Multi-client management, a shared debtor dashboard, and client onboarding tools are not yet available.",
+    accentClass: "border-indigo-200 bg-indigo-50 text-indigo-950",
   },
 ]
 
@@ -660,16 +761,34 @@ export function getMarketingModuleLabel(module: Pick<MarketingModuleDefinition, 
 }
 
 export const MODULE_HREF: Record<MarketingModuleId, string> = {
-  paidsoon: "/invoiceguard",
-  "deposit-guard": "/deposit-guard",
-  spendleak: "/spendleak",
-  costguard: "/costguard",
-  cashplan: "/cashplan",
-  commitguard: "/commitguard",
-  "owners-digest": "/owners-digest",
-  "tax-buffer": "/tax-buffer",
-  "margin-guard": "/margin-guard",
-  "runway-guard": "/runway-guard",
+  paidsoon: "/features/invoiceguard",
+  "deposit-guard": "/features/deposits-upfront-payments",
+  spendleak: "/features/unnecessary-spending",
+  costguard: "/features/spending-controls",
+  cashplan: "/features/cash-flow-planner",
+  commitguard: "/features/upcoming-bills-commitments",
+  "owners-digest": "/features/business-snapshot",
+  "tax-buffer": "/features/tax-set-aside",
+  "margin-guard": "/features/profit-monitor",
+  "runway-guard": "/features/cash-runway",
+  "client-manager": "/features/client-manager",
+}
+
+export const CANONICAL_FEATURE_ROUTES = MODULES.map((moduleDef) => ({
+  id: moduleDef.id,
+  href: moduleDef.canonicalHref ?? moduleDef.href,
+  slug: (moduleDef.canonicalHref ?? moduleDef.href).split("/").pop() ?? "",
+}))
+
+export const MARKETING_REDIRECTS = MODULES.flatMap((moduleDef) =>
+  (moduleDef.legacyHrefs ?? []).map((source) => ({
+    source,
+    destination: moduleDef.canonicalHref ?? moduleDef.href,
+  })),
+)
+
+export function getModuleByFeatureSlug(slug: string): MarketingModuleDefinition | undefined {
+  return MODULES.find((moduleDef) => (moduleDef.canonicalHref ?? moduleDef.href).split("/").pop() === slug)
 }
 
 export const PRODUCT_LINKS = MODULES.map((moduleDef) => ({

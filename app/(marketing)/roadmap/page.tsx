@@ -7,7 +7,7 @@ import { lowestTierWithFeature } from "@/lib/planPresentation"
 export const metadata: Metadata = {
   title: "Product Roadmap — PaidSoon",
   description:
-    "PaidSoon product roadmap — what is live today, what SpendLeak adds next, and what remains later-stage financial operations work.",
+    "PaidSoon product roadmap — current financial-control capabilities and the work still planned for future releases.",
 }
 
 const csvExportTier = lowestTierWithFeature("csv_export")
@@ -18,9 +18,9 @@ const available = [
   "CSV invoice import (all plans, no integration required)",
   `CSV/XLSX invoice export (${csvExportTierName} plans and above)`,
   "Unpaid and overdue invoice monitoring",
-  "Automated reminder sequences",
+  "InvoiceGuard automated reminder sequences",
   "Friendly, firm and final notice reminder templates",
-  "Debtor dashboard",
+  "InvoiceGuard debtor dashboard",
   "Promise-to-pay tracking",
   "Dispute pause",
 ]
@@ -33,7 +33,7 @@ const phase1 = [
 ]
 
 const phase2 = [
-  "Spendleak",
+  "Unnecessary-spending improvements",
   "Cash forecasting",
   "AI owner digest",
   "Subscription detection",
@@ -59,13 +59,10 @@ export default function RoadmapPage() {
       <section className="max-w-3xl mx-auto px-4 pt-16 pb-10">
         <h1 className="text-3xl font-bold text-gray-900">Product Roadmap</h1>
         <p className="mt-4 text-lg text-gray-500">
-          PaidSoon is being built in stages, starting with reliable automated invoice follow-ups and
-          expanding into a broader financial operations platform for small business.
+          PaidSoon is a financial-control platform for Australian businesses, with InvoiceGuard providing automated invoice follow-ups alongside broader spending and cash-planning capabilities.
         </p>
         <p className="mt-4 text-base text-gray-600">
-          PaidSoon focuses on cash collection. SpendLeak is the planned spend-side companion: an AI
-          financial operations layer on top of Xero and MYOB that highlights savings
-          opportunities, upcoming renewals, duplicate spend, and cash-pressure risks.
+          InvoiceGuard supports cash collection. PaidSoon also provides tools to review recurring spending, monitor costs and commitments, and plan upcoming cash needs. Availability depends on the module and plan.
         </p>
         <p className="mt-2 text-sm text-gray-400">
           This roadmap is indicative and may change based on customer feedback, integration approvals
@@ -76,9 +73,7 @@ export default function RoadmapPage() {
             Platform direction
           </h2>
           <p className="mt-2 text-sm text-blue-900">
-            Xero and MYOB remain the accounting source of truth. SpendLeak is not a replacement
-            accounting package. Its role is to explain what to do next using the data those systems
-            already hold.
+            Xero and MYOB remain the accounting source of truth. PaidSoon is not a replacement accounting package; its modules help you review what needs attention using data from supported sources.
           </p>
         </div>
       </section>

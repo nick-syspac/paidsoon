@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Frequently Asked Questions - PaidSoon",
     description:
-      "Common questions about PaidSoon pricing, integrations, and invoice follow-up workflows.",
+      "Common questions about PaidSoon pricing, integrations, InvoiceGuard, and financial-control features.",
     url: "/faq",
     type: "website",
   },
@@ -27,11 +27,11 @@ const csvExportTierName = csvExportTier ? PLAN_CATALOG[csvExportTier].name : "hi
 const faqs = [
   {
     q: "What does InvoiceGuard do?",
-    a: "InvoiceGuard helps businesses follow up overdue invoices automatically. It monitors unpaid invoices, sends polite reminder emails, tracks promises to pay, pauses reminders for disputes and gives you a clear debtor dashboard.",
+    a: "InvoiceGuard — automated invoice follow-ups to help you get paid sooner. It monitors unpaid invoices, sends reminder emails, tracks promises to pay, pauses reminders for disputes and gives you a clear debtor dashboard.",
   },
   {
     q: "Do I need to connect Stripe, Xero, or MYOB to use PaidSoon?",
-    a: `No. You can upload your outstanding invoices from a CSV spreadsheet and start sending reminders right away, on any plan including Starter. Connect Stripe, Xero, or MYOB later if you'd like invoices to sync automatically. You can still export your invoice data back to CSV or XLSX on ${csvExportTierName} plans and above.`,
+    a: `No. You can upload your outstanding invoices from a CSV spreadsheet and start sending reminders on an eligible plan. Connect Stripe, Xero, or MYOB later if you'd like invoices to sync automatically. You can also export invoice data to CSV or XLSX on ${csvExportTierName} plans and above.`,
   },
   {
     q: "What accounting software does PaidSoon support?",
@@ -43,7 +43,7 @@ const faqs = [
   },
   {
     q: "What happens when an invoice is paid?",
-    a: "PaidSoon detects the payment through the connected account and automatically stops the reminder sequence.",
+    a: "InvoiceGuard detects payment through the connected account and automatically stops the reminder sequence.",
   },
   {
     q: "Can I pause reminders for a specific invoice?",
@@ -58,28 +58,28 @@ const faqs = [
     a: "Mark the invoice as disputed and InvoiceGuard will pause the reminder sequence. You can resume reminders when the dispute is resolved.",
   },
   {
-    q: "What is SpendLeak?",
-    a: "SpendLeak surfaces recurring spend and cost drift that often slips past normal review. It highlights duplicate services, stale subscriptions and other patterns that may be draining cash without obvious warning signs.",
+    q: "How can I review unnecessary spending?",
+    a: "Unnecessary Spending surfaces recurring spend and cost drift that often slips past normal review. It highlights duplicate services, stale subscriptions and other patterns that may be draining cash without obvious warning signs.",
   },
   {
-    q: "What is CommitGuard?",
-    a: "CommitGuard tracks recurring commitments and upcoming obligations so you can see how much cash is already spoken for before it becomes a cash-flow problem.",
+    q: "How can I track upcoming bills and commitments?",
+    a: "Upcoming Bills & Commitments tracks recurring commitments and upcoming obligations so you can see how much cash is already spoken for before it becomes a cash-flow problem.",
   },
   {
-    q: "What does CashPlan do?",
-    a: "CashPlan models near-term inflows and outflows so you can forecast pressure before it lands. It helps you plan around upcoming obligations, seasonality and decision points.",
+    q: "What does the Cash Flow Planner do?",
+    a: "The Cash Flow Planner models near-term inflows and outflows so you can forecast pressure before it lands. It helps you plan around upcoming obligations, seasonality and decision points.",
   },
   {
-    q: "What is RunwayGuard?",
-    a: "RunwayGuard helps you understand how long your cash reserves can sustain the business under current and projected conditions, including key risk bands and scenario changes.",
+    q: "How long will my cash last?",
+    a: "Cash Runway helps you estimate how long your cash reserves may sustain the business under current and projected conditions, including key risk bands and scenario changes.",
   },
   {
-    q: "What is Tax Buffer?",
-    a: "Tax Buffer protects the cash set aside for tax obligations so your planning view does not overstate spendable cash or hide future liabilities.",
+    q: "How can I set aside cash for tax?",
+    a: "Tax Set-Aside helps track cash reserved for tax obligations so your planning view does not overstate spendable cash or hide future liabilities.",
   },
   {
     q: "What modules work together in the platform?",
-    a: "The platform is designed as a connected system: InvoiceGuard follows up receivables, SpendLeak highlights wasteful spend, CommitGuard tracks commitments, CashPlan forecasts cash movement, and RunwayGuard / Tax Buffer help you act before pressure escalates.",
+    a: "The platform is designed as a connected system: InvoiceGuard follows up receivables, Unnecessary Spending highlights recurring spend worth reviewing, Upcoming Bills & Commitments tracks obligations, the Cash Flow Planner forecasts cash movement, and Cash Runway and Tax Set-Aside help you plan ahead.",
   },
   {
     q: "Is there a free trial?",
@@ -90,8 +90,8 @@ const faqs = [
     a: "Yes. PaidSoon has no lock-in contracts — you can cancel or downgrade your subscription at any time from your account settings.",
   },
   {
-    q: "Is PaidSoon a debt collector?",
-    a: "No. InvoiceGuard and the broader platform are workflow and cash-intelligence tools. They help you send professional follow-ups and monitor risk, but do not provide legal advice, debt collection services or credit reporting services.",
+    q: "Is InvoiceGuard a debt collector?",
+    a: "No. InvoiceGuard and the broader PaidSoon platform provide workflow and cash-intelligence tools. They help you send professional follow-ups and monitor risk, but do not provide legal advice, debt collection services or credit reporting services.",
   },
 ]
 
