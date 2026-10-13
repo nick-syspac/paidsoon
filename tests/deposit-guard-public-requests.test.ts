@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { before, beforeEach, describe, mock, test } from "node:test"
 
 const viewEvents: Array<{ userId: string; depositRequestId?: string | null }> = []
+const TEST_NOW = new Date("2026-10-11T00:00:00.000Z")
 let requestRow: {
   id: string
   jobId: string
@@ -127,11 +128,17 @@ describe("DepositGuard public request helper", () => {
     resetPublicDepositRequestLookupThrottleForTests()
 
     for (let index = 0; index < 8; index += 1) {
-      const result = await getPublicDepositRequestView("valid-token", { clientFingerprint: "client-a" })
+      const result = await getPublicDepositRequestView("valid-token", {
+        clientFingerprint: "client-a",
+        now: TEST_NOW,
+      })
       assert.equal(result.state, "active")
     }
 
-    const limited = await getPublicDepositRequestView("valid-token", { clientFingerprint: "client-a" })
+    const limited = await getPublicDepositRequestView("valid-token", {
+      clientFingerprint: "client-a",
+      now: TEST_NOW,
+    })
 
     assert.equal(limited.state, "unavailable")
   })
@@ -144,8 +151,14 @@ describe("DepositGuard public request helper", () => {
 
     resetPublicDepositRequestLookupThrottleForTests()
 
-    const first = await getPublicDepositRequestView("valid-token", { clientFingerprint: "client-b" })
-    const second = await getPublicDepositRequestView("valid-token", { clientFingerprint: "client-b" })
+    const first = await getPublicDepositRequestView("valid-token", {
+      clientFingerprint: "client-b",
+      now: TEST_NOW,
+    })
+    const second = await getPublicDepositRequestView("valid-token", {
+      clientFingerprint: "client-b",
+      now: TEST_NOW,
+    })
 
     assert.equal(first.state, "active")
     assert.ok(first.firstViewedAt)
@@ -164,7 +177,10 @@ describe("DepositGuard public request helper", () => {
 
     resetPublicDepositRequestLookupThrottleForTests()
 
-    const result = await getPublicDepositRequestView("missing-token", { clientFingerprint: "client-c" })
+    const result = await getPublicDepositRequestView("missing-token", {
+      clientFingerprint: "client-c",
+      now: TEST_NOW,
+    })
 
     assert.equal(result.state, "unavailable")
   })
