@@ -10,7 +10,7 @@ import {
   getJourneyCta,
   getModuleById,
   getRelatedModules,
-  MARKETING_CTA_BY_STAGE,
+  getCanonicalModuleHref,
   type MarketingModuleId,
 } from "@/components/marketing/marketingContent"
 import { PLAN_CATALOG, type SubscriptionTier } from "@/lib/subscriptionPlans"
@@ -60,6 +60,7 @@ export function moduleMetadata(id: MarketingModuleId): Metadata {
     description: moduleDef.seoDescription ?? `${moduleDef.summary} ${moduleDef.tagline}`,
     canonicalPath: moduleDef.canonicalHref ?? moduleDef.href,
     imagePath: moduleDef.socialImagePath,
+    imageAlt: `${moduleDef.name} by PaidSoon`,
   })
 }
 
@@ -86,6 +87,7 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
         <div className={`rounded-2xl border p-8 md:p-10 ${moduleDef.accentClass}`}>
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-xs uppercase tracking-[0.16em] font-semibold">{categoryLabel}</p>
+            <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium">{moduleDef.statusLabel}</span>
           </div>
           <h1 className="mt-3 text-3xl md:text-4xl font-bold">{moduleDef.headline}</h1>
           <p className="mt-4 text-base md:text-lg max-w-3xl">
@@ -199,7 +201,7 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
           {relatedModules.map((related) => (
             <Link
               key={related.id}
-              href={related.href}
+              href={getCanonicalModuleHref(related.id)}
               className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
             >
               Explore {getMarketingModuleLabel(related)}
@@ -213,8 +215,8 @@ export function ModulePage({ id }: { id: MarketingModuleId }) {
           <h2 className="text-3xl font-bold text-white">Start with the financial problem that matters most.</h2>
           <p className="mt-3 text-blue-100">Choose your starting module and grow into the full platform.</p>
           <MarketingCtaLink
-            href="/contact?type=early-access"
-            label={MARKETING_CTA_BY_STAGE.hero}
+            href={heroCta.href}
+            label={heroCta.label}
             eventName="marketing_module_bottom_cta_selected"
             eventData={{ module: moduleDef.id, liveMode: String(liveMode) }}
             className="mt-6 inline-flex items-center justify-center rounded-md bg-white px-6 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50"

@@ -79,7 +79,7 @@ export default function ContactPage() {
                 Learn about our Accountant Partner programme and how to deliver debtor follow-up support for clients today.
               </p>
               <MarketingCtaLink
-                href="/accountants"
+                href="/features/client-manager"
                 label="Learn about the partner programme"
                 eventName="marketing_contact_partner_cta_selected"
                 className="text-sm text-blue-600 hover:underline font-medium"

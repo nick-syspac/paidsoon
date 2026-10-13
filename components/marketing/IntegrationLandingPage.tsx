@@ -11,6 +11,7 @@ import {
   type IntegrationDefinition,
 } from "@/lib/integrationsCatalog"
 import { isLiveMode } from "@/lib/liveMode"
+import { getJourneyCta } from "@/components/marketing/marketingContent"
 
 export function integrationMetadata(integration: IntegrationDefinition): Metadata {
   if (!integration.href) {
@@ -49,8 +50,7 @@ export function IntegrationLandingPage({
   integration: IntegrationDefinition
 }) {
   const liveMode = isLiveMode()
-  const ctaHref = liveMode ? "/sign-up" : "/contact?type=early-access"
-  const ctaLabel = liveMode ? "Start free trial" : "Request early access"
+  const cta = getJourneyCta("hero", liveMode)
 
   return (
     <div className="min-h-screen bg-white">
@@ -74,8 +74,8 @@ export function IntegrationLandingPage({
           <p className="mt-4 max-w-3xl text-lg text-gray-600">{integration.summary}</p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <MarketingCtaLink
-              href={ctaHref}
-              label={ctaLabel}
+              href={cta.href}
+              label={cta.label}
               eventName="marketing_integration_landing_cta_selected"
               eventData={{ integration: integration.id, liveMode: String(liveMode) }}
               className="inline-flex items-center justify-center rounded-md bg-blue-700 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-800"

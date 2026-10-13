@@ -4,7 +4,7 @@ import { MARKETING_CTA_BY_STAGE, PRODUCT_LINKS } from "@/components/marketing/ma
 const footerLinks = {
   Company: [
     { label: "About", href: "/about" },
-    { label: "Accountants", href: "/accountants" },
+    { label: "Client Manager", href: "/features/client-manager" },
     { label: "Contact", href: "/contact" },
     { label: "Careers", href: "/careers" },
   ],

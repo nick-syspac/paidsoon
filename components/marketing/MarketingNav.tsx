@@ -10,8 +10,9 @@ const MODULE_LINKS = PRODUCT_LINKS.filter((link) => Object.values(MODULE_HREF).i
 
 const topLinks = [
   { label: "How it works", href: "/how-it-works" },
+  { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Accountants", href: "/accountants" },
+  { label: "Client Manager", href: "/features/client-manager" },
   { label: "Resources", href: "/resources" },
   { label: "Security", href: "/security" },
 ]
@@ -19,7 +20,9 @@ const topLinks = [
 export function MarketingNav({ liveMode }: { liveMode: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [solutionsOpen, setSolutionsOpen] = useState(false)
+  const [modulesOpen, setModulesOpen] = useState(false)
   const solutionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const modulesMenuRef = useRef<HTMLDivElement | null>(null)
   const cta = getJourneyCta("hero", liveMode)
 
   return (
@@ -53,7 +56,7 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
           >
             <button
               type="button"
-              className="text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1 py-1"
+              className="rounded px-1 py-1 text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               aria-haspopup="true"
               aria-expanded={solutionsOpen}
               onClick={() => setSolutionsOpen((value) => !value)}
@@ -68,6 +71,39 @@ export function MarketingNav({ liveMode }: { liveMode: boolean }) {
                     href={link.href}
                     className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                     onClick={() => setSolutionsOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div
+            ref={modulesMenuRef}
+            className="relative"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setModulesOpen(false)
+              }
+            }}
+          >
+            <button
+              type="button"
+              className="rounded px-1 py-1 text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-haspopup="true"
+              aria-expanded={modulesOpen}
+              onClick={() => setModulesOpen((value) => !value)}
+            >
+              Modules
+            </button>
+            {modulesOpen ? (
+              <div className="absolute right-0 mt-2 max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
+                {MODULE_LINKS.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    onClick={() => setModulesOpen(false)}
                   >
                     {link.label}
                   </Link>

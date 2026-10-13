@@ -18,7 +18,7 @@ const currentDocs = [
   },
   {
     title: "Invoice sync",
-    body: "PaidSoon monitors invoice status, due dates, payment state and customer contact details needed to run reminder workflows.",
+    body: "InvoiceGuard monitors overdue invoice status, due dates, payment state and customer contact details needed to run reminder workflows within PaidSoon.",
   },
   {
     title: "Reminder workflow",
@@ -30,7 +30,7 @@ const currentDocs = [
   },
   {
     title: "Audit trail",
-    body: "PaidSoon records key workflow events such as invoice syncs, reminder sends, promise-to-pay updates, dispute pauses and manual actions.",
+    body: "InvoiceGuard records workflow events such as invoice syncs, reminder sends, promise-to-pay updates, dispute pauses and manual actions.",
   },
   {
     title: "MYOB Business integration",
@@ -38,7 +38,7 @@ const currentDocs = [
   },
   {
     title: "Xero integration",
-    body: "Connect Xero to sync overdue invoices automatically and trigger PaidSoon's reminder sequences.",
+    body: "Connect Xero to sync overdue invoices automatically and trigger InvoiceGuard's reminder sequences.",
   },
   {
     title: "Spreadsheet import and export",
