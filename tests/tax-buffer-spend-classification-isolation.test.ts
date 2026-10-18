@@ -28,6 +28,7 @@ const taxBufferConfiguration = {
 
 describe("Tax Buffer spend-classification isolation", () => {
   before(async () => {
+    await mock.module("@/lib/billing", { namedExports: { requireFeature: async () => true } })
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
         withUserContext: async (_userId: string, callback: (tx: unknown) => Promise<unknown>) => {

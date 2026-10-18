@@ -8,7 +8,9 @@ const QuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
 
-export async function GET(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

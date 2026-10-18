@@ -16,7 +16,9 @@ type Params = { params: Promise<{ id: string }> }
  * remaining outstanding balance — the same underlying path as manually
  * recording a partial payment (lib/invoices/payments.ts#recordInvoicePayment).
  */
-export async function POST(req: Request, { params }: Params) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(req: Request, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

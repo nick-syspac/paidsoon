@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import test, { before, mock } from "node:test"
+import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
 
 import {
   buildRunwaySnapshotRecord,
@@ -11,6 +12,17 @@ import {
   type RunwaySnapshotClient,
   type RunwaySnapshotRecordLike,
 } from "@/lib/runwayGuard/snapshotJob"
+
+before(async () => {
+  const access = resolveEffectiveAccess({
+    profile: { subscriptionStatus: "active", subscriptionTier: "business_pro", stripeSubscriptionId: "sub_test", trialEndsAt: null, billingAccessVersion: 0 },
+    grant: null, billingRisks: [],
+  }, new Date())
+  await mock.module("@/lib/billing/effectiveAccessSystem", { namedExports: {
+    getEffectiveAccessForSystem: async () => access,
+    getEffectiveAccessForUsersForSystem: async (ids: string[]) => new Map(ids.map((id) => [id, access])),
+  } })
+})
 
 test("buildRunwaySnapshotRecord creates a deterministic snapshot payload", () => {
   const snapshot = buildRunwaySnapshotRecord({

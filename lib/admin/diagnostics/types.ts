@@ -6,7 +6,7 @@ export type DiagnosticSeverity = "error" | "warning" | "info"
 
 export interface DiagnosticAction {
   /** Unique slug for the action endpoint, e.g. "reset-email-from" */
-  actionSlug: string
+  actionSlug: "reset-email-from" | "trigger-resync"
   label: string
   description: string
   /** Optional payload to send with the action */

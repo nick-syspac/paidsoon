@@ -4,7 +4,9 @@ import { requireMarginGuardAlertsAccess } from "@/lib/marginguard/entitlements"
 import { listMarginAlertEvents } from "@/lib/marginguard/service"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(_request: Request, context: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

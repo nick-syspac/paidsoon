@@ -3,7 +3,7 @@
 import { useState } from "react"
 
 interface TeamInfo {
-  tier: string
+  tier: string | null
   seatLimit: number
   currentSeats: number
   availableSeats: number

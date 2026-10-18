@@ -1,3 +1,6 @@
+import type { EffectiveAccess } from "@/lib/billing/effectiveAccess"
+import { PLAN_CATALOG } from "@/lib/subscriptionPlans"
+
 export function formatSubscriptionDate(date: Date | string | number | null | undefined): string {
   if (!date) return ""
   return new Date(date).toLocaleDateString("en-AU", {
@@ -25,7 +28,7 @@ export interface DashboardSubscriptionAccessState {
   allowAccess: boolean
   showBillingWarning: boolean
   billingWarning: string | null
-  redirectReason: "incomplete" | "unpaid" | "canceled" | null
+  redirectReason: "incomplete" | "unpaid" | "canceled" | "trial_expired" | "access_denied" | null
 }
 
 export interface SubscriptionCancellationPageState {
@@ -36,54 +39,92 @@ export interface SubscriptionCancellationPageState {
 }
 
 export function getDashboardSubscriptionAccessState(
-  status: string,
+  access: EffectiveAccess | null,
+  status?: string | null,
 ): DashboardSubscriptionAccessState {
-  switch (status) {
-    case "active":
-    case "trialing":
-      return {
-        allowAccess: true,
-        showBillingWarning: false,
-        billingWarning: null,
-        redirectReason: null,
-      }
-    case "past_due":
-      return {
-        allowAccess: true,
-        showBillingWarning: true,
-        billingWarning:
-          "Your latest payment did not go through. Please update your billing details to avoid interruption.",
-        redirectReason: null,
-      }
-    case "incomplete":
-      return {
-        allowAccess: false,
-        showBillingWarning: false,
-        billingWarning: null,
-        redirectReason: "incomplete",
-      }
-    case "unpaid":
-      return {
-        allowAccess: false,
-        showBillingWarning: false,
-        billingWarning: null,
-        redirectReason: "unpaid",
-      }
-    case "canceled":
-    case "cancelled":
-      return {
-        allowAccess: false,
-        showBillingWarning: false,
-        billingWarning: null,
-        redirectReason: "canceled",
-      }
-    default:
-      return {
-        allowAccess: true,
-        showBillingWarning: false,
-        billingWarning: null,
-        redirectReason: null,
-      }
+  const allowAccess = Boolean(access?.allowAccess && access.effectiveTier)
+  return {
+    allowAccess,
+    showBillingWarning: access?.showBillingWarning ?? false,
+    billingWarning: access?.billingWarning ?? null,
+    redirectReason: allowAccess ? null
+      : status === "incomplete" || status === "incomplete_expired" ? "incomplete"
+      : status === "unpaid" ? "unpaid"
+      : status === "canceled" || status === "cancelled" ? "canceled"
+      : status === "trialing" ? "trial_expired" : "access_denied",
+  }
+}
+
+/** Exact billing destinations only, not a general settings entitlement bypass. */
+export function isDashboardBillingResolutionPath(pathname: string | null): boolean {
+  return pathname === "/dashboard/settings/subscription" ||
+    pathname === "/dashboard/settings/subscription/cancel"
+}
+
+export interface ApplicationAccessPresentation {
+  headline: string
+  description: string
+  continuity: string | null
+  stripeTrial: string | null
+  retainedGrant: string | null
+  showBanner: boolean
+}
+
+export function formatAccessInstant(value: Date | string): string {
+  const date = new Date(value)
+  return `${date.toLocaleString("en-AU", {
+    day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+    second: "2-digit", timeZone: "UTC",
+  })} UTC`
+}
+
+/** Display projection only: never feed the granted plan into purchased-plan controls. */
+export function getApplicationAccessPresentation(access: EffectiveAccess | null): ApplicationAccessPresentation {
+  const retainedGrant = access?.grant?.plan && access.grant.expiresAt && access.source !== "admin_grant"
+    ? `Separate grant record: ${PLAN_CATALOG[access.grant.plan].name}, expires ${formatAccessInstant(access.grant.expiresAt)}${access.grant.revokedAt ? `, revoked ${formatAccessInstant(access.grant.revokedAt)}` : ""}. This does not change the current billing plan or establish access on its own.`
+    : null
+  if (!access?.allowAccess || !access.effectiveTier) return {
+    headline: "Application access unavailable",
+    description: "Billing settings and operation recovery remain available. Choose a plan or resolve your billing state to restore application access.",
+    continuity: null, stripeTrial: null, retainedGrant, showBanner: false,
+  }
+  const plan = PLAN_CATALOG[access.effectiveTier].name
+  const expiry = access.effectiveAccessExpiresAt
+    ? formatAccessInstant(access.effectiveAccessExpiresAt) : null
+  const preferredExpiry = access.source === "admin_grant" ? access.grant?.expiresAt
+    : access.source === "stripe_trial" ? access.stripeTrialEndsAt : access.effectiveAccessExpiresAt
+  const preferredEnd = preferredExpiry ? formatAccessInstant(preferredExpiry) : null
+  const sourceLabels = {
+    paid: "Paid Stripe subscription", stripe_trial: "Stripe trial",
+    admin_grant: "Temporary PaidSoon grant", onboarding_trial: "Onboarding trial",
+    past_due_grace: "Payment grace", platform_owner: "Platform owner internal access", none: "No access",
+  }
+  const continuity = access.effectiveExpirySource && access.effectiveExpirySource !== access.source &&
+    access.effectiveExpiryTier && expiry
+    ? `Independent ${sourceLabels[access.effectiveExpirySource]} continuity: ${PLAN_CATALOG[access.effectiveExpiryTier].name} application access until ${expiry}. This does not extend the current plan or postpone Stripe charges.`
+    : null
+  const stripeTrial = access.source === "stripe_trial"
+    ? access.trialTimingPendingReconciliation
+      ? "Stripe still reports trialing. Trial end and first-payment timing are pending reconciliation; a local date does not end this Stripe trial."
+      : `Stripe trial ends ${preferredEnd}. First-payment timing follows Stripe billing, not any application grant.`
+    : null
+  return {
+    headline: `${plan} application access — ${sourceLabels[access.source]}`,
+    description: access.source === "platform_owner"
+      ? "Internal application access uses the existing plan limits. This is not a paid subscription or a trial; Stripe billing is unchanged."
+      : access.source === "admin_grant"
+      ? `PaidSoon access only until ${preferredEnd} — Stripe billing unchanged. This grant does not postpone charges or purchase a subscription.`
+      : access.source === "onboarding_trial"
+        ? `Onboarding application access until ${preferredEnd}. This is not a Stripe subscription or a Stripe charge date.`
+        : access.source === "past_due_grace"
+          ? "Your billing plan remains available under the existing payment grace policy. Retained grants do not increase this access."
+          : access.source === "paid"
+            ? "Your paid Stripe plan takes precedence. Any retained grant does not change your purchased plan, price or billing dates."
+            : stripeTrial!,
+    continuity,
+    stripeTrial,
+    retainedGrant,
+    showBanner: ["admin_grant", "stripe_trial", "onboarding_trial", "platform_owner"].includes(access.source),
   }
 }
 
@@ -117,7 +158,7 @@ export function getSubscriptionBillingState({
     return {
       headline: "Subscription inactive",
       description:
-        "Your subscription is inactive. Choose a plan to restore full access.",
+        "Your subscription is inactive. Choose a plan to restore subscription access. Any temporary application access is shown separately.",
       showCancelAction: false,
       isTrialOnly: false,
     }

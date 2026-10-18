@@ -1,241 +1,73 @@
-import { after, before, beforeEach, describe, mock, test } from "node:test"
+import { before, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
+import type Stripe from "stripe"
+import type { UserProfile } from "@/lib/generated/prisma/client"
 
-interface MockProfile {
-  userId: string
-  subscriptionTier: string | null
-  stripeCustomerId: string | null
-  stripeSubscriptionId: string | null
+const tenant = "11111111-1111-4111-8111-111111111111"
+const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+const env: NodeJS.ProcessEnv = {
+  NODE_ENV: "test",
+  NEXT_PUBLIC_APP_URL: "https://paidsoon.test",
+  STRIPE_STARTER_PRICE_ID: "price_essentials",
+  STRIPE_SOLO_PRICE_ID: "price_business_control",
+  STRIPE_SMALL_BUSINESS_PRICE_ID: "price_small_business",
+  STRIPE_BUSINESS_PRO_PRICE_ID: "price_business_pro",
+  STRIPE_TRIAL_PERIOD_DAYS: "21",
 }
+const profile = { userId: tenant, stripeCustomerId: "cus_existing", stripeSubscriptionId: null,
+  stripeScheduleId: null, subscriptionTier: "essentials" } as UserProfile
+let planApi: typeof import("@/lib/billing/customerBillingPlan")
 
-let mockUser: { id: string; email?: string | null } | null = {
-  id: "user_123",
-  email: "user@example.com",
-}
-let profileSequence: Array<MockProfile | null> = []
-let profileUpdateCalls: Array<{ where: unknown; data: unknown }> = []
-
-let customerCreateCalls: Array<Record<string, unknown>> = []
-let checkoutCreateCalls: Array<Record<string, unknown>> = []
-let subscriptionUpdateCalls: Array<{ subscriptionId: string; args: unknown }> = []
-let subscriptionRetrieveResponse: { id: string; status: string } | null = null
-let subscriptionsListResponse: Array<{ id: string; status: string }> = []
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let routePost: any
-
-describe("POST /api/billing/checkout", () => {
+describe("Checkout frozen purchase contract (no DB or provider)", () => {
   before(async () => {
-    process.env.STRIPE_SECRET_KEY = "sk_test_not_for_output"
-    process.env.NEXT_PUBLIC_APP_URL = "https://app.example.com"
-    process.env.STRIPE_TRIAL_PERIOD_DAYS = "21"
-    process.env.STRIPE_STARTER_PRICE_ID = "price_essentials"
-    process.env.STRIPE_SOLO_PRICE_ID = "price_business_control"
-    process.env.STRIPE_SMALL_BUSINESS_PRICE_ID = "price_small_business"
-    process.env.STRIPE_BUSINESS_PRO_PRICE_ID = "price_business_pro"
-
-    await mock.module("@/lib/billing/stripeClient", {
-      namedExports: {
-        createStripeClient: () => ({
-          customers: {
-            create: async (args: Record<string, unknown>) => {
-              customerCreateCalls.push(args)
-              return { id: "cus_new" }
-            },
-          },
-          subscriptions: {
-            retrieve: async () => {
-              if (!subscriptionRetrieveResponse) {
-                throw new Error("not found")
-              }
-              return subscriptionRetrieveResponse
-            },
-            list: async () => ({
-              data: subscriptionsListResponse,
-            }),
-            update: async (subscriptionId: string, args: unknown) => {
-              subscriptionUpdateCalls.push({ subscriptionId, args })
-              return { id: subscriptionId, status: "active" }
-            },
-          },
-          checkout: {
-            sessions: {
-              create: async (args: Record<string, unknown>) => {
-                checkoutCreateCalls.push(args)
-                return { url: "https://checkout.stripe.test/session_123" }
-              },
-            },
-          },
-        }),
-      },
-    })
-
-    await mock.module("@/lib/supabase/server", {
-      namedExports: {
-        createClient: async () => ({
-          auth: {
-            getUser: async () => ({ data: { user: mockUser } }),
-          },
-        }),
-      },
-    })
-
-    await mock.module("@/lib/actions/auth", {
-      namedExports: {
-        createUserProfile: async () => {},
-      },
-    })
-
-    await mock.module("@/lib/db/withUserContext", {
-      namedExports: {
-        withUserContext: async (
-          _userId: string,
-          callback: (tx: {
-            userProfile: {
-              findUnique: (args: unknown) => Promise<MockProfile | null>
-              update: (args: { where: unknown; data: unknown }) => Promise<unknown>
-            }
-          }) => Promise<unknown>,
-        ) =>
-          callback({
-            userProfile: {
-              findUnique: async (_args: unknown) => profileSequence.shift() ?? null,
-              update: async (args: { where: unknown; data: unknown }) => {
-                profileUpdateCalls.push(args)
-                return {}
-              },
-            },
-          }),
-      },
-    })
-
-    ;({ POST: routePost } = await import("@/app/api/billing/checkout/route"))
+    await mock.module("server-only", { namedExports: {} })
+    planApi = await import("@/lib/billing/customerBillingPlan")
   })
-
-  after(() => {})
-
-  beforeEach(() => {
-    mockUser = { id: "user_123", email: "user@example.com" }
-    profileSequence = []
-    profileUpdateCalls = []
-    customerCreateCalls = []
-    checkoutCreateCalls = []
-    subscriptionUpdateCalls = []
-    subscriptionRetrieveResponse = null
-    subscriptionsListResponse = []
-  })
-
-  test("creates Stripe checkout session with configured trial days for eligible tier", async () => {
-    profileSequence = [
-      {
-        userId: "user_123",
-        subscriptionTier: "essentials",
-        stripeCustomerId: "cus_existing",
-        stripeSubscriptionId: null,
-      },
-    ]
-
-    const res = await routePost(
-      new Request("http://localhost:3000/api/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify({ tier: "small_business" }),
-        headers: { "content-type": "application/json" },
-      }),
-    )
-    const data = await res.json()
-
-    assert.equal(res.status, 200)
-    assert.equal(data.url, "https://checkout.stripe.test/session_123")
-    assert.equal(checkoutCreateCalls.length, 1)
-    assert.equal(
-      (checkoutCreateCalls[0].subscription_data as { trial_period_days?: number }).trial_period_days,
-      21,
-    )
-  })
-
-  test("maps each plan to the correct Stripe price ID", async () => {
-    const expected: Array<{ tier: string; price: string }> = [
-      { tier: "essentials", price: "price_essentials" },
-      { tier: "business_control", price: "price_business_control" },
-      { tier: "small_business", price: "price_small_business" },
-      { tier: "business_pro", price: "price_business_pro" },
-    ]
-
-    for (const item of expected) {
-      profileSequence = [
-        {
-          userId: "user_123",
-          subscriptionTier: "essentials",
-          stripeCustomerId: "cus_existing",
-          stripeSubscriptionId: null,
-        },
-      ]
-      checkoutCreateCalls = []
-
-      const res = await routePost(
-        new Request("http://localhost:3000/api/billing/checkout", {
-          method: "POST",
-          body: JSON.stringify({ tier: item.tier }),
-          headers: { "content-type": "application/json" },
-        }),
-      )
-
-      assert.equal(res.status, 200)
-      assert.equal(checkoutCreateCalls.length, 1)
-      const lineItems = checkoutCreateCalls[0].line_items as Array<{ price: string }>
-      assert.equal(lineItems[0]?.price, item.price)
+  for (const [tier, price] of [
+    ["essentials", "price_essentials"], ["business_control", "price_business_control"],
+    ["small_business", "price_small_business"], ["business_pro", "price_business_pro"],
+  ] as const) {
+    test(`${tier} retains its configured price, quantity,21-day trial and correlated metadata`, () => {
+      const intent = planApi.normalizeCustomerBillingIntent("checkout", tier)
+      const frozen = planApi.freezeCustomerBillingPlan(intent, profile, null, env)
+      const step = planApi.initialBillingStep("checkout_create", frozen, "cus_existing", tenant, operationId)
+      const params = step.normalizedRequest as unknown as Stripe.Checkout.SessionCreateParams
+      assert.deepEqual(params.line_items, [{ price, quantity: 1 }])
+      assert.equal(params.subscription_data?.trial_period_days, 21)
+      assert.equal(params.subscription_data?.metadata?.operationId, operationId)
+      assert.equal(params.metadata?.userId, tenant); assert.equal(params.metadata?.selectedTier, tier)
+      assert.equal(params.success_url, `https://paidsoon.test/api/billing/checkout/success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`)
+      assert.equal(params.cancel_url, "https://paidsoon.test/dashboard/settings/subscription?cancelled=true")
+      assert.equal(step.objectTarget, "/v1/checkout/sessions"); assert.equal(step.method, "POST")
+    })
+  }
+  test("disabled/invalid trial configuration does not create a synthetic trial", () => {
+    for (const setting of ["0", "-1", "not-a-number", "Infinity"]) {
+      const frozen = planApi.freezeCustomerBillingPlan({ kind: "checkout", tier: "small_business" }, profile, null,
+        { ...env, STRIPE_TRIAL_PERIOD_DAYS: setting })
+      const params = planApi.initialBillingStep("checkout_create", frozen, "cus_existing", tenant, operationId)
+        .normalizedRequest as unknown as Stripe.Checkout.SessionCreateParams
+      assert.equal(params.subscription_data?.trial_period_days, undefined)
+      assert.equal(params.subscription_data?.metadata?.operationId, operationId)
     }
   })
-
-  test("duplicate active subscription checkout request is rejected", async () => {
-    profileSequence = [
-      {
-        userId: "user_123",
-        subscriptionTier: "essentials",
-        stripeCustomerId: "cus_existing",
-        stripeSubscriptionId: "sub_123",
-      },
-    ]
-    subscriptionRetrieveResponse = { id: "sub_123", status: "active" }
-
-    const res = await routePost(
-      new Request("http://localhost:3000/api/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify({ tier: "essentials" }),
-        headers: { "content-type": "application/json" },
-      }),
-    )
-    const body = await res.json()
-
-    assert.equal(res.status, 409)
-    assert.equal(body.error, "Subscription already active for this plan")
-    assert.equal(checkoutCreateCalls.length, 0)
-    assert.equal(subscriptionUpdateCalls.length, 0)
+  test("active/trialing duplicate uses actual Stripe price even with a stale local profile tier", () => {
+    for (const status of ["active", "trialing"] as const) {
+      const subscription = { id: "sub_existing", status, items: { data: [{ id: "si_existing", price: { id: "price_small_business" } }] },
+        latest_invoice: null } as unknown as Stripe.Subscription
+      assert.throws(() => planApi.freezeCustomerBillingPlan({ kind: "checkout", tier: "small_business" }, profile, subscription, env),
+        { code: "billing_already_active" })
+      assert.throws(() => planApi.freezeCustomerBillingPlan({ kind: "checkout", tier: "business_control" }, profile, subscription, env),
+        { code: "billing_use_downgrade" })
+    }
   })
-
-  test("checkout error payloads never expose Stripe secret key", async () => {
-    profileSequence = [
-      {
-        userId: "user_123",
-        subscriptionTier: "essentials",
-        stripeCustomerId: "cus_existing",
-        stripeSubscriptionId: "sub_123",
-      },
-    ]
-    subscriptionRetrieveResponse = { id: "sub_123", status: "active" }
-
-    const res = await routePost(
-      new Request("http://localhost:3000/api/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify({ tier: "essentials" }),
-        headers: { "content-type": "application/json" },
-      }),
-    )
-    const body = await res.json()
-
-    assert.equal(res.status, 409)
-    const serialized = JSON.stringify(body)
-    assert.equal(serialized.includes("sk_test_not_for_output"), false)
-    assert.equal(serialized.includes("STRIPE_SECRET_KEY"), false)
+  test("frozen provider params cannot change when app URL, price and trial environment later change", () => {
+    const config = { ...env }
+    const frozen = planApi.freezeCustomerBillingPlan({ kind: "checkout", tier: "essentials" }, profile, null, config)
+    const original = planApi.initialBillingStep("checkout_create", frozen, "cus_existing", tenant, operationId)
+    config.NEXT_PUBLIC_APP_URL = "https://changed.test"; config.STRIPE_STARTER_PRICE_ID = "changed_price"
+    config.STRIPE_TRIAL_PERIOD_DAYS = "30"
+    assert.deepEqual(planApi.initialBillingStep("checkout_create", frozen, "cus_existing", tenant, operationId), original)
+    assert.equal(JSON.stringify(original).includes("changed"), false)
   })
 })

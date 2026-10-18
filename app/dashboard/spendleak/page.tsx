@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
@@ -45,7 +46,9 @@ export default async function SpendLeakDashboardPage({
   if (!user) redirect("/sign-in")
 
   const profile = await getDashboardProfile(user.id)
-  if (!canAccessSpendLeak(profile?.subscriptionTier)) {
+  const tier = getDashboardEffectiveTier(profile)
+  if (tier === null) redirect("/dashboard/settings/subscription")
+  if (!canAccessSpendLeak(tier)) {
     return (
       <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-6">
         <h1 className="text-xl font-semibold text-amber-900">SpendLeak</h1>
@@ -64,7 +67,7 @@ export default async function SpendLeakDashboardPage({
 
   const [{ module }, data] = await Promise.all([searchParams, loadSpendLeakDashboard(user.id)])
   const selectedModule = parseModuleFilter(module)
-  const canExportSpendLeakReport = hasPlanFeature(profile?.subscriptionTier, "csv_export")
+  const canExportSpendLeakReport = hasPlanFeature(tier, "csv_export")
   const showEmptyState = data.status.state === "empty"
   const emptyStateCoverageRows = data.selectedSourceCoverage
   const reviewedFindings = data.findings.filter((finding) => Boolean(finding.reviewAction))

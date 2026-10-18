@@ -1,4 +1,5 @@
 import { prismaAdmin } from "@/lib/db/admin"
+import { getFinancialJobCandidates, getFinancialJobAccessSkip } from "@/lib/billing/financialJobAccess"
 import type { Prisma } from "@/lib/generated/prisma/client"
 
 interface MarginSnapshotLike {
@@ -169,9 +170,13 @@ export async function runMarginAlertSweep(options?: { limitUsers?: number }) {
   let createdOrUpdated = 0
   let resolved = 0
   let failed = 0
+  const skips = { no_access: 0, feature_not_available: 0 }
+  const candidatesByUser = await getFinancialJobCandidates(settings.map((row) => row.userId), "marginguard_alerts")
 
   for (const setting of settings) {
     try {
+      const skip = candidatesByUser.get(setting.userId) ?? await getFinancialJobAccessSkip(setting.userId, "marginguard_alerts")
+      if (skip) { skips[skip.reason] += 1; continue }
       const current = await prismaAdmin.marginSnapshot.findFirst({
         where: { userId: setting.userId },
         orderBy: [{ periodEnd: "desc" }, { calculatedAt: "desc" }],
@@ -342,5 +347,7 @@ export async function runMarginAlertSweep(options?: { limitUsers?: number }) {
     createdOrUpdated,
     resolved,
     failed,
+    skipped: skips.no_access + skips.feature_not_available,
+    skips,
   }
 }

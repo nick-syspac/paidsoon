@@ -21,7 +21,9 @@ const bodySchema = z.object({
   connectionId: z.string().min(1),
 })
 
-export async function POST(request: Request) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {

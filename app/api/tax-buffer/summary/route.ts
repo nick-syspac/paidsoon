@@ -4,7 +4,9 @@ import { requireFeature } from "@/lib/billing"
 import { createClient } from "@/lib/supabase/server"
 import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
 
-export async function GET(): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

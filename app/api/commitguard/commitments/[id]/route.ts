@@ -50,7 +50,10 @@ const UpdateCommitmentSchema = z
   })
   .strict()
 
-export async function GET(
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function GETHandler(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
@@ -88,7 +91,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function PATCHHandler(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {

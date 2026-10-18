@@ -16,7 +16,10 @@ const updateSchema = z.object({
   replyTo: z.string().email().optional(),
 })
 
-export async function GET() {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const PUT = withSubscriptionAccess(PUTHandler)
+async function GETHandler() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -27,7 +30,8 @@ export async function GET() {
 
   // Poll Resend to detect when sender domain verification completes.
   // Only runs when a custom from-address is configured but not yet verified.
-  if (settings?.fromEmail && !settings.resendVerified) {
+  if (settings?.fromEmail && !settings.resendVerified &&
+      await requireFeature(user.id, "verified_from_domain")) {
     try {
       const { data: domains } = await getResend().domains.list()
       const domainName = settings.fromEmail.split("@")[1]
@@ -48,7 +52,7 @@ export async function GET() {
   return NextResponse.json({ settings })
 }
 
-export async function PUT(request: Request) {
+async function PUTHandler(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

@@ -6,10 +6,11 @@ import {
 } from "@/lib/billing"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
-import type { InvoiceConnection, UserProfile } from "@/lib/generated/prisma/client"
+import type { InvoiceConnection } from "@/lib/generated/prisma/client"
+import { getDashboardProfileWithTx, type DashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 
 export interface DashboardContext {
-  profile: UserProfile | null
+  profile: DashboardProfile | null
   connection: InvoiceConnection | null
   chaseAllowance: ChaseAllowanceStatus | null
 }
@@ -18,14 +19,14 @@ export async function loadDashboardContextWithTx(
   tx: PrismaTx,
   userId: string,
 ): Promise<DashboardContext> {
-  const profile = await tx.userProfile.findUnique({ where: { userId } })
+  const profile = await getDashboardProfileWithTx(tx, userId)
   return loadDashboardContextWithProfileTx(tx, userId, profile)
 }
 
 export async function loadDashboardContextWithProfileTx(
   tx: PrismaTx,
   userId: string,
-  profile: UserProfile | null,
+  profile: DashboardProfile | null,
 ): Promise<DashboardContext> {
   const connection = await tx.invoiceConnection.findFirst({
     where: { userId, isActive: true },

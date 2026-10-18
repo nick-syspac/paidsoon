@@ -38,7 +38,10 @@ function isInsufficientQuotaError(error: unknown): boolean {
   return candidate.statusCode === 429 || candidate.lastError?.statusCode === 429 || code === "insufficient_quota"
 }
 
-export async function GET() {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const POST = withSubscriptionAccess(POSTHandler)
+async function GETHandler() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -53,7 +56,7 @@ export async function GET() {
   return NextResponse.json({ canRewrite })
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -86,7 +89,7 @@ export async function POST(request: Request) {
   }
 
   if (!guardrailStatus) {
-    return NextResponse.json({ error: "Unable to evaluate usage limits" }, { status: 500 })
+    return NextResponse.json({ error: "AI rewrite access unavailable" }, { status: 403 })
   }
 
   if (!guardrailStatus.allowed) {
@@ -101,6 +104,12 @@ export async function POST(request: Request) {
 
   let rewriteResult
   try {
+    // Quota preparation can outlive a grant. Reauthorize immediately before
+    // dispatch; once generation starts, retain its real usage even if access
+    // expires while the model is running.
+    if (!await requireFeature(user.id, "ai_rewrite")) {
+      return NextResponse.json({ error: "AI rewrite access unavailable" }, { status: 403 })
+    }
     rewriteResult = await rewriteMessage(parsed.data.text, parsed.data.stage)
   } catch (rewriteErr) {
     if (isInsufficientQuotaError(rewriteErr)) {

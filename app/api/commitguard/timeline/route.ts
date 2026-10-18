@@ -11,7 +11,9 @@ const QuerySchema = z.object({
   }).default(90),
 })
 
-export async function GET(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

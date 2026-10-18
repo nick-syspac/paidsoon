@@ -1,8 +1,9 @@
 import { getAuthenticatedUser } from "@/lib/supabase/server"
-import { withUserContext } from "@/lib/db/withUserContext"
+import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { redirect } from "next/navigation"
 import { SubscriptionClient } from "@/components/settings/SubscriptionClient"
-import { formatSubscriptionDate } from "@/lib/subscriptionStatusPresentation"
+import { formatSubscriptionDate, getApplicationAccessPresentation } from "@/lib/subscriptionStatusPresentation"
+import { getBillingClientScope } from "@/lib/billing/billingClientSession"
 import {
   getPlanByTier,
   getPublicPlanSelectionIntent,
@@ -25,22 +26,10 @@ export default async function SubscriptionPage({
   if (!user) redirect("/sign-in")
 
   const params = await searchParams
-  const profile = await withUserContext(user.id, (tx) =>
-    tx.userProfile.findUnique({
-      where: { userId: user.id },
-      select: {
-        subscriptionTier: true,
-        subscriptionStatus: true,
-        subscriptionCurrentPeriodEnd: true,
-        subscriptionCancelAt: true,
-        pendingDowngradeTier: true,
-        stripeSubscriptionId: true,
-      },
-    }),
-  )
+  const profile = await getDashboardProfile(user.id)
 
   const normalizedTier = normalizeSubscriptionTier(profile?.subscriptionTier)
-  const status = profile?.subscriptionStatus ?? "active"
+  const status = profile?.subscriptionStatus ?? "unknown"
   const currentPeriodEnd = profile?.subscriptionCurrentPeriodEnd ?? null
   const subscriptionCancelAt = profile?.subscriptionCancelAt ?? null
   const canCancelSubscription =
@@ -53,6 +42,11 @@ export default async function SubscriptionPage({
 
   return (
     <SubscriptionClient
+      billingAccessVersion={profile?.billingAccessVersion ?? null}
+      billingSessionScope={await getBillingClientScope(user.id)}
+      applicationAccess={getApplicationAccessPresentation(profile?.effectiveAccess ?? null)}
+      stripeTrialEndsAt={profile?.effectiveAccess.stripeTrialEndsAt ?? null}
+      hasStripeSubscription={Boolean(profile?.stripeSubscriptionId)}
       tier={normalizedTier}
       status={status}
       currentPeriodEnd={currentPeriodEnd}

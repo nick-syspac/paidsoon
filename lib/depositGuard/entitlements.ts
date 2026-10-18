@@ -5,7 +5,7 @@ import {
 } from "@/lib/billing"
 
 export interface DepositGuardEntitlements {
-  tier: string
+  tier: string | null
   hasAccess: boolean
   canCreateRequests: boolean
   hasAutomaticReminders: boolean

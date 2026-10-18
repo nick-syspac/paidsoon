@@ -5,7 +5,7 @@ import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { summarizeCommitGuard } from "@/lib/commitguard/service"
 import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
 import { loadDepositGuardOwnerDigestProvider } from "@/lib/depositGuard/integrations"
-import { getOwnersDigestEntitlements, requireOwnersDigestCoreAccess, requireOwnersDigestHistoryAccess } from "@/lib/ownersDigest/entitlements"
+import { getOwnersDigestEntitlements, OwnersDigestAccessError, requireOwnersDigestCoreAccess, requireOwnersDigestHistoryAccess } from "@/lib/ownersDigest/entitlements"
 import {
   getOrCreateOwnersDigestSettings,
   OWNERS_DIGEST_DEFAULT_SETTINGS,
@@ -749,6 +749,8 @@ async function collectProviderResults(
   now: Date,
 ): Promise<OwnersDigestProviderResult[]> {
   const entitlements = await getOwnersDigestEntitlements(userId)
+  // Reauthorize after settings/queue preparation, before any provider computation.
+  if (!entitlements.hasCoreAccess || entitlements.tier === null) throw new OwnersDigestAccessError()
   const providers: OwnersDigestSignalProvider[] = [
     { source: "paidsoon", load: () => loadPaidSoonProvider(userId, now) },
   ]

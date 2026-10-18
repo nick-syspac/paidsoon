@@ -3,7 +3,9 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { NextResponse } from "next/server"
 import { CreateArrangementSchema } from "@/lib/arrangements"
 
-export async function POST(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

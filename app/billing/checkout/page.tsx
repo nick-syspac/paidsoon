@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { getPlanByTier, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
 import { StartCheckoutButton } from "@/components/billing/StartCheckoutButton"
+import { getBillingClientScope } from "@/lib/billing/billingClientSession"
 
 export default async function BillingCheckoutPage({
   searchParams,
@@ -20,16 +21,13 @@ export default async function BillingCheckoutPage({
   const params = await searchParams
 
   // Resolve tier: prefer the ?plan query param, fall back to the user's stored tier.
-  let tier = normalizeSubscriptionTier(params.plan ?? null)
-  if (!params.plan) {
-    const profile = await withUserContext(user.id, (tx) =>
-      tx.userProfile.findUnique({
-        where: { userId: user.id },
-        select: { subscriptionTier: true },
-      }),
-    )
-    tier = normalizeSubscriptionTier(profile?.subscriptionTier)
-  }
+  const profile = await withUserContext(user.id, (tx) =>
+    tx.userProfile.findUnique({
+      where: { userId: user.id },
+      select: { subscriptionTier: true, billingAccessVersion: true },
+    }),
+  )
+  const tier = normalizeSubscriptionTier(params.plan ?? profile?.subscriptionTier)
 
   const plan = getPlanByTier(tier)
   const reason = params.reason ?? null
@@ -75,13 +73,13 @@ export default async function BillingCheckoutPage({
             <p className="text-2xl font-semibold text-gray-900">
               {plan.name} — ${plan.monthlyPriceAud}/mo
             </p>
-            <StartCheckoutButton tier={tier} />
           </>
         ) : (
           <p className="text-sm text-gray-600">
             The {plan.name} plan uses custom pricing — contact us to get set up.
           </p>
         )}
+        <StartCheckoutButton tier={tier} checkoutEnabled={plan.monthlyPriceAud !== null} billingAccessVersion={profile?.billingAccessVersion ?? null} billingSessionScope={await getBillingClientScope(user.id)} />
         <Link
           href="/"
           className="inline-block text-sm text-gray-500 hover:underline"

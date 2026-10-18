@@ -1,3 +1,4 @@
+import "@/tests/helpers/subscriptionAccess"
 /**
  * API route handler tests for manual invoice payment recording and
  * "mark as paid" (openspec/changes/add-invoice-payment-ledger).

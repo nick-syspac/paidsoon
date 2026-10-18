@@ -373,7 +373,7 @@ export async function cancelDepositRequest(
   requestId: string,
   actorUserId?: string | null,
 ): Promise<DepositRequestSummary | null> {
-  await requireDepositGuardRequestAccess(userId)
+  // Cancellation stops collection and remains reachable during billing recovery.
 
   return withUserContext(userId, async (tx) => {
     const updated = await applyDepositRequestLifecycleAction(tx, {

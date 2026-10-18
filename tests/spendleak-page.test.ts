@@ -1,6 +1,7 @@
 import { before, beforeEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
 import type { SpendClassificationSummary } from "@/lib/spendClassification/summaries"
+import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
 
 let mockUser: { id: string } | null = { id: "user-1" }
 let mockTier: string | null = "small_business"
@@ -134,7 +135,13 @@ describe("SpendLeak dashboard page", () => {
 
     await mock.module("@/lib/dashboard/loadDashboardProfile", {
       namedExports: {
-        getDashboardProfile: async () => ({ subscriptionTier: mockTier }),
+        getDashboardProfile: async () => ({
+          subscriptionTier: mockTier,
+          effectiveAccess: resolveEffectiveAccess({ profile: {
+            subscriptionTier: mockTier, subscriptionStatus: "active", stripeSubscriptionId: "sub-test",
+            trialEndsAt: null, billingAccessVersion: 0,
+          }, grant: null, billingRisks: [] }, new Date("2026-10-16Z")),
+        }),
       },
     })
 

@@ -1,3 +1,4 @@
+import { requireSubscriptionAccess } from "@/lib/billing/accessGuard"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { lockSpendClassificationTenant } from "@/lib/spendClassification/locks"
@@ -18,6 +19,7 @@ export class SpendTagError extends Error {
 }
 
 export async function listSpendTags(userId: string) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => tx.spendTag.findMany({
     where: { userId },
     orderBy: { createdAt: "asc" },
@@ -43,6 +45,7 @@ async function writeTagEvent(
 }
 
 export async function createSpendTag(userId: string, name: string) {
+  await requireSubscriptionAccess(userId)
   const displayName = name.normalize("NFKC").trim().replace(/\s+/gu, " ")
   const normalizedName = normalizeSpendCategoryName(name)
   if (!normalizedName) throw new SpendTagError("tag_name_required")
@@ -64,6 +67,7 @@ export async function createSpendTag(userId: string, name: string) {
 }
 
 export async function retireSpendTag(userId: string, tagId: string) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await lockSpendClassificationTenant(tx, userId)
     const tag = await tx.spendTag.findFirst({ where: { userId, id: tagId } })
@@ -83,6 +87,7 @@ export async function setSpendClassificationTag(
   userId: string,
   input: { classificationId: string; tagId: string; assigned: boolean },
 ): Promise<boolean> {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await lockSpendClassificationTenant(tx, userId)
     const classification = await tx.spendClassification.findFirst({

@@ -3,7 +3,9 @@ import type { ReactElement } from "react"
 
 import { ImportExportSettingsView } from "@/components/settings/ImportExportSettingsView"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 
 type InvoiceImportBatchSummary = {
@@ -132,18 +134,13 @@ export default async function ImportExportSettingsPage(): Promise<ReactElement> 
   if (!user) redirect("/sign-in")
 
   const authenticatedUser = user as AuthenticatedUser
-  const [initialBatches, initialSpendBatches, profile] = await Promise.all([
+  const tier = getDashboardEffectiveTier(await getDashboardProfile(authenticatedUser.id))
+  if (tier === null) redirect("/dashboard/settings/subscription")
+  const [initialBatches, initialSpendBatches] = await Promise.all([
     loadInvoiceImportBatches(authenticatedUser.id),
     loadSpendImportBatches(authenticatedUser.id),
-    withUserContext(authenticatedUser.id, (tx) =>
-      tx.userProfile.findUnique({
-        where: { userId: authenticatedUser.id },
-        select: { subscriptionTier: true },
-      }),
-    ),
   ])
 
-  const tier = normalizeSubscriptionTier(profile?.subscriptionTier)
   const canExport = hasPlanFeature(tier, "csv_export")
   const canManageMarginGuard = hasPlanFeature(tier, "marginguard_core")
   const canManageCommitGuard = hasPlanFeature(tier, "commitguard_core")

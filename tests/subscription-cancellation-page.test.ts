@@ -14,6 +14,9 @@ let SubscriptionCancellationPage: any
 
 describe("Subscription cancellation page", () => {
   before(async () => {
+    await mock.module("@/lib/billing/billingClientSession", {
+      namedExports: { getBillingClientScope: async () => "test-session-scope" },
+    })
     await mock.module("next/navigation", {
       namedExports: {
         redirect: () => {

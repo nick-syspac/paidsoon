@@ -156,6 +156,113 @@ metadata. PII in tenant data is not included in audit events.
 
 ## Environment variables
 
+### Trial-access management boundary — in progress, not rolled out
+
+The six trial-management routes and converted legacy extension adapter are present
+in the working tree, not deployed. All require real authenticated identity, active
+`platform_owner`, valid unrevoked elevation and an active device belonging to that
+owner before target reads. Both impersonation modes are rejected. Elevated
+`platform_admin` and `platform_support` retain tenant-health reads, not trial
+management authority. `ADMIN_ENABLED` and device-key settings remain unchanged;
+there is no new trial feature flag. See [exact route contracts](DDD.md#owner-trial-route-contract--in-progress-not-rolled-out).
+
+| Operation | Current authority and journal scope |
+| --- | --- |
+| Preview/confirmation (including legacy adapter) | Current owner authority; confirmation is tenant/original-actor/**original-session** bound. New elevation cannot confirm an old preview. |
+| Operation status/reconcile | Current owner authority and **same original actor**, any current elevated session, including after original-session expiry. A different owner cannot substitute. |
+| Notification retry | Current owner authority plus original actor/**original session**; the recovery exception does not apply. |
+
+All POSTs require exact matching `Origin` and reject cross-site fetch metadata;
+strict JSON envelopes, UUID paths and no-query validation are shared. Private
+no-store responses project safe state, not raw journal rows. The legacy URL accepts
+only preview-backed `{operationId,expectedVersion}`, never the old `{days}` body,
+and dispatches only stored Stripe extension intent. Reason is required at preview,
+not supplied again at confirmation. There is no diagnostic mutation bypass.
+
+The target organisation is the existing `UserProfile.userId` billing tenant.
+Debtor customers and linked accounting-provider organisations are not targets.
+Current-grant state is independent of Stripe billing projections; grants must not
+forgive subscription debt/disputes, replace paid plans or resume subscriptions.
+Accepted operations retain required reasons and mandatory append-only audit;
+notification failures remain separate from access outcomes in the runtime service.
+
+Trial events reuse `action: admin_tenant_action`, `targetType: user_profile`,
+tenant target fields and operation `resourceId`. Metadata `action` is
+`trial_attempt`, `trial_result`, `trial_recovery` or `trial_notification`, with
+`operationId`, `operationAction`, `source`, UTC `occurredAt`, allowlisted
+`previous`/`after` snapshots and `result`. Snapshots retain billing/grant/effective
+plans and expiries, provider binding and version for restricted audit review.
+The trimmed business `reason` is a separate privileged column, not an error summary
+or notification content. Actor/session/device and current request context stay in
+audit columns; raw payloads, keys, contacts and provider errors are excluded.
+
+Initial mandatory audit failure prevents access/provider mutation. Local access,
+success audit and requested outbox commit together; Stripe acceptance/reservation
+and attempt audit commit before dispatch. A failed final commit leaves recovery,
+not fabricated success. `TenantTrialOperation.adminSessionId` always retains the
+original session. A claimed recovery appends `trial_recovery` using the **current**
+audit `adminSessionId` and metadata `originalSessionId`/`recoveringSessionId`, even
+when equal; no prior journal/audit attribution is rewritten. Notification audit
+adds `executor: owner|system` and `phase: attempt|result`; delivery state is not
+access success. Unrelated best-effort `logAdminEvent()` callers are unchanged.
+
+Full persistence/security rollout is in progress, not deployed. The earlier
+four-trial-table development containment is separately applied and unchanged;
+new customer journal migration/CHECK/policy artifacts remain unapplied. Customer
+roles may read only their own safe grant/risk columns; operation journals,
+notification recipients/payloads and audit remain private. Customer profile
+INSERT and billing-column UPDATE authority are removed by the prepared policy.
+Deploy verified billing-writer and onboarding conversions before activating it.
+
+Task 3.9's offline subset drafts canonical/targeted RLS and explicit table/column
+revocations for the customer journal and immutable steps. Both owner and customer
+journals are server-only, including for their own tenant; anonymous roles have
+no journal reads/writes either. No direct Data API status path is granted. Customer
+status/recovery services now authenticate and scope own-operation projections
+before privileged access in the working tree; the policy-only subset did not
+implement or deploy those services or the pre-call coordinator. Raw requests,
+frozen email/metadata, keys, leases and provider evidence must never enter client
+responses or logs.
+
+`pendingBillingMutationId` INSERT/UPDATE grants and overriding profile table
+UPDATE are revoked in the drafted addition. The full existing trial policy is
+still required for other billing/version/owner-reservation restrictions. Safe
+own-name/onboarding/timestamp updates remain available under tenant RLS. Revoke
+client/PUBLIC public-table creation defaults for the canonical `postgres` creator
+before journal creation; review any other creator/defaults. Roll out generated
+migration, separate actor/exclusivity CHECKs and both full policy blocks under
+separate authorization with no exposed intermediate tables, after writer
+conversion. Never deploy the journal migration alone or restore customer billing
+privileges to keep a legacy writer running.
+
+New rollback-only verification modes `--billing-mutations-staged` and
+`--billing-mutations` require an explicitly reviewed isolated project ref matching
+the canonical adapter via `--reviewed-isolated-target=<project-ref>`. Staging
+conditionally adds pending schemas/lease/journals/CHECKs and full policies on one
+connection, strips only CHECK transaction wrappers in memory and always rolls
+back. It writes no SQL files/migration history and never calls persistent legacy
+cleanup. Probes cover tenant FKs, actor equality, same-tenant parent/steps,
+reservation exclusivity, both journals/step ACLs, safe reads/name edits and denied
+customer/anon authority writes. These probes were **not run** in this offline
+subset; static contracts are not live proof. Tasks 3.8/3.9/9.3 remain unchecked.
+Existing `--trial-access-tables` containment verification is preserved. No live
+database command or additional shared application is authorized by this work.
+
+Runtime owner/audit/delivery work does not remove deployment blockers: pending
+migrations/CHECKs/full RLS and isolated validation (3.8/3.9/9.3), entitlement/API/job
+integration (5/6), management UI (8) and release verification remain unfinished.
+Keep management unavailable until the [release gate](runbooks/vercel.md#12-trial-access-and-customer-billing-journal-release-gate)
+passes; preserve catalog/readiness gates. Operational recovery and delivery-only
+rules are in [admin §9](runbooks/admin.md#9--trial-access-operations--in-progress-not-rolled-out)
+and [Resend §7](runbooks/resend.md#7-trial-access-notifications--in-progress-not-rolled-out).
+
+Local staged isolation checks roll back DDL, privileges and probe data; they are
+not a production migration. The rollback plan retains active grants and effective
+access enforcement, disables management, and reconciles unknown provider outcomes
+without automatically shortening Stripe trials or deleting audit/journal/step
+history. Retain both unresolved reservations and recovery; lease expiry alone
+does not permit another mutation or release uncertainty.
+
 | Variable | Production value | Notes |
 |---|---|---|
 | `ADMIN_ENABLED` | `true` | Must be set to enable `/admin` routes |

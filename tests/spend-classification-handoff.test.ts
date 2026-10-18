@@ -1,3 +1,4 @@
+import "@/tests/helpers/subscriptionAccess"
 import assert from "node:assert/strict"
 import { before, beforeEach, mock, test } from "node:test"
 import { buildSpendClassificationSummary } from "@/lib/spendClassification/summaries"
@@ -79,6 +80,9 @@ function makeTx(userId: string) {
 }
 
 before(async () => {
+  await mock.module("@/lib/billing/financialJobAccess", { namedExports: {
+    getFinancialJobAccessSkip: async () => null,
+  } })
   await mock.module("server-only", { namedExports: {} })
   await mock.module("@/lib/db/withUserContext", {
     namedExports: {

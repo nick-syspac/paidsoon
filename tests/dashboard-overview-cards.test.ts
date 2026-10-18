@@ -102,6 +102,7 @@ describe("buildOverviewCards", () => {
       activeInvoices: [makeInvoice({ id: "1", currentStage: 0 })],
       chaseAllowance: {
         period: { start: new Date("2026-07-01"), end: new Date("2026-08-01") },
+        accessAllowed: true,
         allowance: 10,
         usage: 1,
         remaining: 9,
@@ -144,6 +145,7 @@ describe("buildOverviewCards", () => {
       ],
       chaseAllowance: {
         period: { start: new Date("2026-07-01"), end: new Date("2026-08-01") },
+        accessAllowed: true,
         allowance: 10,
         usage: 1,
         remaining: 9,

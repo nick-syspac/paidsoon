@@ -13,7 +13,9 @@ const bodySchema = z.object({
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function POST(req: Request, { params }: Params) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(req: Request, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

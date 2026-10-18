@@ -257,7 +257,7 @@ export async function deleteDepositGuardMilestone(
   userId: string,
   milestoneId: string,
 ): Promise<boolean> {
-  await requireDepositGuardPaymentSchedulesAccess(userId)
+  // Destructive cleanup is exempt from entitlements, not tenant ownership/RLS.
 
   return withUserContext(userId, async (tx) => {
     const deleted = await tx.paymentMilestone.deleteMany({

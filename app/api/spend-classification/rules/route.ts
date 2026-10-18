@@ -75,7 +75,10 @@ function ruleErrorStatus(error: SpendRuleError): number {
   return 409
 }
 
-export async function GET(): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const POST = withSubscriptionAccess(POSTHandler)
+async function GETHandler(): Promise<NextResponse> {
   const userId = await getAuthenticatedSpendClassificationUserId()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
@@ -87,7 +90,7 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function POST(request: Request): Promise<NextResponse> {
+async function POSTHandler(request: Request): Promise<NextResponse> {
   const userId = await getAuthenticatedSpendClassificationUserId()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const payload = await request.json().catch(() => null)

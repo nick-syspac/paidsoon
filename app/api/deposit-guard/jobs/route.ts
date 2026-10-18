@@ -45,7 +45,10 @@ function toAccessErrorResponse(error: DepositGuardAccessError): NextResponse {
   return NextResponse.json({ error: "Upgrade required" }, { status: 403 })
 }
 
-export async function GET(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const POST = withSubscriptionAccess(POSTHandler)
+async function GETHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -78,7 +81,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 }
 
-export async function POST(request: Request): Promise<NextResponse> {
+async function POSTHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { SpendClassificationReviewClient } from "@/components/dashboard/spendleak/SpendClassificationReviewClient"
@@ -11,7 +12,9 @@ export default async function SpendClassificationReviewPage() {
   if (!user) redirect("/sign-in")
 
   const profile = await getDashboardProfile(user.id)
-  if (!canAccessSpendLeak(profile?.subscriptionTier)) {
+  const tier = getDashboardEffectiveTier(profile)
+  if (tier === null) redirect("/dashboard/settings/subscription")
+  if (!canAccessSpendLeak(tier)) {
     return (
       <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-6">
         <h1 className="text-xl font-semibold text-amber-900">Imported spend review</h1>

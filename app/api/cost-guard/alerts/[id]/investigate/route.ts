@@ -15,7 +15,9 @@ const ActionSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 })
 
-export async function POST(request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(request: Request, { params }: Params): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

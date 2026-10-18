@@ -1,3 +1,4 @@
+import "@/tests/helpers/subscriptionAccess"
 /**
  * API route handler tests for the MYOB OAuth callback
  * (app/api/integrations/myob/callback/route.ts).
@@ -73,8 +74,10 @@ describe("MYOB callback route", () => {
               count: async () => 0,
             },
             userProfile: {
-              findUnique: async () => ({ subscriptionTier: "business_control" }),
+              findUnique: async () => ({ subscriptionTier: "business_control", subscriptionStatus: "active", stripeSubscriptionId: "sub_mock", trialEndsAt: null, billingAccessVersion: 1 }),
             },
+            tenantTrialGrant: { findUnique: async () => null },
+            tenantBillingRisk: { findMany: async () => [] },
           }
           return fn(tx)
         },

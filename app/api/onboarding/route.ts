@@ -5,7 +5,7 @@ import { z } from "zod"
 
 const bodySchema = z.object({
   tier: z.enum(["essentials", "business_control", "small_business", "business_pro"]),
-})
+}).strict()
 
 export async function PATCH(request: Request) {
   const supabase = await createClient()
@@ -29,15 +29,18 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid tier" }, { status: 400 })
   }
 
-  await withUserContext(user.id, (tx) =>
-    tx.userProfile.update({
-      where: { userId: user.id },
-      data: {
-        subscriptionTier: parsed.data.tier,
-        onboardingCompletedAt: new Date(),
-      },
-    }),
-  )
+  // The validated tier is purchase intent only. Signup/grants/Stripe own access.
+  try {
+    await withUserContext(user.id, (tx) =>
+      tx.userProfile.update({
+        where: { userId: user.id },
+        data: { onboardingCompletedAt: new Date() },
+        select: { onboardingCompletedAt: true },
+      }),
+    )
+  } catch {
+    return NextResponse.json({ error: "Unable to complete onboarding. Please try again." }, { status: 503 })
+  }
 
   return NextResponse.json({ ok: true })
 }

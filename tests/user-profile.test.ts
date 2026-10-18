@@ -1,7 +1,16 @@
-import test from "node:test"
+import test, { before, mock } from "node:test"
 import assert from "node:assert/strict"
 import { z } from "zod"
-import { resolveFreelancerName } from "@/lib/email/send"
+
+let resolveFreelancerName: typeof import("@/lib/email/send").resolveFreelancerName
+before(async () => {
+  // These pure fallback tests must not load a live privileged sender backend.
+  mock.module("@/lib/db/admin", { namedExports: { prismaAdmin: {} } })
+  mock.module("@/lib/billing/effectiveAccessSystem", { namedExports: {
+    getEffectiveAccessForSystem: async () => { throw new Error("Unexpected access read") },
+  } })
+  ;({ resolveFreelancerName } = await import("@/lib/email/send"))
+})
 
 // ---------------------------------------------------------------------------
 // 8.1 — Display name fallback chain

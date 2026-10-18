@@ -1,40 +1,24 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
+import { useBillingOperation } from "@/components/billing/useBillingOperation"
+import { BillingOperationNotice } from "@/components/billing/BillingOperationNotice"
+import type { BillingClientProps } from "@/lib/billing/clientOperation"
 
 export function SubscriptionCancellationClient({
   title,
   description,
   confirmLabel,
   confirmDisabled,
+  ...billing
 }: {
   title: string
   description: string
   confirmLabel: string | null
   confirmDisabled: boolean
-}) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleConfirm() {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/billing/cancel", { method: "POST" })
-      const data = await res.json()
-      const redirectUrl = data.url ?? data.redirectUrl
-      if (res.ok && redirectUrl) {
-        window.location.assign(redirectUrl)
-        return
-      }
-      setError(data.error ?? "Something went wrong. Please try again.")
-    } catch {
-      setError("Something went wrong. Please try again.")
-    } finally {
-      setLoading(false)
-    }
-  }
+} & BillingClientProps) {
+  const operation = useBillingOperation(billing)
+  const { loading } = operation
 
   return (
     <div className="max-w-lg space-y-6">
@@ -47,11 +31,7 @@ export function SubscriptionCancellationClient({
         </div>
         <p className="text-sm text-gray-600 leading-6">{description}</p>
 
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <BillingOperationNotice operation={operation} />
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link
@@ -62,7 +42,7 @@ export function SubscriptionCancellationClient({
           </Link>
           {confirmLabel ? (
             <button
-              onClick={handleConfirm}
+              onClick={() => void operation.start({ path: "/api/billing/cancel", method: "POST", body: null })}
               disabled={loading || confirmDisabled}
               className="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
             >

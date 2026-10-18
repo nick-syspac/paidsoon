@@ -19,7 +19,9 @@ function toFeatureError(error: unknown): NextResponse | null {
   return null
 }
 
-export async function POST(
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(
   request: Request,
   context: { params: Promise<{ milestoneId: string }> },
 ): Promise<NextResponse> {

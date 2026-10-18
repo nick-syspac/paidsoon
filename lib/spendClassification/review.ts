@@ -1,3 +1,4 @@
+import { requireSubscriptionAccess } from "@/lib/billing/accessGuard"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import { Prisma } from "@/lib/generated/prisma/client"
 import { lockSpendClassificationTenant } from "@/lib/spendClassification/locks"
@@ -36,6 +37,7 @@ export async function listSpendClassificationReview(
   userId: string,
   input: { status?: SpendClassificationReviewStatus; limit: number; offset: number },
 ) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => tx.spendClassification.findMany({
     where: { userId, ...(input.status ? { status: input.status } : {}) },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
@@ -174,6 +176,7 @@ export async function markSpendClassificationAsTransfer(
   userId: string,
   input: { classificationId: string; reason?: string | null },
 ) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await lockSpendClassificationTenant(tx, userId)
     const existing = await tx.spendClassification.findFirst({
@@ -239,6 +242,7 @@ export async function linkSpendRefund(
   userId: string,
   input: { refundClassificationId: string; originalClassificationId: string },
 ) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await lockSpendClassificationTenant(tx, userId)
     const refund = await tx.spendClassification.findFirst({
@@ -346,6 +350,7 @@ export async function linkSpendRefund(
 }
 
 export async function listSpendRefundCandidates(userId: string, refundClassificationId: string) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     const refund = await tx.spendClassification.findFirst({
       where: { userId, id: refundClassificationId },
@@ -433,6 +438,7 @@ export async function listSpendRefundCandidates(userId: string, refundClassifica
 }
 
 export async function unlinkSpendRefund(userId: string, refundClassificationId: string) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await lockSpendClassificationTenant(tx, userId)
     const existing = await tx.spendClassification.findFirst({
@@ -505,6 +511,7 @@ export async function correctSpendClassification(
     createRule?: FutureSpendRuleInput
   },
 ) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await lockSpendClassificationTenant(tx, userId)
     const classification = await tx.spendClassification.findFirst({
@@ -528,6 +535,7 @@ export async function confirmSelectedSpendClassifications(
   userId: string,
   input: { classificationIds: string[]; categoryId: string; reason?: string | null },
 ) {
+  await requireSubscriptionAccess(userId)
   if (input.classificationIds.length === 0 || input.classificationIds.length > 100 ||
     new Set(input.classificationIds).size !== input.classificationIds.length) {
     throw new SpendClassificationReviewError("invalid_bulk_selection")

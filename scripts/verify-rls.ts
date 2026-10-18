@@ -21,6 +21,10 @@ import "./_loadEnv"
 
 import { prismaAdmin } from "../lib/db/admin"
 import { withUserContext } from "../lib/db/withUserContext"
+import { verifyTrialAccessRls } from "@/scripts/verify-rls-trial-access"
+import { assertReviewedIsolatedTarget } from "@/scripts/verify-rls-billing-artifacts"
+
+const rollbackOnlyProbe = process.argv.some((arg) => ["--trial-access-tables", "--trial-access-staged", "--billing-mutations", "--billing-mutations-staged"].includes(arg))
 
 const USER_A = "00000000-0000-0000-0000-00000000000a"
 const USER_B = "00000000-0000-0000-0000-00000000000b"
@@ -1035,6 +1039,26 @@ function fail(msg: string): never {
 }
 
 async function main() {
+  if (process.argv.includes("--billing-mutations") || process.argv.includes("--billing-mutations-staged")) {
+    // Explicit future review acknowledgement; never infer isolation from env or
+    // silently connect to the existing shared development target for new probes.
+    assertReviewedIsolatedTarget(process.argv, process.env.SUPABASE_PROJECT_REF)
+    if (process.argv.includes("--trial-access-tables") || process.argv.includes("--trial-access-staged") ||
+      (process.argv.includes("--billing-mutations") && process.argv.includes("--billing-mutations-staged"))) {
+      throw new Error("Choose one rollback-only verification mode")
+    }
+    await verifyTrialAccessRls(process.argv.includes("--billing-mutations-staged"), false, true)
+    return
+  }
+  if (process.argv.includes("--trial-access-tables")) {
+    await verifyTrialAccessRls(false, true)
+    return
+  }
+  if (process.argv.includes("--trial-access-staged")) {
+    await verifyTrialAccessRls(true)
+    return
+  }
+  await verifyTrialAccessRls(false, false, true)
   console.log("Seeding…")
   await cleanup() // in case a previous run left rows
   await seed()
@@ -1802,7 +1826,7 @@ async function main() {
 main()
   .catch(async (err) => {
     console.error(err)
-    await cleanup().catch(() => {})
+    if (!rollbackOnlyProbe) await cleanup().catch(() => {})
     process.exit(1)
   })
   .finally(async () => {

@@ -1,6 +1,7 @@
 import "server-only"
 
 import { withUserContext } from "@/lib/db/withUserContext"
+import { getFinancialJobAccessSkip } from "@/lib/billing/financialJobAccess"
 import {
   classifySpendWithJev,
   type JevCategoryOption,
@@ -25,6 +26,7 @@ type RequestContext = {
 export type JevRequestResult =
   | { status: "opted_out" }
   | { status: "not_eligible" }
+  | { status: "skipped"; reason: "no_access" }
   | { status: "requested"; result: JevClassification }
 
 const SAFE_TEXT_LIMIT = 160
@@ -126,10 +128,12 @@ export async function requestJevSuggestionForSpend(
   sourceRecordId: string,
   client?: JevSdkClient,
 ): Promise<JevRequestResult> {
+  if (await getFinancialJobAccessSkip(userId, null)) return { status: "skipped", reason: "no_access" }
   const request = await loadOptedInRequestContext(userId, sourceType, sourceRecordId)
   if (!request.optedIn) return { status: "opted_out" }
   if (!request.context) return { status: "not_eligible" }
 
+  if (await getFinancialJobAccessSkip(userId, null)) return { status: "skipped", reason: "no_access" }
   const result = await classifySpendWithJev(request.context.state, request.context.categories, client)
   return { status: "requested", result }
 }

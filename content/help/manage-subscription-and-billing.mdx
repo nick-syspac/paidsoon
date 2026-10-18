@@ -2,44 +2,79 @@
 title: Manage billing and subscription
 description: Upgrade, downgrade, or cancel your PaidSoon subscription from the subscription settings page.
 owner: help-content
-lastVerified: 2026-09-09
+lastVerified: 2026-10-17
 guideSection: billing-subscription
 guideOrder: 1
 ---
 
-Use subscription settings to manage your current plan, billing status, and renewal behavior.
+Use subscription settings to review application access separately from your Stripe billing plan, status, and renewal behavior.
+
+> Rollout in progress: the customer access display, billing recovery interface, API gates, and job checks described here are present in the working change, not a deployed guarantee. Database validation/application, owner management UI, and release verification remain outstanding. This guide's copy was checked against source on 17 October 2026, not a live account or screenshots.
 
 ## Before you start
 
 - Sign in to PaidSoon and open **Settings → Subscription** (`/dashboard/settings/subscription`).
-- Have the billing owner role for your account so you can confirm plan changes.
+- Manage only your own signed-in account. A temporary grant is not a purchased subscription.
 
 ## Steps
 
-1. Review your **Current plan** card and billing status.
+1. Review **Application access**, then the separate **Stripe billing plan** card. Without a linked subscription, the card is labeled **Billing plan selection (not purchased)**.
 2. Select another plan to start a change:
-   - **Upgrade** opens Stripe checkout to apply the change immediately.
-   - **Downgrade** schedules the change for your next renewal date.
+   - Review the **Upgrade** or **Downgrade** confirmation and its feature/limit changes before continuing.
+   - Upgrade and downgrade decisions use the billing plan, not a temporary granted plan. Stripe verification determines the actual change; a selected plan alone does not activate access.
 3. Use **Manage billing** to open the Stripe customer portal for card and invoice administration.
 4. If needed, choose **Cancel subscription** (or **End free trial**) and confirm on the cancellation flow.
 
 ## What you'll see
 
-- Success messages after completed changes.
-- Scheduled downgrade notices showing the effective date.
-- Current status labels such as active, trialing, past due, or cancelled.
+- The effective plan and access source in **Application access** and, for grant/onboarding/Stripe-trial access, the dashboard banner. The banner links to **Review billing →**.
+- A separate billing plan, raw status, recorded Stripe trial end when available, and renewal/cancellation or scheduled downgrade dates. A grant does not rewrite those details or turn a canceled or paused subscription back on.
+- Success messages for confirmed outcomes, or status/recovery guidance when an outcome cannot yet be confirmed.
+
+## Temporary application access is not a Stripe trial extension
+
+**Temporary PaidSoon grant** means time-bounded application access to the named plan. The display says **PaidSoon access only until … — Stripe billing unchanged** and explains that the grant does not postpone charges or purchase a subscription. A debt-free canceled or paused account can have a grant without its Stripe subscription being resumed or restarted.
+
+Only a confirmed extension of a suitable **Stripe trial** changes that trial's first-billing timing through Stripe. A grant, onboarding selection, pending billing request, or later application-access date is not evidence that a Stripe charge moved. Review the separate recorded Stripe trial end and billing details. If Stripe still reports `trialing` after a missing or stale recorded date, the display says trial end and first-payment timing are **pending reconciliation**; that local date does not independently end the Stripe trial.
+
+**Onboarding trial** is the existing bounded signup access, not a Stripe subscription or charge date. Selecting a plan during onboarding only carries purchase intent to Checkout. Selection/completion does not activate that plan, restart the trial, or automatically create a Stripe customer/session/subscription; the Checkout button requires an explicit action.
+
+### Current plan and later continuity can differ
+
+The headline names the currently preferred plan/source. A separate **Independent … continuity** line can show a later valid source with its own plan and expiry. For example, a Business Control Stripe trial ending on 18 October can coexist with Small Business grant continuity until 23 October. That is not Business Control Stripe-trial access extended to 23 October and does not postpone Stripe charges. A longer independent onboarding trial is likewise shown with its own plan/date.
+
+Application and recorded Stripe-trial instants include date, time to seconds, and **UTC**. Billing renewal, cancellation, and downgrade dates use date-only formatting; do not treat those as exact grant-expiry timestamps.
+
+### Precedence, restrictions, expiry, and usage
+
+- A real active paid Stripe plan takes precedence; a retained grant cannot upgrade, downgrade, or replace it. Paid/grace access has no grant-derived cutoff.
+- Past-due grace keeps the billing plan and payment warning, without grant enhancement. Unpaid/incomplete billing and unresolved subscription-billing debt or unresolved/lost charge disputes suppress grant access, even after cancellation. Unknown billing/risk states cannot authorize a grant. A dispute on one of your debtor invoices is different from a dispute about your PaidSoon subscription.
+- Revoking a grant removes only that grant. Independent paid access, a Stripe trial, or still-valid onboarding access remains. A **Separate grant record** can remain visible after expiry/revocation; its presence alone does not establish access.
+- Grant access applies from its start until, but not including, its expiry instant. Expiry/revocation is checked on new requests and job execution, without waiting for cleanup. Without another valid source, the page shows **Application access unavailable**; billing settings and recovery remain reachable.
+- Existing plan features/readiness limits still apply. Extending or changing the current grant does not reset its chase window or consumed usage. A fresh grant after lapse/revocation starts a new window, but an already-chased invoice does not consume another first-chase unit just because the window changed. Monthly AI usage and usage logs are not cleared.
+- Capacity exhaustion alone holds new first chases while underway sequences continue with valid access. Loss of access stops even underway sends, preserving invoice/sequence state for later authorized continuation. Restoration does not promise an immediate send or bypass normal scheduling/deduplication.
 
 ## What happens next
 
-- Upgrades take effect immediately after successful Stripe checkout.
+- Confirmed upgrades follow the existing Stripe billing workflow and proration; opening a hosted page alone is not completion.
 - Downgrades apply at the next billing boundary unless cancelled before that date.
 - Cancellation schedules end-of-term access unless your flow states immediate trial end.
 
 ## Common problems
 
 - **I cannot see upgrade options**: Confirm you are on the subscription page while signed in.
-- **Manage billing does not open**: Disable popup blockers and try again.
+- **Manage billing does not open, or the connection was lost**: Do not repeatedly start new billing requests. Review your current billing details and contact support if the result is unclear.
 - **Plan did not change yet**: Scheduled downgrades apply at renewal, not immediately.
+
+## Billing request recovery — rollout in progress
+
+The converted billing routes and recovery controls are present in the working change; rollout and release checks are still pending. A **pending** or **cannot confirm** message means the request's outcome is unknown. It does **not** mean a charge succeeded or failed, a plan changed, cancellation completed, or access was extended or removed. Opening a Stripe checkout or billing portal alone does not complete a subscription change.
+
+The interface retains the same request identity in the signed-in browser tab after a lost response. It checks status a limited number of times using read-only requests. **Check billing request status** performs another read. **Reconcile this billing request**, when offered, makes one explicit recovery attempt for the stored request; reconciliation never runs automatically.
+
+If billing details or another pending request conflict, review refreshed details rather than starting a replacement request. If the outcome remains unclear, contact support. Do not clear browser storage or sign in as another account to try to bypass a pending request. Recovery is scoped to the authenticated account; it cannot recover another account's request.
+
+The signed-in billing recovery entry point is `/billing/checkout`, outside the dashboard's subscription-access gate. The notice links to **Open billing recovery without dashboard access**. A pending outcome does not itself postpone Stripe charges or change existing access dates.
 
 ## Related tutorial
 

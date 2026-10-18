@@ -29,9 +29,15 @@ let reminderRow: {
 } | null = null
 let sentMessages: Array<{ to: string; subject: string }> = []
 const auditEvents: Array<{ eventType: string }> = []
+let accessChecks = 0
+let denyAtCheck = Number.POSITIVE_INFINITY
 
 describe("DepositGuard reminder delivery", () => {
   before(async () => {
+    await mock.module("@/lib/billing/financialJobAccess", { namedExports: {
+      getFinancialJobAccessSkip: async () => ++accessChecks >= denyAtCheck
+        ? { status: "skipped", reason: "no_access" } : null,
+    } })
     // @ts-expect-error node:test module mock typings are narrower than this runtime stub
     await mock.module("@/lib/db/admin", {
       exports: {
@@ -72,6 +78,8 @@ describe("DepositGuard reminder delivery", () => {
   })
 
   beforeEach(() => {
+    accessChecks = 0
+    denyAtCheck = Number.POSITIVE_INFINITY
     sentMessages = []
     auditEvents.length = 0
     reminderRow = {
@@ -101,6 +109,17 @@ describe("DepositGuard reminder delivery", () => {
       },
     }
   })
+
+  for (const boundary of [1, 2]) {
+    test(`denied access at boundary ${boundary} retains pending delivery without send or success event`, async () => {
+      denyAtCheck = boundary
+      const { processDepositReminder } = await import("@/lib/depositGuard/reminderDelivery")
+      assert.deepEqual(await processDepositReminder("rem_1"), { status: "skipped", reason: "no_access" })
+      assert.equal(reminderRow?.deliveryStatus, "pending")
+      assert.equal(sentMessages.length, 0)
+      assert.equal(auditEvents.length, 0)
+    })
+  }
 
   test("sends a due reminder and records audit output", async () => {
     const { processDepositReminder } = await import("@/lib/depositGuard/reminderDelivery")

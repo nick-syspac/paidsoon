@@ -11,6 +11,14 @@ let sendOwnersDigest: any
 
 describe("sendOwnersDigest", () => {
   before(async () => {
+    await mock.module("@/lib/billing/effectiveAccessSystem", {
+      namedExports: {
+        getEffectiveAccessForSystem: async () => ({ allowAccess: true, effectiveTier: "small_business" }),
+      },
+    })
+    await mock.module("@/lib/ownersDigest/entitlements", {
+      namedExports: { OwnersDigestAccessError: class extends Error {} },
+    })
     await mock.module("resend", {
       namedExports: {
         Resend: class {

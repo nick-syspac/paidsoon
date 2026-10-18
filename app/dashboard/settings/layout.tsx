@@ -12,7 +12,11 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   if (!user) redirect("/sign-in")
 
   const tier = await getSubscriptionTier(user.id)
-  const groups = getVisibleSettingsNavGroups(tier)
+  const groups = tier === null
+    ? [{ id: "general", label: "Billing", items: [{
+        href: "/dashboard/settings/subscription", label: "Subscription", group: "general", order: 1,
+      }] }]
+    : getVisibleSettingsNavGroups(tier)
 
   return (
     <div className="space-y-6">

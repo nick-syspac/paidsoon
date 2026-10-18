@@ -28,7 +28,10 @@ function mapKnownAccessError(error: unknown): NextResponse | null {
   return null
 }
 
-export async function GET(): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const PUT = withSubscriptionAccess(PUTHandler)
+async function GETHandler(): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -50,7 +53,7 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function PUT(request: Request): Promise<NextResponse> {
+async function PUTHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

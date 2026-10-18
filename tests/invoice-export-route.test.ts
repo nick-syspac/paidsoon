@@ -1,3 +1,4 @@
+import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
 /**
  * Integration tests for the invoice export API route
  * (openspec/changes/add-invoice-export).
@@ -10,6 +11,7 @@ import assert from "node:assert/strict"
 
 let mockUser: { id: string } | null = { id: "user-123" }
 let mockSubscriptionTier = "small_business"
+let mockSubscriptionStatus = "active"
 let mockInvoices: Record<string, unknown>[] = []
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,6 +58,15 @@ function makeInvoice(overrides: Record<string, unknown> & { id: string }) {
 
 describe("GET /api/invoices/export", () => {
   before(async () => {
+    await mock.module("@/lib/billing/effectiveAccessLoader", {
+      namedExports: {
+        getEffectiveAccess: async () => resolveEffectiveAccess({
+          profile: { subscriptionTier: mockSubscriptionTier, subscriptionStatus: mockSubscriptionStatus,
+            stripeSubscriptionId: "sub-test", trialEndsAt: null, billingAccessVersion: 0 },
+          grant: null, billingRisks: [],
+        }, new Date("2026-10-14T12:00:00Z")),
+      },
+    })
     await mock.module("@/lib/supabase/server", {
       namedExports: {
         createClient: async () => ({
@@ -66,17 +77,32 @@ describe("GET /api/invoices/export", () => {
 
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
-        withUserContext: async (_userId: string, fn: (tx: unknown) => unknown) => {
+        withUserContext: async (userId: string, fn: (tx: unknown) => unknown) => {
+          assert.equal(userId, "user-123")
           const tx = {
             userProfile: {
               findUnique: async () => ({
                 subscriptionTier: mockSubscriptionTier,
-                subscriptionStatus: "active",
+                subscriptionStatus: mockSubscriptionStatus,
+                stripeSubscriptionId: "sub-test",
+                billingAccessVersion: 0,
                 subscriptionCurrentPeriodStart: null,
                 subscriptionCurrentPeriodEnd: null,
                 trialEndsAt: null,
                 createdAt: new Date("2026-01-01"),
               }),
+            },
+            tenantTrialGrant: {
+              findUnique: async (args: { where: { userId: string } }) => {
+                assert.deepEqual(args.where, { userId })
+                return null
+              },
+            },
+            tenantBillingRisk: {
+              findMany: async (args: { where: { userId: string } }) => {
+                assert.deepEqual(args.where, { userId })
+                return []
+              },
             },
             trackedInvoice: {
               findMany: async () => mockInvoices,
@@ -101,6 +127,7 @@ describe("GET /api/invoices/export", () => {
   beforeEach(() => {
     mockUser = { id: "user-123" }
     mockSubscriptionTier = "small_business"
+    mockSubscriptionStatus = "active"
     mockInvoices = [makeInvoice({ id: "1" }), makeInvoice({ id: "2", provider: "xero" })]
   })
 
@@ -141,6 +168,11 @@ describe("GET /api/invoices/export", () => {
     assert.match(body, /invoice_reference/)
     assert.match(body, /ext-1/)
     assert.match(body, /ext-2/)
+  })
+
+  test("retained export tier alone cannot authorize a canceled subscription", async () => {
+    mockSubscriptionStatus = "canceled"
+    assert.equal((await GET(makeRequest("format=csv"))).status, 403)
   })
 
   test("returns an XLSX file with the correct content type and filename", async () => {

@@ -14,7 +14,9 @@ const QuerySchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 })
 
-export async function GET(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

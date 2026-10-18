@@ -4,7 +4,10 @@ import { requireFeature } from "@/lib/billing"
 import { detectCommitmentCandidates, listDetectedCommitmentCandidates } from "@/lib/commitguard/detection"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET(): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const POST = withSubscriptionAccess(POSTHandler)
+async function GETHandler(): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -32,7 +35,7 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function POST(): Promise<NextResponse> {
+async function POSTHandler(): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

@@ -1,3 +1,4 @@
+import { requireSubscriptionAccess } from "@/lib/billing/accessGuard"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { lockSpendClassificationTenant } from "@/lib/spendClassification/locks"
@@ -117,6 +118,7 @@ export async function createSpendCategory(
   userId: string,
   input: { name: string; description?: string | null },
 ) {
+  await requireSubscriptionAccess(userId)
   const normalizedName = assertCategoryName(input.name)
 
   return withUserContext(userId, async (tx) => {
@@ -151,6 +153,7 @@ export async function createSpendCategory(
 }
 
 export async function renameSpendCategory(userId: string, categoryId: string, name: string) {
+  await requireSubscriptionAccess(userId)
   const normalizedName = assertCategoryName(name)
 
   return withUserContext(userId, async (tx) => {
@@ -183,6 +186,7 @@ export async function renameSpendCategory(userId: string, categoryId: string, na
 }
 
 export async function retireSpendCategory(userId: string, categoryId: string) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await lockSpendClassificationTenant(tx, userId)
 
@@ -204,6 +208,7 @@ export async function retireSpendCategory(userId: string, categoryId: string) {
 }
 
 export async function mergeSpendCategories(userId: string, sourceCategoryId: string, targetCategoryId: string) {
+  await requireSubscriptionAccess(userId)
   if (sourceCategoryId === targetCategoryId) throw new SpendCategoryError("category_merge_self")
 
   return withUserContext(userId, async (tx) => {

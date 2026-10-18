@@ -1,9 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
+import { countActiveInvoiceSources, getInvoiceSourceLimitForTier, getSubscriptionTier } from "@/lib/billing"
+import { NO_SUBSCRIPTION_ACCESS } from "@/lib/billing/accessGuard"
 import { NextResponse } from "next/server"
 
-export async function GET() {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -15,24 +18,14 @@ export async function GET() {
     )
   }
 
-  const { subscriptionTier, activeConnections } = await withUserContext(
+  const tier = await getSubscriptionTier(user.id)
+  if (tier === null) return NextResponse.json(NO_SUBSCRIPTION_ACCESS, { status: 403 })
+  const activeConnections = await withUserContext(
     user.id,
-    async (tx) => {
-      // Sequential, not Promise.all: queries on a single interactive
-      // transaction's `tx` share one underlying pg connection.
-      const profile = await tx.userProfile.findUnique({
-        where: { userId: user.id },
-        select: { subscriptionTier: true },
-      })
-      const activeConnections = await countActiveInvoiceSources(tx, user.id)
-      return {
-        subscriptionTier: profile?.subscriptionTier,
-        activeConnections,
-      }
-    },
+    (tx) => countActiveInvoiceSources(tx, user.id),
   )
 
-  const maxConnections = getInvoiceSourceLimitForTier(subscriptionTier)
+  const maxConnections = getInvoiceSourceLimitForTier(tier)
   if (activeConnections >= maxConnections) {
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/connections?source=stripe&code=connection_limit_reached`,

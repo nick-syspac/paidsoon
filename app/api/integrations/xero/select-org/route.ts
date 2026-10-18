@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
+import { countActiveInvoiceSources } from "@/lib/billing"
+import { requireInvoiceSourceLimit } from "@/lib/billing/invoiceSourceAccess"
+import { SubscriptionAccessError } from "@/lib/billing/accessGuard"
 import { syncConnection } from "@/lib/providers/accounting/sync"
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
@@ -32,7 +34,9 @@ function redirectWithCode(code: string): NextResponse {
   )
 }
 
-export async function POST(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -78,6 +82,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   let connectionId: string | null = null
   try {
     await withUserContext(user.id, async (tx) => {
+      const maxConnections = await requireInvoiceSourceLimit(tx, user.id)
       const existing = await tx.accountingConnection.findUnique({
         where: {
           userId_provider_organisationId: {
@@ -90,11 +95,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       })
 
       if (!existing) {
-        const profile = await tx.userProfile.findUnique({
-          where: { userId: user.id },
-          select: { subscriptionTier: true },
-        })
-        const maxConnections = getInvoiceSourceLimitForTier(profile?.subscriptionTier)
         const activeConnections = await countActiveInvoiceSources(tx, user.id)
         if (activeConnections >= maxConnections) {
           throw new Error("CONNECTION_LIMIT_REACHED")
@@ -134,6 +134,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       connectionId = connection.id
     })
   } catch (err) {
+    if (err instanceof SubscriptionAccessError) {
+      return NextResponse.json(err.result, { status: 403 })
+    }
     if (err instanceof Error && err.message === "CONNECTION_LIMIT_REACHED") {
       return redirectWithCode("connection_limit_reached")
     }

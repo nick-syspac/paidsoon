@@ -11,6 +11,10 @@
 import { createClient } from "@supabase/supabase-js"
 import { prismaAdmin } from "@/lib/db/admin"
 import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
+import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
+import { readPlatformOwnerAccess } from "@/lib/billing/platformOwnerAccess"
+import { EFFECTIVE_ACCESS_GRANT_SELECT, EFFECTIVE_ACCESS_RISK_SELECT } from "@/lib/billing/effectiveAccessSnapshot"
+import { safeTrialAccessSnapshot, type SafeTrialPreviewSnapshot } from "@/lib/billing/trialAccessPreview"
 import type {
   UserProfile,
   Schedule,
@@ -54,6 +58,8 @@ export interface TenantSnapshot {
   recentEmailLogs: SafeEmailLog[]
   supabaseEmail: string
   supabaseLastSignIn: string | null
+  /** Persisted health facts only; no owner journal/contact/Stripe preflight. */
+  subscriptionAccess: SafeTrialPreviewSnapshot | null
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +119,22 @@ export async function fetchTenantSnapshot(userId: string): Promise<TenantSnapsho
 
   if (!profile) return null
 
+  // Narrow privileged health reads for already-authorized admin staff. Select
+  // only access facts, never operator reasons, operation IDs or provider IDs.
+  // An unavailable access store must not take down the existing health view.
+  let subscriptionAccess: SafeTrialPreviewSnapshot | null = null
+  try {
+    const [grant, billingRisks] = await Promise.all([
+      prismaAdmin.tenantTrialGrant.findUnique({ where: { userId }, select: EFFECTIVE_ACCESS_GRANT_SELECT }),
+      prismaAdmin.tenantBillingRisk.findMany({ where: { userId }, select: EFFECTIVE_ACCESS_RISK_SELECT }),
+    ])
+    subscriptionAccess = safeTrialAccessSnapshot(
+      resolveEffectiveAccess({ profile, grant, billingRisks, platformOwnerAccess: await readPlatformOwnerAccess(userId) }, new Date()), profile,
+    )
+  } catch {
+    // Null is explicitly unavailable, not an absent grant or an access decision.
+  }
+
   // Build invoice counts
   const invoiceCounts: InvoiceCounts = {
     pending: 0,
@@ -164,5 +186,6 @@ export async function fetchTenantSnapshot(userId: string): Promise<TenantSnapsho
     recentEmailLogs: recentEmailLogRows,
     supabaseEmail,
     supabaseLastSignIn,
+    subscriptionAccess,
   }
 }

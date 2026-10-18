@@ -24,7 +24,10 @@ const actionSchema = z
   })
   .strict()
 
-export async function PATCH(
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+import { requireSubscriptionAccess, SubscriptionAccessError } from "@/lib/billing/accessGuard"
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function PATCHHandler(
   request: Request,
   context: { params: Promise<{ requestId: string }> },
 ): Promise<NextResponse> {
@@ -99,6 +102,17 @@ export async function POST(
 
   try {
     const requestId = parsedParams.data.requestId
+    // Only cancellation is cleanup. Sending/resending must authorize before service side effects.
+    if (parsedBody.data.action !== "cancel") {
+      try {
+        await requireSubscriptionAccess(user.id)
+      } catch (error) {
+        if (error instanceof SubscriptionAccessError) {
+          return NextResponse.json(error.result, { status: 403 })
+        }
+        return NextResponse.json({ error: "Access verification unavailable" }, { status: 503 })
+      }
+    }
     let updated = null
 
     if (parsedBody.data.action === "send") {

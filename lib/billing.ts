@@ -1,35 +1,51 @@
-import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
+import type { PrismaTx } from "@/lib/db/withUserContext"
+import { getEffectiveAccess } from "@/lib/billing/effectiveAccessLoader"
+import { readPlatformOwnerAccess, readPlatformOwnerAccessForUsers } from "@/lib/billing/platformOwnerAccess"
+import {
+  EFFECTIVE_ACCESS_PROFILE_SELECT,
+  EFFECTIVE_ACCESS_GRANT_SELECT,
+  EFFECTIVE_ACCESS_RISK_SELECT,
+  type EffectiveAccessLoadOptions,
+} from "@/lib/billing/effectiveAccessSnapshot"
+import {
+  resolveEffectiveAccess,
+  type EffectiveAccess,
+  type TrialGrantSnapshot,
+  type BillingRiskSnapshot,
+} from "@/lib/billing/effectiveAccess"
 import {
   DEFAULT_SUBSCRIPTION_TIER,
   getPlanByTier,
   hasPlanFeature,
-  normalizeSubscriptionTier,
   type SubscriptionFeature,
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans"
 import { isNearLimit } from "@/lib/dashboardUpsell"
-import type { PrismaClient } from "@/lib/generated/prisma/client"
+import type { Prisma, PrismaClient } from "@/lib/generated/prisma/client"
 import type Stripe from "stripe"
+import {
+  retrieveSubscriptionWithLatestInvoice,
+  reconcileStripeSubscription,
+  stripeObjectId,
+  type StripeBillingBinding,
+  type VerifiedStripeSnapshot,
+} from "@/lib/billing/stripeSubscriptions"
 
 export async function getSubscriptionTier(
   userId: string,
-): Promise<SubscriptionTier> {
-  const profile = await withUserContext(userId, (tx) =>
-    tx.userProfile.findUnique({
-      where: { userId },
-      select: { subscriptionTier: true },
-    }),
-  )
-
-  return normalizeSubscriptionTier(profile?.subscriptionTier)
+  options: EffectiveAccessLoadOptions = {},
+): Promise<SubscriptionTier | null> {
+  const access = await getEffectiveAccess(userId, options)
+  return access.allowAccess ? access.effectiveTier : null
 }
 
 export async function requireFeature(
   userId: string,
   feature: SubscriptionFeature,
+  options: EffectiveAccessLoadOptions = {},
 ): Promise<boolean> {
-  const tier = await getSubscriptionTier(userId)
-  return hasPlanFeature(tier, feature)
+  const tier = await getSubscriptionTier(userId, options)
+  return tier !== null && hasPlanFeature(tier, feature)
 }
 
 /** Returns the effective invoice limit for a tier. -1 in the plan catalog means unlimited; this returns Number.MAX_SAFE_INTEGER in that case. */
@@ -102,54 +118,15 @@ export const DEFAULT_INVOICE_LIMIT =
 export async function resolveCheckoutCompletion(
   stripe: Stripe,
   session: Stripe.Checkout.Session,
-): Promise<{
-  tier: SubscriptionTier
-  subscriptionId: string
-  customerId: string
-  status: Stripe.Subscription.Status
-  priceId: string | null
-  periodStart: Date | null
-  periodEnd: Date | null
-  trialEndsAt: Date | null
-  subscriptionCancelAt: Date | null
-  subscriptionCancelAtPeriodEnd: boolean
-} | null> {
-  if (!session.subscription) return null
-
-  const tier = normalizeSubscriptionTier(session.metadata?.selectedTier)
-  const subscriptionId = session.subscription as string
-  // Fetch subscription and expand latest_invoice to get period_start/period_end
-  // (current_period_start/current_period_end were removed from Subscription
-  // in API 2026-05-27).
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
-    expand: ["latest_invoice"],
+  binding?: StripeBillingBinding,
+): Promise<VerifiedStripeSnapshot | null> {
+  const subscriptionId = stripeObjectId(session.subscription)
+  if (!subscriptionId) return null
+  const subscription = await retrieveSubscriptionWithLatestInvoice(stripe, subscriptionId)
+  const result = reconcileStripeSubscription(subscription, {
+    subscriptionId, sources: [session], binding,
   })
-  const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null
-  const periodStart = latestInvoice?.period_start
-    ? new Date(latestInvoice.period_start * 1000)
-    : null
-  const periodEnd = latestInvoice?.period_end
-    ? new Date(latestInvoice.period_end * 1000)
-    : null
-  const trialEndsAt = subscription.trial_end
-    ? new Date(subscription.trial_end * 1000)
-    : null
-  const subscriptionCancelAt = subscription.cancel_at
-    ? new Date(subscription.cancel_at * 1000)
-    : null
-
-  return {
-    tier,
-    subscriptionId,
-    customerId: session.customer as string,
-    status: subscription.status,
-    priceId: subscription.items.data[0]?.price?.id ?? null,
-    periodStart,
-    periodEnd,
-    trialEndsAt,
-    subscriptionCancelAt,
-    subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
-  }
+  return result.kind === "current" ? result.snapshot : null
 }
 
 // ---------------------------------------------------------------------------
@@ -226,8 +203,15 @@ export interface AllowancePeriod {
 
 /** The subset of UserProfile fields needed to resolve an account's current allowance period. */
 export interface AllowanceAccountSnapshot {
+  /** Internal server fact for pure computations; loaders overwrite it freshly. */
+  platformOwnerAccess?: boolean
   subscriptionTier?: string | null
   subscriptionStatus: string
+  stripeSubscriptionId?: string | null
+  billingAccessVersion?: number
+  /** Optional safe facts for pure computations; loaders read these freshly. */
+  grant?: TrialGrantSnapshot | null
+  billingRisks?: readonly BillingRiskSnapshot[]
   subscriptionCurrentPeriodStart: Date | null
   subscriptionCurrentPeriodEnd: Date | null
   trialEndsAt: Date | null
@@ -273,6 +257,8 @@ export function resolveAllowancePeriod(
 
 export interface ChaseAllowanceStatus {
   period: AllowancePeriod
+  /** False means no usable quota, even if an accounting window/usage exists. */
+  accessAllowed: boolean
   /** Invoices that may enter follow-up in the current period. */
   allowance: number
   /** Invoices that have already consumed allowance this period. */
@@ -294,36 +280,92 @@ export function computeChaseAllowanceStatus(
   firstChasedAtTimestamps: Date[],
   now: Date = new Date(),
 ): ChaseAllowanceStatus {
-  const period = resolveAllowancePeriod(account, now)
-  const allowance = getInvoiceLimitForTier(account.subscriptionTier)
+  const access = allowanceAccess(account, account.grant ?? null, account.billingRisks ?? [], now)
+  const period = effectiveAllowancePeriod(account, access, now)
   const usage = firstChasedAtTimestamps.filter(
     (timestamp) => timestamp >= period.start && timestamp < period.end,
   ).length
-  const remaining = Math.max(allowance - usage, 0)
-  return {
-    period,
-    allowance,
-    usage,
-    remaining,
-    atCapacity: usage >= allowance,
-    nearLimit: isNearLimit(usage, allowance),
-  }
+  return effectiveAllowanceStatus(period, access, usage)
 }
 
 const ALLOWANCE_PROFILE_SELECT = {
-  subscriptionTier: true,
-  subscriptionStatus: true,
+  ...EFFECTIVE_ACCESS_PROFILE_SELECT,
   subscriptionCurrentPeriodStart: true,
   subscriptionCurrentPeriodEnd: true,
-  trialEndsAt: true,
   createdAt: true,
-} as const
+  tenantTrialGrant: { select: EFFECTIVE_ACCESS_GRANT_SELECT },
+} as const satisfies Prisma.UserProfileSelect
+
+function allowanceAccess(
+  account: AllowanceAccountSnapshot,
+  grant: TrialGrantSnapshot | null,
+  billingRisks: readonly BillingRiskSnapshot[],
+  now: Date,
+): EffectiveAccess {
+  return resolveEffectiveAccess({
+    platformOwnerAccess: account.platformOwnerAccess,
+    profile: {
+      subscriptionStatus: account.subscriptionStatus,
+      subscriptionTier: account.subscriptionTier ?? null,
+      stripeSubscriptionId: account.stripeSubscriptionId ?? null,
+      trialEndsAt: account.trialEndsAt,
+      billingAccessVersion: account.billingAccessVersion ?? 0,
+    },
+    grant,
+    billingRisks,
+  }, now)
+}
+
+function effectiveAllowancePeriod(
+  account: AllowanceAccountSnapshot,
+  access: EffectiveAccess,
+  now: Date,
+): AllowancePeriod {
+  // Expiry provenance may belong to a later independent source. Only the
+  // currently effective grant anchors grant accounting, never that later expiry.
+  if (access.source === "admin_grant" && access.grant?.startsAt && access.grant.expiresAt) {
+    return { start: access.grant.startsAt, end: access.grant.expiresAt }
+  }
+  return resolveAllowancePeriod(account, now)
+}
+
+function effectiveAllowanceStatus(
+  period: AllowancePeriod,
+  access: EffectiveAccess,
+  usage: number,
+): ChaseAllowanceStatus {
+  const accessAllowed = access.allowAccess && access.effectiveTier !== null
+  const allowance = accessAllowed ? getInvoiceLimitForTier(access.effectiveTier) : 0
+  return {
+    period,
+    accessAllowed,
+    allowance,
+    usage,
+    remaining: Math.max(allowance - usage, 0),
+    atCapacity: usage >= allowance,
+    nearLimit: accessAllowed && isNearLimit(usage, allowance),
+  }
+}
+
+async function loadAllowanceUsage(
+  tx: PrismaTx | PrismaClient,
+  userId: string,
+  account: AllowanceAccountSnapshot,
+  access: EffectiveAccess,
+  now: Date,
+): Promise<ChaseAllowanceStatus> {
+  const period = effectiveAllowancePeriod(account, access, now)
+  const usage = await tx.trackedInvoice.count({
+    where: { userId, firstChasedAt: { gte: period.start, lt: period.end } },
+  })
+  return effectiveAllowanceStatus(period, access, usage)
+}
 
 /**
  * Resolves a single account's current chase-volume allowance status.
  * Accepts either a `withUserContext` transaction client or `prismaAdmin`
- * directly (task 2.4) — issues one profile lookup and one count query,
- * sequentially.
+ * directly. All reads use the supplied client and explicit tenant scopes;
+ * grant reads select only customer-readable access facts.
  */
 export async function getChaseAllowanceStatus(
   tx: PrismaTx | PrismaClient,
@@ -336,7 +378,13 @@ export async function getChaseAllowanceStatus(
   })
   if (!profile) return null
 
-  return getChaseAllowanceStatusForAccount(tx, userId, profile, now)
+  const risks = await tx.tenantBillingRisk.findMany({
+    where: { userId },
+    select: EFFECTIVE_ACCESS_RISK_SELECT,
+  })
+  const platformOwnerAccess = await readPlatformOwnerAccess(userId)
+  const access = allowanceAccess({ ...profile, platformOwnerAccess }, profile.tenantTrialGrant, risks, now)
+  return loadAllowanceUsage(tx, userId, profile, access, now)
 }
 
 export async function getChaseAllowanceStatusForAccount(
@@ -345,26 +393,22 @@ export async function getChaseAllowanceStatusForAccount(
   account: AllowanceAccountSnapshot,
   now: Date = new Date(),
 ): Promise<ChaseAllowanceStatus> {
-  const period = resolveAllowancePeriod(account, now)
-  const usage = await tx.trackedInvoice.count({
-    where: { userId, firstChasedAt: { gte: period.start, lt: period.end } },
+  const grant = await tx.tenantTrialGrant.findUnique({
+    where: { userId },
+    select: EFFECTIVE_ACCESS_GRANT_SELECT,
   })
-  const allowance = getInvoiceLimitForTier(account.subscriptionTier)
-
-  return {
-    period,
-    allowance,
-    usage,
-    remaining: Math.max(allowance - usage, 0),
-    atCapacity: usage >= allowance,
-    nearLimit: isNearLimit(usage, allowance),
-  }
+  const risks = await tx.tenantBillingRisk.findMany({
+    where: { userId },
+    select: EFFECTIVE_ACCESS_RISK_SELECT,
+  })
+  const platformOwnerAccess = await readPlatformOwnerAccess(userId)
+  return loadAllowanceUsage(tx, userId, account, allowanceAccess({ ...account, platformOwnerAccess }, grant, risks, now), now)
 }
 
 /**
  * Resolves chase-volume allowance status for many accounts in one pass
- * (task 3.1) — one batched profile query and one batched `firstChasedAt`
- * query, rather than two queries per account.
+ * — four batched reads (profiles/current grants, risks, roles, first-chase timestamps),
+ * never N+1. The caller supplies the authorized RLS or system client.
  */
 export async function getChaseAllowanceStatusesForUsers(
   tx: PrismaTx | PrismaClient,
@@ -372,15 +416,35 @@ export async function getChaseAllowanceStatusesForUsers(
   now: Date = new Date(),
 ): Promise<Map<string, ChaseAllowanceStatus>> {
   const statuses = new Map<string, ChaseAllowanceStatus>()
-  if (userIds.length === 0) return statuses
+  const ids = [...new Set(userIds)]
+  if (ids.length === 0) return statuses
 
   const profiles = await tx.userProfile.findMany({
-    where: { userId: { in: userIds } },
+    where: { userId: { in: ids } },
     select: { userId: true, ...ALLOWANCE_PROFILE_SELECT },
   })
+  if (profiles.length === 0) return statuses
+
+  const profileIds = profiles.map((profile) => profile.userId)
+  const risks = await tx.tenantBillingRisk.findMany({
+    where: { userId: { in: profileIds } },
+    select: { userId: true, ...EFFECTIVE_ACCESS_RISK_SELECT },
+  })
+  const risksByUserId = new Map<string, BillingRiskSnapshot[]>()
+  for (const { userId, ...risk } of risks) {
+    const facts = risksByUserId.get(userId) ?? []
+    facts.push(risk)
+    risksByUserId.set(userId, facts)
+  }
+  const owners = await readPlatformOwnerAccessForUsers(profileIds)
+  const accessByUserId = new Map(profiles.map((profile) => [profile.userId,
+    allowanceAccess({ ...profile, platformOwnerAccess: owners.has(profile.userId) }, profile.tenantTrialGrant, risksByUserId.get(profile.userId) ?? [], now),
+  ] as const))
 
   const periodsByUserId = new Map(
-    profiles.map((profile) => [profile.userId, resolveAllowancePeriod(profile, now)] as const),
+    profiles.map((profile) => [profile.userId,
+      effectiveAllowancePeriod(profile, accessByUserId.get(profile.userId)!, now),
+    ] as const),
   )
   const earliestStart = profiles.reduce<Date | null>((min, profile) => {
     const start = periodsByUserId.get(profile.userId)!.start
@@ -390,18 +454,26 @@ export async function getChaseAllowanceStatusesForUsers(
   const firstChases = earliestStart
     ? await tx.trackedInvoice.findMany({
         where: {
-          userId: { in: profiles.map((profile) => profile.userId) },
+          userId: { in: profileIds },
           firstChasedAt: { gte: earliestStart },
         },
         select: { userId: true, firstChasedAt: true },
       })
     : []
 
+  const usageByUserId = new Map<string, number>()
+  for (const { userId, firstChasedAt } of firstChases) {
+    const period = periodsByUserId.get(userId)
+    if (period && firstChasedAt && firstChasedAt >= period.start && firstChasedAt < period.end) {
+      usageByUserId.set(userId, (usageByUserId.get(userId) ?? 0) + 1)
+    }
+  }
   for (const profile of profiles) {
-    const timestamps = firstChases
-      .filter((row) => row.userId === profile.userId && row.firstChasedAt)
-      .map((row) => row.firstChasedAt as Date)
-    statuses.set(profile.userId, computeChaseAllowanceStatus(profile, timestamps, now))
+    statuses.set(profile.userId, effectiveAllowanceStatus(
+      periodsByUserId.get(profile.userId)!,
+      accessByUserId.get(profile.userId)!,
+      usageByUserId.get(profile.userId) ?? 0,
+    ))
   }
 
   return statuses

@@ -15,7 +15,9 @@ const ActionSchema = z
   })
   .strict()
 
-export async function POST(
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {

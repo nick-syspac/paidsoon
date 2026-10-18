@@ -446,7 +446,7 @@ export async function archiveDepositGuardJob(
   userId: string,
   jobId: string,
 ): Promise<{ id: string; archivedAt: Date } | null> {
-  await ensureOperationalAccess(userId)
+  // Destructive recovery remains available without subscription access; tenant RLS stays required.
 
   return withUserContext(userId, async (tx) => {
     const existing = await tx.depositGuardJob.findFirst({

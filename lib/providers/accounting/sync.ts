@@ -40,6 +40,7 @@
 
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
+import { getFinancialJobAccessSkip, type FinancialJobSkip } from "@/lib/billing/financialJobAccess"
 import { findOrCreateCustomer } from "@/lib/db/customers"
 import { detectSpendFindings } from "@/lib/spendleak/engine"
 import { upsertSpendFindings } from "@/lib/spendleak/persist"
@@ -73,6 +74,7 @@ export interface SyncResult {
   spendBillsUpserted: number
   spendTransactionsUpserted: number
   spendSuppliersUpserted: number
+  spendAnalysisSkip?: FinancialJobSkip
   errorMessage?: string
 }
 
@@ -732,6 +734,11 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     result.spendTransactionsUpserted = spendSync.transactionsUpserted
     result.spendSuppliersUpserted = spendSync.suppliersUpserted
 
+    // Ingestion/reconciliation above is operational. Only derived SpendLeak
+    // analysis is subscription-controlled; denial must not abort persistence.
+    const spendAnalysisSkip = await getFinancialJobAccessSkip(connection.userId, "spendleak")
+    if (spendAnalysisSkip) result.spendAnalysisSkip = spendAnalysisSkip
+    else {
     const latestCashSnapshot = await prismaAdmin.cashForecastSnapshot.findFirst({
       where: { userId: connection.userId },
       orderBy: { snapshotAt: "desc" },
@@ -790,6 +797,7 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       result.invoicesSkipped += 1
       const failureSummary = `spend-findings:${err instanceof Error ? err.message : "unknown error"}`
       result.errorMessage = result.errorMessage ? `${result.errorMessage}; ${failureSummary}` : failureSummary
+    }
     }
 
     if (spendSync.failures.length > 0) {

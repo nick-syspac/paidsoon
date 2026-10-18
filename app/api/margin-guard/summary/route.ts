@@ -9,7 +9,9 @@ const QuerySchema = z.object({
   period: z.enum(["30d", "3m", "6m", "12m", "fy"]).optional(),
 })
 
-export async function GET(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

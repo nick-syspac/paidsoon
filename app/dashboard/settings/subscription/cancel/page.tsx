@@ -3,6 +3,7 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { SubscriptionCancellationClient } from "@/components/settings/SubscriptionCancellationClient"
 import { getSubscriptionCancellationPageState } from "@/lib/subscriptionStatusPresentation"
+import { getBillingClientScope } from "@/lib/billing/billingClientSession"
 
 export default async function SubscriptionCancellationPage() {
   const { data: { user } } = await getAuthenticatedUser()
@@ -12,6 +13,7 @@ export default async function SubscriptionCancellationPage() {
     tx.userProfile.findUnique({
       where: { userId: user.id },
       select: {
+        billingAccessVersion: true,
         subscriptionStatus: true,
         subscriptionCurrentPeriodEnd: true,
         subscriptionCancelAt: true,
@@ -21,7 +23,7 @@ export default async function SubscriptionCancellationPage() {
     }),
   )
 
-  const status = profile?.subscriptionStatus ?? "active"
+  const status = profile?.subscriptionStatus ?? "unknown"
   const currentPeriodEnd = profile?.subscriptionCurrentPeriodEnd ?? null
   const subscriptionCancelAt = profile?.subscriptionCancelAt ?? null
   const canCancelSubscription =
@@ -35,5 +37,5 @@ export default async function SubscriptionCancellationPage() {
     canCancelSubscription,
   })
 
-  return <SubscriptionCancellationClient {...pageState} />
+  return <SubscriptionCancellationClient {...pageState} billingAccessVersion={profile?.billingAccessVersion ?? null} billingSessionScope={await getBillingClientScope(user.id)} />
 }

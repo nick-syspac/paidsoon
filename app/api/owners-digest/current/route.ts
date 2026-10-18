@@ -4,7 +4,9 @@ import { requireOwnersDigestCoreAccess } from "@/lib/ownersDigest/entitlements"
 import { getCurrentOwnersDigest } from "@/lib/ownersDigest/service"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET(): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

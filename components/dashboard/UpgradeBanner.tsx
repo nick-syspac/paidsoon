@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useBillingOperation } from "@/components/billing/useBillingOperation"
+import { BillingOperationNotice } from "@/components/billing/BillingOperationNotice"
+import type { BillingClientProps } from "@/lib/billing/clientOperation"
 
 export function UpgradeBanner({
   usage,
@@ -8,28 +10,16 @@ export function UpgradeBanner({
   periodEnd,
   tierName,
   atCapacity,
+  ...billing
 }: {
   usage: number
   allowance: number
   periodEnd: Date
   tierName: string
   atCapacity: boolean
-}) {
-  const [loading, setLoading] = useState(false)
-
-  async function handleUpgrade() {
-    setLoading(true)
-    const res = await fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tier: "business_control" }),
-    })
-    const data = await res.json()
-    if (data.url) {
-      window.location.href = data.url
-    }
-    setLoading(false)
-  }
+} & BillingClientProps) {
+  const operation = useBillingOperation(billing)
+  const { loading } = operation
 
   const resetDate = new Date(periodEnd).toLocaleDateString("en-AU", {
     day: "numeric",
@@ -37,7 +27,8 @@ export function UpgradeBanner({
   })
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center justify-between gap-4">
+    <div className="space-y-3">
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-4">
       <div>
         {atCapacity ? (
           <>
@@ -60,12 +51,14 @@ export function UpgradeBanner({
         )}
       </div>
       <button
-        onClick={handleUpgrade}
+        onClick={() => void operation.start({ path: "/api/billing/checkout", method: "POST", body: { tier: "business_control" } })}
         disabled={loading}
         className="shrink-0 bg-amber-600 text-white text-sm px-3 py-1.5 rounded-md hover:bg-amber-700 disabled:opacity-50"
       >
         {loading ? "Loading..." : "Upgrade to Business Control — $29/mo"}
       </button>
+      </div>
+      <BillingOperationNotice operation={operation} />
     </div>
   )
 }

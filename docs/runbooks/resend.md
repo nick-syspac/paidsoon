@@ -122,3 +122,91 @@ After both Resend and Vercel are configured:
 - **Rotating the API key**: create a new key in Resend, update Vercel + `.env.local`, delete the old key. No downtime if you keep the old key alive for a few seconds during the swap.
 - **Re-verifying the domain**: only needed if DNS records are accidentally deleted at the registrar. Re-add them and wait for Verified status.
 - **Switching domains** (e.g. `paidsoon.com` → `paidsoon.app`): repeat §1 for the new domain, change `RESEND_FROM_EMAIL` in Vercel Production, redeploy. The old domain can be removed once no scheduled emails reference it.
+
+---
+
+## 7. Trial-access notifications — in progress, not rolled out
+
+Runtime contact/template/transport/outbox services are present in the working
+tree; this is not rollout approval or a live-send instruction. Pending
+migrations/CHECKs/full RLS and isolated checks (3.8/3.9/9.3), tasks 5/6/8 and release
+verification remain gates. See [admin §9](./admin.md#9--trial-access-operations--in-progress-not-rolled-out)
+and the [release checklist](./vercel.md#12-trial-access-and-customer-billing-journal-release-gate).
+Generic test-email instructions in §5 do not authorize trial notification sends.
+
+### 7.1 Recipient, content and existing configuration
+
+- `notify` defaults false: no outbox or send unless selected. Requested outbox
+	creation commits with completed access/audit; delivery is attempted after
+	commit through [the delivery service](../../lib/email/trialAccessDelivery.ts),
+	never from a route or as a fake invoice reminder/`EmailLog`.
+- Prefer the live, identity-consistent linked Stripe billing customer's valid
+	email/name (`stripe_billing`). Verification means matching customer ID and no
+	conflicting tenant metadata, **not** a claim Stripe verified inbox ownership.
+	Missing/deleted/unreadable/invalid Stripe contact may use the same tenant's
+	non-deleted Supabase owner email (`owner_fallback`), explicitly labeled with no
+	invented name. Contact fallback does not prove billing eligibility. Never use
+	debtor/Connect contacts, reminder `fromEmail`, sender name or reply-to.
+- Snapshot contact is read-only. Before first dispatch persist recipient/name/
+	provenance, then exact `from`, `to`, `subject`, `html`, `text` and stable
+	`trial-access/<operationId>` key. Retries reuse frozen recipient/payload/key;
+	changed contacts, sender/app URL settings or plan state cannot retarget mail.
+- Sanitized copy includes applicable plan, UTC exclusive expiry and subscription
+	link. Stripe-extension copy explains changed first-billing timing and unchanged
+	plan, not waived future charges. Application-only copy explicitly leaves Stripe
+	billing/charges unchanged. Revocation describes only grant removal and recorded
+	independent remaining access. Internal reason, audit/provider IDs and keys are
+	excluded from customer copy.
+- Reuse `RESEND_API_KEY`, valid system `RESEND_FROM_EMAIL`, optional
+	`RESEND_FROM_NAME` (default `PaidSoon`) and `NEXT_PUBLIC_APP_URL`. If app URL is
+	unset, `VERCEL_URL` is used as an HTTPS hostname. Configured app URL must be an
+	origin (root path), HTTPS except local HTTP, without credentials/query/fragment;
+	link is `/dashboard/settings/subscription`, not the marketing site URL.
+	Existing Stripe billing credentials and `SUPABASE_SECRET_KEY` support contact
+	reads. Use the [existing env matrix](./README.md#environment-variable-matrix),
+	verified sender/domain and sandbox recipient restriction above. **No new secret
+	or feature flag.** Existing `RESEND_WEBHOOK_SECRET` concerns the `EmailLog`
+	webhook; it does not reconcile this outbox's unknown outcomes.
+
+### 7.2 Delivery states and explicit retry
+
+Access result and delivery are independent. Access remains `succeeded` even if
+mail is failed/blocked/unknown. Immutable access `notificationStatus` records
+`pending`/`not_requested`; optional confirmation `notification.status` reports the
+post-commit attempt. Status GET returns current outbox `notificationStatus`.
+Post-commit persistence failure can return a separate `notification.status: unknown`
+without rewriting access; inspect stored status/evidence before any retry.
+
+| Delivery state/evidence | Actual behavior and operator action |
+| --- | --- |
+| `not_requested` | No opt-in, no send; retry does not enable notification. |
+| `pending` | Initial automatic attempt only; untouched contact/payload may initialize before dispatch. |
+| `sending` | Durable 60-second lease/fence prevents concurrent sends. A live claim returns current status; lease expiry is uncertainty, not proof of non-send. |
+| `sent` | Valid provider message ID persisted; retry is a no-op. Means Resend accepted the send, not proof of inbox delivery. |
+| `failed` | Retry only when stored evidence is definitively unsent (`unsent/` plus allowlisted `invalid_payload`, `invalid_key`, `reserved_recipient`, `missing_configuration`, `provider_rejected`). Failed status alone is insufficient. |
+| `unknown` | Possible prior acceptance: identical replay only while strictly before original `firstAttemptAt + 24 hours`, with valid frozen evidence and non-obsolete content. At equality or later, remain unknown (`provider_reconciliation_required`), blocked from sending pending provider investigation. Never claim exactly-once after key expiry. |
+| `blocked` | No contact: `trial_notification_contact_unavailable`; no send and retry does not silently look up a new address. Configuration/render failure: `trial_notification_configuration_unavailable`; a proven-unsent, never-attempted row with frozen contact may render after config repair. Not every blocked row is automatically retryable. |
+| `superseded` | Obsolete unsent notification is suppressed/no-op. Expired/revoked/replaced grants, changed Stripe binding/plan/expiry or changed remaining-access copy cannot send stale success mail. Obsolete unknown prior attempts stay `unknown` for investigation, not falsely declared unsent. |
+
+Confirmed-unsent failures may retry even after 24 hours if still accurate, because
+nonacceptance is proven; they reuse the same frozen payload/key and never reset
+`firstAttemptAt`. Unknown prior acceptance cannot be made unsent by a later
+rejection. Transport accepts `sent` only with valid message ID and no SDK error;
+error-valued SDK responses are inspected. Only allowlisted name/status rejection
+evidence is `not_sent`; idempotency conflicts, unclassified errors, timeouts and
+malformed/contradictory responses remain uncertain. HTTP status alone is not proof.
+
+User retry is POST `{}` to
+`/api/admin/tenants/[id]/trial-access/operations/[operationId]/notification/retry`.
+It requires original actor/**original session**, current owner authority and same
+origin; fresh-session status/Stripe recovery permission does not extend to mail.
+Success transport is 200 `{operationId,notification:{status}}`, including blocked/
+failed/unknown outcomes, not 202/502 based on email state. Safe route projection
+omits internal failure details. Inspect restricted delivery/audit evidence instead.
+Claims/results append mandatory `trial_notification` audit with executor and phase;
+initial acceptance/audit must commit before provider send. Automatic post-commit
+execution does not retry failed/unknown rows; no scheduled notification retry or
+provider reconciliation endpoint is introduced. Investigate late unknowns in
+restricted provider logs; never edit recipients/evidence, reset attempts/keys or
+repeat the access change to force another email. Any fresh communication needs
+separately reviewed accurate intent, not a fabricated retarget action.
