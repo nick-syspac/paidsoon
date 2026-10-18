@@ -125,6 +125,76 @@ enum SpendDirection {
   unknown
 }
 
+// Public plans only; grants never use legacy aliases or the contact-only tier.
+enum TenantTrialPlan {
+  essentials
+  business_control
+  small_business
+  business_pro
+}
+
+enum TenantTrialAction {
+  extend_or_grant
+  revoke_grant
+}
+
+enum TenantTrialMutationSource {
+  stripe_trial
+  admin_grant
+}
+
+enum TenantTrialOperationStatus {
+  previewed
+  pending
+  reconciliation_required
+  succeeded
+  failed
+  conflicted
+  expired_preview
+}
+
+enum TenantTrialNotificationStatus {
+  not_requested
+  pending
+  sending
+  sent
+  failed
+  unknown
+  blocked
+  superseded
+}
+
+enum TenantBillingRiskKind {
+  subscription_invoice
+  subscription_dispute
+}
+
+enum TenantBillingMutationAction {
+  customer_create
+  checkout_create
+  upgrade
+  cancel
+  cancel_portal_create
+  schedule_downgrade
+  undo_downgrade
+  portal_create
+}
+
+enum TenantBillingMutationStatus {
+  pending
+  reconciliation_required
+  succeeded
+  failed
+  superseded
+}
+
+enum TenantBillingMutationStepStatus {
+  pending
+  reconciliation_required
+  succeeded
+  failed
+}
+
 // ---------------------------------------------------------------------------
 // User Profiles
 // ---------------------------------------------------------------------------
@@ -145,11 +215,24 @@ model UserProfile {
   subscriptionTier               String    @default("essentials") // 'essentials' | 'business_control' | 'small_business' | 'business_pro' | 'accountant_partner'
   subscriptionStatus             String    @default("active") // 'active' | 'trialing' | 'canceled' | 'past_due' | 'unpaid' | 'incomplete'
   trialEndsAt                    DateTime? @map("trial_ends_at")
+  billingAccessVersion           Int       @default(0) @map("billing_access_version")
+  // Durable reservation; the billing service verifies tenant scope under its lock.
+  pendingTrialOperationId        String?   @db.Uuid @map("pending_trial_operation_id")
+  // Server-only customer reservation; verify tenant/fence under the same lock.
+  // Mutual exclusion CHECK: tenant-billing-mutation-constraints.sql (unapplied).
+  // Prisma cannot express this CHECK; deploy the separately reviewed SQL too.
+  // Column privilege protection is pending task 3.9; never expose a client patch.
+  pendingBillingMutationId       String?   @db.Uuid @map("pending_billing_mutation_id")
   onboardingCompletedAt          DateTime? @map("onboarding_completed_at")
   displayName                    String?   @map("display_name")
   createdAt                      DateTime  @default(now())
   updatedAt                      DateTime  @updatedAt
 
+  tenantTrialGrant               TenantTrialGrant?
+  tenantTrialOperations          TenantTrialOperation[]
+  tenantTrialNotifications       TenantTrialNotification[]
+  tenantBillingRisks             TenantBillingRisk[]
+  tenantBillingMutations         TenantBillingMutation[]
   invoiceConnections            InvoiceConnection[]
   schedule                      Schedule?
   emailSettings                 EmailSettings?
@@ -231,6 +314,231 @@ model UserProfile {
   @@map("user_profiles")
 }
 
+// ---------------------------------------------------------------------------
+// Tenant trial access — independent of Stripe billing projections
+// ---------------------------------------------------------------------------
+
+model TenantTrialGrant {
+  // The logical grant ID changes only for a new window after lapse/revocation.
+  // Operation snapshots retain prior IDs; no history FK points to this current row.
+  id                 String          @id @default(cuid())
+  userId             String          @unique @map("user_id")
+  plan               TenantTrialPlan
+  startsAt           DateTime        @db.Timestamptz(0) @map("starts_at")
+  expiresAt          DateTime        @db.Timestamptz(0) @map("expires_at")
+  revokedAt          DateTime?       @db.Timestamptz(0) @map("revoked_at")
+  creatorOperationId String          @db.Uuid @map("creator_operation_id")
+  lastOperationId    String          @db.Uuid @map("last_operation_id")
+  createdAt          DateTime        @default(now()) @db.Timestamptz(0) @map("created_at")
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(0) @map("updated_at")
+
+  userProfile      UserProfile          @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  creatorOperation TenantTrialOperation @relation("GrantCreator", fields: [userId, creatorOperationId], references: [userId, id], onDelete: Restrict, onUpdate: NoAction)
+  lastOperation    TenantTrialOperation @relation("GrantLastOperation", fields: [userId, lastOperationId], references: [userId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([expiresAt])
+  @@map("tenant_trial_grants")
+}
+
+model TenantTrialOperation {
+  // Globally unique client UUID; cannot be reused for a different tenant/input.
+  id                   String                     @id @db.Uuid
+  userId               String                     @map("user_id")
+  actorUserId          String                     @map("actor_user_id")
+  adminSessionId       String                     @map("admin_session_id")
+  inputHash            String                     @map("input_hash")
+  normalizedInput      Json                       @map("normalized_input")
+  action               TenantTrialAction
+  source               TenantTrialMutationSource
+  previousSnapshot     Json                       @map("previous_snapshot")
+  previousPlan         String?                    @map("previous_plan")
+  previousExpiresAt    DateTime?                  @db.Timestamptz(0) @map("previous_expires_at")
+  targetPlan           TenantTrialPlan?           @map("target_plan")
+  targetExpiresAt      DateTime?                  @db.Timestamptz(0) @map("target_expires_at")
+  reason               String
+  notify               Boolean                    @default(false)
+  timeZone             String                     @map("time_zone")
+  previewVersion       Int                        @map("preview_version")
+  previewFingerprint   String                     @map("preview_fingerprint")
+  previewExpiresAt     DateTime                   @db.Timestamptz(0) @map("preview_expires_at")
+  status               TenantTrialOperationStatus @default(previewed)
+  stripeCustomerId     String?                    @map("stripe_customer_id")
+  stripeSubscriptionId String?                    @map("stripe_subscription_id")
+  stripeRequestId      String?                    @map("stripe_request_id")
+  stripeIdempotencyKey String?                    @unique @map("stripe_idempotency_key")
+  providerResult       Json?                      @map("provider_result")
+  result               Json?
+  failureCode          String?                    @map("failure_code")
+  failureSummary       String?                    @map("failure_summary")
+  attempts             Int                        @default(0)
+  firstAttemptAt       DateTime?                  @db.Timestamptz(3) @map("first_attempt_at")
+  lastAttemptAt        DateTime?                  @db.Timestamptz(3) @map("last_attempt_at")
+  leaseOwner           String?                    @map("lease_owner")
+  leaseExpiresAt       DateTime?                  @db.Timestamptz(3) @map("lease_expires_at")
+  fencingToken         Int                        @default(0) @map("fencing_token")
+  completedAt          DateTime?                  @db.Timestamptz(3) @map("completed_at")
+  createdAt            DateTime                   @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  userProfile       UserProfile              @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  createdGrants     TenantTrialGrant[]        @relation("GrantCreator")
+  lastChangedGrants TenantTrialGrant[]        @relation("GrantLastOperation")
+  notification      TenantTrialNotification?
+
+  @@unique([userId, id])
+  @@index([userId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([status, leaseExpiresAt])
+  @@map("tenant_trial_operations")
+}
+
+model TenantTrialNotification {
+  id                     String                        @id @default(cuid())
+  userId                 String                        @map("user_id")
+  operationId            String                        @unique @db.Uuid @map("operation_id")
+  recipientEmail         String?                       @map("recipient_email")
+  recipientName          String?                       @map("recipient_name")
+  contactSource          String?                       @map("contact_source")
+  renderedPayload        Json?                         @map("rendered_payload")
+  status                 TenantTrialNotificationStatus @default(pending)
+  attempts               Int                           @default(0)
+  firstAttemptAt         DateTime?                     @db.Timestamptz(3) @map("first_attempt_at")
+  lastAttemptAt          DateTime?                     @db.Timestamptz(3) @map("last_attempt_at")
+  providerMessageId      String?                       @map("provider_message_id")
+  providerIdempotencyKey String                        @unique @map("provider_idempotency_key")
+  failureCode            String?                       @map("failure_code")
+  failureSummary         String?                       @map("failure_summary")
+  leaseOwner             String?                       @map("lease_owner")
+  leaseExpiresAt         DateTime?                     @db.Timestamptz(3) @map("lease_expires_at")
+  fencingToken           Int                           @default(0) @map("fencing_token")
+  sentAt                 DateTime?                     @db.Timestamptz(3) @map("sent_at")
+  createdAt              DateTime                      @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt              DateTime                      @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  userProfile UserProfile          @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  operation   TenantTrialOperation @relation(fields: [userId, operationId], references: [userId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([userId, operationId])
+  @@index([userId, createdAt])
+  @@index([status, leaseExpiresAt])
+  @@map("tenant_trial_notifications")
+}
+
+model TenantBillingRisk {
+  id                   String                @id @default(cuid())
+  userId               String                @map("user_id")
+  kind                 TenantBillingRiskKind
+  stripeObjectId       String                @map("stripe_object_id")
+  stripeCustomerId     String                @map("stripe_customer_id")
+  stripeSubscriptionId String                @map("stripe_subscription_id")
+  stripeChargeId       String?               @map("stripe_charge_id")
+  stripeInvoiceId      String?               @map("stripe_invoice_id")
+  stripeStatus         String                @map("stripe_status")
+  blocking             Boolean
+  reconciledAt         DateTime              @db.Timestamptz(3) @map("reconciled_at")
+  stripeEventId        String?               @map("stripe_event_id")
+  createdAt            DateTime              @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt            DateTime              @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@unique([kind, stripeObjectId])
+  @@index([userId, blocking])
+  @@index([stripeSubscriptionId])
+  @@map("tenant_billing_risks")
+}
+
+// Customer journal/steps are server-only. Schema declarations do not activate
+// RLS, revoke default privileges or enforce write-once evidence/actor CHECKs.
+// Actor CHECK: tenant-billing-mutation-constraints.sql (separately reviewed).
+// Those protections and isolated migration verification remain rollout blockers.
+model TenantBillingMutation {
+  // Caller-stable root UUID; customer-create children use a server-derived UUID.
+  id                   String                      @id @db.Uuid
+  userId               String                      @map("user_id")
+  // Customer execution requires actorUserId == userId; no admin session identity.
+  actorUserId          String                      @map("actor_user_id")
+  action               TenantBillingMutationAction
+  inputHash            String                      @map("input_hash")
+  normalizedInput      Json                        @map("normalized_input")
+  startingVersion      Int                         @map("starting_version")
+  startingBinding      Json                        @map("starting_binding")
+  startingFingerprint  String                      @map("starting_fingerprint")
+  // Root's post-prerequisite binding version, stored during atomic handoff.
+  executionVersion     Int?                        @map("execution_version")
+  parentMutationId     String?                     @db.Uuid @map("parent_mutation_id")
+  status               TenantBillingMutationStatus @default(pending)
+  stripeCustomerId     String?                     @map("stripe_customer_id")
+  stripeSubscriptionId String?                     @map("stripe_subscription_id")
+  stripeSessionId      String?                     @map("stripe_session_id")
+  stripeScheduleId     String?                     @map("stripe_schedule_id")
+  stripeRequestId      String?                     @map("stripe_request_id")
+  providerResult       Json?                       @map("provider_result")
+  // Immutable terminal safe response; never return normalizedInput/providerResult.
+  result               Json?
+  failureCode          String?                     @map("failure_code")
+  failureSummary       String?                     @map("failure_summary")
+  attempts             Int                         @default(0)
+  firstAttemptAt       DateTime?                   @db.Timestamptz(3) @map("first_attempt_at")
+  lastAttemptAt        DateTime?                   @db.Timestamptz(3) @map("last_attempt_at")
+  leaseOwner           String?                     @map("lease_owner")
+  leaseExpiresAt       DateTime?                   @db.Timestamptz(3) @map("lease_expires_at")
+  fencingToken         Int                         @default(0) @map("fencing_token")
+  completedAt          DateTime?                   @db.Timestamptz(3) @map("completed_at")
+  createdAt            DateTime                    @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt            DateTime                    @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  userProfile    UserProfile                 @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  parentMutation TenantBillingMutation?      @relation("BillingMutationPrerequisite", fields: [userId, parentMutationId], references: [userId, id], onDelete: Restrict, onUpdate: NoAction)
+  prerequisites  TenantBillingMutation[]     @relation("BillingMutationPrerequisite")
+  steps          TenantBillingMutationStep[]
+
+  @@unique([userId, id])
+  @@index([userId, createdAt])
+  @@index([userId, parentMutationId])
+  @@index([status, leaseExpiresAt])
+  @@map("tenant_billing_mutations")
+}
+
+model TenantBillingMutationStep {
+  id                   String                          @id @default(uuid()) @db.Uuid
+  userId               String                          @map("user_id")
+  mutationId           String                          @db.Uuid @map("mutation_id")
+  // Stable within the operation (e.g. schedule_create, schedule_phase_update).
+  stepKey              String                          @map("step_key")
+  sequence             Int
+  // Write once BEFORE first dispatch, including later steps derived from results.
+  // Frozen email/metadata/URLs stay private; never log/return this request or key.
+  normalizedRequest    Json                            @map("normalized_request")
+  requestHash          String                          @map("request_hash")
+  method               String
+  objectTarget         String                          @map("object_target")
+  stripeIdempotencyKey String                          @unique @map("stripe_idempotency_key")
+  status               TenantBillingMutationStepStatus @default(pending)
+  stripeCustomerId     String?                         @map("stripe_customer_id")
+  stripeSubscriptionId String?                         @map("stripe_subscription_id")
+  stripeSessionId      String?                         @map("stripe_session_id")
+  stripeScheduleId     String?                         @map("stripe_schedule_id")
+  stripeRequestId      String?                         @map("stripe_request_id")
+  // Sanitized provider evidence, persisted before preparing any dependent step.
+  providerResult       Json?                           @map("provider_result")
+  failureCode          String?                         @map("failure_code")
+  failureSummary       String?                         @map("failure_summary")
+  attempts             Int                             @default(0)
+  // Persist before dispatch; immutable anchor for this step's <24h replay window.
+  firstAttemptAt       DateTime?                       @db.Timestamptz(3) @map("first_attempt_at")
+  lastAttemptAt        DateTime?                       @db.Timestamptz(3) @map("last_attempt_at")
+  completedAt          DateTime?                       @db.Timestamptz(3) @map("completed_at")
+  createdAt            DateTime                        @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt            DateTime                        @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  mutation TenantBillingMutation @relation(fields: [userId, mutationId], references: [userId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([userId, mutationId, stepKey])
+  @@unique([userId, mutationId, sequence])
+  @@map("tenant_billing_mutation_steps")
+}
+
 model StripeBillingWebhookEvent {
   id                   String    @id @default(cuid())
   stripeEventId        String    @unique @map("stripe_event_id")
@@ -238,6 +546,8 @@ model StripeBillingWebhookEvent {
   eventCreatedAt       DateTime  @map("event_created_at")
   processingStatus     String    @default("received") @map("processing_status")
   processingNote       String?   @map("processing_note")
+  processingToken      String?   @map("processing_token")
+  processingLeaseUntil DateTime? @map("processing_lease_until")
   userId               String?   @map("user_id")
   stripeCustomerId     String?   @map("stripe_customer_id")
   stripeSubscriptionId String?   @map("stripe_subscription_id")

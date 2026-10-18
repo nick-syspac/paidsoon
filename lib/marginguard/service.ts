@@ -1,4 +1,5 @@
 import { withUserContext } from "@/lib/db/withUserContext"
+import { requireMarginGuardCoreAccess } from "@/lib/marginguard/entitlements"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import type { MarginClassificationRuleModel } from "@/lib/generated/prisma/models/MarginClassificationRule"
 
@@ -304,6 +305,7 @@ function classifyCostTotals(input: {
 }
 
 export async function getMarginSummary(userId: string, requestedPeriod?: string) {
+  await requireMarginGuardCoreAccess(userId)
   const settings = await getOrCreateMarginSettings(userId)
   const period: MarginPeriodPreset =
     requestedPeriod === "30d" || requestedPeriod === "3m" || requestedPeriod === "6m" || requestedPeriod === "12m" || requestedPeriod === "fy"

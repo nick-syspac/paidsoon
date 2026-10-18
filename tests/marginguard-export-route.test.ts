@@ -1,3 +1,4 @@
+import "@/tests/helpers/subscriptionAccess"
 import assert from "node:assert/strict"
 import { before, beforeEach, describe, mock, test } from "node:test"
 

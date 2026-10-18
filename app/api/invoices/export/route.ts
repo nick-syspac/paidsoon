@@ -32,7 +32,9 @@ const QuerySchema = z.object({
   dateTo: ISO_DATE.optional(),
 })
 
-export async function GET(request: Request) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request) {
   const traceContext = createServerTraceContext({
     headers: request.headers,
     cookieHeader: request.headers.get("cookie"),

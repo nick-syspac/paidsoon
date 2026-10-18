@@ -1,4 +1,5 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
+import { getFinancialJobCandidates, getFinancialJobAccessSkip } from "@/lib/billing/financialJobAccess"
 import { sendP2PNotification, resolveFreelancerName } from "@/lib/email/send"
 import { createClient } from "@supabase/supabase-js"
 import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
@@ -16,7 +17,9 @@ import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRu
 export async function runPromiseAndArrangementBreachSweep() {
   const brokenPromises = await prisma.promiseToPay.findMany({
     where: {
-      status: "active",
+      // A send-time access skip must remain retryable after access is restored.
+      status: { in: ["active", "broken"] },
+      breachNotifiedAt: null,
       promisedPayBy: { lt: new Date() },
       trackedInvoice: {
         status: { notIn: ["paid", "manually_resolved"] },
@@ -32,6 +35,9 @@ export async function runPromiseAndArrangementBreachSweep() {
     },
   })
 
+  const skips = { no_access: 0, feature_not_available: 0 }
+  let processedPromises = 0
+  const candidates = await getFinancialJobCandidates(brokenPromises.map((bp) => bp.trackedInvoice.userId), "promise_to_pay_tracking")
   if (brokenPromises.length > 0) {
     const supabaseAdminBreach = createClient(
       getPublicSupabaseEnvironment().publicUrl,
@@ -40,10 +46,13 @@ export async function runPromiseAndArrangementBreachSweep() {
     )
 
     for (const bp of brokenPromises) {
+      const skip = candidates.get(bp.trackedInvoice.userId) ?? await getFinancialJobAccessSkip(bp.trackedInvoice.userId, "promise_to_pay_tracking")
+      if (skip) { skips[skip.reason] += 1; continue }
       await prisma.promiseToPay.update({
         where: { id: bp.id },
-        data: { status: "broken", breachNotifiedAt: new Date() },
+        data: { status: "broken" },
       })
+      processedPromises += 1
 
       const brokenCount = await prisma.promiseToPay.count({
         where: {
@@ -66,7 +75,7 @@ export async function runPromiseAndArrangementBreachSweep() {
           ud?.user?.user_metadata?.full_name,
           ud?.user?.email,
         )
-        await sendP2PNotification(
+        const outcome = await sendP2PNotification(
           "promise_broken",
           bp.trackedInvoice,
           bp,
@@ -74,6 +83,9 @@ export async function runPromiseAndArrangementBreachSweep() {
           freelancerName,
           brokenCount,
         )
+        if (outcome.status === "sent") {
+          await prisma.promiseToPay.update({ where: { id: bp.id }, data: { breachNotifiedAt: new Date() } })
+        } else if (outcome.status === "skipped" && outcome.reason !== "undeliverable_recipient") skips[outcome.reason] += 1
       } catch (err) {
         console.error(`Breach notification failed for promise ${bp.id}:`, err)
       }
@@ -102,8 +114,10 @@ export async function runPromiseAndArrangementBreachSweep() {
   }
 
   return {
-    brokenPromises: brokenPromises.length,
+    brokenPromises: processedPromises,
     arrangementsUpdated: activeArrangements.length,
+    skipped: skips.no_access + skips.feature_not_available,
+    skips,
   }
 }
 

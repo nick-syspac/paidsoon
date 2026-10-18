@@ -3,11 +3,13 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getPlanByTier, hasPlanFeature } from "@/lib/subscriptionPlans"
 import { buildDashboardUpsellModel } from "@/lib/dashboardUpsell"
+import { getBillingClientScope } from "@/lib/billing/billingClientSession"
 import { InvoiceExportButton } from "@/components/dashboard/InvoiceExportButton"
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable"
 import { LockedDashboardPreview } from "@/components/dashboard/LockedDashboardPreview"
 import { UpgradeBanner } from "@/components/dashboard/UpgradeBanner"
 import { loadDashboardContext } from "@/lib/dashboard/loadDashboardContext"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
 import {
   ACTIVE_INVOICE_STATUSES,
   loadDashboardInvoices,
@@ -68,10 +70,10 @@ export default async function DashboardInvoicesPage({
     COMPONENT,
   )
 
-  // Defensive only: every tier currently has `overdue_invoice_dashboard: true`
-  // in lib/subscriptionPlans.ts, so this never actually locks a real tier
-  // today — kept in case a future tier disables the feature.
-  const plan = getPlanByTier(profile?.subscriptionTier)
+  const tier = getDashboardEffectiveTier(profile)
+  if (tier === null) redirect("/dashboard/settings/subscription")
+  // Access must be established before the catalog's forgiving tier lookup.
+  const plan = getPlanByTier(tier)
   const canViewOverdue = hasPlanFeature(plan.id, "overdue_invoice_dashboard")
   const canExportInvoices = hasPlanFeature(plan.id, "csv_export")
   const atLimit = chaseAllowance?.atCapacity ?? false
@@ -176,6 +178,8 @@ export default async function DashboardInvoicesPage({
 
       {(atLimit || nearLimit) && canViewOverdue && chaseAllowance && (
         <UpgradeBanner
+          billingAccessVersion={profile?.billingAccessVersion ?? null}
+          billingSessionScope={await getBillingClientScope(user.id)}
           usage={chaseAllowance.usage}
           allowance={chaseAllowance.allowance}
           periodEnd={chaseAllowance.period.end}

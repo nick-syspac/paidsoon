@@ -14,7 +14,9 @@ const UploadRequestSchema = z.object({
   defaultCurrency: z.string().trim().length(3).optional(),
 })
 
-export async function POST(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(request: Request): Promise<NextResponse> {
   try {
     const supabase = await createClient()
     const {

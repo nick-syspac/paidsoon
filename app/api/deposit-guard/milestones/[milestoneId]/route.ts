@@ -33,7 +33,9 @@ function toFeatureError(error: unknown): NextResponse | null {
   return null
 }
 
-export async function PATCH(
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function PATCHHandler(
   request: Request,
   context: { params: Promise<{ milestoneId: string }> },
 ): Promise<NextResponse> {

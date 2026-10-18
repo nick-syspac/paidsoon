@@ -161,7 +161,7 @@ exceed Vercel's default serverless function duration, which would otherwise abor
 request mid-sync. 60s fits within the Hobby plan's ceiling; raise it (Pro: up to 300s,
 Enterprise: up to 900s) if `syncAllActiveConnections` ever approaches the cap as the
 user base grows — see the open question about batching in
-[openspec/changes/add-accounting-integrations/design.md](../../openspec/changes/add-accounting-integrations/design.md).
+[openspec/changes/archive/2026-08-21-add-accounting-integrations/design.md](../../openspec/changes/archive/2026-08-21-add-accounting-integrations/design.md).
 
 ---
 
@@ -202,7 +202,7 @@ Expected response: `200` with JSON `{ ok: true, emailsSent, errors, processed, h
 - `held` — first-chase invoices skipped this pass because their account had no remaining
   chase-volume allowance for the current billing period (their state is left untouched, so
   they are retried on the next pass — see `chase-volume-entitlement` in
-  [openspec/changes/monthly-chase-volume-limits](../../openspec/changes/monthly-chase-volume-limits)).
+  [openspec/changes/archive/2026-08-21-monthly-chase-volume-limits](../../openspec/changes/archive/2026-08-21-monthly-chase-volume-limits)).
   A non-zero `held` count with an otherwise-healthy `errors: 0` is expected behaviour, not a
   failure — it means one or more accounts are at capacity, not that sending broke.
 - `usageByAccount` — per-account `{ userId, allowance, usage, remaining, atCapacity }` for
@@ -216,6 +216,10 @@ This is the standard way to validate that env vars (Resend, Supabase, Stripe Con
 ---
 
 ## 7. First deploy
+
+> For `add-superuser-tenant-trial-access`, §12 overrides generic deployment,
+> smoke-test and rollback advice. Do not ship current journal handlers against
+> unapplied schema/security artifacts, or enable owner management before its gates.
 
 After §2 is complete (env vars set), trigger the deploy:
 
@@ -286,3 +290,113 @@ Use [frontend-performance.md](./frontend-performance.md) for the repeatable brow
 5. Review **Speed Insights** for production p50/p75/p95 TTFB, FCP, LCP, and INP. Segment authenticated dashboard routes from public pages.
 
 Do not infer database latency from total Function duration. Correlate the PaidSoon trace ID and loader stages with Supabase query and pool telemetry.
+
+## 12. Trial-access and customer billing journal release gate
+
+**Reviewed documentation checklist, not an executed or approved deployment.**
+This checklist follows approved D2/D6a/D6b. Working-tree customer services/routes,
+recovery UI and hosted lifecycle reconciliation do not imply merged/deployed
+functionality. Owner routes/saga/audit/notification runtime is also present, not
+rolled out. Customer entitlement/API/limit/onboarding code (5.1–5.5) and job/worker
+integration (6.1–6.4) are present in the working tree as of 2026-10-17. Pending
+SQL/security/isolated checks (3.8/3.9/9.3), owner UI (8.1–8.4), and cross-cutting
+release/browser verification remain gates. See
+[admin operations](./admin.md#9--trial-access-operations--in-progress-not-rolled-out)
+and [delivery safety](./resend.md#7-trial-access-notifications--in-progress-not-rolled-out).
+There is no new environment
+feature flag: keep owner mutation entry points unavailable until all requirements
+are complete; do not invent a switch or use `LIVE` as a billing safety control.
+
+### 12.1 Ordered release checklist
+
+1. **Review and identify targets without connecting automatically.** Record the
+  release commit, migration/CHECK/policy hashes, canonical project ref and
+  pooler topology, existing deployment/migration state, backup/recovery owner and
+  compatible rollback build. Preview shares dev; it is not disposable isolation.
+  Review [Supabase §11](./supabase.md#11-trial-access-and-customer-journal-database-gate)
+  and [DDD persistence](../DDD.md#trial-access-persistence--in-progress-not-deployed).
+  Initial trial migration and four-table containment were applied dev
+  2026-10-15; webhook lease/customer journal migrations, CHECKs and full policies
+  are unapplied. Do not misreport offline generation as DB/shadow validation.
+2. **Validate on a separately authorized isolated target first.** Review creator
+  defaults before table creation; stage/apply the exact additive migrations,
+  separate CHECKs and full RLS/ACL blocks without an exposed table interval.
+  Run the isolated confirmation-gated probes described in Supabase §11.2.
+  Prove constraints, historical column/default ACLs and two-tenant/anonymous
+  boundaries. Record actual results and resolve failures; tasks 3.8/3.9/9.3
+  remain incomplete until this evidence exists. Optional shadow validation is
+  not recorded as passed. No shared `migrate dev` or `--create-only`.
+3. **Obtain separate shared-target application authorization.** Isolated success
+  is necessary, not permission to migrate shared dev/Preview or production.
+  Review exact artifact/application order, secure creator defaults, onboarding
+  compatibility, maintenance/drain plan, webhook retry window and recovery
+  ownership for that target. Task 5.4's completion-only onboarding writer is now
+  present in source; verify the release contains it and the converted billing
+  writers before full profile restrictions. Stop if an incompatible deployed
+  writer remains; working-tree completion alone is not deployment proof.
+4. **Quiesce and drain old writers.** Stop accepting new billing/owner mutations
+  during cutover; drain old Next.js instances, background handlers and in-flight
+  direct Stripe requests. Reconcile uncertain legacy requests through provider
+  evidence before permitting new owner operations. An old hosted session can
+  finish later only through verified legacy customer/tenant lifecycle mapping;
+  do not fabricate a historical journal or assume no risk because a process
+  exited. Preserve signed webhook retryability rather than acknowledge failed
+  processing as successful.
+5. **Apply the reviewed security unit under controlled cutover.** Revoke unsafe
+  effective creator defaults **before** creating journals. Apply only missing
+  approved initial/lease/customer migrations through the canonical migration
+  adapter/session pooler; never rewrite history or run shared `migrate dev`.
+  Apply separately reviewed CHECK SQL after the customer migration, then full
+  trial and supplemental customer policies with converted writers held back
+  until ready. Prevent intermediate client exposure through the reviewed
+  transactional/security plan; a plain migration followed later by RLS is not
+  acceptable. Do not run a blanket production policy command as a substitute
+  for this review. Verify final ACLs/constraints before traffic resumes.
+6. **Deploy only a compatible coordinated release.** Retain Prisma client
+  generation in the build. Customer mutations must reserve/freeze/journal before
+  dispatch, with retries disabled and strict per-step `< firstAttemptAt + 24h`
+  replay. All writers use `billing-access:<userId>`, both reservations and
+  version/fence checks. Keep own-operation GET/reconcile, billing portal and
+  verified hosted lifecycle reachable without subscription access. Do not hold
+  reservations for hosted lifetimes, infer active status from creation, or
+  let delayed completion clear another operation's reservation.
+7. **Verify scoped provider configuration and acceptance.** Confirm the unchanged
+  `2026-05-27.dahlia` API pin, Production/Preview key/price/secrets separation and
+  [Stripe §5](./stripe.md#5-stripe-billing-webhook) exact 16 event names,
+  including the added invoice/dispute/schedule events. Check invalid-signature
+  rejection and retryable 503/`Retry-After: 60`, terminal dedupe and fenced
+  redelivery. Use approved isolated Stripe fixtures/test mode for provider
+  scenarios, not an incidental live purchase or email from §9/§6. Verify lost
+  response/202 observation, explicit reconcile, cached-500/late-unknown blocks,
+  partial schedules, legacy/delayed completion during both reservations, risk
+  resolution and no cross-tenant operation disclosure. Never blindly recreate
+  provider objects. Record what was actually run, not just mocked coverage.
+8. **Enable owner management last.** Require complete owner authorization,
+  previews/confirmation/saga/audit, notification policy, effective access gates,
+  drain evidence and all approved verification/rollout sign-offs. Recheck that
+  no old writer remains active. Resume compatible traffic and monitor pending
+  operations/lease recovery/webhook failures without logging PII, frozen
+  requests, keys or secrets. No Trial Offer adoption or incidental resumption.
+
+### 12.2 Non-destructive rollback
+
+Disable new owner and customer mutations using the reviewed operational cutover,
+not by removing status/reconcile endpoints or subscription-access exemptions.
+Roll forward to a compatible recovery-only build if necessary; never blindly
+redeploy a legacy unjournaled writer. Drain incompatible processes again.
+
+Keep both owner/customer journals, steps, provider/request evidence, notification
+and webhook ledgers, **both reservations**, versions, fences, CHECKs and narrowed
+ACLs. Preserve valid grants and the effective-access resolver. Retain own-status,
+explicit bounded recovery and signed/current-state/legacy hosted reconciliation.
+Recover pending provider changes using original evidence/keys before any reviewed
+release; expired leases and provider errors are not permission to clear a
+reservation. Late unknown creates remain blocked; partial schedules are not
+automatically canceled/released or re-created.
+
+Never restore tenant billing privileges/default grants, drop tables/evidence,
+reset trial dates, auto-shorten Stripe trials, synthesize grants or deploy a
+release that ignores grants/reservations. Creation-session results are immutable;
+payment/cancellation lifecycle still requires fresh verified provider evidence.
+Schema and policy reversal is not the incident shortcut. No deployment, live
+provider configuration, DB probe or optional shadow check was run for these docs.

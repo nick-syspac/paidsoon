@@ -14,7 +14,10 @@ const TEAM_SEATS_UNAVAILABLE = {
   feature: "team_seats",
 } as const
 
-export async function GET() {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const POST = withSubscriptionAccess(POSTHandler)
+async function GETHandler() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -43,7 +46,7 @@ export async function GET() {
   })
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },

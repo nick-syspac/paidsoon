@@ -1,3 +1,4 @@
+import "@/tests/helpers/subscriptionAccess"
 import { before, beforeEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
 
@@ -43,7 +44,9 @@ before(async () => {
             return { id: existingConnection ? "conn-existing" : "conn-new" }
           },
         },
-        userProfile: { findUnique: async () => ({ subscriptionTier: "business_control" }) },
+        userProfile: { findUnique: async () => ({ subscriptionTier: "business_control", subscriptionStatus: "active", stripeSubscriptionId: "sub_mock", trialEndsAt: null, billingAccessVersion: 1 }) },
+        tenantTrialGrant: { findUnique: async () => null },
+        tenantBillingRisk: { findMany: async () => [] },
         invoiceConnection: { count: async () => 0 },
       })
     } },

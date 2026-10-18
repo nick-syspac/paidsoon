@@ -13,7 +13,9 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 }
 
-export async function POST(request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(request: Request, { params }: Params): Promise<NextResponse> {
   const { id } = await params
 
   const supabase = await createClient()

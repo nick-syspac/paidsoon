@@ -1,3 +1,4 @@
+import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
 import { before, beforeEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
 
@@ -5,6 +6,7 @@ import type { SpendInsight } from "@/lib/generated/prisma/client"
 
 let mockUser: { id: string } | null = { id: "user-123" }
 let mockSubscriptionTier = "small_business"
+let mockSubscriptionStatus = "active"
 let mockFindings: SpendInsight[] = []
 
 let GET: (request: Request) => Promise<Response>
@@ -38,6 +40,15 @@ function makeFinding(
 
 describe("GET /api/spendleak/export", () => {
   before(async () => {
+    await mock.module("@/lib/billing/effectiveAccessLoader", {
+      namedExports: {
+        getEffectiveAccess: async () => resolveEffectiveAccess({
+          profile: { subscriptionTier: mockSubscriptionTier, subscriptionStatus: mockSubscriptionStatus,
+            stripeSubscriptionId: "sub-test", trialEndsAt: null, billingAccessVersion: 0 },
+          grant: null, billingRisks: [],
+        }, new Date("2026-10-14T12:00:00Z")),
+      },
+    })
     await mock.module("@/lib/supabase/server", {
       namedExports: {
         createClient: async () => ({
@@ -49,9 +60,31 @@ describe("GET /api/spendleak/export", () => {
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
         withUserContext: async (userId: string, fn: (tx: unknown) => Promise<unknown>) => {
+          assert.equal(userId, "user-123")
           const tx = {
             userProfile: {
-              findUnique: async () => ({ subscriptionTier: mockSubscriptionTier }),
+              findUnique: async (args: { where: { userId: string } }) => {
+                assert.deepEqual(args.where, { userId })
+                return {
+                  subscriptionTier: mockSubscriptionTier,
+                  subscriptionStatus: mockSubscriptionStatus,
+                  stripeSubscriptionId: "sub-test",
+                  trialEndsAt: null,
+                  billingAccessVersion: 0,
+                }
+              },
+            },
+            tenantTrialGrant: {
+              findUnique: async (args: { where: { userId: string } }) => {
+                assert.deepEqual(args.where, { userId })
+                return null
+              },
+            },
+            tenantBillingRisk: {
+              findMany: async (args: { where: { userId: string } }) => {
+                assert.deepEqual(args.where, { userId })
+                return []
+              },
             },
             spendInsight: {
               findMany: async (args: { where?: { userId?: string } }) => {
@@ -71,6 +104,7 @@ describe("GET /api/spendleak/export", () => {
   beforeEach(() => {
     mockUser = { id: "user-123" }
     mockSubscriptionTier = "small_business"
+    mockSubscriptionStatus = "active"
     mockFindings = [
       makeFinding({ id: "1", findingType: "recurring_spend" }),
       makeFinding({ id: "2", findingType: "duplicate_spend" }),
@@ -116,6 +150,11 @@ describe("GET /api/spendleak/export", () => {
     assert.match(body, /duplicate_spend/)
     assert.match(body, /renewal/)
     assert.doesNotMatch(body, /another-tenant/)
+  })
+
+  test("retained export tier alone cannot authorize an unpaid subscription", async () => {
+    mockSubscriptionStatus = "unpaid"
+    assert.equal((await GET(makeRequest("format=csv"))).status, 403)
   })
 
   test("applies module filter from dashboard scope", async () => {

@@ -318,7 +318,7 @@ export async function runSpendClassificationBatch(): Promise<
         claim.sourceType,
         claim.sourceRecordId,
       )
-      return response.status === "requested"
+      return response.status === "skipped" ? response : response.status === "requested"
         ? { status: "requested", result: response.result }
         : { status: response.status }
     },

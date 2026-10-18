@@ -24,7 +24,7 @@ function getPreselectedTier(): SubscriptionTier {
 
 export function OnboardingPlanPicker() {
   const router = useRouter()
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(getPreselectedTier)
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionTier>(getPreselectedTier)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -35,14 +35,13 @@ export function OnboardingPlanPicker() {
       const res = await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: selectedTier }),
+        body: JSON.stringify({ tier: selectedPlan }),
       })
       if (!res.ok) {
-        const data = await res.json()
-        setError(data.error ?? "Something went wrong")
+        setError("Unable to complete onboarding. Please try again.")
         return
       }
-      router.push("/dashboard")
+      router.push(`/billing/checkout?plan=${selectedPlan}`)
     } catch {
       setError("Something went wrong. Please try again.")
     } finally {
@@ -53,18 +52,18 @@ export function OnboardingPlanPicker() {
   return (
     <div className="space-y-8">
       <div className="text-center space-y-2">
-        <h1 className="text-2xl font-semibold text-gray-900">Start your 14-day free trial</h1>
-        <p className="text-sm text-gray-500">No credit card required. Pick the plan that fits — you can change it anytime.</p>
+        <h1 className="text-2xl font-semibold text-gray-900">Choose your plan</h1>
+        <p className="text-sm text-gray-500">Select a plan to review at checkout. Selection does not activate the plan or change your existing access.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {PUBLIC_PLANS.map((plan) => {
-          const isSelected = selectedTier === plan.id
+          const isSelected = selectedPlan === plan.id
           return (
             <button
               key={plan.id}
               type="button"
-              onClick={() => setSelectedTier(plan.id)}
+              onClick={() => setSelectedPlan(plan.id)}
               className={[
                 "relative flex flex-col text-left rounded-xl border-2 p-5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500",
                 isSelected
@@ -109,9 +108,9 @@ export function OnboardingPlanPicker() {
           className="flex items-center gap-2 bg-blue-600 text-white text-sm font-medium px-8 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
           {loading && <Spinner />}
-          {loading ? "Starting trial…" : "Start free trial"}
+          {loading ? "Continuing…" : "Continue to checkout"}
         </button>
-        <p className="text-xs text-gray-400">14 days free · No credit card required · Cancel anytime</p>
+        <p className="text-xs text-gray-400">Your existing access stays unchanged until a billing change is verified. Checkout starts only when you choose to continue on the next page.</p>
       </div>
     </div>
   )

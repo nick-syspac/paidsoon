@@ -1,10 +1,16 @@
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
-import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
 import { DEFAULT_STAGE_1 } from "@/lib/email/templates"
 import { TemplatesClient } from "@/components/settings/TemplatesClient"
-import { getAiRewriteGuardrailStatus } from "@/lib/email/ai-usage-guardrails"
+import {
+  countAiRewriteUsageWindows,
+  evaluateAiRewriteGuardrails,
+  getAiRewriteGuardrailPolicy,
+} from "@/lib/email/ai-usage-guardrails"
 
 export default async function TemplatesSettingsPage() {
   const {
@@ -12,18 +18,22 @@ export default async function TemplatesSettingsPage() {
   } = await getAuthenticatedUser()
   if (!user) redirect("/sign-in")
 
-  const profile = await withUserContext(user.id, (tx) =>
-    tx.userProfile.findUnique({
-      where: { userId: user.id },
-      select: { subscriptionTier: true },
-    }),
-  )
+  const profile = await getDashboardProfile(user.id)
+  const tier = getDashboardEffectiveTier(profile)
+  if (tier === null) redirect("/dashboard/settings/subscription")
 
-  const tier = normalizeSubscriptionTier(profile?.subscriptionTier)
   const hasBasic = hasPlanFeature(tier, "basic_templates")
   const canCustomize = hasPlanFeature(tier, "custom_reminder_templates")
   const canRewrite = hasPlanFeature(tier, "ai_rewrite")
-  const aiGuardrailStatus = canRewrite ? await getAiRewriteGuardrailStatus(user.id) : null
+  const policy = canRewrite ? getAiRewriteGuardrailPolicy(tier) : null
+  // Page presentation only: use the effective policy but preserve the existing
+  // quota cadence and persisted logs. Shared send/API guardrails are task 5.5.
+  const usageWindows = policy && profile
+    ? await withUserContext(user.id, (tx) => countAiRewriteUsageWindows(tx, user.id, profile, new Date()))
+    : null
+  const aiGuardrailStatus = policy && usageWindows
+    ? evaluateAiRewriteGuardrails(policy, usageWindows.usage)
+    : null
 
   if (!hasBasic) {
     return (

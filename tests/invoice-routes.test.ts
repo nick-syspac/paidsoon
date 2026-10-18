@@ -1,3 +1,4 @@
+import "@/tests/helpers/subscriptionAccess"
 /**
  * API route handler tests for invoice lifecycle operations.
  *

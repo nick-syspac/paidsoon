@@ -12,7 +12,9 @@ const UpdateSchema = z
   })
   .strict()
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function PATCHHandler(request: Request, context: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

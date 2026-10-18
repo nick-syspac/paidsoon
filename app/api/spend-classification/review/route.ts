@@ -110,7 +110,9 @@ function toReviewItem(item: Awaited<ReturnType<typeof listSpendClassificationRev
   }
 }
 
-export async function GET(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request): Promise<NextResponse> {
   const userId = await getAuthenticatedSpendClassificationUserId()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 

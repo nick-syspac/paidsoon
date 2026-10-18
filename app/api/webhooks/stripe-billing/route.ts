@@ -1,133 +1,55 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
-import { getInvoiceLimitForTier } from "@/lib/billing"
-import { retrieveSubscriptionWithLatestInvoice } from "@/lib/billing/stripeSubscriptions"
+import { createStripeClient } from "@/lib/billing/stripeClient"
+import { reconcileBillingRiskEvent } from "@/lib/billing/riskReconciliation"
+import { reconcileTenantSubscription, reconcileTenantScheduleRelease } from "@/lib/billing/tenantBillingCoordinator"
+import { reconcileHostedCheckout } from "@/lib/billing/hostedCheckoutLifecycle"
 import {
-  DEFAULT_SUBSCRIPTION_TIER,
-  PLAN_ORDER,
-  normalizeSubscriptionTier,
-  type SubscriptionTier,
-} from "@/lib/subscriptionPlans"
+  claimWebhookEvent, finishWebhookEvent,
+  type WebhookClaim,
+} from "@/lib/billing/webhookLedger"
+import { z } from "zod"
+import {
+  retrieveSubscriptionWithLatestInvoice,
+  resolveStripeBillingProfile,
+  stripeObjectId,
+  stripeTimestamp,
+  type StripeBillingIdentity,
+} from "@/lib/billing/stripeSubscriptions"
 import { NextResponse } from "next/server"
-import Stripe from "stripe"
+import type Stripe from "stripe"
 
-const PRICE_ID_TO_TIER: Record<string, SubscriptionTier> = {
-  ...(process.env.STRIPE_STARTER_PRICE_ID
-    ? { [process.env.STRIPE_STARTER_PRICE_ID]: "essentials" as const }
-    : {}),
-  ...(process.env.STRIPE_SOLO_PRICE_ID
-    ? { [process.env.STRIPE_SOLO_PRICE_ID]: "business_control" as const }
-    : {}),
-  ...(process.env.STRIPE_SMALL_BUSINESS_PRICE_ID
-    ? { [process.env.STRIPE_SMALL_BUSINESS_PRICE_ID]: "small_business" as const }
-    : {}),
-  ...(process.env.STRIPE_BUSINESS_PRO_PRICE_ID
-    ? { [process.env.STRIPE_BUSINESS_PRO_PRICE_ID]: "business_pro" as const }
-    : {}),
-}
+const eventReceiptSchema = z.object({
+  id: z.string().trim().min(1), type: z.string().trim().min(1),
+  created: z.number().int().nonnegative().max(8_640_000_000_000),
+})
 
-function resolveTierFromSubscription(
-  subscription: Stripe.Subscription,
-  fallbackTier?: string | null,
-): SubscriptionTier {
-  const priceId = subscription.items.data[0]?.price?.id
-  if (priceId && PRICE_ID_TO_TIER[priceId]) {
-    return PRICE_ID_TO_TIER[priceId]
-  }
-  return normalizeSubscriptionTier(fallbackTier)
-}
+// Validate object hints only AFTER claiming, and only for handled types. Unknown
+// events need no object schema; malformed metadata cannot escape receipt/failure.
+const billingObjectSchema = z.object({
+  metadata: z.record(z.string(), z.string()).nullish(),
+}).passthrough()
+const identifiedBillingObjectSchema = billingObjectSchema.extend({ id: z.string().min(1) })
 
-function toDateFromUnix(seconds: number): Date {
-  return new Date(seconds * 1000)
-}
-
-function resolveEventUserId(event: Stripe.Event): string | null {
-  const objectWithMetadata = event.data.object as { metadata?: Record<string, string | undefined> }
-  const userId = objectWithMetadata.metadata?.userId ?? objectWithMetadata.metadata?.user_id
-  return userId ?? null
-}
-
-function resolveEventCustomerId(event: Stripe.Event): string | null {
-  const obj = event.data.object as { customer?: string | Stripe.Customer | null }
-  const customer = obj.customer
-  if (!customer) return null
-  return typeof customer === "string" ? customer : customer.id
-}
-
-function resolveEventSubscriptionId(event: Stripe.Event): string | null {
-  const obj = event.data.object as {
-    id?: string
-    object?: string
-    subscription?: string | Stripe.Subscription | null
-  }
-  if (obj.object === "subscription" && obj.id) return obj.id
-  const sub = obj.subscription
-  if (!sub) return null
-  return typeof sub === "string" ? sub : sub.id
-}
-
-async function markEventProcessed(
-  stripeEventId: string,
-  processingStatus: "processed" | "skipped" | "failed",
-  processingNote?: string,
-) {
-  await prisma.stripeBillingWebhookEvent.update({
-    where: { stripeEventId },
-    data: {
-      processingStatus,
-      processingNote: processingNote ?? null,
-      processedAt: new Date(),
-    },
-  })
-}
-
-async function shouldSkipAsStale(
-  userId: string,
-  eventCreatedAt: Date,
-): Promise<boolean> {
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId },
-    select: { latestStripeEventCreatedAt: true },
-  })
-  if (!profile?.latestStripeEventCreatedAt) return false
-  return eventCreatedAt.getTime() < profile.latestStripeEventCreatedAt.getTime()
-}
-
-async function resolveProfileForEvent({
-  userId,
-  stripeCustomerId,
-  stripeSubscriptionId,
-}: {
-  userId?: string | null
-  stripeCustomerId?: string | null
-  stripeSubscriptionId?: string | null
-}) {
-  if (userId) {
-    const byUserId = await prisma.userProfile.findUnique({ where: { userId } })
-    if (byUserId) return byUserId
-  }
-
-  if (stripeCustomerId) {
-    const byCustomer = await prisma.userProfile.findFirst({
-      where: { stripeCustomerId },
-    })
-    if (byCustomer) return byCustomer
-  }
-
-  if (stripeSubscriptionId) {
-    return prisma.userProfile.findFirst({
-      where: { stripeSubscriptionId },
-    })
-  }
-
-  return null
+// Signed webhooks intentionally bypass RLS; binding checks precede projection.
+function resolveProfileFromSources(sources: StripeBillingIdentity[], subscriptionId: string | null) {
+  return resolveStripeBillingProfile({
+    byUserId: (userId) => prisma.userProfile.findUnique({ where: { userId } }),
+    byCustomerId: (stripeCustomerId) => prisma.userProfile.findFirst({ where: { stripeCustomerId } }),
+    bySubscriptionId: (stripeSubscriptionId) => prisma.userProfile.findFirst({ where: { stripeSubscriptionId } }),
+  }, sources, subscriptionId)
 }
 
 // Must use raw body for Stripe signature verification
-export async function POST(request: Request) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2026-05-27.dahlia",
-  })
-  const payload = await request.text()
+export async function POST(request: Request): Promise<NextResponse> {
+  let stripe: Stripe
+  let payload: string
+  try {
+    stripe = createStripeClient()
+    payload = await request.text()
+  } catch {
+    console.error("[billing/webhook] initialization unavailable")
+    return retryableFailure()
+  }
   const signature = request.headers.get("stripe-signature") ?? ""
 
   let event: Stripe.Event
@@ -141,264 +63,120 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
-  const eventCreatedAt = toDateFromUnix(event.created)
-  const eventUserId = resolveEventUserId(event)
-  const eventCustomerId = resolveEventCustomerId(event)
-  const eventSubscriptionId = resolveEventSubscriptionId(event)
-  console.info("[billing/webhook] received", {
-    stripeEventId: event.id,
-    eventType: event.type,
-    hasUserId: Boolean(eventUserId),
-    hasCustomerId: Boolean(eventCustomerId),
-    hasSubscriptionId: Boolean(eventSubscriptionId),
-  })
-
+  let claim: WebhookClaim | undefined
   try {
-    await prisma.stripeBillingWebhookEvent.create({
-      data: {
-        stripeEventId: event.id,
-        eventType: event.type,
-        eventCreatedAt,
-        processingStatus: "received",
-        userId: eventUserId,
-        stripeCustomerId: eventCustomerId,
-        stripeSubscriptionId: eventSubscriptionId,
-      },
+    const receipt = eventReceiptSchema.parse(event)
+    const eventCreatedAt = stripeTimestamp(receipt.created)!
+    const result = await claimWebhookEvent({
+      stripeEventId: receipt.id, eventType: receipt.type, eventCreatedAt,
     })
-  } catch (error) {
-    const code =
-      typeof error === "object" && error !== null && "code" in error
-        ? String((error as { code?: unknown }).code)
-        : null
-    if (code === "P2002") {
-      // Event was already seen and processed/retried by Stripe.
+    if (result.kind === "terminal") {
       return NextResponse.json({ received: true, deduped: true })
     }
-    // Non-idempotency persistence issue; surface to trigger Stripe retry.
-    throw error
+    if (result.kind === "busy") return retryableFailure()
+    claim = result.claim
+    await processClaimedEvent(stripe, event, eventCreatedAt, claim)
+    return NextResponse.json({ received: true })
+  } catch {
+    if (claim) {
+      try {
+        await finishWebhookEvent(claim, "failed", "billing_reconciliation_failed")
+      } catch {
+        // Lost fence or unavailable DB: never overwrite another executor. The
+        // durable processing lease expires so Stripe can reclaim on redelivery.
+      }
+    }
+    // Do not log provider/database errors or delivered metadata (may contain PII).
+    console.error("[billing/webhook] processing unavailable")
+    return retryableFailure()
   }
+}
+
+async function processClaimedEvent(
+  stripe: Stripe, event: Stripe.Event, eventCreatedAt: Date, ownedClaim: WebhookClaim,
+): Promise<void> {
+  // Captures the ORIGINAL token on every finish path, including catch/failure.
+  const markEventProcessed = (_id: string, status: "processed" | "skipped", note?: string) =>
+    finishWebhookEvent(ownedClaim, status, note)
+  const context = { kind: "webhook" as const, claim: ownedClaim, eventCreatedAt }
 
   switch (event.type) {
     case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session
-      const userId = session.metadata?.userId ?? session.metadata?.user_id
-      if (userId && session.subscription) {
-        if (await shouldSkipAsStale(userId, eventCreatedAt)) {
-          await markEventProcessed(event.id, "skipped", "stale_event")
+      identifiedBillingObjectSchema.parse(event.data.object)
+      // Delivered fields are retrieval hints only. The coordinator repeats this
+      // read and verifies current binding under the tenant lock before committing.
+      const session = await stripe.checkout.sessions.retrieve(event.data.object.id)
+      const subscriptionId = stripeObjectId(session.subscription)
+      if (subscriptionId) {
+        const subscription = await retrieveSubscriptionWithLatestInvoice(stripe, subscriptionId)
+        const profile = await resolveProfileFromSources([session, subscription], subscriptionId)
+        if (!profile) {
+          await markEventProcessed(event.id, "skipped", "profile_not_found")
           break
         }
-        const checkoutTier = normalizeSubscriptionTier(session.metadata?.selectedTier)
-        const subscriptionId = session.subscription as string
-        // Fetch subscription and expand latest_invoice to get period_end
-        // (current_period_end was removed from Subscription in API 2026-05-27)
-        const subscription = await retrieveSubscriptionWithLatestInvoice(stripe, subscriptionId)
-        const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null
-        const periodStart = latestInvoice?.period_start ? new Date(latestInvoice.period_start * 1000) : null
-        const periodEnd = latestInvoice?.period_end ? new Date(latestInvoice.period_end * 1000) : null
-        await prisma.userProfile.update({
-          where: { userId },
-          data: {
-            subscriptionTier: checkoutTier,
-            subscriptionStatus: subscription.status,
-            stripeCustomerId: session.customer as string,
-            stripeSubscriptionId: subscriptionId,
-            stripePriceId: subscription.items.data[0]?.price?.id ?? null,
-            subscriptionCurrentPeriodStart: periodStart,
-            subscriptionCurrentPeriodEnd: periodEnd,
-            subscriptionCancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
-            subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
-            latestStripeEventCreatedAt: eventCreatedAt,
-            trialEndsAt:
-              subscription.trial_end != null
-                ? new Date(subscription.trial_end * 1000)
-                : null,
-          },
-        })
+        await reconcileHostedCheckout(stripe, profile.userId, session.id, context)
+        break // Projection and terminal ledger transition committed together.
       }
-      await markEventProcessed(event.id, "processed")
-      break
+      throw new Error("missing_checkout_subscription")
     }
 
     case "customer.subscription.created":
-
-    case "customer.subscription.updated": {
-      const subscription = event.data.object as Stripe.Subscription
-      const profile = await resolveProfileForEvent({
-        userId: eventUserId,
-        stripeCustomerId: subscription.customer as string,
-        stripeSubscriptionId: subscription.id,
-      })
-      if (profile) {
-        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
-          await markEventProcessed(event.id, "skipped", "stale_event")
-          break
-        }
-        const tier: SubscriptionTier =
-          subscription.status === "active" || subscription.status === "trialing"
-            ? resolveTierFromSubscription(subscription, profile.subscriptionTier)
-            : DEFAULT_SUBSCRIPTION_TIER
-
-        // Detect if a pending downgrade schedule has just executed:
-        // the landed tier matches pendingDowngradeTier → clear pending fields.
-        const pendingTier = normalizeSubscriptionTier(profile.pendingDowngradeTier)
-        const scheduleExecuted =
-          profile.pendingDowngradeTier !== null &&
-          PLAN_ORDER.indexOf(tier) === PLAN_ORDER.indexOf(pendingTier)
-
-        // Fetch latest invoice to get period_end
-        // (current_period_end was removed from Subscription in API 2026-05-27)
-        const subExpanded = await retrieveSubscriptionWithLatestInvoice(stripe, subscription.id)
-        const latestInv = subExpanded.latest_invoice as Stripe.Invoice | null
-        const periodStart = latestInv?.period_start ? new Date(latestInv.period_start * 1000) : null
-        const periodEnd = latestInv?.period_end ? new Date(latestInv.period_end * 1000) : null
-        await prisma.userProfile.update({
-          where: { userId: profile.userId },
-          data: {
-            subscriptionTier: tier,
-            subscriptionStatus: subscription.status,
-            stripeSubscriptionId: subscription.id,
-            stripePriceId: subscription.items.data[0]?.price?.id ?? null,
-            subscriptionCurrentPeriodStart: periodStart,
-            subscriptionCurrentPeriodEnd: periodEnd,
-            subscriptionCancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
-            subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
-            latestStripeEventCreatedAt: eventCreatedAt,
-            trialEndsAt:
-              subscription.trial_end != null
-                ? new Date(subscription.trial_end * 1000)
-                : null,
-            ...(scheduleExecuted
-              ? { pendingDowngradeTier: null, stripeScheduleId: null }
-              : {}),
-          },
-        })
-      }
-      await markEventProcessed(event.id, "processed")
-      break
-    }
-
+    case "customer.subscription.updated":
     case "customer.subscription.deleted": {
-      const subscription = event.data.object as Stripe.Subscription
-      const profile = await resolveProfileForEvent({
-        userId: eventUserId,
-        stripeCustomerId: subscription.customer as string,
-        stripeSubscriptionId: subscription.id,
-      })
+      identifiedBillingObjectSchema.parse(event.data.object)
+      const delivered = event.data.object as Stripe.Subscription
+      const subscription = await retrieveSubscriptionWithLatestInvoice(stripe, delivered.id)
+      const profile = await resolveProfileFromSources([delivered, subscription], delivered.id)
       if (profile) {
-        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
-          await markEventProcessed(event.id, "skipped", "stale_event")
-          break
-        }
-        // Revert to essentials tier
-        await prisma.userProfile.update({
-          where: { userId: profile.userId },
-          data: {
-            subscriptionTier: DEFAULT_SUBSCRIPTION_TIER,
-            subscriptionStatus: "canceled",
-            stripePriceId: null,
-            subscriptionCancelAt: null,
-            subscriptionCancelAtPeriodEnd: false,
-            latestStripeEventCreatedAt: eventCreatedAt,
-            trialEndsAt: null,
-          },
-        })
-
-        // Pause invoices over essentials limit.
-        const starterLimit = getInvoiceLimitForTier(DEFAULT_SUBSCRIPTION_TIER)
-        const activeInvoices = await prisma.trackedInvoice.findMany({
-          where: {
-            userId: profile.userId,
-            status: { in: ["pending", "snoozed"] },
-          },
-          orderBy: { nextEmailAt: "asc" },
-        })
-
-        const toKeep = activeInvoices.slice(0, starterLimit).map((i: { id: string }) => i.id)
-        const toPause = activeInvoices
-          .slice(starterLimit)
-          .map((i: { id: string }) => i.id)
-
-        if (toPause.length > 0) {
-          await prisma.trackedInvoice.updateMany({
-            where: { id: { in: toPause } },
-            data: { status: "paused" },
-          })
-        }
-        void toKeep // suppress unused warning
+        await reconcileTenantSubscription(stripe, profile.userId, delivered.id, {
+          ...context,
+          ...(event.type === "customer.subscription.updated" ? { trialEvent: {
+            eventId: event.id, createdAt: eventCreatedAt, request: event.request, delivered,
+          } } : {}),
+        }, [delivered])
+        break
       }
       await markEventProcessed(event.id, "processed")
       break
     }
 
     case "subscription_schedule.released": {
+      identifiedBillingObjectSchema.parse(event.data.object)
       // Fired when a schedule is released (cancelled) — clear pending downgrade state.
       const schedule = event.data.object as Stripe.SubscriptionSchedule
       const profile = await prisma.userProfile.findFirst({
         where: { stripeScheduleId: schedule.id },
       })
       if (profile) {
-        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
-          await markEventProcessed(event.id, "skipped", "stale_event")
-          break
-        }
-        await prisma.userProfile.update({
-          where: { userId: profile.userId },
-          data: {
-            pendingDowngradeTier: null,
-            stripeScheduleId: null,
-            latestStripeEventCreatedAt: eventCreatedAt,
-          },
-        })
+        await reconcileTenantScheduleRelease(stripe, profile.userId, schedule.id, context)
+        break
       }
       await markEventProcessed(event.id, "processed")
       break
     }
 
-    case "invoice.payment_failed": {
-      const invoice = event.data.object as Stripe.Invoice
-      const profile = await resolveProfileForEvent({
-        userId: eventUserId,
-        stripeCustomerId: invoice.customer as string,
-      })
-      if (profile) {
-        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
-          await markEventProcessed(event.id, "skipped", "stale_event")
-          break
-        }
-        // Tier is left unchanged: access is only revoked by an explicit
-        // customer.subscription.deleted event, not a past-due status alone.
-        await prisma.userProfile.update({
-          where: { userId: profile.userId },
-          data: {
-            subscriptionStatus: "past_due",
-            latestStripeEventCreatedAt: eventCreatedAt,
-          },
-        })
+    case "invoice.payment_failed":
+    case "invoice.paid":
+    case "invoice.payment_succeeded":
+    case "invoice.updated":
+    case "invoice.finalized":
+    case "invoice.marked_uncollectible":
+    case "invoice.voided":
+    case "charge.dispute.created":
+    case "charge.dispute.updated":
+    case "charge.dispute.closed": {
+      if (event.account) {
+        await markEventProcessed(event.id, "skipped", "connect_account_event")
+        break
       }
-      await markEventProcessed(event.id, "processed")
-      break
-    }
-
-    case "invoice.paid": {
-      const invoice = event.data.object as Stripe.Invoice
-      const profile = await resolveProfileForEvent({
-        userId: eventUserId,
-        stripeCustomerId: invoice.customer as string,
-      })
-      if (profile) {
-        if (await shouldSkipAsStale(profile.userId, eventCreatedAt)) {
-          await markEventProcessed(event.id, "skipped", "stale_event")
-          break
-        }
-        await prisma.userProfile.update({
-          where: { userId: profile.userId },
-          data: {
-            subscriptionStatus: "active",
-            latestStripeEventCreatedAt: eventCreatedAt,
-          },
-        })
-      }
-      await markEventProcessed(event.id, "processed")
+      // Delivered status/customer/metadata and global event timestamps cannot
+      // resolve an independent risk. Only the object ID is a retrieval hint.
+      const id = stripeObjectId(event.data.object)
+      if (!id) throw new Error("missing_billing_object_id")
+      await reconcileBillingRiskEvent(stripe, {
+        kind: event.type.startsWith("invoice.") ? "subscription_invoice" : "subscription_dispute",
+        id,
+      }, event.id, new Date(), ownedClaim)
       break
     }
 
@@ -412,6 +190,10 @@ export async function POST(request: Request) {
       await markEventProcessed(event.id, "skipped", "unhandled_event_type")
       break
   }
+}
 
-  return NextResponse.json({ received: true })
+function retryableFailure(): NextResponse {
+  return NextResponse.json({ error: "Billing reconciliation unavailable" }, {
+    status: 503, headers: { "Retry-After": "60" },
+  })
 }

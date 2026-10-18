@@ -1,3 +1,5 @@
+import { requireSubscriptionAccess } from "@/lib/billing/accessGuard"
+import { requireFeature } from "@/lib/billing"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import {
   buildTaxBufferSummary,
@@ -127,6 +129,7 @@ function buildLatestOverrideMaps(
 }
 
 export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSummary> {
+  if (!(await requireFeature(userId, "tax_buffer_basic"))) throw new Error("Upgrade required")
   return withUserContext(userId, async (tx) => {
     await ensureDefaults(tx, userId)
 
@@ -488,6 +491,7 @@ export async function listTaxBufferObligations(input: {
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() + horizonDays)
 
+  await requireSubscriptionAccess(input.userId)
   return withUserContext(input.userId, async (tx) => {
     await ensureDefaults(tx, input.userId)
 
@@ -568,6 +572,7 @@ export interface TaxBufferSettingsInput {
 }
 
 export async function getTaxBufferSettings(userId: string) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await ensureDefaults(tx, userId)
     const [configuration, categories, audInvoiceCount, gstBillCount, unpaidInvoiceCount] = await Promise.all([
@@ -606,6 +611,7 @@ export async function getTaxBufferSettings(userId: string) {
 }
 
 export async function saveTaxBufferSettings(userId: string, input: TaxBufferSettingsInput) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await ensureDefaults(tx, userId)
     const configuration = await tx.taxBufferConfiguration.upsert({
@@ -683,6 +689,7 @@ export async function saveTaxBufferOverride(input: {
   basedOnAccountant: boolean
   createdBy: string
 }) {
+  await requireSubscriptionAccess(input.userId)
   return withUserContext(input.userId, async (tx) => {
     const override = await tx.taxBufferOverride.create({
       data: {
@@ -719,6 +726,7 @@ export async function saveTaxBufferOverride(input: {
 }
 
 export async function listTaxBufferOverrides(userId: string) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) =>
     tx.taxBufferOverride.findMany({
       where: { userId },

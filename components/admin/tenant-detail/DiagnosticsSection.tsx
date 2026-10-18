@@ -4,6 +4,7 @@ import { ActionButton } from "@/components/admin/tenant-detail/ActionButton"
 interface Props {
   diagnostics: Diagnostic[]
   tenantUserId: string
+  canManageTrialAccess?: boolean
 }
 
 const SEVERITY_STYLES = {
@@ -24,13 +25,18 @@ const SEVERITY_STYLES = {
   },
 }
 
-export function DiagnosticsSection({ diagnostics, tenantUserId }: Props) {
+export function DiagnosticsSection({ diagnostics, tenantUserId, canManageTrialAccess = false }: Props) {
   const prominent = diagnostics.filter((d) => d.severity !== "info")
   const info = diagnostics.filter((d) => d.severity === "info")
 
   return (
     <section className="bg-gray-900 rounded-lg p-5">
       <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Diagnostics</h2>
+      {canManageTrialAccess && (
+        <a href={`/admin/tenants/${tenantUserId}#trial-access`} aria-haspopup="dialog" className="text-sm text-blue-400 hover:text-blue-300 mb-3 inline-block">
+          Manage trial access →
+        </a>
+      )}
 
       {diagnostics.length === 0 ? (
         <p className="text-sm text-green-400">No issues detected.</p>

@@ -2,6 +2,7 @@ import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { sendFollowUpEmail, resolveFreelancerName } from "@/lib/email/send"
 import { computeNextEmailAt, resolveScheduleConfig, shouldAutoChaseCustomer } from "@/lib/email/schedule"
 import { getChaseAllowanceStatusesForUsers } from "@/lib/billing"
+import { getEffectiveAccessForUsersForSystem } from "@/lib/billing/effectiveAccessSystem"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { runCatchupAndSnoozeSweep, runPromiseAndArrangementBreachSweep } from "@/lib/email/breachSweep"
@@ -83,9 +84,13 @@ export async function GET(request: Request) {
   let emailsSent = 0
   let errors = 0
   let held = 0
+  let accessSkipped = 0
 
   const userIds = Array.from(new Set(invoicesToProcess.map((invoice) => invoice.userId)))
-  const [brokenPromiseRows, policyRows, allowanceStatuses] = await Promise.all([
+  // Intentional system RLS bypass: this authenticated cron processes all tenants.
+  // Candidate authorization stays batched; sendFollowUpEmail rechecks freshly
+  // immediately before dispatch, including changes after these reads.
+  const [brokenPromiseRows, policyRows, allowanceStatuses, accessByUserId] = await Promise.all([
     prisma.promiseToPay.findMany({
       where: {
         status: "broken",
@@ -110,6 +115,7 @@ export async function GET(request: Request) {
     }),
     // Computed once per account per pass (not per invoice) — task 3.1.
     getChaseAllowanceStatusesForUsers(prisma, userIds),
+    getEffectiveAccessForUsersForSystem(userIds),
   ])
 
   const brokenCountsByUserAndDebtor = buildBrokenPromiseDebtorCounts(
@@ -124,16 +130,25 @@ export async function GET(request: Request) {
   )
 
   for (const invoice of invoicesToProcess) {
+    const access = accessByUserId.get(invoice.userId)
+    if (!access?.allowAccess || access.effectiveTier === null) {
+      accessSkipped++
+      continue
+    }
     const isFirstChase = invoice.currentStage === 0
 
     // Allowance gate: only the first reminder for an invoice consumes
     // allowance. An account with no remaining allowance holds new first
     // chases — the invoice's state is left untouched so it is retried on a
     // later pass, once the period rolls over. Sequences already in progress
-    // (currentStage > 0) are never gated.
+    // (currentStage > 0) bypass capacity only, never access authorization.
     if (isFirstChase) {
       const allowanceStatus = allowanceStatuses.get(invoice.userId)
-      if (allowanceStatus && allowanceStatus.remaining <= 0) {
+      if (!allowanceStatus || !allowanceStatus.accessAllowed) {
+        accessSkipped++
+        continue
+      }
+      if (allowanceStatus.remaining <= 0) {
         held++
         continue
       }
@@ -156,8 +171,21 @@ export async function GET(request: Request) {
       userData?.user?.email,
     )
 
-    const messageId = await sendFollowUpEmail(invoice, stage, freelancerEmail, freelancerName)
+    let messageId: Awaited<ReturnType<typeof sendFollowUpEmail>>
+    try {
+      messageId = await sendFollowUpEmail(invoice, stage, freelancerEmail, freelancerName)
+    } catch {
+      // A real preparation/provider failure is retryable, not an access skip.
+      // Do not log customer/provider payloads or abort other invoices.
+      console.error("Reminder execution failed")
+      errors++
+      continue
+    }
 
+    if (typeof messageId === "object" && messageId !== null) {
+      accessSkipped++
+      continue
+    }
     if (messageId === null) {
       errors++
       continue
@@ -218,6 +246,7 @@ export async function GET(request: Request) {
     errors,
     processed: invoicesToProcess.length,
     held,
+    skipped: { access_denied: accessSkipped },
     usageByAccount: Array.from(allowanceStatuses.entries()).map(([userId, status]) => ({
       userId,
       allowance: status.allowance,

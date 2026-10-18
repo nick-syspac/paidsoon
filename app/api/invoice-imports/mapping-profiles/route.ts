@@ -11,7 +11,10 @@ const ProfileRequestSchema = z.object({
   mapping: z.record(z.string().min(1), z.string().min(1)),
 })
 
-export async function GET(): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const POST = withSubscriptionAccess(POSTHandler)
+async function GETHandler(): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -39,7 +42,7 @@ export async function GET(): Promise<NextResponse> {
   })
 }
 
-export async function POST(request: Request): Promise<NextResponse> {
+async function POSTHandler(request: Request): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

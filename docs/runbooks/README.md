@@ -122,6 +122,15 @@ CommitGuard rollout note: the CommitGuard module does **not** introduce any new
 environment variables. It uses existing auth, billing feature-gate, and database
 configuration inputs already listed in this matrix.
 
+Trial-access rollout note: owner/audit/notification runtime is present but **not
+rolled out**. No new secret/flag is required. Reuse existing Stripe/Supabase and
+`RESEND_API_KEY`, `RESEND_FROM_EMAIL`, optional `RESEND_FROM_NAME`, and
+`NEXT_PUBLIC_APP_URL` (unset fallback: Vercel-provided `VERCEL_URL`). See
+[Resend §7](./resend.md#7-trial-access-notifications--in-progress-not-rolled-out)
+for frozen recipient/payload and retry prerequisites. Pending database/isolated
+checks and tasks 5/6/8 still block enablement under the
+[release gate](./vercel.md#12-trial-access-and-customer-billing-journal-release-gate).
+
 Owner's Digest rollout note: the Owner's Digest module does **not** introduce any
 new environment variables. It reuses existing Resend delivery configuration,
 `SUPABASE_SECRET_KEY` for recipient lookup, and `INTERNAL_JOBS_SECRET` for the

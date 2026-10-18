@@ -13,7 +13,9 @@ const MappingRequestSchema = z.object({
   duplicateMode: z.enum(["skip_existing", "update_existing"]).optional(),
 })
 
-export async function POST(request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(request: Request, { params }: Params): Promise<NextResponse> {
   const { batchId } = await params
   const supabase = await createClient()
   const {

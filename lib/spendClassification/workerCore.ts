@@ -42,6 +42,7 @@ export async function runSpendClassificationWorker(options: {
   request: (claim: SpendClassificationClaim) => Promise<
     | { status: "requested"; result: JevClassification }
     | { status: "opted_out" | "not_eligible" }
+    | { status: "skipped"; reason: "no_access" }
   >
   createOwnerToken?: () => string
 }): Promise<SpendClassificationWorkerCounters> {
@@ -70,7 +71,9 @@ export async function runSpendClassificationWorker(options: {
         try {
           const request = await options.request(claim)
           if (request.status !== "requested") {
-            await options.store.releaseClaim(claim, "pending")
+            // Denied access is temporary: retain queued work for restoration,
+            // without consuming retry budget or recording a successful result.
+            await options.store.releaseClaim(claim, request.status === "skipped" ? "queued" : "pending")
             counters.skipped += 1
             continue
           }

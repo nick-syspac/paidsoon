@@ -6,7 +6,7 @@ import {
 } from "@/lib/billing"
 
 export interface CommitGuardEntitlements {
-  tier: string
+  tier: string | null
   hasCoreAccess: boolean
   hasDetectionAccess: boolean
   hasAdvancedAlertsAccess: boolean

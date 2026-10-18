@@ -62,6 +62,9 @@ ALTER TABLE margin_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_scenarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE margin_opportunities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stripe_billing_webhook_events ENABLE ROW LEVEL SECURITY;
+-- System-only webhook receipt/lease/fence columns share the ledger's deny-by-default
+-- RLS boundary. No customer/anonymous role may claim or finish signed events.
+REVOKE ALL ON TABLE stripe_billing_webhook_events FROM anon, authenticated;
 ALTER TABLE deposit_guard_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_milestones ENABLE ROW LEVEL SECURITY;
@@ -84,7 +87,11 @@ ALTER TABLE spend_classification_worker_leases ENABLE ROW LEVEL SECURITY;
 -- Base table privileges are required in addition to RLS policies.
 -- Keep this explicit so auth-context queries via `SET LOCAL ROLE authenticated`
 -- can access only the table operations that RLS policies then scope by user.
-GRANT SELECT, INSERT, UPDATE ON TABLE user_profiles TO authenticated;
+-- Profile bootstrap and verified billing writers are server-only. A customer
+-- may edit presentation/onboarding fields, never billing authority.
+REVOKE INSERT, UPDATE, DELETE ON TABLE user_profiles FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE user_profiles TO authenticated;
+GRANT UPDATE (display_name, onboarding_completed_at, "updatedAt") ON TABLE user_profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE invoice_connections TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE tracked_invoices TO authenticated;
 GRANT SELECT ON TABLE financial_invoices TO authenticated;
@@ -169,6 +176,88 @@ GRANT SELECT ON TABLE financial_payments TO authenticated;
 -- ---------------------------------------------------------------------------
 -- user_profiles
 -- ---------------------------------------------------------------------------
+-- Trial access policy deployment is kept separately runnable for staged checks.
+-- BEGIN TENANT TRIAL ACCESS POLICIES
+ALTER TABLE public.tenant_trial_grants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenant_trial_operations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenant_trial_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenant_billing_risks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_audit_events ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.tenant_trial_grants, public.tenant_trial_operations,
+  public.tenant_trial_notifications, public.tenant_billing_risks,
+  public.admin_audit_events FROM PUBLIC, anon, authenticated;
+
+-- Column SELECT privileges keep operator/provider identifiers off the Data API.
+GRANT SELECT (id, user_id, plan, starts_at, expires_at, revoked_at, created_at, updated_at)
+  ON TABLE public.tenant_trial_grants TO authenticated;
+GRANT SELECT (id, user_id, kind, stripe_status, blocking, reconciled_at)
+  ON TABLE public.tenant_billing_risks TO authenticated;
+
+DROP POLICY IF EXISTS "tenant reads own trial grant" ON public.tenant_trial_grants;
+CREATE POLICY "tenant reads own trial grant" ON public.tenant_trial_grants
+  FOR SELECT TO authenticated USING ((SELECT auth.uid())::text = user_id);
+DROP POLICY IF EXISTS "tenant reads own billing risk" ON public.tenant_billing_risks;
+CREATE POLICY "tenant reads own billing risk" ON public.tenant_billing_risks
+  FOR SELECT TO authenticated USING ((SELECT auth.uid())::text = user_id);
+
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.user_profiles FROM PUBLIC, anon, authenticated;
+-- Clear historical column-level grants as well as table-level privileges.
+REVOKE INSERT (id, "userId", "stripeCustomerId", stripe_subscription_id, stripe_price_id,
+  subscription_current_period_start, subscription_current_period_end, subscription_cancel_at,
+  subscription_cancel_at_period_end, latest_stripe_event_created_at, pending_downgrade_tier,
+  stripe_schedule_id, "subscriptionTier", "subscriptionStatus", trial_ends_at,
+  billing_access_version, pending_trial_operation_id, onboarding_completed_at, display_name,
+  "createdAt", "updatedAt") ON TABLE public.user_profiles FROM PUBLIC, anon, authenticated;
+REVOKE UPDATE (id, "userId", "stripeCustomerId", stripe_subscription_id, stripe_price_id,
+  subscription_current_period_start, subscription_current_period_end, subscription_cancel_at,
+  subscription_cancel_at_period_end, latest_stripe_event_created_at, pending_downgrade_tier,
+  stripe_schedule_id, "subscriptionTier", "subscriptionStatus", trial_ends_at,
+  billing_access_version, pending_trial_operation_id, onboarding_completed_at, display_name,
+  "createdAt", "updatedAt") ON TABLE public.user_profiles FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.user_profiles TO authenticated;
+GRANT UPDATE (display_name, onboarding_completed_at, "updatedAt")
+  ON TABLE public.user_profiles TO authenticated;
+-- END TENANT TRIAL ACCESS POLICIES
+
+-- Full deployment only after writer conversion; new journal SQL is UNAPPLIED.
+-- BEGIN TENANT BILLING MUTATION POLICIES
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated;
+
+ALTER TABLE public.tenant_billing_mutations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenant_billing_mutation_steps ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.tenant_billing_mutations,
+  public.tenant_billing_mutation_steps FROM PUBLIC, anon, authenticated;
+
+-- Table revocation does not clear historical column grants. These journals and
+-- their immutable request/evidence columns have NO client-readable projection.
+DO $$
+DECLARE
+  journal text;
+  columns text;
+BEGIN
+  FOREACH journal IN ARRAY ARRAY['tenant_billing_mutations', 'tenant_billing_mutation_steps']
+  LOOP
+    SELECT string_agg(quote_ident(attname), ', ' ORDER BY attnum) INTO columns
+      FROM pg_attribute WHERE attrelid = format('public.%I', journal)::regclass
+        AND attnum > 0 AND NOT attisdropped;
+    EXECUTE format('REVOKE SELECT (%s), INSERT (%s), UPDATE (%s), REFERENCES (%s) ON TABLE public.%I FROM PUBLIC, anon, authenticated',
+      columns, columns, columns, columns, journal);
+  END LOOP;
+END
+$$;
+
+-- No journal policies or customer grants: deny-by-default RLS plus ACL denial.
+-- Status/recovery will use authenticated, scoped server projections (pending).
+-- A table UPDATE grant overrides a column revoke, so remove it explicitly too.
+REVOKE UPDATE ON TABLE public.user_profiles FROM PUBLIC, anon, authenticated;
+REVOKE INSERT (pending_billing_mutation_id), UPDATE (pending_billing_mutation_id)
+  ON TABLE public.user_profiles FROM PUBLIC, anon, authenticated;
+GRANT UPDATE (display_name, onboarding_completed_at, "updatedAt")
+  ON TABLE public.user_profiles TO authenticated;
+-- END TENANT BILLING MUTATION POLICIES
+
 DROP POLICY IF EXISTS "users can view own profile" ON user_profiles;
 CREATE POLICY "users can view own profile"
   ON user_profiles FOR SELECT

@@ -6,7 +6,9 @@ import { createClient } from "@/lib/supabase/server"
 
 const paramsSchema = z.object({ requestId: z.string().trim().min(1) })
 
-export async function POST(
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(
   request: Request,
   context: { params: Promise<{ requestId: string }> },
 ): Promise<NextResponse> {

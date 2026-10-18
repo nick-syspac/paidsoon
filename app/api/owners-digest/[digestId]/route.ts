@@ -9,7 +9,9 @@ const ParamsSchema = z.object({
   digestId: z.string().min(1),
 })
 
-export async function GET(
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(
   _request: Request,
   context: { params: Promise<{ digestId: string }> },
 ): Promise<NextResponse> {

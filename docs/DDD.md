@@ -581,8 +581,648 @@ erDiagram
 
 ### 6.3 Model reference
 
+#### Trial-access persistence — in progress, not deployed
+
+The pure effective-access resolver and fresh tenant/system loaders are now present
+in this working change. Paid Stripe access wins over retained grants; Stripe trial
+status remains authoritative even with a stale recorded trial end. Past-due grace
+uses the billing plan with a warning and suppresses grants. Unpaid/incomplete and
+known unresolved billing risk cannot be bypassed with grants. Missing profiles or
+unknown states do not receive a default authorization tier.
+
+**Platform-owner internal-access follow-up (2026-10-18): present in the working
+tree, not a deployed/released claim.** After existing Stripe/grant/onboarding
+sources, an existing exactly `active` profile with a recognized catalog tier,
+no linked Stripe subscription and no blocking or unknown risk may use its own
+freshly DB-verified exactly active `platform_owner` role. All other staff and
+ordinary customers retain existing behavior; canceled/paused/delinquent/
+incomplete/trialing/unknown profiles cannot use this fallback. Source
+`platform_owner` is labeled “Platform owner internal access”, with null access/
+trial expiries and expiry provenance, not a purchased subscription or trial.
+
+The uncached server-only role-fact helper deliberately bypasses RLS **only for
+platform_roles** because tenant roles have no SELECT access there. Single reads
+select only role/status for the exact target user; batch reads select only
+userId/role/status for requested IDs in one query. Missing/unavailable facts
+default false. Profile/grant/risk/usage reads retain their existing tenant RLS
+or documented guarded-system boundaries. Only an internal boolean reaches the
+resolver; neither that fact nor raw role rows enter returned profile/client
+shapes. Dashboard/API/chase/system jobs and admin target/preview/revocation/
+audit/notification projections resolve the target owner's role, not the acting
+operator's. Reminder dispatch rechecks fresh access, and AI retains its monthly
+usage cadence. Existing catalog features, chase quotas, billing controls,
+Stripe eligibility, prices, proration, auth/elevation and trial-operation source
+enums are unchanged. No schema, policy, environment or provider mutation is
+introduced by this follow-up. Its verification is offline/mocked only; existing
+external acceptance gates remain open.
+
+An eligible grant requires `startsAt <= now < expiresAt`; no cleanup is needed
+for expiry. No-subscription onboarding trials remain a distinct bounded source,
+not Stripe evidence. Preferred current plan/source and latest independent trial
+expiry provenance are separate; a longer retained grant never promises continued
+Stripe-plan access. Application grants do not postpone Stripe charges.
+
+Shared `getSubscriptionTier()` returns null when access is denied and
+`requireFeature()` then returns false. Catalog/readiness flags are unchanged.
+Effective grant allowances use the original grant start and exclusive expiry;
+extension/plan changes retain consumption and fresh post-lapse grants begin a new
+window. Existing `firstChasedAt` lifetime invoice consumption and monthly AI
+cadence are not reset. Other allowance sources retain billing/trial windows or
+Australia/Melbourne calendar accounting; fallback accounting never grants access.
+Owner preview, mutation, recovery, mandatory audit and notification services are
+present in the working tree. Customer page/banner/subscription, API/effective
+limits, onboarding intent, and job/worker integration (5.1–5.5/6.1–6.4) are also
+present as of 2026-10-17, not deployed access controls. See the
+[customer copy/date comparison](user/general-settings.md#copy-and-date-verification-scope)
+and [candidate-versus-execution contract](runbooks/railway.md#candidate-selection-is-not-execution-authorization--trial-access-rollout).
+Database/isolated security verification and reviewed application (3.8/3.9/9.3),
+owner management UI (8.1–8.4), and cross-cutting release checks remain blockers.
+
+The `add-superuser-tenant-trial-access` change adds the following schema foundation.
+Runtime owner routes/services and application entitlement gates are present, but
+database/security validation/application, owner UI, and release acceptance remain
+rollout blockers.
+“Organisation” means the existing single-owner billing tenant identified by
+`UserProfile.userId`, not `Customer`/`FinancialContact` debtor identities or an
+accounting provider's organisation ID. No new membership model is introduced.
+
+| Model/field | Purpose and invariants | Planned access boundary |
+| --- | --- | --- |
+| `TenantTrialGrant` | One current grant per tenant; strict public plan; UTC-second start/expiry/revocation; same-tenant creator/last operation references. Extensions keep the window ID/start; a fresh post-lapse window replaces its logical ID. | Customer-safe SELECT columns under tenant RLS; no customer writes. Reasons and provider/operation internals are not readable. |
+| `TenantTrialOperation` | Globally unique client UUID, immutable input/preview snapshots, reason, actor/session, provider key/result, lease/fencing, durable outcome. Previous logical grant IDs remain in snapshots, not FKs to a replaceable current row. | Server-only; mandatory audit/coordination present in working tree, not rolled out. |
+| `TenantTrialNotification` | One delivery per operation with same-tenant FK, immutable resolved recipient/payload, independent outcome and provider key, lease/fencing. | Server-only; no debtor invoice or `EmailLog` linkage. |
+| `TenantBillingRisk` | Independent invoice/dispute facts keyed by kind/provider object; tenant FK, blocking flag, reconciliation timestamp and private provider references. | Tenant-scoped safe-column SELECT; provider internals and all writes server-only. |
+| `UserProfile.billingAccessVersion` / `pendingTrialOperationId` | Version starts at zero; durable pending owner Stripe-operation reservation. | No customer mutation; owner management and shared lock/version/fence coordination are present offline, not deployed. Full writer/access conversion remains unfinished. |
+| `TenantBillingMutation` | In-progress schema/client and offline-generated, unapplied migration: UUID, tenant FK and unique `(userId, id)`, authenticated actor, action and immutable input/hash, starting version/binding/fingerprint, post-prerequisite execution version, same-tenant parent/prerequisite link, provider references/evidence, safe terminal response, attempts/times, lease/fence. Tenant/creation, parent and status/lease indexes retain recoverable history. | Server-only journal policies drafted, unapplied and not live-verified; no fabricated owner/admin-session identities. Coordinator, executors, mutation routes and own recovery are present in the working tree; isolated database validation/application and rollout remain pending. |
+| `TenantBillingMutationStep` | In-progress schema/client and offline-generated, unapplied migration: same-tenant mutation FK; unique per-operation step key and sequence; globally unique provider idempotency key; frozen request/hash/method/object target, provider IDs/request/evidence, attempts, first/last attempt and completion times, outcome. | Planned server-only; raw requests may contain frozen authenticated email/metadata and must never be logged or returned. No customer/anonymous journal access. |
+| `UserProfile.pendingBillingMutationId` | Nullable UUID in the offline-generated, unapplied migration. Intended to be mutually exclusive with `pendingTrialOperationId`; tenant ownership must be verified under the shared billing lock. | Server-only authority column. Separate exclusivity CHECK SQL and column-privilege protection are drafted but unapplied/unverified live. Lease expiry alone must never clear it. |
+| `StripeBillingWebhookEvent.processingToken` / `processingLeaseUntil` | Immutable per-attempt claim token and 60-second lease; fenced status transitions through `received/processing/processed/skipped/failed`. Additive migration generated, not applied. | System-only ledger; no customer/anonymous access. Shared cross-writer commit coordination is present in the working tree, not a deployment claim. |
+
+The task-3.8 customer-journal schema/client subset is **in progress, not deployed**.
+`TenantBillingMutationAction` declares `customer_create`, `checkout_create`,
+`upgrade`, local-only `cancel`, `cancel_portal_create`, `schedule_downgrade`,
+`undo_downgrade` and `portal_create`. Journal statuses are `pending`,
+`reconciliation_required`, `succeeded`, `failed` and `superseded`; step statuses
+are `pending`, `reconciliation_required`, `succeeded` and `failed`. No provider
+step or key is needed for local-only cancellation. Hosted-session creation success
+does not assert later payment, cancellation or subscription completion.
+
+The model supports a caller-stable root UUID and server-derived customer-create
+prerequisite UUID with a same-tenant composite parent FK. Coordinating services must
+atomically persist both, reserve the child, then commit verified customer binding,
+child completion and handoff to the root with its post-binding execution version.
+For multi-step downgrades, persist schedule-create evidence before freezing the
+phase-update request. Requests, hashes, targets, keys and each step's first-attempt
+time must be write-once; first-attempt time is persisted before dispatch and
+anchors that step's strictly less-than-24-hour retained-key replay window.
+The task-3.10 primitives below enforce the coordination boundary in mocked tests;
+action executors/recovery and route/UI wiring are now present offline. This is not enforcement provided by
+Prisma declarations. Unknown or partial outcomes retain the reservation; only
+definitive, correctly fenced finalization can release it.
+
+With explicit offline-generation approval on 2026-10-15, installed Prisma generated
+`prisma/migrations/20261015095612_add_tenant_billing_mutation_journal/migration.sql`
+from the preserved full before schema and current schema using `migrate diff`
+schema-only inputs and `PRISMA_GENERATE_ONLY=true`. It is **unapplied**: three
+enums, two tables, one nullable profile reservation column, seven indexes and
+three FKs (including same-tenant parent/step references). No prior declaration,
+webhook lease or historical migration was rewritten; no DB was contacted.
+
+Prisma cannot express the actor-equals-tenant and mutually exclusive reservation
+CHECKs. They are in separately reviewed, **unapplied**
+`prisma/tenant-billing-mutation-constraints.sql`, not added to generated history.
+Apply that artifact after the generated migration only following separate review.
+Static contract tests verify exact columns/types, enums, indexes, FKs and CHECK
+expressions, not PostgreSQL execution or isolation. Task 3.8 remains unchecked;
+isolated application and constraint validation are explicitly deferred to the
+reviewed deployment verification in task 9.3. Task 3.9's offline policy/probe
+subset is prepared, but live constraint/RLS verification remains pending;
+action executors/recovery and API/UI integration below are offline working-tree
+evidence, not deployed functionality. The
+coordination primitives below do not waive these blockers. Never deploy this
+migration alone: migration, CHECKs and reviewed
+policies require a controlled rollout with no exposed intermediate tables. This
+offline subset is not permission to deploy tables, activate profile restrictions
+or backfill invented customer operations. There is no live enforcement proof.
+The existing unapplied webhook lease fields/migration are preserved separately.
+
+The task-3.9 additions are **in progress, not deployed**. The matching canonical
+block and `prisma/tenant-billing-mutation-policies.sql` enable RLS and revoke all
+client table/column privileges on `tenant_billing_mutations` and
+`tenant_billing_mutation_steps`, including inherited `PUBLIC` authority. There
+are no customer journal policies or direct Data API reads. The existing owner
+journal, notification and audit boundary remains server-only. The customer
+status/recovery services now authenticate, retain RLS ownership reads and project
+only safe own-operation fields through narrowly scoped server-only access;
+policies alone do not implement or deploy those services.
+
+The targeted addition revokes profile table UPDATE and explicit INSERT/UPDATE
+on `pending_billing_mutation_id`, preserving only the existing safe UPDATE grant
+for display name, onboarding completion and the Prisma timestamp. It supplements,
+not replaces, the full trial-access policy's existing billing/version/owner
+reservation and INSERT/DELETE restrictions. Apply both full policy artifacts only
+after all billing/onboarding writers are converted and separately reviewed.
+Creation-default revocation for the canonical `postgres` migration creator must
+precede journal creation in the controlled rollout. It affects future public
+tables, not existing ACLs; review any other creator/global defaults separately.
+No containment SQL, generated migration or running database was changed by this
+policy-only subset. It did not implement journal coordination, writer conversion
+or new APIs.
+
+#### Billing coordination — task 3.10 in progress, offline mocked verification
+
+`lib/billing/tenantBillingMutationCoordinator.ts` adds server-only customer journal
+primitives alongside `tenantBillingCoordinator.ts`; later customer route/executor
+and recovery wiring is present below, but is not a deployed billing workflow.
+Database/CHECK/RLS validation in tasks 3.8, 3.9 and 9.3 remains unfinished.
+Drain old unjournaled provider writers and finish remaining onboarding/access
+conversion before owner management or full profile restrictions are enabled.
+
+The shared lock/fence order is:
+
+1. Start the canonical privileged transaction and acquire the parameterized
+  `billing-access:<userId>` advisory transaction lock.
+2. Read the complete tenant billing profile, including **both** reservation IDs.
+  Direct coordination, even a callback returning no projection, requires either
+  both null or the exact recognized discriminated `owner`/`customer` fence with
+  the other reservation null. Omitted reservation selects fail closed. An unknown
+  customer outcome blocks owner grant/revoke/extension callbacks and vice versa.
+3. Check the tenant-scoped operation row, current customer/subscription binding,
+  unresolved status, lease owner, unexpired lease and monotonic fencing token.
+  Customer fences also carry the durable `executionVersion`. Row CAS follows the
+  tenant lock; matching lease-owner text without the current token is insufficient.
+4. After any read-only provider verification, check the fence again before
+  committing evidence, projection, handoff or release. Provider **mutations** run
+  only after the pre-call transaction has committed, with no DB lock held.
+
+Customer acceptance validates strict UUID/action/actor-equals-tenant identity and
+a canonical normalized intent hash. Global ID conflicts (including owner-journal
+IDs) fail without reinterpretation. Identical root replays precede today's version
+check and use stored configuration/terminal response, not a new provider request.
+Only unresolved operations' own root/prerequisite can be returned for execution;
+terminal replay never hands the caller a newer unrelated reservation.
+
+Acceptance commits the root, any deterministic customer-create prerequisite,
+initial frozen step and reservation together, incrementing `billingAccessVersion`.
+The unreserved root cannot claim or dispatch while its child is reserved. After
+the child's step evidence is persisted, customer retrieval verifies tenant and
+operation metadata and unique binding. One transaction binds the customer,
+completes the child, reserves the root and records the root's post-binding
+`executionVersion`, with another version increment and no unreserved gap. Proven
+customer-create nonexecution can instead fail child/root and release atomically.
+Verified discovered-subscription binding is similarly fenced and versioned; it
+returns an updated execution-generation fence, not a generic profile patch.
+
+Step requests, hashes, method/target, operation/step-derived keys and first-attempt
+timestamps are immutable through these services. The initial attempt is committed
+before dispatch. A dependent schedule phase step cannot be frozen until the prior
+result evidence commits. Lease recovery changes the token, never the reservation;
+even the same lease owner with its old token cannot dispatch/advance/finalize.
+Exact keyed replay is blocked at or beyond the step's first attempt plus 24 hours.
+Timeouts, cached errors, interrupted dispatch and success followed by DB failure
+retain pending/reconciliation-required evidence rather than infer nonexecution.
+Partial schedule effects remain reserved; no compensation is invented.
+
+Finalization accepts neither a requested terminal status nor a billing-column
+patch. It requires the closed action/step matrix's durable, attempted, correlated
+provider evidence (including required object references), or definitive rejection
+with no successful partial effect. Action-specific trusted **read-only** verifiers
+supply sanitized step evidence; task 3.11's in-progress adapters are described below.
+The coordinator re-reads current provider customer/subscription/schedule
+state before projection and atomically stores the safe terminal response, clears
+only the matching reservation and increments the version. Local cancellation has
+no provider step/key and preserves independent grants. Unknown/partial results
+cannot be relabeled success, failure or supersession just to release a reservation.
+
+Webhooks may project verified current lifecycle/risk truth and increment the version
+without clearing either reservation. Such a version advance alone does not strand
+an accepted customer operation: its fence uses the stored execution generation,
+not its pre-acceptance optimistic version or today's projection version. Current
+binding and provider evidence must still verify; a changed binding fails closed.
+Customer evidence recovery/status is described in the task-3.12 subsection below;
+hosted completion remains task 3.13. Changed bindings remain blocked unless the
+reserved operation can prove a safe outcome under its current fence; uncertainty
+is never relabeled superseded to release the tenant.
+Owner preview/audit/acceptance/finalization services remain tasks 4.1–4.5; direct
+owner coordination now enforces the shared reservation/fence boundary. These
+mocked transaction/race tests are not PostgreSQL constraint or live isolation proof.
+
+#### Customer billing action/step matrix — task 3.11 in progress, offline only
+
+`lib/billing/customerBillingPlan.ts` freezes accepted action configuration and
+`lib/billing/customerBillingExecutors.ts` supplies internal server-only SDK
+dispatch/read-only verification adapters. With the task-3.6 conversion below, the
+current in-progress working tree
+now connects mutation routes, hosted lifecycle (3.13) and safety-envelope UI (3.14).
+This is not a deployment claim; isolated database/security verification remains
+deferred and SQL unapplied. Stripe remains pinned to
+`2026-05-27.dahlia`; no Trial Offer integration or new provider is introduced.
+
+| Action | Immutable keyed step(s) and existing billing parameters | Verified evidence / terminal meaning |
+| --- | --- | --- |
+| `customer_create` prerequisite | `customers.create`: authenticated email if present; tenant and deterministic child-operation metadata. | Retrieve the customer; verify tenant/child correlation and unique binding. Coordinator atomically completes child, binds customer and hands reservation/version to root. Root cannot dispatch before handoff. |
+| `checkout_create` | `checkout.sessions.create`: customer, subscription mode, selected configured price, quantity 1, existing positive finite trial-days setting, existing success/cancel URLs. Session and future subscription metadata include tenant, plan/source and root operation. | Retrieve session with line items; verify customer/mode/correlation, price/quantity and redirects. Session creation succeeds and releases reservation even while open; no claim of payment or active subscription. Disabled trial settings omit `trial_period_days`, retaining subscription correlation metadata. |
+| `upgrade` | `subscriptions.update`: existing `items: [{ price }]` shape and `proration_behavior: create_prorations`, plus tenant/operation metadata. No anchor, trial, cancellation or payment-policy change. | Verify keyed returned object/price/correlation and current subscription binding. Final projection re-reads current status/price/period/trial fields, never synthesizes active status or requested tier. Downgrades still require their dedicated action; active/trialing same-plan requests conflict. |
+| `cancel` | Local-only; no Stripe mutation, provider step or provider idempotency key. Caller UUID/version still required. Frozen existing cancellation redirect. | Fenced journal finalization requires no bound subscription and onboarding `trialing`. Preserve the existing route's canceled/default billing tier and cleared onboarding expiry/cancellation/pending-schedule fields. Independent grants, risk and invoice sequences remain untouched. |
+| `cancel_portal_create` | `billingPortal.sessions.create`: existing customer/return URL and subscription-cancel flow, redirect with verified invoice period end or existing recorded-period fallback. | Verify authenticated keyed response customer/flow/subscription/redirect. Creation is not cancellation; no direct subscription cancel call. Current lifecycle state can reconcile without inventing a cancellation. |
+| `portal_create` | `billingPortal.sessions.create`: existing customer and canonical return URL only. Same customer prerequisite when needed. | Verify keyed response customer/return URL. Pinned SDK has neither portal-session retrieval nor metadata support; do not fabricate either. Session creation releases reservation, not a lock for the hosted lifetime. |
+| `schedule_downgrade` | `schedule_create`: only `from_subscription`, respecting the pinned SDK restriction on combining this with configuration. Persist created ID and returned first-phase start proof. Then freeze `schedule_phase_update`: existing first-phase start if present, current price/quantity 1/end at expanded invoice period end; second phase selected price/quantity 1; tenant/operation schedule metadata. No invented phase duration/end behavior or proration change. | Verify schedule/customer/subscription, then both intended prices/quantities, first-phase boundary/start and phase continuity. Persist create proof before freezing/dispatching update. Resume from durable returned-start evidence, not a changed live start/config; never create a replacement schedule. Pending downgrade projects only from verified schedule state. |
+| `undo_downgrade` | `schedule_release`: frozen schedule target, empty parameters, distinct keyed POST options. | Retrieve released schedule and current subscription; verify released subscription/customer/current binding before clearing pending downgrade. Release leaves subscription intact; never call schedule cancel or subscription resume. |
+
+Every step uses `billing/<operationId>/<stepKey>` and the journal's write-once
+request/hash/method/target. Dispatch commits the fenced first attempt before any
+provider mutation and never holds a DB transaction across it. The accepted root
+stores canonical URLs, selected trial setting, selected/current prices, subscription/item,
+schedule and invoice boundary plus the accepted four-plan price mapping. This
+mapping also governs final projection, preventing environment price drift from
+silently changing an accepted plan. Internal scoped lookup resolves identical
+accepted intent before current configuration/version/provider reads; terminal
+replay returns the stored safe result, never another create.
+
+#### Customer billing mutation routes — task 3.6 in progress, offline only
+
+The current working tree converts Checkout POST (new session or upgrade), general
+portal POST, cancellation POST (local onboarding or cancellation portal), and
+downgrade POST/DELETE to `customerBillingMutationRoute` →
+`customerBillingOperations.start` → the shared executors/journal coordinator.
+This is mocked code-development evidence only, not a merged/deployed or live-DB
+verification claim. Tasks and planning artifacts are unchanged; tasks 3.8/3.9
+database application/isolated validation remain deferred. Existing Checkout-success
+GET continues through the separate shared hosted lifecycle service, without mutation
+headers or POST Origin requirements.
+
+All five mutation methods call `getUser()` first. Require exact same Origin
+(reject missing/null/foreign origins and cross-site fetch metadata), a UUID
+`Idempotency-Key` (normalized lowercase), and `X-Billing-Access-Version` containing
+a canonical nonnegative safe integer decimal. Validate before provider work.
+No query parameters are accepted. Checkout accepts no body or strict `{tier?}`;
+downgrade POST requires strict `{tier}`; portal/cancel/DELETE accept no body or
+strict `{}`. Malformed JSON, scalar/null/array bodies, unknown fields and hidden
+Accountant Partner input return 400. Existing purchase-only tier normalization
+retains aliases (`starter`, `solo`) and unknown-string fallback to Essentials;
+grant input remains separate and strict.
+
+RLS owns profile reads, with authenticated tenant identity verified before calling
+the narrow server-only service. Only missing Checkout profiles use the existing
+idempotent auth bootstrap and RLS re-read. No route writes billing columns through
+the customer role, accepts a billing patch or gates recovery on effective access.
+Initial purchase/downgrade comparisons use the verified actual Stripe price, not
+an effective grant tier or stale local tier. Pricing, trial configuration, quantity,
+proration, period-end scheduling and successful response shapes remain unchanged.
+
+Root hashes identify normalized business intent; immutable accepted plans/steps
+retain prices/catalog, redirects, metadata and trial configuration. Identical keys
+resolve before today's version/config/provider reads. Terminal success/supersession
+replays the stored safe result; terminal rejection remains 502. Pending retries
+only observe their safe 202 state; explicit reconciliation performs the bounded
+recovery attempt. A new accepted root executes only its reserved root or deterministic
+customer prerequisite. Verified customer binding and child/root handoff are atomic.
+Discovered subscriptions bind under the root reservation, never as RLS billing writes.
+
+| Outcome | HTTP / body |
+| --- | --- |
+| Missing/rejected auth | 401 `{error: "Unauthorized"}` |
+| Origin failure | 403 `{error: "Forbidden"}` |
+| Invalid headers/body/query or unsupported purchase action | 400 safe validation error |
+| Missing own profile after optional Checkout bootstrap | 404 `{error: "Profile not found"}` |
+| Changed tenant/actor/action/hash, stale version, either reservation, binding conflict | Uniform 409 `{error: "billing_conflict"}`; no foreign operation details |
+| Initial persistence/provider verification unavailable or unreadable accepted state | 503 `{error: "billing_operation_unavailable"}`; never fabricated 202 |
+| Accepted but unknown/partial result, including proof/commit failure | 202 allowlisted operation projection with `operationId`, action/status, result/failure code, reconciliation flags, timestamps and own `statusUrl` |
+| Definitive first-step rejection with no prior effects | 502 `{error: "billing_provider_rejected"}` |
+| Verified success | 200 existing `{url}`, local-cancel `{redirectUrl}`, downgrade `{scheduledAt}`, undo `{cancelled: true}` |
+
+Responses are private/no-store. No raw provider/DB errors, tenant/actor identities,
+email, parameters, keys, provider IDs, fences or reservations are serialized/logged.
+Every provider mutation follows committed reservation/first-attempt evidence and
+runs outside a DB transaction. Successful hosted creation releases its reservation,
+not the user's actual subscription; cancellation remains portal-backed. Partial
+customer-create/root or schedule-create/phases rejection stays reserved/202 with
+no replacement create, compensation, direct cancellation or synthetic active state.
+
+New-action subscription discovery is read-only and paginates `status: all` to
+completion. It rejects multiple live subscriptions, unsupported/paused states,
+stored-binding conflicts, unknown prices, multiple/incomplete item lists and
+nonmonthly/multi-quantity billing. A uniquely supported discovered subscription
+is reverified and bound inside the root reservation with a new execution-generation
+fence, before provider mutation. Retrieval errors never mean no subscription.
+Downgrade discovery without a stored subscription retains the existing active-only
+selection; a stored supported subscription (including trialing) is not falsely
+required to be paid/active before creating its existing period-end schedule.
+
+Only local known-unsent validation (with no earlier attempt) or explicit Stripe
+invalid-request validation rejection with a provider request identity can be
+definitive. Timeout/connection errors, cached 500, unclassified/card errors,
+idempotency conflicts, failed proof persistence and interrupted execution retain
+the reservation. Schedule create followed by rejected phases, or customer create
+followed by rejected root creation, remains a partial reserved operation; no
+automatic schedule release, compensation, new key or synthetic success is allowed.
+The coordinator's strict per-step 24-hour replay boundary still applies. These
+executors now share the task-3.12 evidence-discovery/late-unknown recovery path
+described below. Delayed-session lifecycle handling is a separate task-3.13
+coordinator described below; it never finalizes these creation operations.
+Mocked SDK/transaction tests cover parameter shapes, keys/config drift, crash and
+handoff resumption, discovered binding, partial outcomes and current projections;
+they do not prove live provider behavior or database isolation.
+
+#### Hosted Checkout lifecycle — task 3.13 in progress, offline only
+
+`lib/billing/hostedCheckoutLifecycle.ts` is the narrow server-only lifecycle entry
+point shared by authenticated Checkout success and signed `checkout.session.completed`
+webhooks. This is **in-progress implementation, not deployed/live-verified**.
+Tasks 3.8/3.9 isolated migration, CHECK and RLS verification/application remain
+unapplied; task 3.6 mutation-route wiring and task 3.14 UI are in-progress offline
+code only, not authorization to roll out without the database/security checks.
+This subset changes no schema, SQL, provider configuration or purchased-plan rules.
+
+**Creation proof is not lifecycle proof.** Existing keyed executors verify and store
+the created Checkout/general portal/cancellation portal session, safe original URL,
+originating operation and starting binding/version generation. Checkout correlates
+both session and subscription metadata. A still-open Checkout session completes
+`checkout_create` and releases its short reservation; portal creation does likewise
+without claiming cancellation/payment. Replays retain the original creation result.
+Hosted completion never updates either operation journal, acquires an execution
+lease, clears/replaces a reservation or writes an owner's frozen trial target.
+Portal edits continue through signed subscription/schedule current-state reconciliation;
+there is no invented portal retrieval API, direct cancellation or hosted provider mutation.
+
+**Lifecycle proof.** Under `billing-access:<userId>`, retrieve the actual session,
+customer and expanded current subscription. Require completed subscription mode,
+matching customer and consistent `userId`/`user_id` hints on all objects. Accept
+paid completion or `no_payment_required` backed by actual trial start/end after
+session creation; project Stripe's *current* status, never synthesize `active`.
+Correlated sessions must match their own tenant/actor `checkout_create` journal,
+starting customer/subscription, accepted execution generation, durable attempted
+step, frozen session/subscription operation metadata and any stored session IDs.
+A failed/foreign/future-generation or differently correlated operation is not proof.
+Legacy sessions without operation metadata require the existing verified current
+customer/tenant mapping and uniqueness; no historical operation or fence is invented.
+
+Enumerate all customer subscriptions with cursor pagination (100 per page, bounded
+to 100 pages), rejecting duplicate/cyclic/truncated enumeration; retrieve every
+enumerated object and a different bound subscription even if absent from the list.
+Multiple live subscriptions are ambiguous and remain retryable, never first-entry
+selection. A completed old subscription may be skipped only after verifying it is
+ended and the different bound subscription is uniquely live. Rebinding over another
+ended subscription requires that exact recorded starting binding; metadata alone,
+including a legacy session, cannot replace a newer binding. Provider read failures
+remain unavailable, not evidence of supersession or nonexecution.
+
+Genuine current paid/trial truth can project while **either** owner/customer
+reservation is present, including an uncertain original creation. Both reservation
+identities, all journal statuses/results, grants, independent billing risks and
+invoice sequences remain untouched. Changed lifecycle fields increment the shared
+version, invalidating earlier previews; unchanged same-session replay re-verifies
+truth without another version increment. Actual owner preview routes remain task 4.2;
+offline tests prove rejection at the shared expected-version boundary, not that UI.
+Only separate operation-specific evidence and the correct current fence may later
+finalize an unresolved operation. Hosted observations are never that finalizer.
+
+`GET /api/billing/checkout/success` authenticates using `getUser()` and reads its
+own profile via RLS before the privileged coordinator. It accepts only a validated
+session retrieval ID, requires no POST Origin/idempotency/version headers and
+preserves sign-in/success redirects. The displayed tier comes only from verified
+current subscription price, not query/session plan hints. Failure preserves the
+best-effort success redirect for signed webhook retry. No customer-role billing write.
+The webhook verifies signature before receipt, retrieves the actual session for
+tenant discovery and repeats verification under the tenant lock. Claim fencing
+after provider reads, lifecycle projection/version and terminal ledger status commit
+atomically; stale claims cannot write or acknowledge another executor's work.
+Ambiguous/unverified completion returns sanitized retryable 503, not success.
+
+#### Own customer operation recovery — task 3.12 in progress, not rolled out
+
+The two operation routes and server-only services are an **in-progress offline
+implementation**, not a deployment or completion claim. The journal migrations,
+CHECKs and reviewed RLS/grants remain unapplied in this subset. Mutation routes/UI
+now use the in-progress task-3.6/3.14 adapters; isolated database/security
+verification still gates rollout. No SQL, live provider requests,
+environment configuration or schema changes are part of this task.
+
+Both routes call Supabase `getUser()` before database work, then read only the
+authenticated tenant's profile with `withUserContext`. They remain reachable
+without subscription access. The customer role does not gain journal SELECT:
+the narrowly scoped server billing service reads only a root customer operation
+whose tenant **and** actor equal the authenticated tenant. Foreign, absent,
+malformed, owner-journal and internal prerequisite UUIDs return the same 404.
+Only that root's deterministic customer prerequisite can participate in recovery;
+neither an admin session nor a caller-supplied tenant/provider identity is used.
+
+| Route | Request | Success / accepted response |
+| --- | --- | --- |
+| `GET /api/billing/operations/[operationId]` | Authenticated UUID path; no mutation headers or body. Read-only; never calls Stripe, acquires an executor lease or performs recovery. | 200 safe status projection below, including terminal operations. |
+| `POST /api/billing/operations/[operationId]/reconcile` | Authenticated UUID path, exact same `Origin` as the request URL, no cross-site fetch metadata, JSON body strictly `{}`. Missing/null/cross-origin Origin is forbidden. No replacement parameters, keys, version, tenant or provider IDs. | 200 original safe terminal success result (`{url}`, `{redirectUrl}`, `{scheduledAt}` or `{cancelled:true}`); terminal calls are no-op reads. Still-unknown accepted operations return 202 safe status. Terminal definitive rejection returns 502 `{error:"billing_provider_rejected"}` without redispatch. |
+
+Status fields are exactly `operationId`, `action`, `status`, `result`,
+`failureCode`, `reconciliationRequired`, `canReconcile`, `createdAt`, `completedAt`
+and a relative `statusUrl`. `result` is null or the strict action-specific safe
+result above; stored extra fields cause omission rather than raw-row forwarding.
+`failureCode` is null except the safe definitive `billing_provider_rejected`.
+Times are ISO UTC; `completedAt` remains null until terminal commit.
+No tenant/actor IDs, child IDs, raw parameters, email, provider object/request IDs,
+provider keys/results, fingerprints, execution versions, leases or fences are
+projected. The only externally returned provider value is the existing hosted
+entry-point URL in an approved successful result; creation is not payment or
+cancellation proof. All responses use `Cache-Control: private, no-store`.
+
+| HTTP | Exact error/meaning |
+| --- | --- |
+| 400 | `{error:"Invalid recovery body"}`: missing/malformed JSON, non-object or any extra property. No journal/provider access. |
+| 401 | `{error:"Unauthorized"}`: absent user or rejected authentication; before RLS/journal access. |
+| 403 | `{error:"Forbidden"}`: reconcile Origin/fetch-site rejection, before journal/provider access. |
+| 404 | `{error:"Not found"}`: malformed UUID, absent own profile or inaccessible/missing root operation, including owner/foreign/internal-child operations. |
+| 409 | `{error:"billing_execution_in_progress"}`: live lease or racing live claim; no automatic retry. |
+| 502 | `{error:"billing_provider_rejected"}`: durable terminal definitive rejection only. Earlier successful partial effects prevent terminal failure. |
+| 503 | `{error:"billing_operation_unavailable"}`: authentication infrastructure, ownership persistence or safe journal read unavailable. No raw DB/provider errors. An unreadable accepted result is not fabricated as successful or safely failed. |
+
+`reconciliationRequired` is true for both durable `pending` and
+`reconciliation_required`, including interrupted dispatch and failed final DB
+commit. `canReconcile` is advisory permission for a useful explicit attempt, **not
+a promise of success, safe mutation or extended provider retention**. It is false
+for terminal state, live leases, absent/mismatched own reservation/binding,
+durable partial rejection and an unknowable late portal create. It may remain
+true beyond 24 hours for retrievable/discoverable objects because an attributable
+object can still be found; that never enables a late POST replay. Reconcile still
+returns 202 if no evidence can resolve the operation, preserving its reservation.
+Clients must not automatically loop POST; task 3.14 owns bounded GET polling/UI.
+
+#### Customer billing UI safety — task 3.14 in progress, not rolled out
+
+Checkout (including pricing links), invoice upgrade, subscription settings and
+cancellation callers share a frozen-intent client controller. Existing RLS profile
+loads supply only `billingAccessVersion` and an opaque hash of authenticated
+user/verified JWT `session_id`, never raw billing rows, tenant/session IDs or
+provider bindings. Token refresh and another device's sign-in do not rotate this
+scope; a different authenticated session does. Unavailable verified claims fail closed.
+Onboarding's local plan PATCH and pricing navigation do not create billing sessions
+and are unchanged. Task-3.6 mutation routes now enforce these headers and journal
+the accepted intent; the offline code and UI are **not** safe for rollout before
+reviewed database/security application and isolated validation.
+
+Before an explicit mutation click dispatches, tab `sessionStorage` retains its
+UUID, original version, endpoint/method and minimal plan intent. It stores no
+result, hosted URL, email, provider ID or secret. A terminal marker prevents a
+return from hosted checkout from automatically redirecting back into it. Same
+intent clicks retain identity even after a version refresh. Unknown outcomes block
+replacement intents; 409 refreshes server data without minting a new key or
+automatically repeating POST/DELETE. Terminal failure/supersession refreshes only.
+Only a separately labelled, explicit terminal acknowledgement clears the completed
+intent; that action refreshes details without generating a key or dispatching.
+The customer must then choose/confirm a new request. Unknown intents cannot be cleared.
+Successful `url`/`redirectUrl` navigates; `scheduledAt`/`cancelled` refreshes current
+server-rendered details instead of synthesizing access or billing state.
+
+Status observation uses at most six GET attempts per mounted operation identity,
+two seconds apart, with a ten-second request timeout and abort on unmount/session
+change. After that, an accessible status notice offers manual GET checks and,
+only when `canReconcile`, one explicit same-origin-credential POST with `{}`.
+There is no automatic mutation/reconciliation retry. Safe pending guidance makes
+no charge, cancellation, plan or access-change claim. The authenticated
+`/billing/checkout` entry restores recovery outside the dashboard entitlement gate,
+including contact-only plan display. Missing profile version disables new mutation
+dispatch. Scope changes/sign-out/401 clear browser intent; late results are ignored.
+Server status/reconcile ownership checks remain authoritative regardless of storage.
+
+One explicit recovery claims the existing reservation with the coordinator's
+monotonic fence, reads immutable steps, and makes one bounded evidence attempt
+per unfinished step. Deterministic customer handoff and two-step schedule workflow
+may advance their existing frozen steps; they never start unrelated work. Provider
+mutation calls have SDK network retries disabled. No database lock spans them.
+Before each dispatch/step commit/finalization the existing binding/lease/fence
+contract applies. Step replay uses the original stored request/key only, strictly
+before that step's durable `firstAttemptAt + 24h`; equality is already expired.
+An unattempted dependent step gets its own first-attempt timestamp, never an
+invented original dispatch time. Config drift cannot regenerate prices/URLs/email.
+
+Known customer/Checkout/subscription/schedule references are retrieved and passed
+through the same action-specific verifier and fenced evidence commit as original
+execution. Checkout verifies customer, subscription mode, tenant/operation
+metadata, complete single line item/price/quantity and frozen redirects. Upgrade
+recovery additionally requires operation correlation, not just a matching current
+price. Schedule release verifies the uniquely frozen schedule and released
+subscription/current binding. Durable successful step proof may finish a failed
+final DB commit without repeating the mutation, including portal creation.
+
+Create discovery explicitly paginates customers (the default non-test-clock
+population matching frozen customer requests, with no email filter), all Checkout
+sessions for the bound customer, or all schedules for that customer. No misleading
+subscription-only or status filter excludes old results. Enumeration must complete
+and find exactly one tenant/operation-correlated object. It is bounded to 100 pages
+of 100; budget exhaustion, duplicate/cyclic pages, ambiguous matches or provider
+read failure leave uncertainty. List absence is **never** nonexecution proof.
+The pinned `from_subscription` schedule create cannot carry metadata: a unique
+schedule for the same subscription alone cannot attribute creation. Missing
+operation correlation/provider proof therefore blocks late recovery; no fabricated
+schedule outcome or replacement key is used. Portal SDK exposes neither retrieve
+nor list: only already durable verified step proof or within-window identical
+key replay can recover it; late unknowable creation remains reserved for operator
+and provider investigation.
+
+A separate terminal-only supersession path handles a fully proven upgrade,
+downgrade or undo-downgrade whose subscription binding has since changed. It
+requires all expected steps' durable successful evidence matching the historical
+customer/subscription, unchanged customer binding, the exact own reservation,
+expired prior lease and a fresh monotonically fenced claim. It retrieves both
+subscriptions: the old must be ended (`canceled`/`incomplete_expired`), the current
+must be non-ended and both must map consistently to the tenant/customer and
+accepted price catalog. Only then can it store `superseded`, retain the original
+safe result, release its reservation and increment the version without projecting
+old billing fields. The historical-binding CAS is checked again after provider
+reads. Its token is never returned to an executor or used to dispatch. Missing
+proof, still-live/ambiguous old binding, foreign/unmapped new state, expired fence
+or failed atomic commit stays unknown and reserved. Session/unknown-create
+operations cannot use this path to escape uncertainty.
+
+Timeout, connection loss, cached500, failed proof/final commit and interrupted
+schedule dispatch remain pending/reconciliation-required, never fabricated success,
+nonexecution or supersession. A validation rejection on a *later* replay does not
+prove the earlier uncertain dispatch had no effect. Known schedule-create success
+can resume its frozen phase update; rejected phases after create remain partial
+and reserved, with no compensation/release or automatic mutation retry. Customer
+recovery atomically verifies/binds the same child then hands off to its own root;
+late unknown customer creation cannot dispatch the waiting root. Existing access
+is not revoked just because billing recovery remains uncertain.
+
+Future isolated verification code is available through `scripts/verify-rls.ts`
+with `--billing-mutations-staged` (stage unapplied artifacts) or
+`--billing-mutations` (verify already-deployed artifacts). Both require a single
+`--reviewed-isolated-target=<project-ref>` matching the canonical adapter's
+`SUPABASE_PROJECT_REF`; the flag acknowledges a prior separate review, not
+permission to probe a shared target. No new environment variable/URL override is
+introduced. Staging conditionally includes the initial trial schema, pending
+webhook lease and customer journal migration, supplemental CHECKs with their
+outer BEGIN/COMMIT removed in memory, and both targeted policy blocks. Partial
+CHECK deployment fails for review rather than repairing data. One outer
+transaction always rolls back DDL/defaults/ACLs/fixtures on success or failure;
+these modes never invoke the older persistent seed/cleanup path or write SQL
+files/migration history. They still require live authorization and were **not
+executed** for this offline subset.
+
+Probes cover two tenants and anonymous roles, safe own-profile/grant/risk reads
+and name edits, denied own/foreign journal/step reads and all client DML, denied
+profile INSERT/DELETE and billing/reservation/version updates, retained evidence,
+tenant FK/parent/step matching, actor equality, each allowed single reservation
+and rejected dual reservations in both directions. Catalog checks include column
+ACLs and creator defaults. The existing containment-only mode remains unchanged;
+default full verification/grant checks now expect the customer journal/security
+rollout. Static contracts and mocked/offline tests are not live proof. Tasks 3.8,
+3.9 and 9.3 remain unchecked pending separately reviewed isolated validation.
+
+Canonical policies and the targeted trial-access policy deployment restrict profile
+writes to display name, onboarding completion and the Prisma update timestamp.
+Profile settings now use the existing idempotent bootstrap only when missing, then
+update the name under RLS; an existing trial is not recreated by a name edit.
+Before enabling these policies in a deployed environment, verify all billing
+writers use the scoped server coordinator and drain old instances/in-flight
+requests. Checkout creation/upgrade/binding are now wired in the working tree.
+Task 5.4's onboarding conversion is now present: validated selection is purchase
+intent only, with tenant-RLS writes limited to completion/lifecycle timestamps.
+Verify that exact converted build is deployed before activating restrictions;
+working-tree completion does not prove deployed writer compatibility.
+
+The initial trial-access migration was applied to the development database on
+2026-10-15 as an unexpected pending-migration side effect of Prisma
+`migrate dev --create-only` while generating the ledger lease migration. Its file
+was not modified; the additive ledger lease migration remains unapplied. No
+production deployment or feature rollout is claimed. With explicit approval,
+`prisma/tenant-trial-tables-policies.sql` was applied on 2026-10-15 to enable RLS
+and restrict privileges on only the four new tables. Live verification with
+`npm run verify-rls -- --trial-access-tables` passed tenant-safe reads, private-data
+denial and customer/anonymous write denial; all fixtures rolled back. Profile
+table/column privileges were verified unchanged. Profile restrictions remain
+deferred pending reviewed deployment/verification of the converted writers.
+Historical trial-only staged verification is
+rollback-only, not authorization for further shared-dev probing or deployment.
+Customer-journal verification now requires the separately reviewed isolated-target
+confirmation and modes in the Supabase runbook below. Default RLS
+verification and grant checks expect the schema/security contract to be deployed.
+Do not reset tenant data, auto-grant access or rewrite existing trial dates.
+After rollout, rollback disables management while retaining the resolver, grants,
+journal and audit; reconcile pending provider changes first. Never shorten Stripe
+trials automatically or deploy a version that ignores existing grants.
+
+The following model inventory includes working-tree trial/customer additions,
+**not** a claim that those models' full live security contract is deployed.
+For reviewed generation provenance, exact CHECK names, isolated confirmation
+flags and applied/unapplied artifact status, see
+[Supabase §11](runbooks/supabase.md#11-trial-access-and-customer-journal-database-gate).
+The ordered [release/rollback checklist](runbooks/vercel.md#12-trial-access-and-customer-billing-journal-release-gate)
+requires isolated migration/CHECK/RLS proof **before** separate shared-target
+authorization; safe creation defaults/no exposed intermediate tables; deployment
+of the converted onboarding/billing writers; and old-writer drain before owner enablement. Rollback retains
+both journals/reservations, versions, recovery/current-state lifecycle, grants and
+ACL restrictions. Never restore billing privileges or recreate late unknown
+provider objects. The optional shadow check is not recorded as passed.
+
 | Model | Path | Purpose | Key fields | Relationships | Tenant scoped? | Notes |
 |---|---|---|---|---|---|---|
+| `UserProfile` authority additions | [schema](../prisma/schema.prisma) | Shared billing generation and mutually exclusive reservations | `billingAccessVersion`, `pendingTrialOperationId`, `pendingBillingMutationId` | Own owner/customer operations, verified under tenant lock | Server-only writes | Version increments on acquire/release and changed verified lifecycle; pending customer column/CHECK/full ACLs remain unapplied. No lease-expiry release. |
+| `TenantTrialGrant` | [schema](../prisma/schema.prisma) | Current application-only access window | `userId`, `plan`, `startsAt`, `expiresAt`, `revokedAt`, creator/last operation | Unique tenant; same-tenant operation FKs | Safe own-column SELECT | Dev initial migration/containment only; cannot postpone Stripe charges or bypass risk. |
+| `TenantTrialOperation` | [schema](../prisma/schema.prisma) | Durable owner preview/mutation | UUID, actor/session/reason, immutable input/preview, provider key/proof, first attempt, lease/fence/outcome | Tenant; grants/notification | Server-only | Runtime management/saga/audit present, not rolled out; preserve original session/history. |
+| `TenantTrialNotification` | [schema](../prisma/schema.prisma) | Independent delivery evidence | Unique operation/key, frozen recipient/payload, delivery state, attempts/lease/fence | Same-tenant owner operation | Server-only | Runtime delivery present, not rolled out; separate from debtor email history/access result. |
+| `TenantBillingRisk` | [schema](../prisma/schema.prisma) | Independent subscription debt/dispute facts | Unique `(kind, stripeObjectId)`, binding/provider references, status/blocking/reconciled time | Tenant, historical/current Stripe subscription | Safe own-column SELECT | Only that verified resolved fact can clear; unrelated payment/cancellation cannot erase debt. |
+| `TenantBillingMutation` | [schema](../prisma/schema.prisma) | Durable customer root/prerequisite intent | UUID, actor=tenant, action, frozen input/hash/configuration, starting/execution versions, binding/fingerprint, parent, safe result, attempts/lease/fence | Tenant; composite same-tenant parent; steps | Server-only; no Data API access | Offline-generated migration/CHECK/policies unapplied. Internal child is never exposed by customer status/reconcile. |
+| `TenantBillingMutationStep` | [schema](../prisma/schema.prisma) | Write-once provider request and evidence | Per-operation unique key/sequence, global Stripe key, method/target/hash/request, IDs/proof, `firstAttemptAt`, outcome | Composite same-tenant mutation FK | Server-only; no Data API access | Strict per-step retained-key replay before +24h; partial/unknown effects retain reservation. |
+| `StripeBillingWebhookEvent` lease additions | [schema](../prisma/schema.prisma) | Fenced signed-delivery processing | `processingToken`, `processingLeaseUntil`, ledger status | Stripe event ID | Server-only | Additive migration unapplied; receipt is not terminal success, stale claims cannot commit. |
 | `UserProfile` | `prisma/schema.prisma` | Per-user billing/sub state | `userId` (UK), `stripeCustomerId` (UK), `stripeSubscriptionId`, `subscriptionCurrentPeriodStart`, `subscriptionCurrentPeriodEnd`, `pendingDowngradeTier`, `stripeScheduleId`, `subscriptionTier`, `subscriptionStatus`, `trialEndsAt`, `onboardingCompletedAt`, `displayName`, `subscriptionCancelAt` | 1—N connections/invoices; 1—1 schedule/email settings | Yes (RLS) | New users start with `subscriptionStatus: "trialing"` and `trialEndsAt: now + 14 days`; `onboardingCompletedAt` is null until plan is chosen on `/onboarding`; `displayName` is used as `{{yourName}}` in reminder emails; `subscriptionCurrentPeriodStart` anchors the chase-volume allowance period (§4.6) and is populated from Stripe's invoice `period_start` alongside `subscriptionCurrentPeriodEnd` |
 | `InvoiceConnection` | `prisma/schema.prisma` | Linked Stripe account | `provider`, `stripeConnectAccountId`, `isActive` | N—1 profile; 1—N invoices | Yes | Comment claims app-layer encryption (not implemented) |
 | `Schedule` | `prisma/schema.prisma` | Day offsets for stages | `email{1,2,3}DaysAfterDue` | 1—1 profile | Yes | Defaults 3/10/21 |
@@ -680,15 +1320,30 @@ enforced server-side before content is returned.
 
 ## 7. API Design
 
+The customer mutation, own-operation recovery and hosted lifecycle rows below
+describe current **offline working-tree wiring**, not rollout completion. Tasks
+3.6/3.12/3.13 are recorded complete for that subset; remaining database, owner and
+access gates still apply. Mutation/recovery JSON responses are private/no-store;
+strict mutation UUID/version headers do not apply to read-only Checkout-success
+GET. Own-status GET does not call Stripe or acquire a lease; reconcile requires
+same-origin strict `{}` and performs at most one stored-intent recovery attempt.
+See the [exact recovery contract](#own-customer-operation-recovery--task-312-in-progress-not-rolled-out)
+and [Stripe diagnostics](runbooks/stripe.md#112-status-and-explicit-reconciliation-diagnostics)
+for safe fields, 202/404/409/502/503 semantics and no automatic POST retry.
+
 | Route | Handler | Validation | Permission | Tenant scoping | Request → Response | Status |
 |---|---|---|---|---|---|---|
 | `PATCH /api/onboarding` | `app/api/onboarding/route.ts` | `zod` `{tier}` | session | `withUserContext` profile | `{tier}` → `{ok}` | Implemented |
-| `POST /api/billing/checkout` | `app/api/billing/checkout/route.ts` | `zod` `{tier?}` | session | `withUserContext` profile | `{tier}` → `{url}` | Implemented |
-| `POST /api/billing/portal` | `app/api/billing/portal/route.ts` | — | session | `withUserContext` | `{}` → `{url}` | Implemented |
+| `POST /api/billing/checkout` | `app/api/billing/checkout/route.ts` | Strict optional `{tier?}`, UUID/version headers; no query | `getUser()` + same-origin | RLS own profile; narrow privileged durable journal/projection | → existing `{url}`; safe202/400/401/403/404/409/502/503 | Offline wiring; not rolled out. Keyed customer prerequisite/new Checkout/verified upgrade |
+| `POST /api/billing/portal` | `app/api/billing/portal/route.ts` | Strict optional `{}`, UUID/version headers; no query | `getUser()` + same-origin | RLS own profile; narrow privileged durable journal/projection | → existing `{url}`; safe202/errors | Offline wiring; not rolled out. Keyed customer prerequisite and portal creation |
+| `POST /api/billing/cancel` | `app/api/billing/cancel/route.ts` | Strict optional `{}`, UUID/version headers; no query | `getUser()` + same-origin | RLS own profile; narrow privileged durable journal/projection | → existing `{redirectUrl}` or `{url}`; safe202/errors | Offline wiring; not rolled out. Local onboarding cancel or keyed cancellation portal, never direct Stripe cancel |
+| `GET /api/billing/operations/[operationId]` | `app/api/billing/operations/[operationId]/route.ts` | UUID path (scoped404) | `getUser()` | RLS own profile then server-only own-root journal projection | → safe operation status; no provider/mutation | Offline wiring; not rolled out |
+| `POST /api/billing/operations/[operationId]/reconcile` | `app/api/billing/operations/[operationId]/reconcile/route.ts` | UUID path, strict `{}`, same-origin | `getUser()` | RLS own profile then fenced stored own intent/prerequisite | → original terminal result or safe202; exact errors above | Offline wiring; not rolled out |
 | `GET /api/stripe/connect/authorize` | `.../authorize/route.ts` | — | session | `withUserContext` count | → redirect to Stripe | Implemented |
 | `GET /api/stripe/connect/callback` | `.../callback/route.ts` | query `code,state` | session + `state==user.id` | `withUserContext` upsert | → redirect to settings | Implemented |
 | `POST /api/stripe/connect/disconnect` | `.../disconnect/route.ts` | optional `{connectionId}` | session | `withUserContext` | → `{success}` | Implemented |
-| `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature | signature | `prismaAdmin` + durable event dedupe | Stripe event → `{received}` | Implemented — handles `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.trial_will_end`; enforces stale-event guard by `event.created` watermark |
+| `GET /api/billing/checkout/success` | `app/api/billing/checkout/success/route.ts` | Validated `session_id`; no mutation headers | `getUser()` | RLS own profile, then narrow privileged hosted lifecycle coordinator | → existing307 sign-in/success redirect; verified tier only | Offline wiring; not rolled out. Independent of immutable session creation and both reservations |
+| `POST /api/webhooks/stripe-billing` | `.../stripe-billing/route.ts` | Stripe signature/raw body | signature before receipt | Server-only current provider reconciliation + fenced ledger | Stripe event → `{received}` or retryable503 | In-progress reconciliation: Checkout uses shared verified hosted lifecycle; subscription/schedule/risk retain their coordinators. Terminal ledger/projection atomic under tenant lock; timestamps informational, not supersession proof. Not a rollout claim. |
 | `POST /api/webhooks/stripe-connect` | `.../stripe-connect/route.ts` | provider signature | signature | `prismaAdmin` by account id | Stripe event → `{received}` | Implemented |
 | `POST /api/webhooks/resend` | `.../resend/route.ts` | Svix-style signature (`svix-id`/`svix-timestamp`/`svix-signature`, HMAC-SHA256, 5-min tolerance) | signature | `prismaAdmin` by `resendMessageId` | Resend delivery event → `{received}` | Implemented — updates `EmailLog.status`; always returns 200 for unmatched/unknown events |
 | `GET /api/cron/send-emails` | `.../cron/send-emails/route.ts` | — | `Bearer CRON_SECRET` | `prismaAdmin` | → `{emailsSent,errors,processed,held,usageByAccount}` | Implemented |
@@ -754,9 +1409,9 @@ enforced server-side before content is returned.
 | `PATCH /api/settings/profile` | `.../profile/route.ts` | `zod` `{displayName}` 1–100 chars | session | `withUserContext` profile update | → `{displayName}` | Implemented |
 | `GET/PUT/DELETE /api/settings/templates` | `.../templates/route.ts` | `zod` subject/body | session + template features | `withUserContext` (PUT/DELETE) | → `{...template}` / `{success}` | Implemented |
 | `GET/POST /api/settings/ai` | `.../ai/route.ts` | `zod` text/stage | session + `ai_rewrite` | `prismaAdmin` (`ai_usage_logs`) | → `{canRewrite}` / `{success, friendly, firm, final_notice}` | Implemented (GPT-4o-mini) |
-| `POST /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | `zod` `{tier}` | session | `withUserContext` profile | `{tier}` → `{scheduledAt}` | Implemented |
+| `POST /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | Strict `{tier}`, UUID/version headers; no query | `getUser()` + same-origin | RLS own profile; narrow privileged durable journal/projection | → existing `{scheduledAt}`; safe202/errors | Offline wiring; not rolled out. Keyed schedule-create/phase-update, verified actual paid plan |
 | `GET /api/diagnostics/db-check` | `.../diagnostics/db-check/route.ts` | — | none (public); 404s unless `DEBUG=true` | `prismaAdmin` `SELECT 1` only | → `{ok,message,latencyMs,error?}` | Implemented — debug-only connectivity probe surfaced by a homepage button when `DEBUG=true` |
-| `DELETE /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | — | session | `withUserContext` profile | → `{cancelled}` | Implemented |
+| `DELETE /api/billing/downgrade` | `app/api/billing/downgrade/route.ts` | Strict optional `{}`, UUID/version headers; no query | `getUser()` + same-origin | RLS own profile; narrow privileged durable journal/projection | → existing `{cancelled: true}`; safe202/errors | Offline wiring; not rolled out. Verified keyed schedule release |
 | `GET/POST /api/settings/team/invite` | `.../team/invite/route.ts` | `zod` email | session | (none) | → seats / `{success}` | **Scaffold (not persisted)** || `GET /api/integrations/xero/connect` | `.../xero/connect/route.ts` | — | session + `accounting_integrations` feature | `prismaAdmin` oauth_state insert | → redirect to Xero OAuth | Implemented |
 | `GET /api/integrations/xero/callback` | `.../xero/callback/route.ts` | query `code,state` | session + nonce validation | `withUserContext` upsert accounting_connections | → redirect to settings | Implemented |
 | `POST /api/integrations/xero/disconnect` | `.../xero/disconnect/route.ts` | `zod` `{connectionId}` | session | `withUserContext` status update | → `{success}` | Implemented |
@@ -808,8 +1463,14 @@ enforced server-side before content is returned.
 | `POST /api/admin/staff/[userId]/disable` | `.../disable/route.ts` | path `userId` | All 3 layers; `minRole: platform_owner` | `prismaAdmin` | → `{ok}` | Implemented |
 | `GET /api/admin/tenants` | `app/api/admin/tenants/route.ts` | query `cursor,limit,search` | All 3 layers | `prismaAdmin` | → `{tenants, nextCursor}` (safe fields); `search` filters by `displayName` (case-insensitive) | Implemented |
 | `GET /api/admin/tenants/[id]` | `.../[id]/route.ts` | path `id` | All 3 layers | `prismaAdmin` | → `{tenant}` (safe fields); logs `tenant_viewed` | Implemented |
+| `GET /api/admin/tenants/[id]/trial-access` | `app/api/admin/tenants/[id]/trial-access/route.ts` | UUID tenant; no query | Elevated active owner + active own device; no impersonation | Scoped privileged reads only | → minimal identity/contact provenance, raw billing, grant/effective access, version and fresh read-only Stripe eligibility (`available:false` on failure); never freezes mail | Runtime present — not rolled out |
+| `POST /api/admin/tenants/[id]/trial-access/preview` | `.../trial-access/preview/route.ts` | Same-origin; strict preview intent below | Same owner boundary | Persisted 15-minute original-actor/session preview | → frozen UTC target, timezone/offset, plan/source/billing effect; no access change/send | Runtime present — not rolled out |
+| `POST /api/admin/tenants/[id]/trial-access/operations` | `.../trial-access/operations/route.ts` | Same-origin; strict `{operationId,expectedVersion}` only | Original actor/session + current owner boundary | Stored source dispatches local grant/revoke or Stripe saga | → 200 immutable access result + separate mail outcome (even mail failure); 202 unknown; 502 definitive rejection | In progress — not rolled out |
+| `GET /api/admin/tenants/[id]/trial-access/operations/[operationId]` | `.../trial-access/operations/[operationId]/route.ts` | UUID tenant/operation; no query | Same original actor + current valid owner elevation in any session | Tenant/actor-scoped read only | → stored result and separate current notification status; no provider/send/recovery | In progress — not rolled out |
+| `POST /api/admin/tenants/[id]/trial-access/operations/[operationId]/reconcile` | `.../trial-access/operations/[operationId]/reconcile/route.ts` | Same-origin; strict `{}` | Same original actor + current owner elevation in any session | Stored Stripe intent/key only; local terminal read-only replay | → 200/202/502; immutable original session preserved, appended recovery audit records current session | In progress — not rolled out |
+| `POST /api/admin/tenants/[id]/trial-access/operations/[operationId]/notification/retry` | `.../trial-access/operations/[operationId]/notification/retry/route.ts` | Same-origin; strict `{}` | Original actor/session + current owner boundary | Delivery-only existing service | → separate delivery status; never re-confirms access | In progress — not rolled out |
 | `POST /api/admin/tenants/[id]/actions/reset-email-from` | `.../reset-email-from/route.ts` | path `id` (userId) | All 3 layers | `prismaAdmin` | → clears `EmailSettings.fromEmail/fromName/replyTo`; logs `admin_tenant_action` with old value in metadata | Implemented |
-| `POST /api/admin/tenants/[id]/actions/extend-trial` | `.../extend-trial/route.ts` | `zod` `{days: 1–30}`; path `id` (userId) | All 3 layers | `prismaAdmin` | → updates `UserProfile.trialEndsAt`; rejects if not trialing; logs `admin_tenant_action` | Implemented |
+| `POST /api/admin/tenants/[id]/actions/extend-trial` | `.../extend-trial/route.ts` | Same-origin; strict `{operationId,expectedVersion}` only | Original actor/session + current owner boundary | Shared preview-backed Stripe extension only | → same safe 200/202/502 outcome; old `{days}` rejected; no grant/revoke dispatch | Breaking adapter present — not rolled out |
 | `POST /api/admin/tenants/[id]/actions/trigger-resync` | `.../trigger-resync/route.ts` | `zod` `{connectionId}`; path `id` (userId) | All 3 layers | `prismaAdmin` | → invokes `syncConnection`; verifies connection belongs to tenant; logs `admin_tenant_action` | Implemented |
 | `GET /api/admin/users` | `app/api/admin/users/route.ts` | query `search,cursor,limit` | All 3 layers | `prismaAdmin` | → `{users, nextCursor}` | Implemented (route retained; UI redirects to /admin/tenants) |
 | `GET /api/admin/subscriptions` | `app/api/admin/subscriptions/route.ts` | — | All 3 layers | `prismaAdmin` | → `{tiers}` (counts, no Stripe IDs) | Implemented |
@@ -827,6 +1488,77 @@ enforced server-side before content is returned.
 | `POST /api/admin/training/[id]/restore` | `app/api/admin/training/[id]/restore/route.ts` | `zod` `{revisionId,changeNote?}` | All 3 layers; `minRole: platform_admin` | `prismaAdmin` | → `{item}` | Implemented (restore-as-new-revision; state reset to `draft`) |
 | `GET /api/help/content/[slug]` | `app/api/help/content/[slug]/route.ts` | path `slug` | public/signed-in based on audience | `prismaAdmin` + server-side audience filter | → `{item}` | Implemented (published-only) |
 | `GET /api/help/search-db` | `app/api/help/search-db/route.ts` | query `q,limit` (`zod`) | public/signed-in based on audience | `prismaAdmin` + server-side audience filter | → `{results}` | Implemented |
+### Owner trial route contract — in progress, not rolled out
+
+The six trial-access routes and legacy adapter above share
+[the transport](../lib/admin/trialAccessRoute.ts) and
+[owner authority](../lib/admin/trialAccessAuthority.ts). Guard before target reads:
+real Supabase identity, active `platform_owner`, valid unrevoked elevation and
+active matching device; exit either impersonation mode first. Support/admin
+tenant-health access does not confer trial authority. Paths require UUIDs; all
+queries are rejected. Every POST requires exact matching `Origin`, rejects
+`Sec-Fetch-Site: cross-site`, parses JSON and rejects unknown body fields.
+Responses use `Cache-Control: private, no-store`.
+
+- Preview accepts `operationId`, `action` (`extend_or_grant` or `revoke_grant`),
+  required trimmed `reason` (1–1000 characters), `timeZone` (named IANA zone),
+  nonnegative integer `expectedVersion`, and `notify` (default false).
+  Extension/grant requires exactly one of `days` (7/14/30 elapsed 24-hour days)
+  or `expiresAt` (ISO with explicit Z/offset; non-Z offset must match the zone).
+  Application grants require one of the four public `plan` values; Stripe
+  extension forbids `plan`. Revoke accepts neither plan nor duration/expiry.
+- Server preflight selects source. A 15-minute immutable preview freezes the
+  absolute UTC-second target, plan, source and version/fingerprint including both
+  reservations. Duration starts at later-of-now/full effective trial expiry.
+  Confirmation accepts only `{operationId,expectedVersion}` using `previewVersion`;
+  it never adds days again. Stale/expired previews need a fresh UUID and preview.
+  The legacy adapter accepts this same confirmation body **only**, not days or
+  reason; the required reason/duration were already persisted by preview. It
+  rejects stored grant/revoke intent with `trial_stripe_intent_required` (409).
+- Confirmation and notification retry require the original actor **and original
+  session**, plus current owner authority. Status/reconcile require the same
+  original actor with current active owner elevation in **any** session, including
+  fresh elevation after expiry. A different owner cannot take over. Reconcile and
+  notification retry accept exactly `{}`; recovery cannot confirm an old preview.
+
+| HTTP | Actual transport behavior |
+| --- | --- |
+| 200 | Snapshot/preview; completed access outcome (including failed/blocked mail); terminal replay. Retry returns `{operationId,notification:{status}}`, even for failed/unknown/blocked delivery. |
+| 202 | Access `pending`/`reconciliation_required`; status GET also returns 202 while unresolved. This is not access success. |
+| 400 | `Invalid path`, `Invalid query`, `Invalid JSON body`, `Invalid request body`, or `trial_expiry_invalid`. |
+| 401/403 | `Admin authorization required` with guard `code`: `unauthenticated`/`elevation_required` map to 401, other guard failures to 403; same-origin failure is `Forbidden` (403), service authority failure `trial_owner_required` (403). |
+| 404 | `Not found` for missing/foreign tenant/operation/actor scope, including wrong original session on confirmation/retry. |
+| 409 | Examples: `trial_preview_stale`, `trial_preview_expired`, `trial_operation_key_conflict`, `trial_ineligible`, `trial_billing_conflict`, `trial_recovery_not_available`. Refresh conflicts; never replace an unresolved accepted operation. |
+| 502 | Durable access result `status: failed`, `failureCode: provider_rejected`; status GET also maps a stored failed result to 502. Not an email-failure response. |
+| 503 | Unavailable persistence/eligibility/projection; examples `trial_operation_unavailable`, `trial_preview_unavailable`, `trial_eligibility_unavailable`. No raw provider errors. |
+
+Safe access outcomes expose operation/source/status and, on success,
+action/target plan/expiry/version/after snapshot. Stored `notificationStatus` is
+the immutable acceptance outcome (`pending`/`not_requested`); optional
+`notification.status` reports the post-commit attempt. Status GET returns
+`operationId`, `action`, `source`, `status`, `result`, current `notificationStatus`,
+`reconciliationRequired`, `canReconcile`, `createdAt`, `completedAt`. Expired
+unconfirmed previews display `expired_preview`. `canReconcile` flags unresolved
+Stripe intent, not proof that replay is safe. GET never recovers or sends. The
+management snapshot alone exposes minimal owner-only contact/provenance; operation
+responses omit reason, tenant/actor/provider IDs, payloads, keys, fingerprints and
+leases. Owner journal states are `previewed`, `pending`,
+`reconciliation_required`, `succeeded`, `failed`, `conflicted`, `expired_preview`.
+There is no owner-journal `superseded` enum: proven supersession is stored as
+journal `succeeded` with immutable **result** `status: superseded` and
+`notificationStatus: not_requested` (no new success outbox). This is distinct from
+notification delivery `superseded`.
+
+Recovery preserves frozen intent/key and immutable original operation
+`adminSessionId`; it appends current-session audit, never rebinds the journal.
+See [admin operations](runbooks/admin.md#9--trial-access-operations--in-progress-not-rolled-out)
+for evidence/retention handling and [notification delivery](runbooks/resend.md#7-trial-access-notifications--in-progress-not-rolled-out).
+Runtime code is present, not rollout approval: pending migration/CHECK/RLS and
+isolated checks (3.8/3.9/9.3), owner UI (8.1–8.4), and release verification still
+block enablement. Customer/API/jobs integration (5.1–5.5/6.1–6.4) is present in
+the working tree; this is not deployed verification. Retain all existing
+feature/readiness gates.
+
 Canonical vs deprecated: there are no deprecated API aliases in runtime billing
 paths. `STRIPE_BUSINESS_PRICE_ID` and `STRIPE_PRO_PRICE_ID` are retired.
 
@@ -1006,10 +1738,12 @@ stateDiagram-v2
   `subscription_data.trial_period_days` from `STRIPE_TRIAL_PERIOD_DAYS` (default 14)
   for eligible self-serve plans, reuses existing Stripe customers, and blocks
   duplicate active/trialing subscription creation.
-- **Checkout-success reconciliation:** `GET /api/billing/checkout/success` reads the
-  completed session from Stripe, enforces ownership via checkout metadata, and
-  writes Stripe-backed lifecycle fields (`status`, trial end, period start/end,
-  cancel-at-period-end, price id, customer/subscription ids).
+- **Checkout-success reconciliation — task 3.13 in progress:** authenticated RLS
+  ownership read followed by the shared verified hosted-lifecycle coordinator
+  above, also used by signed completion webhooks. Actual session/customer/current
+  subscription and generation/binding proof precede privileged projection; both
+  reservations and immutable creation results are preserved. Trial completion can
+  legitimately require no immediate payment. This is not deployed verification.
 - **Updates/cancellation:** `customer.subscription.created` and
   `customer.subscription.updated` resolve tier from price id (`PRICE_ID_TO_TIER`)
   and persist Stripe-backed lifecycle projection; `customer.subscription.deleted`
@@ -1035,6 +1769,25 @@ stateDiagram-v2
 - **Webhook idempotency/order:** billing webhook events are durably deduplicated by
   `stripe_event_id` in `stripe_billing_webhook_events`; older events are ignored
   when `event.created` is older than `UserProfile.latestStripeEventCreatedAt`.
+
+#### Retryable billing webhook ledger — in progress, not deployed
+
+Task 3.4 adds nullable `StripeBillingWebhookEvent.processingToken` and
+`processingLeaseUntil` columns in an additive, generated migration. Existing rows
+retain their status. Signature verification precedes all ledger access. Receipt
+does not imply completion: `received` and `failed` rows can be claimed; `processing`
+rows can be reclaimed after their 60-second lease (or if a legacy lease is absent).
+Only `processed` and `skipped` duplicates return terminal success. In-flight claims,
+lost fences and processing/persistence failures return sanitized HTTP 503.
+
+Every claim gets a fresh immutable executor token. Conditional finish writes require
+that original token, `processing` status and a live lease. Failed attempts leave
+`processedAt` null. Existing lifecycle writes and risk commits check the token in
+their transaction before side effects; stale executors cannot finalize another
+executor's ledger result. The exported transaction fence is available to task 3.5.
+Shared tenant locks/version validation across lifecycle and direct writers, atomic
+projection-plus-terminal-result commits, and grant-aware deletion remain pending
+task 3.5; this ledger alone does not guarantee cross-event snapshot ordering.
 
 ## 12. AI Rewrite Design
 
@@ -1063,9 +1816,12 @@ RAG/vector store, no LLM fallback.
 ## 13. Notifications and Messaging Design
 
 - **Provider:** Resend (`lib/email/send.ts`).
-- **No notification model** — emails are the only notification channel; there is
-  no in-app notification table or user notification preferences (beyond the
-  custom-sender `EmailSettings`).
+- **Trial notification outbox — in progress, not rolled out:**
+  `TenantTrialNotification` stores separate delivery state, frozen contact/payload
+  and provider evidence, not an invoice `EmailLog`. Default-off, post-commit
+  tenant sends use the system sender; internal reasons never enter customer copy.
+  See [Resend delivery/retry rules](runbooks/resend.md#7-trial-access-notifications--in-progress-not-rolled-out).
+  The following delivery/retry description concerns invoice reminders only.
 - **Delivery path:** cron → `sendFollowUpEmail` → `resend.emails.send` →
   `EmailLog` insert. From-address resolved by tier + Resend verification.
 - **Retry/error handling:** send failures are caught, logged via

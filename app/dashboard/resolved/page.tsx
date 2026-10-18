@@ -6,6 +6,7 @@ import { buildDashboardUpsellModel } from "@/lib/dashboardUpsell"
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable"
 import { LockedDashboardPreview } from "@/components/dashboard/LockedDashboardPreview"
 import { loadDashboardContext } from "@/lib/dashboard/loadDashboardContext"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
 import {
   RESOLVED_INVOICE_STATUSES,
   loadDashboardInvoices,
@@ -59,10 +60,9 @@ export default async function DashboardResolvedPage({
 
   const { profile, chaseAllowance } = await loadDashboardContext(user.id, traceContext, COMPONENT)
 
-  // Defensive only: every tier currently has `payment_status_dashboard: true`
-  // in lib/subscriptionPlans.ts, so this never actually locks a real tier
-  // today — kept in case a future tier disables the feature.
-  const plan = getPlanByTier(profile?.subscriptionTier)
+  const tier = getDashboardEffectiveTier(profile)
+  if (tier === null) redirect("/dashboard/settings/subscription")
+  const plan = getPlanByTier(tier)
   const canViewPaymentStatus = hasPlanFeature(plan.id, "payment_status_dashboard")
 
   traceEvent(

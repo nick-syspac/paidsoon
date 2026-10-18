@@ -8,7 +8,9 @@ const QuerySchema = z.object({
   format: z.enum(["csv"]).default("csv"),
 })
 
-export async function GET(request: Request) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request) {
   try {
     const supabase = await createClient()
     const {

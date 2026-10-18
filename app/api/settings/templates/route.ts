@@ -25,7 +25,10 @@ const BASIC_TEMPLATES = [
   { id: "payment-followup", label: "Payment follow-up" },
 ]
 
-export async function GET(request: Request) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const PUT = withSubscriptionAccess(PUTHandler)
+async function GETHandler(request: Request) {
   try {
     const supabase = await createClient()
     const {
@@ -91,7 +94,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+async function PUTHandler(request: Request) {
   try {
     const supabase = await createClient()
     const {

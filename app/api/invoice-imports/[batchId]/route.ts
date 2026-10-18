@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server"
 
 type Params = { params: Promise<{ batchId: string }> }
 
-export async function GET(_request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(_request: Request, { params }: Params): Promise<NextResponse> {
   const { batchId } = await params
   const supabase = await createClient()
   const {

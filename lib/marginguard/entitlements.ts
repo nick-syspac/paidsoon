@@ -1,7 +1,7 @@
 import { getSubscriptionTier, requireFeature } from "@/lib/billing"
 
 export interface MarginGuardEntitlements {
-  tier: string
+  tier: string | null
   hasCoreAccess: boolean
   hasCustomerAnalysisAccess: boolean
   hasAlertsAccess: boolean

@@ -41,7 +41,9 @@ function ruleErrorStatus(code: SpendRuleErrorCode): number {
   return 400
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ ruleId: string }> }): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function PATCHHandler(request: Request, context: { params: Promise<{ ruleId: string }> }): Promise<NextResponse> {
   const userId = await getAuthenticatedSpendClassificationUserId()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const params = await context.params

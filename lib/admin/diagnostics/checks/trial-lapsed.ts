@@ -18,15 +18,10 @@ export function checkTrialLapsed(snapshot: TenantSnapshot): Diagnostic | null {
     slug: "trial-lapsed",
     severity: "error",
     title: "Stripe trial period has lapsed",
-    description: `The tenant's Stripe-synchronized trial ended on ${profile.trialEndsAt.toLocaleDateString("en-AU")} and their subscription is still in "trialing" status. Review billing state and extend the Stripe trial only if appropriate.`,
+    description: `The tenant's Stripe-synchronized trial ended on ${profile.trialEndsAt.toLocaleDateString("en-AU")} and their subscription is still in "trialing" status. Review billing state. Trial access changes require elevated platform-owner management.`,
     runbookSlug: "trial-lapsed",
-    actions: [
-      {
-        actionSlug: "extend-trial",
-        label: "Extend trial 7 days",
-        description: "Extend the Stripe subscription trial by 7 days and sync the updated trial end date.",
-        payload: { days: 7 },
-      },
-    ],
+    // Health diagnostics remain staff-readable; trial intent/reason/preview is
+    // exclusively the owner management workflow, never a generic action payload.
+    actions: [],
   }
 }

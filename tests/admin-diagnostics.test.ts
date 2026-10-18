@@ -38,6 +38,9 @@ function makeProfile(overrides: Partial<UserProfile> = {}): UserProfile {
     subscriptionTier: "essentials",
     subscriptionStatus: "active",
     trialEndsAt: null,
+    billingAccessVersion: 0,
+    pendingTrialOperationId: null,
+    pendingBillingMutationId: null,
     onboardingCompletedAt: new Date("2026-01-01"),
     displayName: "Test User",
     createdAt: new Date("2026-01-01"),
@@ -103,6 +106,7 @@ function makeSnapshot(overrides: Partial<TenantSnapshot> = {}): TenantSnapshot {
     recentEmailLogs: [],
     supabaseEmail: "test@example.com",
     supabaseLastSignIn: null,
+    subscriptionAccess: null,
     ...overrides,
   }
 }
@@ -182,8 +186,7 @@ describe("checkTrialLapsed", () => {
     assert.ok(result !== null)
     assert.equal(result.slug, "trial-lapsed")
     assert.equal(result.severity, "error")
-    assert.equal(result.actions[0].actionSlug, "extend-trial")
-    assert.deepEqual(result.actions[0].payload, { days: 7 })
+    assert.deepEqual(result.actions, [], "staff health diagnostics must not expose a trial mutation payload")
   })
 })
 

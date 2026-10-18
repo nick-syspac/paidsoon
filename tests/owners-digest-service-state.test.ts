@@ -297,7 +297,7 @@ function buildTx() {
         return { count: data.length }
       },
     },
-    trackedInvoice: { findMany: async () => trackedInvoices },
+    trackedInvoice: { findMany: async () => { providerReads++; return trackedInvoices } },
     costGuardAlert: { findMany: async () => costGuardAlerts },
     cashPlanSnapshot: { findFirst: async () => cashPlanSnapshot },
     runwayGuardSnapshot: { findFirst: async () => runwaySnapshot },
@@ -306,6 +306,10 @@ function buildTx() {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ownersDigestService: any
+let coreAccess = true
+let providerCoreAccess = true
+let providerReads = 0
+class TestOwnersDigestAccessError extends Error {}
 
 describe("Owner's Digest degraded-state and idempotency", () => {
   before(async () => {
@@ -317,11 +321,14 @@ describe("Owner's Digest degraded-state and idempotency", () => {
 
     await mock.module("@/lib/ownersDigest/entitlements", {
       namedExports: {
-        requireOwnersDigestCoreAccess: async () => undefined,
+        OwnersDigestAccessError: TestOwnersDigestAccessError,
+        requireOwnersDigestCoreAccess: async () => {
+          if (!coreAccess) throw new TestOwnersDigestAccessError("Upgrade required")
+        },
         requireOwnersDigestHistoryAccess: async () => undefined,
         getOwnersDigestEntitlements: async () => ({
-          tier: "small_business",
-          hasCoreAccess: true,
+          tier: providerCoreAccess ? "small_business" : null,
+          hasCoreAccess: providerCoreAccess,
           hasEmailAccess: true,
           hasHistoryAccess: true,
         }),
@@ -356,6 +363,9 @@ describe("Owner's Digest degraded-state and idempotency", () => {
   })
 
   beforeEach(() => {
+    coreAccess = true
+    providerCoreAccess = true
+    providerReads = 0
     trackedInvoices = []
     costGuardAlerts = []
     cashPlanSnapshot = null
@@ -411,6 +421,20 @@ describe("Owner's Digest degraded-state and idempotency", () => {
     assert.equal(typeof digest.completenessSummary, "string")
     assert.equal(digest.items.length, 0)
     assert.equal(digestRows.length, 1)
+  })
+
+  test("independent generation entry point rejects denied access before provider computation", async () => {
+    coreAccess = false
+    await assert.rejects(() => ownersDigestService.generateOwnersDigest("user-1", { source: "scheduled" }), TestOwnersDigestAccessError)
+    assert.equal(providerReads, 0)
+    assert.equal(digestRows.length, 0)
+  })
+
+  test("access lost while preparing settings cannot run providers or persist a snapshot", async () => {
+    providerCoreAccess = false
+    await assert.rejects(() => ownersDigestService.generateOwnersDigest("user-1", { source: "scheduled" }), TestOwnersDigestAccessError)
+    assert.equal(providerReads, 0)
+    assert.equal(digestRows.length, 0)
   })
 
   test("same-period regeneration reuses the canonical snapshot identity", async () => {

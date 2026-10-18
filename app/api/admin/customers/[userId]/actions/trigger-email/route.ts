@@ -65,7 +65,8 @@ export async function POST(req: NextRequest, { params }: Params): Promise<NextRe
   )
 
   const resendMessageId = await sendFollowUpEmail(invoice, stage, freelancerEmail, freelancerName)
-  const success = resendMessageId !== null
+  const accessSkipped = typeof resendMessageId === "object" && resendMessageId !== null
+  const success = typeof resendMessageId === "string"
 
   await logAdminEvent({
     actorUserId: guard.ctx.userId,
@@ -87,6 +88,8 @@ export async function POST(req: NextRequest, { params }: Params): Promise<NextRe
       resendMessageId,
     },
   })
+
+  if (accessSkipped) return NextResponse.json(resendMessageId)
 
   if (!success) {
     return NextResponse.json({ error: "Failed to send email" }, { status: 502 })

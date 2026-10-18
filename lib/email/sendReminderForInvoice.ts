@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { sendFollowUpEmail, resolveFreelancerName } from "@/lib/email/send"
 import { computeNextEmailAt } from "@/lib/email/schedule"
 import { getChaseAllowanceStatus } from "@/lib/billing"
+import { getEffectiveAccessForSystem } from "@/lib/billing/effectiveAccessSystem"
 import {
   applyTimingEscalation,
   applyToneEscalationStage,
@@ -56,6 +57,13 @@ export async function sendReminderForInvoice(
       return { outcome: "skipped", reason: "not_eligible" }
     }
 
+    // The queued claim contains identity, never authorization. Re-read safe
+    // profile/grant/risk facts at execution for first AND underway sequences.
+    const access = await getEffectiveAccessForSystem(userId)
+    if (!access.allowAccess || access.effectiveTier === null) {
+      return { outcome: "skipped", reason: "access_denied" }
+    }
+
     // Sequential (not Promise.all) — concurrent queries on the same `tx` inside
     // an interactive transaction share one pg connection and are unsafe.
     const activePromise = await tx.promiseToPay.findFirst({
@@ -73,7 +81,10 @@ export async function sendReminderForInvoice(
     const isFirstChase = invoice.currentStage === 0
     if (isFirstChase) {
       const allowanceStatus = await getChaseAllowanceStatus(tx, userId, now)
-      if (allowanceStatus && allowanceStatus.remaining <= 0) {
+      if (!allowanceStatus || !allowanceStatus.accessAllowed) {
+        return { outcome: "skipped", reason: "access_denied" }
+      }
+      if (allowanceStatus.remaining <= 0) {
         return { outcome: "held", reason: "allowance_exhausted" }
       }
     }
@@ -102,6 +113,7 @@ export async function sendReminderForInvoice(
       freelancerEmail.email,
       freelancerEmail.name,
     )
+    if (typeof messageId === "object" && messageId !== null) return messageId
     if (messageId === null) {
       return { outcome: "error", reason: "send_failed" }
     }

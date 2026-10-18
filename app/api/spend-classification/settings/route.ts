@@ -9,7 +9,10 @@ import { getAuthenticatedSpendClassificationUserId } from "@/lib/spendClassifica
 
 const updateSettingSchema = z.object({ enabled: z.boolean() }).strict()
 
-export async function GET(): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function GETHandler(): Promise<NextResponse> {
   const userId = await getAuthenticatedSpendClassificationUserId()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
@@ -21,7 +24,7 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function PATCH(request: Request): Promise<NextResponse> {
+async function PATCHHandler(request: Request): Promise<NextResponse> {
   const userId = await getAuthenticatedSpendClassificationUserId()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const payload = await request.json().catch(() => null)

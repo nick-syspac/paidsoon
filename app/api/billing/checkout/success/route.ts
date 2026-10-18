@@ -24,16 +24,15 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { createStripeClient } from "@/lib/billing/stripeClient"
-import { resolveCheckoutCompletion } from "@/lib/billing"
-import { normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
+import { reconcileHostedCheckout } from "@/lib/billing/hostedCheckoutLifecycle"
 import { NextResponse } from "next/server"
+import { z } from "zod"
 
 export const maxDuration = 30
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const sessionId = searchParams.get("session_id")
-  const fallbackTier = normalizeSubscriptionTier(searchParams.get("tier"))
 
   const supabase = await createClient()
   const {
@@ -44,52 +43,33 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/sign-in`)
   }
 
-  const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription?success=upgraded&tier=${fallbackTier}`
+  const successBase = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription?success=upgraded`
+  let successUrl = successBase
 
-  if (!sessionId) {
+  if (!sessionId || !z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(255).safeParse(sessionId).success) {
     // No session to reconcile (e.g. direct navigation) — the webhook is
     // still the primary path for this case.
     return NextResponse.redirect(successUrl)
   }
 
   try {
-    const stripe = createStripeClient()
-    const session = await stripe.checkout.sessions.retrieve(sessionId)
-
-    // Ownership check: only reconcile using a session created for this
-    // exact user (metadata.userId is set at session creation in
-    // app/api/billing/checkout/route.ts). Prevents a session_id belonging
-    // to another user from being used to alter this user's profile.
-    if (session.metadata?.userId !== user.id) {
-      return NextResponse.redirect(successUrl)
+    // Read-only authenticated return: no POST Origin or mutation safety headers.
+    // Customer role reads ownership only; verified lifecycle projection is privileged.
+    const binding = await withUserContext(user.id, (tx) =>
+        tx.userProfile.findUnique({
+          where: { userId: user.id },
+          select: { userId: true, stripeCustomerId: true, stripeSubscriptionId: true },
+        }),
+      )
+    if (!binding || binding.userId !== user.id) return NextResponse.redirect(successUrl)
+    const completion = await reconcileHostedCheckout(createStripeClient(), user.id, sessionId, { kind: "hosted_lifecycle" })
+    if (completion.kind === "current") {
+      successUrl = `${successBase}&tier=${completion.snapshot.tier}`
     }
-
-    if (session.payment_status === "paid") {
-      const completion = await resolveCheckoutCompletion(stripe, session)
-      if (completion) {
-        await withUserContext(user.id, (tx) =>
-          tx.userProfile.update({
-            where: { userId: user.id },
-            data: {
-              subscriptionTier: completion.tier,
-              subscriptionStatus: completion.status,
-              trialEndsAt: completion.trialEndsAt,
-              stripeCustomerId: completion.customerId,
-              stripeSubscriptionId: completion.subscriptionId,
-              stripePriceId: completion.priceId,
-              subscriptionCurrentPeriodStart: completion.periodStart,
-              subscriptionCurrentPeriodEnd: completion.periodEnd,
-              subscriptionCancelAt: completion.subscriptionCancelAt,
-              subscriptionCancelAtPeriodEnd: completion.subscriptionCancelAtPeriodEnd,
-            },
-          }),
-        )
-      }
-    }
-  } catch (err) {
+  } catch {
     // Best-effort fallback — the webhook is still the source of truth.
     // Don't block the redirect on a Stripe API hiccup.
-    console.error("[billing/checkout/success] reconciliation failed", err)
+    console.error("[billing/checkout/success] reconciliation unavailable")
   }
 
   return NextResponse.redirect(successUrl)

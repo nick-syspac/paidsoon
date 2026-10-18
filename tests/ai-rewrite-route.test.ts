@@ -1,3 +1,4 @@
+import "@/tests/helpers/subscriptionAccess"
 import { before, beforeEach, describe, test, mock } from "node:test"
 import assert from "node:assert/strict"
 
@@ -6,6 +7,9 @@ let canRewrite = true
 let shouldRewriteThrow = false
 let usageLogWrites = 0
 let rewriteCalls = 0
+let denyAfterQuota = false
+let expireDuringModel = false
+let lastUsageLog: unknown
 
 let guardrailStatus: {
   allowed: boolean
@@ -51,7 +55,10 @@ describe("POST /api/settings/ai", () => {
     await mock.module("@/lib/email/ai-usage-guardrails", {
       namedExports: {
         AI_USAGE_LIMIT_ERROR: "Usage limit reached",
-        getAiRewriteGuardrailStatus: async () => guardrailStatus,
+        getAiRewriteGuardrailStatus: async () => {
+          if (denyAfterQuota) canRewrite = false
+          return guardrailStatus
+        },
       },
     })
 
@@ -62,6 +69,7 @@ describe("POST /api/settings/ai", () => {
         OUTPUT_COST_PER_TOKEN_USD: 0.6 / 1_000_000,
         rewriteMessage: async () => {
           rewriteCalls += 1
+          if (expireDuringModel) canRewrite = false
           if (shouldRewriteThrow) {
             throw new Error("provider down")
           }
@@ -85,8 +93,9 @@ describe("POST /api/settings/ai", () => {
       namedExports: {
         prismaAdmin: {
           aiUsageLog: {
-            create: async () => {
+            create: async (args: unknown) => {
               usageLogWrites += 1
+              lastUsageLog = args
               return {}
             },
           },
@@ -103,6 +112,9 @@ describe("POST /api/settings/ai", () => {
     shouldRewriteThrow = false
     usageLogWrites = 0
     rewriteCalls = 0
+    denyAfterQuota = false
+    expireDuringModel = false
+    lastUsageLog = null
     guardrailStatus = {
       allowed: true,
       reason: null,
@@ -193,6 +205,44 @@ describe("POST /api/settings/ai", () => {
     const res = await POST(makeRequest({ text: "Please pay invoice #123 by Friday.", stage: 2 }))
     assert.equal(res.status, 403)
     assert.equal(rewriteCalls, 0)
+    assert.equal(usageLogWrites, 0)
+  })
+
+  test("expiry or revocation during quota preparation prevents provider dispatch", async () => {
+    denyAfterQuota = true
+    const res = await POST(makeRequest({ text: "Please pay invoice #123 by Friday.", stage: 2 }))
+    assert.equal(res.status, 403)
+    assert.equal(rewriteCalls, 0)
+    assert.equal(usageLogWrites, 0)
+  })
+
+  test("denied/null guardrail result is not default-tier quota authorization", async () => {
+    guardrailStatus = null
+    const res = await POST(makeRequest({ text: "Please pay invoice #123 by Friday.", stage: 2 }))
+    assert.equal(res.status, 403)
+    assert.equal(rewriteCalls, 0)
+    assert.equal(usageLogWrites, 0)
+  })
+
+  test("expiry after generation starts preserves actual token usage and normal completion", async () => {
+    expireDuringModel = true
+    const res = await POST(makeRequest({ text: "Please pay invoice #123 by Friday.", stage: 2 }))
+    assert.equal(res.status, 200)
+    assert.equal(rewriteCalls, 1)
+    assert.equal(usageLogWrites, 1)
+    assert.deepEqual(lastUsageLog, { data: {
+      userId: "user-123", model: "gpt-4o-mini", feature: "ai_rewrite",
+      promptTokens: 100, completionTokens: 200, totalTokens: 300,
+      estimatedCostUsd: 100 * (0.15 / 1_000_000) + 200 * (0.6 / 1_000_000),
+    } })
+    assert.equal((await res.json()).remainingMonthlyCredits, 7)
+  })
+
+  test("provider failure does not create successful usage", async () => {
+    shouldRewriteThrow = true
+    const res = await POST(makeRequest({ text: "Please pay invoice #123 by Friday.", stage: 2 }))
+    assert.equal(res.status, 500)
+    assert.equal(rewriteCalls, 1)
     assert.equal(usageLogWrites, 0)
   })
 

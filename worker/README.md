@@ -3,7 +3,7 @@
 Background-processing service for PaidSoon's scheduled business workflows
 (accounting sync, reminder emails, promise-to-pay follow-ups, weekly debtor
 summaries). See
-[openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md)
+[openspec/changes/archive/2026-10-03-migrate-scheduled-jobs-to-railway-celery/design.md](../openspec/changes/archive/2026-10-03-migrate-scheduled-jobs-to-railway-celery/design.md)
 for the architecture.
 
 This service owns *dispatching, queueing, retry/backoff, and status
@@ -11,6 +11,31 @@ tracking*. The actual business logic (email templates, Xero/MYOB sync,
 chase-volume gating, etc.) stays in the Next.js app and is invoked per item
 via the `app/api/internal/jobs/*` routes — this avoids maintaining two
 implementations of the same business rules in two languages.
+
+## Entitlement boundary — rollout in progress
+
+Trial-access selector/execution changes are present in the working tree, not a
+deployed guarantee. Database/security validation/application, owner UI, and
+release acceptance remain gates. The
+[orchestration and expiry runbook](../docs/runbooks/railway.md#candidate-selection-is-not-execution-authorization--trial-access-rollout)
+is the operational contract.
+
+Weekly debtor-summary candidates include all profiles; Owner's Digest candidates
+retain enabled/email-enabled settings and profile binding. Neither selector
+filters raw billing tier/status or decides grant eligibility. They claim a safe
+superset, preserving existing dispatch cadence, claim keys, and conflict dedup.
+Beat evaluates digests hourly, but `_claim_key()` serializes only the UTC date;
+this is not an hourly-unique claim or a promise of same-day retry after a skip.
+Do not build a separate Python entitlement matrix.
+
+Authenticated Next.js execution resolves fresh effective access/features before
+computation and sending, including expiry/revocation after queueing. Access
+denial is a structured skip, not a send, quota consumption, or sequence reset.
+Capacity alone still allows underway reminders with valid access; no access does
+not. Normal scheduling/dedup applies after restoration, including later sweeps
+for broken promises whose notification never succeeded. Billing/auth/recovery
+and operational cleanup stay available under their own checks. Grant expiry is
+computed at authorization/execution time, with no grant-cleanup dependency.
 
 ## Local setup
 
@@ -33,6 +58,7 @@ Each entry in `paidsoon_worker/celery_app.py`'s `beat_schedule` reads its own en
 | `dispatch-catchup-and-snooze-sweep` | `DISPATCH_CATCHUP_SNOOZE_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
 | `dispatch-promise-arrangement-sweep` | `DISPATCH_PROMISE_ARRANGEMENT_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS` |
 | `dispatch-weekly-debtor-summary` | weekly cron (`crontab(minute=0, hour=9, day_of_week="mon")`) | fixed Monday 09:00 UTC |
+| `dispatch-owners-digest` | hourly cron (`crontab(minute=0)`) | hourly evaluation; existing date-only claim key |
 | `recovery-sweep` | `DISPATCH_RECOVERY_SWEEP_INTERVAL_SECONDS` | `DISPATCH_INTERVAL_SECONDS`, floored at 300s |
 | `write-heartbeat` | `DISPATCH_INTERVAL_SECONDS` directly (not per-task — this is the Beat-liveness signal the Vercel watchdog checks) | `120` |
 
@@ -84,9 +110,10 @@ something that can be provisioned for you:
    Without it, every internal-jobs call gets a 401 with a Vercel SSO
    redirect page instead of reaching the route handler.
 8. Watch logs (`railway logs`) for the first few dispatch cycles before
-   relying on it; keep the existing Vercel Cron jobs running in parallel
-   during burn-in (see design.md Migration Plan). The full environment,
-   verification, burn-in, and rollback procedure is in
+   relying on it. Follow the approved direct-cutover procedure: never run
+   legacy Vercel reminder/accounting schedules alongside Railway against the
+   same database; their claims are not a shared dual-scheduler lock. The full
+   environment, verification, cutover, and rollback procedure is in
    [`docs/runbooks/railway.md`](../docs/runbooks/railway.md).
 
 ## Tests

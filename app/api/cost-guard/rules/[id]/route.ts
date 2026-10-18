@@ -18,7 +18,9 @@ const RulePatchSchema = z.object({
   enabled: z.boolean().optional(),
 })
 
-export async function PATCH(request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function PATCHHandler(request: Request, { params }: Params): Promise<NextResponse> {
   const supabase = await createClient()
   const {
     data: { user },

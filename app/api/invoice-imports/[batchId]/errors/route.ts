@@ -8,7 +8,9 @@ type Params = { params: Promise<{ batchId: string }> }
 
 const CSV_HEADER = ["row_number", "invoice_number", "field_name", "error_code", "severity", "message"]
 
-export async function GET(request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request, { params }: Params): Promise<NextResponse> {
   const { batchId } = await params
   const supabase = await createClient()
   const {

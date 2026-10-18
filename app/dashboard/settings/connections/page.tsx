@@ -3,7 +3,10 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { redirect } from "next/navigation"
 import { StripeConnectionClient } from "@/components/settings/StripeConnectionClient"
 import { AccountingConnectionsClient } from "@/components/settings/AccountingConnectionsClient"
-import { getInvoiceSourceLimitForTier, requireFeature } from "@/lib/billing"
+import { getInvoiceSourceLimitForTier } from "@/lib/billing"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
 import { parseConnectionsFlash } from "@/lib/settings/connectionFlash"
 
 type SearchParams = {
@@ -22,18 +25,16 @@ export default async function ConnectionsSettingsPage({
   if (!user) redirect("/sign-in")
 
   const params = await searchParams
-  const hasFeature = await requireFeature(user.id, "accounting_integrations")
+  const tier = getDashboardEffectiveTier(await getDashboardProfile(user.id))
+  if (tier === null) redirect("/dashboard/settings/subscription")
+  const hasFeature = hasPlanFeature(tier, "accounting_integrations")
 
-  const { profile, stripeConnections, accountingConnections } = await withUserContext(
+  const { stripeConnections, accountingConnections } = await withUserContext(
     user.id,
     async (tx) => {
       // Sequential, not Promise.all: queries on a single interactive
       // transaction's `tx` share one underlying pg connection — firing them
       // concurrently triggers a pg client deprecation warning and is unsafe.
-      const profile = await tx.userProfile.findUnique({
-        where: { userId: user.id },
-        select: { subscriptionTier: true },
-      })
       const stripeConnections = await tx.invoiceConnection.findMany({
         where: { userId: user.id, provider: "stripe", isActive: true },
         orderBy: { createdAt: "asc" },
@@ -60,11 +61,11 @@ export default async function ConnectionsSettingsPage({
           })
         : []
 
-      return { profile, stripeConnections, accountingConnections }
+      return { stripeConnections, accountingConnections }
     }
   )
 
-  const maxConnections = getInvoiceSourceLimitForTier(profile?.subscriptionTier)
+  const maxConnections = getInvoiceSourceLimitForTier(tier)
   const flash = parseConnectionsFlash(params)
 
   return (

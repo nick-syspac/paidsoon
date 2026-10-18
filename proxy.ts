@@ -14,6 +14,8 @@ import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRu
 export async function proxy(request: NextRequest) {
   const liveMode = isLiveMode()
   const { pathname } = request.nextUrl
+  // Overwrite any caller value; layouts cannot otherwise identify the child route.
+  request.headers.set("x-paidsoon-pathname", pathname)
   const traceContext = createServerTraceContext({
     headers: request.headers,
     cookieHeader: request.headers.get("cookie"),

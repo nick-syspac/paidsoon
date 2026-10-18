@@ -1,4 +1,5 @@
 import { prismaAdmin } from "@/lib/db/admin"
+import { getFinancialJobCandidates, getFinancialJobAccessSkip } from "@/lib/billing/financialJobAccess"
 import { getMarginSummary, type MarginPeriodPreset } from "@/lib/marginguard/service"
 
 interface MarginSummaryForSnapshot {
@@ -76,9 +77,13 @@ export async function runMarginSnapshotSweep(options?: { limitUsers?: number }) 
 
   let upserted = 0
   let failed = 0
+  const skips = { no_access: 0, feature_not_available: 0 }
+  const candidates = await getFinancialJobCandidates(enabledSettings.map((row) => row.userId), "marginguard_core")
 
   for (const setting of enabledSettings) {
     try {
+      const skip = candidates.get(setting.userId) ?? await getFinancialJobAccessSkip(setting.userId, "marginguard_core")
+      if (skip) { skips[skip.reason] += 1; continue }
       const summary = await getMarginSummary(setting.userId, setting.defaultPeriod)
       const snapshot = buildSnapshotRecord(setting.userId, summary, startedAt)
 
@@ -121,5 +126,7 @@ export async function runMarginSnapshotSweep(options?: { limitUsers?: number }) 
     processedUsers: enabledSettings.length,
     upserted,
     failed,
+    skipped: skips.no_access + skips.feature_not_available,
+    skips,
   }
 }

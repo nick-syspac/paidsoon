@@ -13,7 +13,10 @@ const settingsSchema = z.object({
   reviewRole: z.enum(["owner", "bookkeeper", "approver"]).default("owner"),
 })
 
-export async function GET() {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const PUT = withSubscriptionAccess(PUTHandler)
+async function GETHandler() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -41,7 +44,7 @@ export async function GET() {
   return NextResponse.json(settings)
 }
 
-export async function PUT(request: Request) {
+async function PUTHandler(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

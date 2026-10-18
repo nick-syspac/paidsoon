@@ -85,6 +85,18 @@ function makeStore(claims: SpendClassificationClaim[]) {
   return { store, assignments, requests, completed, released, failures, get claimLimit() { return claimLimit } }
 }
 
+test("expired entitlement releases the fenced claim back to queued without completion or retry-budget consumption", async () => {
+  const fake = makeStore([makeClaim(1)])
+  const result = await runSpendClassificationWorker({
+    store: fake.store,
+    request: async () => ({ status: "skipped", reason: "no_access" }),
+  })
+  assert.equal(result.skipped, 1)
+  assert.equal(result.completed + result.needsReview + result.retryScheduled + result.failed, 0)
+  assert.deepEqual(fake.released, [{ id: "classification-1", status: "queued" }])
+  assert.equal(fake.failures.length + fake.completed.length, 0)
+})
+
 test("only one overlapping invocation acquires the durable run lease", async () => {
   const firstStarted = deferred<void>()
   const finishFirst = deferred<void>()

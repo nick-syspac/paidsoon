@@ -19,8 +19,7 @@ import {
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import { traceOperation } from "@/lib/diagnostics/server"
 import type { TraceContext } from "@/lib/diagnostics/shared"
-import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
-import type { UserProfile } from "@/lib/generated/prisma/client"
+import { getDashboardProfile, type DashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 
 export interface DashboardOverviewData {
   context: DashboardContext
@@ -69,7 +68,7 @@ export async function runDashboardOverviewLoaders<Transaction>(
 }
 
 function createOverviewLoaders(
-  profile: UserProfile | null,
+  profile: DashboardProfile | null,
 ): DashboardOverviewLoaderDependencies<PrismaTx> {
   return {
   loadContext: (tx, userId) => loadDashboardContextWithProfileTx(tx, userId, profile),

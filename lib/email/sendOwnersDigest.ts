@@ -4,17 +4,19 @@ import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { buildOwnersDigestEmail } from "@/lib/email/ownersDigest"
 import { fetchOwnersDigestRecipientEmail } from "@/lib/ownersDigest/recipient"
 import { generateOwnersDigest } from "@/lib/ownersDigest/service"
-import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { OwnersDigestAccessError } from "@/lib/ownersDigest/entitlements"
+import { getSummaryAccessSkip, type SummaryAccessSkip } from "@/lib/email/summaryAccess"
 
 let _resend: Resend | undefined
 function getResend(): Resend {
   return _resend ?? (_resend = new Resend(process.env.RESEND_API_KEY!))
 }
 
-type OwnersDigestSendOutcome =
+export type OwnersDigestSendOutcome =
   | { status: "sent"; messageId: string | null }
   | { status: "already_sent"; messageId: string | null }
-  | { status: "skipped"; reason: string }
+  | SummaryAccessSkip
+  | { status: "skipped"; reason: "owners_digest_email_disabled" | "owners_digest_not_due" | "owners_digest_empty" | "missing_recipient_email" }
 
 function normalizeWeekday(value: string): number {
   const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
@@ -39,17 +41,17 @@ function isDigestDue(input: {
 }
 
 export async function sendOwnersDigest(userId: string, now: Date = new Date()): Promise<OwnersDigestSendOutcome> {
+  // Intentional tenant-scoped privileged reads/writes for authenticated system jobs.
+  // `now` controls cadence only: execution authorization always uses fresh time.
+  const accessSkip = await getSummaryAccessSkip(userId, "owners_digest_email")
+  if (accessSkip) return accessSkip
   const [profile, settings] = await Promise.all([
     prisma.userProfile.findUnique({
       where: { userId },
-      select: { displayName: true, subscriptionTier: true },
+      select: { displayName: true },
     }),
     prisma.ownersDigestSetting.findUnique({ where: { userId } }),
   ])
-
-  if (!hasPlanFeature(profile?.subscriptionTier, "owners_digest_email")) {
-    return { status: "skipped", reason: "owners_digest_email_not_available" }
-  }
 
   if (!settings?.enabled || !settings.emailEnabled) {
     return { status: "skipped", reason: "owners_digest_email_disabled" }
@@ -64,7 +66,14 @@ export async function sendOwnersDigest(userId: string, now: Date = new Date()): 
     return { status: "skipped", reason: "owners_digest_not_due" }
   }
 
-  const digest = await generateOwnersDigest(userId, { now, source: "scheduled" })
+  let digest: Awaited<ReturnType<typeof generateOwnersDigest>>
+  try {
+    digest = await generateOwnersDigest(userId, { now, source: "scheduled" })
+  } catch (error) {
+    if (!(error instanceof OwnersDigestAccessError)) throw error
+    return (await getSummaryAccessSkip(userId, "owners_digest_email")) ??
+      { status: "skipped", reason: "owners_digest_email_not_available" }
+  }
   console.info(
     JSON.stringify({
       event: "owners_digest_email_requested",
@@ -96,6 +105,9 @@ export async function sendOwnersDigest(userId: string, now: Date = new Date()): 
     digest,
   })
 
+  const preparedSkip = await getSummaryAccessSkip(userId, "owners_digest_email")
+  if (preparedSkip) return preparedSkip
+
   await prisma.ownersDigestDelivery.upsert({
     where: { userId_deliveryKey: { userId, deliveryKey } },
     create: {
@@ -120,6 +132,14 @@ export async function sendOwnersDigest(userId: string, now: Date = new Date()): 
   })
 
   try {
+    const sendSkip = await getSummaryAccessSkip(userId, "owners_digest_email")
+    if (sendSkip) {
+      await prisma.ownersDigestDelivery.update({
+        where: { userId_deliveryKey: { userId, deliveryKey } },
+        data: { status: "skipped", errorCode: sendSkip.reason },
+      })
+      return sendSkip
+    }
     const result = await getResend().emails.send({
       from: `${process.env.RESEND_FROM_NAME!} <${process.env.RESEND_FROM_EMAIL!}>`,
       to: recipientEmail,
@@ -127,6 +147,7 @@ export async function sendOwnersDigest(userId: string, now: Date = new Date()): 
       html: content.html,
       text: content.text,
     })
+    if (result.error) throw new Error("owners_digest_send_failed")
 
     const messageId = result.data?.id ?? null
     await prisma.ownersDigestDelivery.update({

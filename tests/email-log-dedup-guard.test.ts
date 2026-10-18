@@ -18,6 +18,7 @@
 import { before, beforeEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
 import { Prisma } from "@/lib/generated/prisma/client"
+import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
 
 let findFirstResult: { id: string } | null = null
 let createBehavior: "succeed" | "p2002" = "succeed"
@@ -32,6 +33,12 @@ let SUPPRESSED_MESSAGE_ID: any
 
 describe("sendFollowUpEmail — duplicate-send guard", () => {
   before(async () => {
+    await mock.module("@/lib/billing/effectiveAccessSystem", {
+      namedExports: { getEffectiveAccessForSystem: async () => resolveEffectiveAccess({
+        profile: { subscriptionStatus: "active", subscriptionTier: "essentials", stripeSubscriptionId: "sub_test", trialEndsAt: null, billingAccessVersion: 1 },
+        grant: null, billingRisks: [],
+      }, new Date("2026-10-17T00:00:00Z")) },
+    })
     await mock.module("@/lib/db/admin", {
       namedExports: {
         prismaAdmin: {

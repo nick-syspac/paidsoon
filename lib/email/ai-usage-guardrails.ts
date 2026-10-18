@@ -1,6 +1,8 @@
-import { getPlanByTier, normalizeSubscriptionTier, type SubscriptionTier } from "@/lib/subscriptionPlans"
+import { hasPlanFeature, type SubscriptionTier } from "@/lib/subscriptionPlans"
 import { resolveAllowancePeriod, type AllowanceAccountSnapshot } from "@/lib/billing"
-import { prismaAdmin } from "@/lib/db/admin"
+import { withUserContext } from "@/lib/db/withUserContext"
+import { readEffectiveAccessSnapshot } from "@/lib/billing/effectiveAccessSnapshot"
+import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
 
 export const AI_USAGE_LIMIT_ERROR = "Usage limit reached"
 
@@ -88,6 +90,9 @@ export function resolveAiRewriteQuotaWindow(
   account: AiRewriteAccountSnapshot,
   now: Date,
 ): { start: Date; end: Date } {
+  // AI keeps its existing billing/trial/Melbourne-month cadence. In particular,
+  // do not substitute a grant's startsAt/expiresAt chase-allowance window here:
+  // extending/changing a grant or access source must not clear successful usage.
   return resolveAllowancePeriod(account, now)
 }
 
@@ -136,42 +141,40 @@ export async function countAiRewriteUsageWindows(
 
 export async function getAiRewriteGuardrailStatus(
   userId: string,
-  now: Date = new Date(),
+  now?: Date,
 ): Promise<AiRewriteGuardrailStatus | null> {
-  // Intentional RLS bypass for low-latency guardrail reads in a user-facing
-  // hot path. Scope remains tenant-safe because userId is derived from
-  // server-side auth (`supabase.auth.getUser()`) and enforced in every query.
-  const account = await prismaAdmin.userProfile.findUnique({
-    where: { userId },
-    select: {
-      subscriptionTier: true,
-      subscriptionStatus: true,
-      subscriptionCurrentPeriodStart: true,
-      subscriptionCurrentPeriodEnd: true,
-      trialEndsAt: true,
-      createdAt: true,
-    },
+  // Authenticated quota reads use tenant RLS; only post-provider usage INSERTs
+  // retain the existing privileged writer in the route.
+  return withUserContext(userId, async (tx) => {
+    const snapshot = await readEffectiveAccessSnapshot(tx, userId)
+    const account = await tx.userProfile.findUnique({
+      where: { userId },
+      select: {
+        subscriptionStatus: true,
+        subscriptionCurrentPeriodStart: true,
+        subscriptionCurrentPeriodEnd: true,
+        trialEndsAt: true,
+        createdAt: true,
+      },
+    })
+    const evaluatedAt = now ?? new Date()
+    const access = resolveEffectiveAccess(snapshot, evaluatedAt)
+    if (!account || !access.allowAccess || access.effectiveTier === null) return null
+    if (!hasPlanFeature(access.effectiveTier, "ai_rewrite")) return null
+
+    const policy = getAiRewriteGuardrailPolicy(access.effectiveTier)
+    if (!policy) return null
+
+    const { usage, period } = await countAiRewriteUsageWindows(tx, userId, account, evaluatedAt)
+    const decision = evaluateAiRewriteGuardrails(policy, usage)
+
+    return {
+      allowed: decision.allowed,
+      reason: decision.reason,
+      monthlyQuota: policy.monthlyQuota,
+      remainingMonthlyCredits: decision.remainingMonthlyCredits,
+      usage,
+      period,
+    }
   })
-
-  if (!account) return null
-
-  const tier = normalizeSubscriptionTier(account.subscriptionTier)
-  if (!getPlanByTier(tier).features.ai_rewrite) {
-    return null
-  }
-
-  const policy = getAiRewriteGuardrailPolicy(tier)
-  if (!policy) return null
-
-  const { usage, period } = await countAiRewriteUsageWindows(prismaAdmin, userId, account, now)
-  const decision = evaluateAiRewriteGuardrails(policy, usage)
-
-  return {
-    allowed: decision.allowed,
-    reason: decision.reason,
-    monthlyQuota: policy.monthlyQuota,
-    remainingMonthlyCredits: decision.remainingMonthlyCredits,
-    usage,
-    period,
-  }
 }

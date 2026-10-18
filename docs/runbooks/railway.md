@@ -45,6 +45,109 @@ Celery Beat ──claims due work──▶ Supabase Postgres
 Vercel dashboard ──authenticated request──▶ trigger web ──enqueues──▶ Redis
 ```
 
+### Candidate selection is not execution authorization — trial-access rollout
+
+**Working-tree status, 17 October 2026:** customer display/API/limit changes
+(tasks 5.1–5.5) and execution/selector changes (6.1–6.4) are present. This is
+not deployment evidence. Isolated migration/CHECK/RLS verification and separately
+reviewed application (3.8/3.9/9.3), owner UI (8.1–8.4), and cross-cutting
+release/browser checks remain gates. Follow the
+[release checklist](./vercel.md#12-trial-access-and-customer-billing-journal-release-gate);
+do not enable owner management on the strength of mocked tests.
+
+Railway owns discovery, claims, queues, retry/backoff, and task status. A queued
+tenant/invoice identity is **not** an authorization snapshot. The
+[worker selectors](../../worker/paidsoon_worker/db.py) claim a safe superset:
+
+| Workflow | Candidate selection | Authoritative Next.js execution |
+| --- | --- | --- |
+| Weekly debtor summary | All profiles, ordered by tenant; no raw tier/status/grant filter. Existing weekly dispatcher cadence and UTC-week claim identity remain. | Fresh access plus `weekly_summary_email` before payload computation/preparation and again before sending. |
+| Owner's Digest email | Joined profile with `enabled` and `email_enabled` settings; no raw billing-plan filter. Beat evaluates hourly; the existing date-only claim key is unchanged (see below). | Fresh access plus `owners_digest_core`/`owners_digest_email`; existing frequency/day/time, empty-digest, recipient, and delivery rules still apply. Cadence `now` is not an authorization clock. |
+| Reminder | Existing due-invoice selection, claim identity, and account allowance locking. | Reauthorize first and underway stages at execution and in the shared sender immediately before transport; first chases additionally require available allowance. |
+| Subscription-controlled financial sweeps/services | Existing operational candidates; batch access reads can exclude denied cohorts early. | Allowed batch candidates are checked afresh before feature-gated computation. Shared services and notification senders check their own applicable access/features, not an enqueued tier. |
+
+The central [resolver](../../lib/billing/effectiveAccess.ts) and
+[financial job gate](../../lib/billing/financialJobAccess.ts) remain the authority.
+Do not put plan/status/grant eligibility, quota rules, or a second entitlement
+matrix in Python. A broader candidate claim may legitimately finish with a skip;
+it is not evidence of a missed send, nor permission to send from the worker.
+Existing public/hidden-plan and implementation-readiness gates are unchanged.
+
+Claim serialization is currently `entity:suffix:YYYY-MM-DD`: weekly summaries
+use the UTC Monday date; digest selection passes an hour-start instant but
+`_claim_key()` retains only its UTC date. Hourly Beat evaluation therefore does
+not guarantee a new digest claim each hour or a same-day reattempt after a
+terminal skip. This existing behavior is not changed by the selector update;
+do not invent hourly-unique keys or a new retry cadence in this rollout.
+
+#### Expiration, structured skips, and restoration
+
+Grant access requires `startsAt <= serverNow < expiresAt`. Expiry at the exact
+boundary, revocation, or blocking billing risk after queueing must be rechecked;
+only independently valid paid/Stripe/onboarding access can continue to authorize
+work. Stripe `trialing` remains authoritative even with a stale recorded date;
+this is not a new Python/local Stripe-trial termination timer. Paid access and
+past-due grace retain their existing billing-plan precedence/policy, with grants
+suppressed for delinquency/risk rather than used as a bypass.
+
+Expected access outcomes are structured, not provider errors:
+
+- Reminder execution returns `{outcome: "skipped", reason: "access_denied"}`;
+   the legacy cron aggregates `skipped.access_denied` rather than adding a send
+   error. No send, success log, first-chase consumption, or sequence advancement
+   is recorded for an access skip.
+- Summary/digest senders return `{status: "skipped", reason: "no_access"}` or
+   `weekly_summary_not_available` / `owners_digest_email_not_available` for a
+   missing feature. If access is lost after a delivery row is reserved, that row
+   is marked skipped, not sent; the reservation is not successful delivery or
+   quota consumption. Existing disabled/not-due/empty/missing-recipient skips remain.
+- Financial gates return `{status: "skipped", reason: "no_access"}` or
+   `feature_not_available`; sweeps expose skip counters without unauthorized
+   computation/snapshot/alert writes or false alert resolution.
+- Exhausted chase capacity alone returns `held` / `allowance_exhausted` for a
+   new first chase. It does **not** interrupt underway sequences while access is
+   valid. Expired/revoked sole access stops even underway sends.
+
+Preserve invoices, usage history, `currentStage`, `firstChasedAt`, and existing
+sequence scheduling on access denial; expiry does not pause/delete/reset them.
+When access is restored, normal eligibility, claim cadence, and dedup still
+apply—no immediate catch-up delivery or replay of a terminal skipped claim is
+promised. Extending/changing a current grant retains its usage-window start and
+consumption; a fresh post-lapse/revocation grant does not charge already-chased
+invoices again. Monthly AI cadence is unchanged.
+
+The [promise breach sweep](../../lib/email/breachSweep.ts) selects overdue
+`active` **and** `broken` promises with `breachNotifiedAt: null`, excluding
+paid/manually resolved invoices. If final notification authorization fails after
+the promise became broken, it leaves `breachNotifiedAt` unset. A later sweep can
+notify after restoration; only successful delivery sets that timestamp. Do not
+mark an access skip notified to silence the retry.
+
+Billing/authentication, own-operation recovery, connection cleanup, and
+operational housekeeping retain their existing authentication/ownership checks
+without becoming subscription-gated. Arrangement expiry and snooze-resume
+housekeeping remain operational; resuming a stored invoice is not authorization
+to send. No grant-cleanup task is needed to enforce expiry, and entitlement
+correctness must not depend on a cleanup sweep running successfully.
+
+#### Verification scope for this documentation update
+
+Source comparison covers the worker selectors and
+[selector tests](../../worker/tests/test_claims.py),
+[reminder execution tests](../../tests/reminder-execution-access.test.ts),
+[summary execution tests](../../tests/summary-execution-access.test.ts),
+[financial execution tests](../../tests/financial-job-effective-access.test.ts),
+and [broken-promise restoration tests](../../tests/financial-breach-job-access.test.ts).
+On 17 October 2026, 502 focused mocked Node tests passed (0 failed/skipped)
+across 15 customer/billing/entitlement/job test files, including the Node suites
+linked here. Worker selector tests were inspected, not executed in this
+documentation-only pass. No full suite, build, Python environment setup, provider
+call, or database check was run. This does not establish live DB constraints, Railway/Vercel configuration,
+deployed behavior, provider delivery, or browser acceptance. Cadence, claim-key
+deduplication, reminder stage/transport keys, and delivery dedup rules are
+unchanged by trial access. Do not delete claims or change keys to bypass an
+access skip, and do not run competing schedulers against the same database.
+
 ## Prerequisites
 
 Before provisioning Railway:

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { before, beforeEach, describe, mock, test } from "node:test"
+import { resolveEffectiveAccess, type EffectiveAccessSnapshot } from "@/lib/billing/effectiveAccess"
 
 type MockSpendBill = {
   providerBillId: string
@@ -39,6 +40,8 @@ const classificationHandoffs: Array<{ userId: string; sourceType: string; source
 const upsertSupplierKeys = new Set<string>()
 const upsertFindingKeys = new Set<string>()
 let classificationHandoffFails = false
+let accessFacts: EffectiveAccessSnapshot
+let analysisReads = 0
 
 let syncConnection: ((connectionId: string) => Promise<{
   status: string
@@ -46,10 +49,14 @@ let syncConnection: ((connectionId: string) => Promise<{
   spendBillsUpserted: number
   spendTransactionsUpserted: number
   spendSuppliersUpserted: number
+  spendAnalysisSkip?: { status: string; reason: string }
 }>) | null = null
 
 describe("accounting spend sync orchestration", () => {
   before(async () => {
+    await mock.module("@/lib/billing/effectiveAccessSystem", { namedExports: {
+      getEffectiveAccessForSystem: async () => resolveEffectiveAccess(accessFacts, new Date()),
+    } })
     await mock.module("@/lib/db/customers", {
       namedExports: {
         findOrCreateCustomer: async () => null,
@@ -174,7 +181,7 @@ describe("accounting spend sync orchestration", () => {
             },
           },
           cashForecastSnapshot: {
-            findFirst: async () => ({ currentCashCents: 300000 }),
+            findFirst: async () => { analysisReads += 1; return { currentCashCents: 300000 } },
           },
           financialInvoice: {
             aggregate: async () => ({ _sum: { amountDueCents: 120000 } }),
@@ -188,6 +195,12 @@ describe("accounting spend sync orchestration", () => {
   })
 
   beforeEach(() => {
+    accessFacts = {
+      profile: { subscriptionStatus: "canceled", subscriptionTier: "essentials", stripeSubscriptionId: null, trialEndsAt: null, billingAccessVersion: 0 },
+      grant: { plan: "small_business", startsAt: new Date(0), expiresAt: new Date("2099-01-01"), revokedAt: null },
+      billingRisks: [],
+    }
+    analysisReads = 0
     upsertBillKeys.clear()
     upsertTxnKeys.clear()
     persistedSpendTransactions.length = 0
@@ -282,4 +295,21 @@ describe("accounting spend sync orchestration", () => {
     assert.equal(upsertSupplierKeys.size, 1)
     assert.equal(upsertFindingKeys.size > 0, true)
   })
+
+  for (const mode of ["expired", "revoked", "restricted", "feature"] as const) {
+    test(`${mode} access skips SpendLeak analysis but retains ingestion, classification handoff and operational sync success`, async () => {
+      if (mode === "expired") accessFacts.grant!.expiresAt = new Date(0)
+      if (mode === "revoked") accessFacts.grant!.revokedAt = new Date()
+      if (mode === "restricted") accessFacts.profile!.subscriptionStatus = "unpaid"
+      if (mode === "feature") accessFacts.grant!.plan = "business_pro"
+      const result = await syncConnection?.("conn-1")
+      assert.equal(result?.status, "success")
+      assert.deepEqual(result?.spendAnalysisSkip, { status: "skipped", reason: mode === "feature" ? "feature_not_available" : "no_access" })
+      assert.equal(analysisReads, 0)
+      assert.equal(upsertFindingKeys.size, 0)
+      assert.equal(upsertBillKeys.size, 1)
+      assert.equal(upsertTxnKeys.size, 1)
+      assert.equal(classificationHandoffs.length, 2)
+    })
+  }
 })

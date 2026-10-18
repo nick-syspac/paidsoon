@@ -13,6 +13,8 @@ type Fixture = {
 
 let fixture: Fixture
 let requestService: typeof import("@/lib/spendClassification/jevRequest")
+let accessChecks = 0
+let denyAtCheck = Number.POSITIVE_INFINITY
 
 function createTx(userId: string) {
   return {
@@ -59,6 +61,10 @@ function createTx(userId: string) {
 }
 
 before(async () => {
+  await mock.module("@/lib/billing/financialJobAccess", { namedExports: {
+    getFinancialJobAccessSkip: async () => ++accessChecks >= denyAtCheck
+      ? { status: "skipped", reason: "no_access" } : null,
+  } })
   await mock.module("server-only", { namedExports: {} })
   await mock.module("@/lib/db/withUserContext", {
     namedExports: {
@@ -70,6 +76,8 @@ before(async () => {
 })
 
 function resetFixture(overrides: Partial<Fixture> = {}) {
+  accessChecks = 0
+  denyAtCheck = Number.POSITIVE_INFINITY
   fixture = {
     setting: { enabled: true },
     assignment: { id: "internal-classification-id" },
@@ -82,6 +90,18 @@ function resetFixture(overrides: Partial<Fixture> = {}) {
     calls: { setting: 0, assignment: 0, source: 0, categories: 0 },
     ...overrides,
   }
+}
+
+for (const boundary of [1, 2]) {
+  test(`expired access at classification boundary ${boundary} never requests the provider`, async () => {
+    resetFixture({ bill: { supplierName: "Hosting", currency: "AUD" } })
+    denyAtCheck = boundary
+    const result = await requestService.requestJevSuggestionForSpend("user-1", "imported_bill", "bill-1", {
+      classify: async () => { throw new Error("provider must not be called") },
+    } as never)
+    assert.deepEqual(result, { status: "skipped", reason: "no_access" })
+    if (boundary === 1) assert.equal(fixture.calls.source, 0)
+  })
 }
 
 function mockProvider(requests: unknown[]) {

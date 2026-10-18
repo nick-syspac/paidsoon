@@ -4,7 +4,9 @@ import { NextResponse } from "next/server"
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function GET(_request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(_request: Request, { params }: Params): Promise<NextResponse> {
   const { id } = await params
 
   const supabase = await createClient()

@@ -12,7 +12,9 @@ const updateSchema = z.object({
   }),
 })
 
-export async function PUT(request: Request) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const PUT = withSubscriptionAccess(PUTHandler)
+async function PUTHandler(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

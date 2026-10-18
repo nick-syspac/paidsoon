@@ -1,10 +1,14 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
-import { countActiveInvoiceSources, getInvoiceSourceLimitForTier } from "@/lib/billing"
+import { countActiveInvoiceSources } from "@/lib/billing"
+import { requireInvoiceSourceLimit } from "@/lib/billing/invoiceSourceAccess"
+import { SubscriptionAccessError } from "@/lib/billing/accessGuard"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 
-export async function GET(request: Request) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(request: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: "2026-05-27.dahlia",
   })
@@ -54,10 +58,7 @@ export async function GET(request: Request) {
       // Sequential, not Promise.all: queries on a single interactive
       // transaction's `tx` share one underlying pg connection — firing them
       // concurrently triggers a pg client deprecation warning and is unsafe.
-      const profile = await tx.userProfile.findUnique({
-        where: { userId: user.id },
-        select: { subscriptionTier: true },
-      })
+      const maxConnections = await requireInvoiceSourceLimit(tx, user.id)
       const existingForAccount = await tx.invoiceConnection.findFirst({
         where: {
           userId: user.id,
@@ -76,9 +77,6 @@ export async function GET(request: Request) {
         return
       }
 
-      const maxConnections = getInvoiceSourceLimitForTier(
-        profile?.subscriptionTier,
-      )
       if (activeConnections >= maxConnections) {
         throw new Error("CONNECTION_LIMIT_REACHED")
       }
@@ -93,6 +91,9 @@ export async function GET(request: Request) {
       })
     })
   } catch (error) {
+    if (error instanceof SubscriptionAccessError) {
+      return NextResponse.json(error.result, { status: 403 })
+    }
     if (error instanceof Error && error.message === "CONNECTION_LIMIT_REACHED") {
       return NextResponse.redirect(
         `${appUrl}/dashboard/settings/connections?source=stripe&code=connection_limit_reached`,

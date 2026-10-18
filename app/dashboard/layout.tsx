@@ -7,7 +7,7 @@ import { buildNoIndexMetadata } from "@/lib/marketing/seo"
 import { getAuthenticatedUser } from "@/lib/supabase/server"
 import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
 import { hasPlanFeature, normalizeSubscriptionTier } from "@/lib/subscriptionPlans"
-import { getDashboardSubscriptionAccessState } from "@/lib/subscriptionStatusPresentation"
+import { getDashboardSubscriptionAccessState, getApplicationAccessPresentation, isDashboardBillingResolutionPath } from "@/lib/subscriptionStatusPresentation"
 import { canAccessSpendLeak } from "@/lib/dashboard/spendleakAccess"
 import { canAccessDepositGuard } from "@/lib/dashboard/depositGuardAccess"
 import { canAccessTaxBuffer } from "@/lib/dashboard/taxBufferAccess"
@@ -103,13 +103,17 @@ export default async function DashboardLayout({
     },
   )
 
-  const isTrialing = profile?.subscriptionStatus === "trialing"
-  const trialEndsAt = profile?.trialEndsAt ?? null
-  const tier = normalizeSubscriptionTier(profile?.subscriptionTier)
-  const status = profile?.subscriptionStatus ?? "active"
-  const accessState = getDashboardSubscriptionAccessState(status)
+  const access = profile?.effectiveAccess ?? null
+  const tier = access?.allowAccess ? access.effectiveTier : null
+  const status = profile?.subscriptionStatus ?? null
+  const accessState = getDashboardSubscriptionAccessState(access, status)
+  const accessPresentation = getApplicationAccessPresentation(access)
+  const billingResolution = isDashboardBillingResolutionPath(requestHeaders.get("x-paidsoon-pathname"))
+  // Catalog fallback is a Checkout selection only, never application authorization.
+  const checkoutTier = normalizeSubscriptionTier(profile?.subscriptionTier)
+  const checkoutUrl = `/billing/checkout?plan=${checkoutTier}`
 
-  if (!accessState.allowAccess && accessState.redirectReason) {
+  if (!accessState.allowAccess && !billingResolution) {
     traceEvent(
       () => ({
         traceId: traceContext.traceId,
@@ -120,7 +124,7 @@ export default async function DashboardLayout({
         event: "decision",
         navigation: {
           from: "/dashboard",
-          to: `/billing/checkout?plan=${tier}&reason=${accessState.redirectReason}`,
+          to: `${checkoutUrl}&reason=${accessState.redirectReason}`,
           decision: `subscription_${accessState.redirectReason}`,
         },
         outputs: {
@@ -132,14 +136,8 @@ export default async function DashboardLayout({
       }),
       traceContext,
     )
-    redirect(`/billing/checkout?plan=${tier}&reason=${accessState.redirectReason}`)
+    redirect(`${checkoutUrl}&reason=${accessState.redirectReason}`)
   }
-
-  // Banner: trial still active
-  const daysRemaining =
-    isTrialing && trialEndsAt !== null
-      ? Math.max(0, Math.ceil((trialEndsAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
-      : null
 
   traceEvent(
     () => ({
@@ -152,9 +150,8 @@ export default async function DashboardLayout({
       auth: summariseAuthForTrace({ user }),
       outputs: {
         tier,
-        isTrialing,
-        trialBannerShown: daysRemaining !== null,
-        daysRemainingPresent: daysRemaining !== null,
+        source: access?.source ?? "none",
+        trialBannerShown: accessPresentation.showBanner,
       },
     }),
     traceContext,
@@ -170,10 +167,10 @@ export default async function DashboardLayout({
           </div>
         </div>
       ) : null}
-      {daysRemaining !== null && (
+      {accessPresentation.showBanner && (
         <TrialBanner
-          daysRemaining={daysRemaining}
-          checkoutUrl={`/billing/checkout?plan=${tier}`}
+          presentation={accessPresentation}
+          checkoutUrl={checkoutUrl}
         />
       )}
       <nav className="bg-white border-b border-gray-200">
@@ -214,13 +211,13 @@ export default async function DashboardLayout({
         </div>
       </nav>
       <DashboardMain
-        canViewDepositGuard={canAccessDepositGuard(tier)}
-        canViewOwnersDigest={canAccessOwnersDigest(tier)}
-        canViewCommitGuard={hasPlanFeature(tier, "commitguard_core")}
-        canViewSpendLeak={canAccessSpendLeak(tier)}
-        canViewTaxBuffer={canAccessTaxBuffer(tier)}
-        canViewMarginGuard={canAccessMarginGuard(tier)}
-        canViewRunwayGuard={canAccessRunwayGuard(tier)}
+        canViewDepositGuard={tier !== null && canAccessDepositGuard(tier)}
+        canViewOwnersDigest={tier !== null && canAccessOwnersDigest(tier)}
+        canViewCommitGuard={tier !== null && hasPlanFeature(tier, "commitguard_core")}
+        canViewSpendLeak={tier !== null && canAccessSpendLeak(tier)}
+        canViewTaxBuffer={tier !== null && canAccessTaxBuffer(tier)}
+        canViewMarginGuard={tier !== null && canAccessMarginGuard(tier)}
+        canViewRunwayGuard={tier !== null && canAccessRunwayGuard(tier)}
       >
         {children}
       </DashboardMain>

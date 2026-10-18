@@ -137,7 +137,7 @@ export interface OwnersDigestHistoryEntry {
 }
 
 export interface OwnersDigestEntitlements {
-  tier: string
+  tier: string | null
   hasCoreAccess: boolean
   hasEmailAccess: boolean
   hasHistoryAccess: boolean

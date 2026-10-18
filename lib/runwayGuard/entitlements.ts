@@ -1,7 +1,7 @@
 import { getSubscriptionTier, requireFeature } from "@/lib/billing"
 
 export interface RunwayGuardEntitlements {
-  tier: string
+  tier: string | null
   hasCoreAccess: boolean
   hasScenarioAccess: boolean
 }

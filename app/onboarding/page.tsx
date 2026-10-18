@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { prismaAdmin } from "@/lib/db/admin"
+import { withUserContext } from "@/lib/db/withUserContext"
 import { OnboardingPlanPicker } from "@/components/onboarding/OnboardingPlanPicker"
 
 export default async function OnboardingPage() {
@@ -12,12 +12,13 @@ export default async function OnboardingPage() {
   if (!user) redirect("/sign-in")
 
   // Skip onboarding if already completed (idempotent).
-  const profile = await prismaAdmin.userProfile.findUnique({
+  const profile = await withUserContext(user.id, (tx) => tx.userProfile.findUnique({
     where: { userId: user.id },
-    select: { onboardingCompletedAt: true },
-  })
+    select: { onboardingCompletedAt: true, subscriptionStatus: true, stripeSubscriptionId: true },
+  }))
 
-  if (profile?.onboardingCompletedAt != null) {
+  if (profile?.onboardingCompletedAt != null ||
+      (profile?.subscriptionStatus === "active" && profile.stripeSubscriptionId)) {
     redirect("/dashboard")
   }
 

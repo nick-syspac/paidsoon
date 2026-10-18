@@ -1,4 +1,5 @@
 import { prismaAdmin } from "@/lib/db/admin"
+import { getFinancialJobAccessSkip } from "@/lib/billing/financialJobAccess"
 import { sendDepositReminderEmail } from "@/lib/email/sendDepositReminder"
 
 export type DepositReminderDispatchOutcome =
@@ -67,6 +68,11 @@ export async function processDepositReminder(reminderId: string): Promise<Deposi
     return { status: "skipped", reason: "not_due" }
   }
 
+  // Every row in this queue (including initial_request) is auto-scheduled.
+  const feature = "deposit_guard_automatic_reminders"
+  const skip = await getFinancialJobAccessSkip(reminder.userId, feature)
+  if (skip) return skip
+
   const recipientEmail = request.job.customer?.financialContact.email?.trim() ?? ""
   if (!recipientEmail) {
     await prismaAdmin.depositReminder.update({
@@ -82,6 +88,8 @@ export async function processDepositReminder(reminderId: string): Promise<Deposi
   const recipientName = request.job.customer?.financialContact.name ?? null
   const tenantName = request.job.userProfile.displayName ?? null
 
+  const sendSkip = await getFinancialJobAccessSkip(reminder.userId, feature)
+  if (sendSkip) return sendSkip
   const messageId = await sendDepositReminderEmail({
     recipientEmail,
     recipientName,

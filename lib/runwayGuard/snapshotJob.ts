@@ -1,4 +1,5 @@
 import { prismaAdmin } from "@/lib/db/admin"
+import { getFinancialJobCandidates, getFinancialJobAccessSkip } from "@/lib/billing/financialJobAccess"
 import {
   buildRunwaySnapshotRecord,
   calculateRunwayTrend,
@@ -66,9 +67,13 @@ export async function runRunwaySnapshotSweep(options: RunwaySnapshotSweepOptions
 
   let upserted = 0
   let failed = 0
+  const skips = { no_access: 0, feature_not_available: 0 }
+  const candidates = await getFinancialJobCandidates(settings.map((row) => row.userId), "runwayguard_core")
 
   for (const setting of settings) {
     try {
+      const skip = candidates.get(setting.userId) ?? await getFinancialJobAccessSkip(setting.userId, "runwayguard_core")
+      if (skip) { skips[skip.reason] += 1; continue }
       const buildSummary = options.buildSummary ?? (async (): Promise<RunwaySummary> => ({
         usableCashCents: 0,
         runwayDays: 0,
@@ -123,6 +128,8 @@ export async function runRunwaySnapshotSweep(options: RunwaySnapshotSweepOptions
     processedUsers: settings.length,
     upserted,
     failed,
+    skipped: skips.no_access + skips.feature_not_available,
+    skips,
   }
 }
 

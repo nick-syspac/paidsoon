@@ -3,6 +3,8 @@ import { randomBytes } from "crypto"
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { sanitizeHtml } from "./htmlSanitizer"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { getEffectiveAccessForSystem } from "@/lib/billing/effectiveAccessSystem"
+import { getFinancialJobAccessSkip, type FinancialJobSkip } from "@/lib/billing/financialJobAccess"
 import {
   buildTemplateVars,
   resolveVars,
@@ -56,6 +58,10 @@ export const SUPPRESSED_MESSAGE_ID = "suppressed-undeliverable-domain"
  * still advances, without sending a second email.
  */
 export const ALREADY_SENT_MESSAGE_ID = "already-sent-for-stage"
+
+/** Authorization skips are not transport failures or successful deliveries. */
+export type ReminderAccessSkip = { outcome: "skipped"; reason: "access_denied" }
+const ACCESS_DENIED: ReminderAccessSkip = { outcome: "skipped", reason: "access_denied" }
 
 function isUniqueConstraintViolation(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002"
@@ -199,18 +205,19 @@ PaidSoon`
 export async function resolveFromAddress(userId: string): Promise<{
   from: string
   replyTo?: string
-}> {
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId },
-    select: { subscriptionTier: true },
-  })
+} | null> {
   const settings = await prisma.emailSettings.findUnique({
     where: { userId },
   })
 
-  const canUseVerifiedDomain = hasPlanFeature(profile?.subscriptionTier, "verified_from_domain")
-  const canUseCustomSenderName = hasPlanFeature(profile?.subscriptionTier, "custom_sender_name")
-  const canUseCustomReplyTo = hasPlanFeature(profile?.subscriptionTier, "custom_reply_to")
+  // Reminder execution has no customer session. Use the tenant-scoped system
+  // loader after preparation, never a queued/raw tier or an Essentials default.
+  const access = await getEffectiveAccessForSystem(userId)
+  if (!access.allowAccess || access.effectiveTier === null) return null
+  const tier = access.effectiveTier
+  const canUseVerifiedDomain = hasPlanFeature(tier, "verified_from_domain")
+  const canUseCustomSenderName = hasPlanFeature(tier, "custom_sender_name")
+  const canUseCustomReplyTo = hasPlanFeature(tier, "custom_reply_to")
 
   if (canUseVerifiedDomain && settings?.fromEmail && settings.resendVerified) {
     const name = settings.fromName ?? settings.fromEmail
@@ -233,18 +240,22 @@ export async function resolveFromAddress(userId: string): Promise<{
 
 /**
  * Send a follow-up email for a tracked invoice at the given stage.
- * Logs the send to email_logs. Returns the Resend message ID on success.
+ * Logs successful sends only. Access denial is a structured skip; transport
+ * failure remains null so orchestration can retry rather than advance state.
  */
 export async function sendFollowUpEmail(
   invoiceWithCanonical: TrackedInvoiceWithCanonical,
   stage: 1 | 2 | 3,
   freelancerEmail: string,
   freelancerName: string
-): Promise<string | null> {
+): Promise<string | null | ReminderAccessSkip> {
   const invoice = flattenCanonicalInvoice(invoiceWithCanonical)
   const trackedInvoiceId = invoiceWithCanonical.id
   const invoiceUserId = invoiceWithCanonical.userId
   const existingP2PToken = invoiceWithCanonical.p2pToken
+
+  const access = await getEffectiveAccessForSystem(invoiceUserId)
+  if (!access.allowAccess || access.effectiveTier === null) return ACCESS_DENIED
 
   // Fast-path dedup check: skip the send entirely if this stage was already
   // logged. The @@unique([trackedInvoiceId, stage]) constraint is the durable
@@ -254,19 +265,18 @@ export async function sendFollowUpEmail(
     select: { id: true },
   })
   if (existingLog) {
-    return ALREADY_SENT_MESSAGE_ID
+    // Even dedup recovery can advance the caller's sequence. Reauthorize after
+    // the log lookup rather than letting a previously claimed/logged stage
+    // bypass expiry or revocation.
+    const freshAccess = await getEffectiveAccessForSystem(invoiceUserId)
+    return freshAccess.allowAccess && freshAccess.effectiveTier !== null
+      ? ALREADY_SENT_MESSAGE_ID : ACCESS_DENIED
   }
-
-  const { from, replyTo } = await resolveFromAddress(invoiceUserId)
 
   // Resolve p2pLink for tiers that include promise-to-pay tracking. Generate
   // and persist the token if the invoice doesn't have one yet.
   let p2pLink: string | undefined
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId: invoiceUserId },
-    select: { subscriptionTier: true },
-  })
-  if (hasPlanFeature(profile?.subscriptionTier, "promise_to_pay_tracking")) {
+  if (hasPlanFeature(access.effectiveTier, "promise_to_pay_tracking")) {
     let token = existingP2PToken
     if (!token) {
       token = generateP2PToken()
@@ -313,6 +323,13 @@ export async function sendFollowUpEmail(
   }
 
   try {
+    // Fresh access and sender features immediately before the external effect
+    // (and before suppressed-delivery logging). Expiry/revocation during template
+    // preparation must not send, log success or advance the caller's sequence.
+    const sender = await resolveFromAddress(invoiceUserId)
+    if (!sender) return ACCESS_DENIED
+    const { from, replyTo } = sender
+
     // Reserved / undeliverable recipient domains (e.g. the `.test` addresses used
     // by the development seed) are never handed to Resend. The send is still
     // recorded in email_logs with a null message id so reminder history and the
@@ -344,9 +361,12 @@ export async function sendFollowUpEmail(
       subject,
       html,
       text,
-    })
+    }, { idempotencyKey: `reminder/${trackedInvoiceId}/${stage}` })
 
-    const messageId = result.data?.id ?? null
+    // Resend can return an error instead of throwing. Never leave a success
+    // stub that would make the dedup path advance a failed delivery on retry.
+    if (result.error || !result.data?.id) return null
+    const messageId = result.data.id
 
     try {
       await prisma.emailLog.create({
@@ -407,7 +427,9 @@ export async function sendP2PNotification(
   freelancerEmail: string,
   freelancerName: string,
   brokenCount?: number,
-): Promise<void> {
+): Promise<{ status: "sent" | "failed" } | FinancialJobSkip | { status: "skipped"; reason: "undeliverable_recipient" }> {
+  const skip = await getFinancialJobAccessSkip(invoiceWithCanonical.userId, "promise_to_pay_tracking")
+  if (skip) return skip
   const invoice = flattenCanonicalInvoice(invoiceWithCanonical)
   const trackedInvoiceId = invoiceWithCanonical.id
   const from = `${process.env.RESEND_FROM_NAME!} <${process.env.RESEND_FROM_EMAIL!}>`
@@ -467,10 +489,14 @@ PaidSoon`
   try {
     // Seeded / development accounts use reserved `.test` addresses — never
     // attempt an outbound send for those.
-    if (isUndeliverableAddress(freelancerEmail)) return
+    if (isUndeliverableAddress(freelancerEmail)) return { status: "skipped", reason: "undeliverable_recipient" }
 
-    await getResend().emails.send({ from, to: freelancerEmail, subject, html, text })
+    const sendSkip = await getFinancialJobAccessSkip(invoiceWithCanonical.userId, "promise_to_pay_tracking")
+    if (sendSkip) return sendSkip
+    const result = await getResend().emails.send({ from, to: freelancerEmail, subject, html, text })
+    return { status: result.error ? "failed" : "sent" }
   } catch (err) {
     console.error(`Failed to send P2P notification (${type}) for invoice ${trackedInvoiceId}:`, err)
+    return { status: "failed" }
   }
 }

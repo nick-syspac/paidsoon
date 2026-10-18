@@ -105,6 +105,12 @@ credentials are evaluated. After replacing a publishable key in Vercel, redeploy
 
 ## 4. Apply the schema (Prisma)
 
+> **Trial/journal rollout hold:** the generic schema/RLS/verification commands
+> in §§4–5 and §9 do not authorize applying pending trial-access artifacts to
+> shared dev/Preview or production. Follow [§11](#11-trial-access-and-customer-journal-database-gate)
+> first. Do not run shared `migrate dev`, including `--create-only`, or blanket
+> policy application while onboarding task 5.4 remains unfinished.
+
 Run from your local machine (you only need this once per Supabase project — typically once for `paidsoon-dev` and once for `paidsoon-prod`).
 
 ```bash
@@ -113,7 +119,8 @@ npm run prisma:migrate:deploy
 npm run prisma:generate
 ```
 
-Verify in Supabase → **Table Editor** that all six tables exist:
+The following are historical core tables, **not** the full schema inventory.
+Verify all approved migrations and security artifacts, not just these six:
 
 - `user_profiles`
 - `invoice_connections`
@@ -208,6 +215,9 @@ The auth callback route lives at [app/auth/callback/route.ts](../../app/auth/cal
 
 ## 8. Wipe and re-run
 
+Never use this destructive reprovisioning procedure to roll back trial/customer
+billing journals, reservations, risk or grants. Use §11's non-destructive gate.
+
 If you need to reprovision a Supabase project (data corruption, RLS gone wrong, fresh start), do the following in order:
 
 1. Delete the project in Supabase dashboard, then start over from §1.
@@ -238,6 +248,11 @@ Stop and roll back the deployment if topology validation, migration status, RLS,
 
 ### 9.2 Roll back the application release
 
+This legacy environment-adapter rollback is **not** a billing-journal rollback.
+Once durable operations exist, never deploy a previous uncoordinated writer or
+restore billing/profile privileges. Use the compatible rollback in
+[Vercel §12.2](./vercel.md#122-non-destructive-rollback).
+
 1. Stop database jobs and deploy the previous application/worker release.
 2. Through platform secret-manager interfaces, restore approved legacy URL values constructed offline from the **current** password and verified Connect-panel topology. Never paste them into tickets, logs, or shell history.
 3. If the previous release requires the former direct-host migration topology, restore it only for migration tooling; do not use it as the runtime URL.
@@ -259,3 +274,112 @@ Use these checks with the Vercel procedure in [vercel.md §11](./vercel.md#11-fr
 7. Confirm Auth request latency and error rate for `getUser()` separately from Postgres query latency.
 
 After any schema or RLS change, follow the migration rules and rerun `npm run verify-rls`. Region or pool changes never justify bypassing `withUserContext()`.
+
+## 11. Trial-access and customer journal database gate
+
+**Shared-development exception, 2026-10-18:** the user explicitly waived
+isolated-first validation for application to `rtnjcvjqimnavghmrhlx` and confirmed
+compatible writers deployed/old writers drained. The lease/customer migrations,
+separate CHECKs and full trial/customer security SQL were applied in one atomic
+transaction with creator-default containment before table creation. Official
+Prisma resolve recorded both migrations; status reported all 55 migrations
+current. Seven index definitions, validated CHECKs and journal ACL/RLS were
+checked before commit; the DB grant checker passed afterward. Historical
+**unapplied** rows below are superseded for this target only. Isolated behavioral
+validation and authenticated E2E remain outstanding. See the
+[rollout evidence](../release-notes/trial-access-verification-2026-10-17.md).
+
+**Source status reviewed 2026-10-17; not a deployment authorization or new live DB check.** The
+[schema](../../prisma/schema.prisma), generated client and mocked/static tests
+are working-tree evidence, not proof of live constraints, ACLs or isolation.
+Customer entitlement/onboarding/API code (5.1–5.5) and job/worker integration
+(6.1–6.4) are present in the working tree. Isolated database/security verification,
+reviewed application, owner UI, and release acceptance remain gates.
+
+| Artifact | Recorded state and scope |
+| --- | --- |
+| [Initial trial migration](../../prisma/migrations/20261014093943_add_superuser_tenant_trial_access/migration.sql) | Applied to shared dev on **2026-10-15**, unexpectedly while `migrate dev --create-only` applied earlier pending history. Four tables: `tenant_trial_grants`, `tenant_trial_operations`, `tenant_trial_notifications`, `tenant_billing_risks`; profile version and owner reservation. This is not customer-journal deployment. |
+| [Four-table containment](../../prisma/tenant-trial-tables-policies.sql) | Separately approved/applied to dev on **2026-10-15**. RLS/ACL containment of those four tables only; profile ACLs unchanged. Historical `verify-rls -- --trial-access-tables` passed rollback-safe own/cross-tenant/anonymous probes; not full policy proof. |
+| [Webhook lease migration](../../prisma/migrations/20261015060205_add_billing_webhook_processing_lease/migration.sql) | Generated, **unapplied**; processing token and lease. |
+| [Customer journal migration](../../prisma/migrations/20261015095612_add_tenant_billing_mutation_journal/migration.sql) | Approved offline generation only; **unapplied**. Three enums, two tables, nullable `pending_billing_mutation_id`, seven indexes, three same-tenant/parent/profile FKs. |
+| [Supplemental CHECKs](../../prisma/tenant-billing-mutation-constraints.sql) | Separately reviewed, **unapplied**, own transaction. `tenant_billing_mutations_actor_matches_tenant_check` enforces actor=tenant; `user_profiles_billing_reservations_exclusive_check` forbids simultaneous non-null reservations. Never rewrite generated migration history or repair conflicts automatically. |
+| [Full trial policies](../../prisma/tenant-trial-access-policies.sql) and [customer journal policies](../../prisma/tenant-billing-mutation-policies.sql) | Prepared, **unapplied**, matching canonical [RLS SQL](../../prisma/rls-policies.sql). Billing/onboarding writer conversion, including 5.4's completion-only onboarding write, is present in source. Activation still requires isolated security proof, separate review, deployment of compatible writers, and draining old writers. No optional shadow-database validation has passed. |
+
+### 11.1 Generation provenance is not database validation
+
+The approved task-3.8 path used **installed Prisma 7.10.0**,
+`PRISMA_GENERATE_ONLY=true` and schema-to-schema `prisma migrate diff` with
+`--from-schema`, `--to-schema` and `--script` (an output destination is incidental).
+The preserved full before-schema included webhook lease fields. No datasource
+or migration-directory input, database connection or shadow database was used.
+
+| Recorded provenance | SHA-256 |
+| --- | --- |
+| Preserved before-schema, temporary basename paidsoon-task3-8-before-20261015.prisma | `2272a24c94825a8230110e403c1b199f117fdc85dd9fc855d747fda3adb37f83` |
+| Generated customer journal SQL | `63cf618afde422d6d62d4825525af95640b99516f95666543e6fb466b33371b0` |
+
+[Prisma configuration](../../prisma.config.ts) loads local env files and derives
+migration connectivity through the canonical adapter. Generate-only mode selects
+a dummy localhost URL; it is **not** safe for DB-backed validation. A generic
+`DATABASE_URL` override does not prove isolation. Configure reviewed isolated
+canonical inputs (`SUPABASE_PROJECT_REF`, server-only `SUPABASE_DB_PASSWORD` and
+approved pooler topology), never expose secrets/derived URLs. Session-mode
+migrations use **5432**; runtime transactions use **6543**.
+
+Future database-backed generation requires separate confirmation of both an
+isolated scratch target and isolated shadow target through the canonical adapter.
+Never run `migrate dev` against shared dev/Preview or production, even with
+`--create-only`. Offline generation/client validation does not establish drift,
+Postgres execution, constraint correctness or live RLS.
+
+### 11.2 Deferred isolated verification and secure application
+
+First obtain explicit authorization for a disposable isolated target. The
+verification script requires exactly one
+`--reviewed-isolated-target=<20-lowercase-letter-project-ref>` matching canonical
+`SUPABASE_PROJECT_REF`; this acknowledgement does not grant authorization or
+make a shared target isolated.
+
+| Verification mode | Behavior |
+| --- | --- |
+| `npm run verify-rls -- --billing-mutations-staged --reviewed-isolated-target=<reviewed-ref>` | Stages absent initial/lease/customer migrations, supplemental CHECKs, then full trial/customer policies in **one outer rollback-only transaction**. Removes only CHECK SQL's outer transaction wrapper **in memory**. No file/migration-history changes or persistent legacy seed cleanup. |
+| `npm run verify-rls -- --billing-mutations --reviewed-isolated-target=<reviewed-ref>` | Verifies already-applied artifacts on the separately reviewed isolated target. Does not apply missing artifacts. |
+
+Modes are mutually exclusive with each other and trial-only modes. Partial CHECK
+deployment fails for review. Verify two-tenant/anonymous isolation, safe own
+profile/grant/risk reads, denied journal/step access and DML, denied profile
+insert/delete/billing/version/reservation writes, safe name/onboarding updates,
+same-tenant parent/step FKs, actor equality and single-versus-dual reservations.
+Inspect creator defaults and table **and historical column** ACLs. Default full
+verification and `check:db-grants` expect the complete contract; do not probe
+current shared dev using them. Historical staged rollback is not durable rollout.
+
+Only after isolated migration/CHECK/RLS verification passes may a **separate**
+shared-target review authorize application. Follow the ordered
+[Vercel release gate](./vercel.md#12-trial-access-and-customer-billing-journal-release-gate).
+Before journal creation, revoke unsafe creation defaults for the canonical
+`postgres` creator (and separately review any other effective/global defaults).
+Create tables with no exposed intermediate state, then apply reviewed CHECKs and
+RLS/ACL blocks as a controlled security unit. Do not deploy migration alone.
+Full trial policy precedes the supplemental customer policy; both revoke billing
+authority, preserving only profile SELECT and safe UPDATE columns `display_name`,
+`onboarding_completed_at`, `updatedAt`. Journals/steps/notifications/audit are
+server-only; grants/risk expose only safe own columns. No customer journal policy
+or direct Data API access is introduced.
+
+[Supabase grants/RLS guidance](https://supabase.com/docs/guides/api/securing-your-api)
+and [default-grants change](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically)
+confirm these are separate layers. Changed defaults affect future objects only;
+they do not repair existing privileges. Do not rely on the announced 2026-10-30
+rollout for containment, or copy generic bulk-grant rollback advice.
+
+Drain old unjournaled writers/in-flight requests before owner enablement and
+finish onboarding conversion before full profile restrictions. Preserve both
+reservation IDs, versions, operation/step/notification/ledger evidence and
+effective grants during rollback. Unknown/partial provider results stay reserved
+past lease expiry; per-step exact replay is strictly before first attempt +24h.
+Never remove CHECKs, restore billing privileges, reset trial dates, fabricate
+operations or recreate late unknown Stripe objects. Retain compatible recovery,
+signed current-state/legacy hosted reconciliation and entitlement resolution.
+Tasks 3.8/3.9/9.3's isolated checks and separately reviewed shared rollout remain
+outstanding; this documentation session ran no database or shadow checks.

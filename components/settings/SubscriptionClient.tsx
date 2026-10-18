@@ -1,7 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { getSubscriptionBillingState } from "@/lib/subscriptionStatusPresentation"
+import { useBillingOperation } from "@/components/billing/useBillingOperation"
+import { BillingOperationNotice } from "@/components/billing/BillingOperationNotice"
+import type { BillingClientProps } from "@/lib/billing/clientOperation"
+import { getSubscriptionBillingState, formatAccessInstant, type ApplicationAccessPresentation } from "@/lib/subscriptionStatusPresentation"
 import {
   PLAN_CATALOG,
   PLAN_ORDER,
@@ -21,6 +24,10 @@ export function SubscriptionClient({
   pendingDowngradeTier,
   preselectedTier,
   successMessage,
+  applicationAccess,
+  stripeTrialEndsAt,
+  hasStripeSubscription,
+  ...billing
 }: {
   tier: SubscriptionTier
   status: string
@@ -30,12 +37,14 @@ export function SubscriptionClient({
   pendingDowngradeTier: SubscriptionTier | null
   preselectedTier?: SubscriptionTier
   successMessage: string | null
-}) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  applicationAccess: ApplicationAccessPresentation
+  stripeTrialEndsAt: Date | null
+  hasStripeSubscription: boolean
+} & BillingClientProps) {
+  const operation = useBillingOperation(billing)
+  const { loading } = operation
   const [confirmingChangeTo, setConfirmingChangeTo] = useState<SubscriptionTier | null>(null)
-  const [pendingDowngrade, setPendingDowngrade] = useState<SubscriptionTier | null>(pendingDowngradeTier)
-  const [notice, setNotice] = useState<string | null>(null)
+  const pendingDowngrade = pendingDowngradeTier
   const [selectedTierOverride, setSelectedTierOverride] = useState<SubscriptionTier | null>(null)
 
   const plan = PLAN_CATALOG[tier]
@@ -57,20 +66,7 @@ export function SubscriptionClient({
   )
 
   async function handleManage() {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/billing/portal", { method: "POST" })
-      const data = await res.json()
-      if (data.url) {
-        window.location.assign(data.url)
-        return
-      }
-      setError(data.error ?? "Something went wrong. Please try again.")
-    } catch {
-      setError("Something went wrong. Please try again.")
-    }
-    setLoading(false)
+    await operation.start({ path: "/api/billing/portal", method: "POST", body: null })
   }
 
   async function handlePlanSelect(targetTier: SubscriptionTier) {
@@ -89,64 +85,11 @@ export function SubscriptionClient({
       return
     }
 
-    setLoading(true)
-    setError(null)
-    try {
-      if (isConfirmingDowngrade) {
-        const res = await fetch("/api/billing/downgrade", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tier: confirmingChangeTo }),
-        })
-        const data = await res.json()
-        if (!res.ok) {
-          setError(data.error ?? "Something went wrong. Please try again.")
-          return
-        }
-
-        setPendingDowngrade(confirmingChangeTo)
-        setConfirmingChangeTo(null)
-        const scheduledAt = typeof data.scheduledAt === "string" ? data.scheduledAt : currentPeriodEnd
-        setNotice(`Your plan will change on ${formatDate(scheduledAt)}. You can cancel before then.`)
-        return
-      }
-
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: confirmingChangeTo }),
-      })
-      const data = await res.json()
-      if (data.url) {
-        window.location.assign(data.url)
-        return
-      }
-      setError(data.error ?? "Something went wrong. Please try again.")
-    } catch {
-      setError("Something went wrong. Please try again.")
-    } finally {
-      setLoading(false)
-    }
+    await operation.start({ path: isConfirmingDowngrade ? "/api/billing/downgrade" : "/api/billing/checkout", method: "POST", body: { tier: confirmingChangeTo } })
   }
 
   async function cancelPendingDowngrade() {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/billing/downgrade", { method: "DELETE" })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong. Please try again.")
-        return
-      }
-      setPendingDowngrade(null)
-      setNotice(null)
-      setSelectedTierOverride(null)
-    } catch {
-      setError("Something went wrong. Please try again.")
-    } finally {
-      setLoading(false)
-    }
+    await operation.start({ path: "/api/billing/downgrade", method: "DELETE", body: null })
   }
 
   async function handleCancelSubscription() {
@@ -161,23 +104,20 @@ export function SubscriptionClient({
         </div>
       )}
 
-      {notice && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
-          {notice}
-        </div>
-      )}
+      <BillingOperationNotice operation={operation} />
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      <section aria-label="Application access" className="border border-blue-200 bg-blue-50 rounded-xl p-5 space-y-2 text-sm text-blue-900">
+        <h2 className="font-semibold">{applicationAccess.headline}</h2>
+        <p>{applicationAccess.description}</p>
+        {applicationAccess.continuity && <p>{applicationAccess.continuity}</p>}
+        {applicationAccess.retainedGrant && <p>{applicationAccess.retainedGrant}</p>}
+      </section>
 
       <div className="border border-gray-200 rounded-xl p-5 space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-              Current plan
+              {hasStripeSubscription ? "Stripe billing plan" : "Billing plan selection (not purchased)"}
             </p>
             <p className="text-xl font-bold text-gray-900">{plan.name}</p>
             <p className="text-sm text-gray-500 mt-0.5">
@@ -198,6 +138,10 @@ export function SubscriptionClient({
             {status === "active" ? "Active" : status}
           </span>
         </div>
+
+        {stripeTrialEndsAt && (
+          <p className="text-sm text-gray-500">Recorded Stripe trial end: {formatAccessInstant(stripeTrialEndsAt)}</p>
+        )}
 
         {billingState.headline && (
           <div

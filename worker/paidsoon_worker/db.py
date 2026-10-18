@@ -193,8 +193,10 @@ def claim_due_accounting_connections(
 
 
 def claim_due_weekly_debtor_summaries() -> list[dict[str, Any]]:
-    """Claims every eligible tenant for this week's debtor summary.
+    """Claims tenant candidates for this week's debtor summary.
 
+    Next.js authorizes effective access/features at execution, including grants.
+    Raw billing plans must not narrow this candidate superset.
     The claim key is stable for the current UTC week, so repeated dispatches
     during the same week are idempotent at the database layer.
     """
@@ -206,8 +208,6 @@ def claim_due_weekly_debtor_summaries() -> list[dict[str, Any]]:
             """
             SELECT "userId" AS user_id
             FROM user_profiles
-            WHERE "subscriptionTier" IN ('small_business', 'accountant_partner')
-              AND "subscriptionTier" IS NOT NULL
             ORDER BY "userId"
             """
         ).fetchall()
@@ -240,6 +240,7 @@ def claim_due_weekly_debtor_summaries() -> list[dict[str, Any]]:
 def claim_due_owners_digests() -> list[dict[str, Any]]:
     """Claims Owner's Digest evaluations once per hour for eligible tenants.
 
+    Next.js authorizes effective access/features at execution, including grants.
     The internal job applies user-specific cadence and delivery rules. The
     hourly claim key keeps dispatch retries idempotent within the same hour.
     """
@@ -253,7 +254,6 @@ def claim_due_owners_digests() -> list[dict[str, Any]]:
             JOIN user_profiles u ON u."userId" = s.user_id
             WHERE s.enabled = true
               AND s.email_enabled = true
-              AND u."subscriptionTier" IN ('small_business', 'business_pro', 'accountant_partner')
             ORDER BY s.user_id
             """
         ).fetchall()

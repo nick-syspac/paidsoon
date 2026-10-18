@@ -20,7 +20,9 @@ function errorStatus(error: SpendClassificationReviewError): number {
   return 400
 }
 
-export async function POST(request: Request): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(request: Request): Promise<NextResponse> {
   const userId = await getAuthenticatedSpendClassificationUserId()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const payload = await request.json().catch(() => null)

@@ -40,7 +40,10 @@ function isActionAllowed(currentState: string, action: z.infer<typeof ActionSche
   return false
 }
 
-export async function GET(_request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const GET = withSubscriptionAccess(GETHandler)
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function GETHandler(_request: Request, { params }: Params): Promise<NextResponse> {
   const { id } = await params
   const supabase = await createClient()
   const {
@@ -73,7 +76,7 @@ export async function GET(_request: Request, { params }: Params): Promise<NextRe
   return NextResponse.json({ finding })
 }
 
-export async function PATCH(request: Request, { params }: Params): Promise<NextResponse> {
+async function PATCHHandler(request: Request, { params }: Params): Promise<NextResponse> {
   const { id } = await params
   const supabase = await createClient()
   const {

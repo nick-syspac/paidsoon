@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { requireSubscriptionAccess } from "@/lib/billing/accessGuard"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { lockSpendClassificationTenant } from "@/lib/spendClassification/locks"
@@ -60,6 +61,7 @@ export class SpendRuleError extends Error {
 }
 
 export async function listSpendClassificationRules(userId: string) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => tx.spendClassificationRule.findMany({
     where: { userId },
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
@@ -79,6 +81,7 @@ export async function listSpendClassificationRules(userId: string) {
 }
 
 export async function setSpendClassificationRuleEnabled(userId: string, ruleId: string, enabled: boolean) {
+  await requireSubscriptionAccess(userId)
   return withUserContext(userId, async (tx) => {
     await lockSpendClassificationTenant(tx, userId)
     const rule = await tx.spendClassificationRule.findFirst({
@@ -146,6 +149,7 @@ export async function createSourceAccountMapping(
     priority?: number
   },
 ) {
+  await requireSubscriptionAccess(userId)
   const parsed = SourceAccountMappingInputSchema.safeParse(input)
   if (!parsed.success) throw new SpendRuleError("invalid_match_criteria")
   const accountCode = parsed.data.expenseAccountCode?.trim() ?? ""
@@ -210,6 +214,7 @@ export async function createSpendClassificationRule(
     priority?: number
   },
 ) {
+  await requireSubscriptionAccess(userId)
   const parsed = TenantRuleInputSchema.safeParse(input)
   if (!parsed.success) throw new SpendRuleError("invalid_match_criteria")
 

@@ -33,7 +33,7 @@ export function UserMenu({
 }: {
   email: string
   displayName: string | null
-  tier: string
+  tier: string | null
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -53,7 +53,7 @@ export function UserMenu({
   const initials = getInitials(displayName, email)
   const primaryLine = displayName && displayName.trim().length > 0 ? displayName.trim() : email
   const secondaryLine = displayName && displayName.trim().length > 0 ? email : null
-  const tierLabel = TIER_LABELS[tier] ?? tier
+  const tierLabel = tier ? TIER_LABELS[tier] ?? tier : "No application access"
 
   return (
     <div className="relative" ref={ref}>

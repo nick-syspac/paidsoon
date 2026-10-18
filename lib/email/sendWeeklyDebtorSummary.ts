@@ -1,7 +1,7 @@
 import { Resend } from "resend"
 import { prismaAdmin as prisma } from "@/lib/db/admin"
 import { getWeeklyDebtorSummaryWeekStart, buildWeeklyDebtorSummaryEmail, buildWeeklyDebtorSummaryPayload } from "@/lib/email/weeklyDebtorSummary"
-import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { getSummaryAccessSkip, type SummaryAccessSkip } from "@/lib/email/summaryAccess"
 import { createClient } from "@supabase/supabase-js"
 import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
 
@@ -10,24 +10,20 @@ function getResend(): Resend {
   return _resend ?? (_resend = new Resend(process.env.RESEND_API_KEY!))
 }
 
-type SummarySendOutcome =
+export type SummarySendOutcome =
   | { status: "sent"; messageId: string | null }
   | { status: "already_sent"; messageId: string | null }
-  | { status: "skipped"; reason: string }
-
-function isEligibleTier(tier: string | null | undefined): boolean {
-  return hasPlanFeature(tier, "weekly_summary_email")
-}
+  | SummaryAccessSkip
+  | { status: "skipped"; reason: "missing_recipient_email" }
 
 export async function sendWeeklyDebtorSummary(userId: string): Promise<SummarySendOutcome> {
+  // Intentional tenant-scoped privileged reads/writes for authenticated system jobs.
+  const accessSkip = await getSummaryAccessSkip(userId, "weekly_summary_email")
+  if (accessSkip) return accessSkip
   const profile = await prisma.userProfile.findUnique({
     where: { userId },
-    select: { displayName: true, subscriptionTier: true },
+    select: { displayName: true },
   })
-
-  if (!isEligibleTier(profile?.subscriptionTier)) {
-    return { status: "skipped", reason: "weekly_summary_not_available" }
-  }
 
   const weekStart = getWeeklyDebtorSummaryWeekStart()
   const existing = await prisma.weeklyDebtorSummaryDelivery.findUnique({
@@ -68,6 +64,10 @@ export async function sendWeeklyDebtorSummary(userId: string): Promise<SummarySe
     },
   })
 
+  // Recipient/invoice loading can outlive the access that authorized this job.
+  const computeSkip = await getSummaryAccessSkip(userId, "weekly_summary_email")
+  if (computeSkip) return computeSkip
+
   const invoices = invoiceRows.map((row) => ({
     status: row.status,
     clientEmail: row.financialInvoice.contact?.email ?? "",
@@ -83,6 +83,9 @@ export async function sendWeeklyDebtorSummary(userId: string): Promise<SummarySe
     tenantName: profile?.displayName ?? userData?.user?.user_metadata?.full_name ?? recipientEmail,
     payload,
   })
+
+  const preparedSkip = await getSummaryAccessSkip(userId, "weekly_summary_email")
+  if (preparedSkip) return preparedSkip
 
   await prisma.weeklyDebtorSummaryDelivery.upsert({
     where: { userId_weekStart: { userId, weekStart } },
@@ -100,6 +103,15 @@ export async function sendWeeklyDebtorSummary(userId: string): Promise<SummarySe
   })
 
   try {
+    const sendSkip = await getSummaryAccessSkip(userId, "weekly_summary_email")
+    if (sendSkip) {
+      // A reservation is not a send or weekly consumption; it remains retryable.
+      await prisma.weeklyDebtorSummaryDelivery.update({
+        where: { userId_weekStart: { userId, weekStart } },
+        data: { status: "skipped", lastError: sendSkip.reason },
+      })
+      return sendSkip
+    }
     const result = await getResend().emails.send({
       from: `${process.env.RESEND_FROM_NAME!} <${process.env.RESEND_FROM_EMAIL!}>`,
       to: recipientEmail,
@@ -107,6 +119,7 @@ export async function sendWeeklyDebtorSummary(userId: string): Promise<SummarySe
       html: content.html,
       text: content.text,
     })
+    if (result.error) throw new Error("weekly_summary_send_failed")
 
     const messageId = result.data?.id ?? null
     await prisma.weeklyDebtorSummaryDelivery.update({

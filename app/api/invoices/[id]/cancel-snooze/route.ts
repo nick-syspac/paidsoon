@@ -5,7 +5,9 @@ import { NextResponse } from "next/server"
 type Params = { params: Promise<{ id: string }> }
 
 // POST /api/invoices/[id]/cancel-snooze — manually end an in-progress snooze early
-export async function POST(_req: Request, { params }: Params) {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(_req: Request, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

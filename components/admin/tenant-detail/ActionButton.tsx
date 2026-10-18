@@ -14,8 +14,12 @@ export function ActionButton({ tenantUserId, action }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Also reject stale/untyped diagnostic metadata at runtime. Trial management
+  // must never be dispatched through this generic confirmation/payload UI.
+  const supported = action.actionSlug === "reset-email-from" || action.actionSlug === "trigger-resync"
 
   async function handleConfirm() {
+    if (!supported) return
     setLoading(true)
     setError(null)
     try {
@@ -40,6 +44,8 @@ export function ActionButton({ tenantUserId, action }: Props) {
       setLoading(false)
     }
   }
+
+  if (!supported) return null
 
   if (confirming) {
     return (

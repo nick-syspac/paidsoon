@@ -13,6 +13,7 @@
 
 import { before, beforeEach, describe, mock, test } from "node:test"
 import assert from "node:assert/strict"
+import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
 
 let lastEmailLogCreateArgs: { data: { htmlBody?: string; textBody?: string; subject?: string } } | null = null
 let mockCustomTemplate: {
@@ -26,6 +27,12 @@ let sendFollowUpEmail: any
 
 describe("sendFollowUpEmail — EmailLog body persistence", () => {
   before(async () => {
+    await mock.module("@/lib/billing/effectiveAccessSystem", {
+      namedExports: { getEffectiveAccessForSystem: async () => resolveEffectiveAccess({
+        profile: { subscriptionStatus: "active", subscriptionTier: "business_control", stripeSubscriptionId: "sub_test", trialEndsAt: null, billingAccessVersion: 1 },
+        grant: null, billingRisks: [],
+      }, new Date("2026-10-17T00:00:00Z")) },
+    })
     await mock.module("@/lib/db/admin", {
       namedExports: {
         prismaAdmin: {

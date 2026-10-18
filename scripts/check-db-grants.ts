@@ -23,7 +23,7 @@ const ROLE = "authenticated"
 
 // Keep this list tight and explicit so failures are actionable.
 const REQUIRED_GRANTS: GrantExpectation[] = [
-  { table: "public.user_profiles", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { table: "public.user_profiles", privileges: ["SELECT"] },
   { table: "public.invoice_connections", privileges: ["SELECT", "INSERT", "UPDATE"] },
   { table: "public.tracked_invoices", privileges: ["SELECT", "INSERT", "UPDATE"] },
   { table: "public.financial_invoices", privileges: ["SELECT"] },
@@ -170,7 +170,59 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  console.log("DB grant check passed.")
+  // Authority restrictions include column grants: revoking a table grant alone
+  // does not remove historical column privileges. Use the catalog, not a sample
+  // update, to check every column and every client role.
+  for (const role of ["authenticated", "anon"]) {
+    for (const table of ["tenant_trial_grants", "tenant_billing_risks", "tenant_trial_operations", "tenant_trial_notifications", "tenant_billing_mutations", "tenant_billing_mutation_steps", "admin_audit_events", "user_profiles"]) {
+      const columns = await prismaAdmin.$queryRawUnsafe<Array<{
+        name: string; can_select: boolean; can_insert: boolean; can_update: boolean; can_delete: boolean; rls: boolean
+      }>>(`SELECT a.attname AS name,
+          has_column_privilege($1,c.oid,a.attnum,'SELECT') AS can_select,
+          has_column_privilege($1,c.oid,a.attnum,'INSERT') AS can_insert,
+          has_column_privilege($1,c.oid,a.attnum,'UPDATE') AS can_update,
+          has_table_privilege($1,c.oid,'DELETE') AS can_delete,c.relrowsecurity AS rls
+        FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        JOIN pg_attribute a ON a.attrelid=c.oid
+        WHERE n.nspname='public' AND c.relname=$2 AND a.attnum>0 AND NOT a.attisdropped`, role, table)
+      if (columns.length === 0) throw new Error(`Missing table public.${table}`)
+      if (["tenant_trial_operations", "tenant_billing_mutations", "tenant_billing_mutation_steps"].includes(table)) {
+        const extra = await prismaAdmin.$queryRawUnsafe<PrivilegeRow[]>(`SELECT
+          has_table_privilege($1,$2,'TRUNCATE,REFERENCES,TRIGGER') OR
+          has_any_column_privilege($1,$2,'REFERENCES') AS has_privilege`, role, `public.${table}`)
+        if (extra[0]?.has_privilege) throw new Error(`Unexpected journal authority: ${role} public.${table}`)
+      }
+      if (table === "user_profiles" && !columns.some((column) => column.name === "pending_billing_mutation_id")) {
+        throw new Error("Missing customer reservation column; journal rollout is incomplete")
+      }
+      const readable = table === "tenant_trial_grants"
+        ? ["id", "user_id", "plan", "starts_at", "expires_at", "revoked_at", "created_at", "updated_at"]
+        : table === "tenant_billing_risks"
+          ? ["id", "user_id", "kind", "stripe_status", "blocking", "reconciled_at"] : []
+      for (const column of columns) {
+        const name = `${role} public.${table}.${column.name}`
+        if (!column.rls) throw new Error(`RLS disabled: ${name}`)
+        if (column.can_insert || column.can_delete) throw new Error(`Unexpected write authority: ${name}`)
+        const mayUpdate = role === "authenticated" && table === "user_profiles" && ["display_name", "onboarding_completed_at", "updatedAt"].includes(column.name)
+        if (column.can_update !== mayUpdate) throw new Error(`Incorrect UPDATE privilege: ${name}`)
+        if (table !== "user_profiles") {
+          const mayRead = role === "authenticated" && readable.includes(column.name)
+          if (column.can_select !== mayRead) throw new Error(`Incorrect SELECT privilege: ${name}`)
+        }
+      }
+    }
+  }
+  // Check creator defaults as well as existing ACLs; PUBLIC is inherited by both
+  // client roles. This script is for a separately reviewed fully deployed target.
+  const defaults = await prismaAdmin.$queryRawUnsafe<ExistsRow[]>(`SELECT EXISTS (
+    SELECT 1 FROM pg_default_acl d
+    CROSS JOIN LATERAL aclexplode(d.defaclacl) a
+    WHERE d.defaclrole = 'postgres'::regrole AND d.defaclobjtype = 'r'
+      AND (d.defaclnamespace = 0 OR d.defaclnamespace = 'public'::regnamespace)
+      AND (a.grantee = 0 OR a.grantee IN ('anon'::regrole, 'authenticated'::regrole))
+  ) AS exists`)
+  if (defaults[0]?.exists) throw new Error("Unexpected public-table creation default for a client role")
+  console.log("DB grant check passed, including both journals/steps, creation defaults and profile authority restrictions.")
 }
 
 main()

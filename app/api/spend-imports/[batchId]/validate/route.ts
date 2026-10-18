@@ -14,7 +14,9 @@ type Params = { params: Promise<{ batchId: string }> }
 
 const PREVIEW_ROW_LIMIT = 20
 
-export async function POST(_request: Request, { params }: Params): Promise<NextResponse> {
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+export const POST = withSubscriptionAccess(POSTHandler)
+async function POSTHandler(_request: Request, { params }: Params): Promise<NextResponse> {
   const { batchId } = await params
   const supabase = await createClient()
   const {

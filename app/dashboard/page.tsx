@@ -49,6 +49,7 @@ import {
 } from "@/lib/diagnostics/server"
 import { summariseAuthForTrace } from "@/lib/diagnostics/shared"
 import { withUserContext } from "@/lib/db/withUserContext"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
 
 const COMPONENT = "app/dashboard/page.tsx"
 
@@ -135,12 +136,14 @@ export default async function DashboardOverviewPage({
     importAnomalyCount,
   } = await loadDashboardOverview(user.id, traceContext, COMPONENT)
 
-  const canViewSpendLeak = canAccessSpendLeak(profile?.subscriptionTier)
-  const canViewOwnersDigest = canAccessOwnersDigest(profile?.subscriptionTier)
-  const canViewMarginGuard = canAccessMarginGuard(profile?.subscriptionTier)
-  const canViewRunwayGuard = canAccessRunwayGuard(profile?.subscriptionTier)
-  const canViewTaxBuffer = canAccessTaxBuffer(profile?.subscriptionTier)
-  const canViewCommitGuard = hasPlanFeature(profile?.subscriptionTier, "commitguard_core")
+  const tier = getDashboardEffectiveTier(profile)
+  if (tier === null) redirect("/dashboard/settings/subscription")
+  const canViewSpendLeak = canAccessSpendLeak(tier)
+  const canViewOwnersDigest = canAccessOwnersDigest(tier)
+  const canViewMarginGuard = canAccessMarginGuard(tier)
+  const canViewRunwayGuard = canAccessRunwayGuard(tier)
+  const canViewTaxBuffer = canAccessTaxBuffer(tier)
+  const canViewCommitGuard = hasPlanFeature(tier, "commitguard_core")
   const runwayGuardStatus = canViewRunwayGuard
     ? await withUserContext(user.id, async (tx) => {
         const [settings, latestSnapshot] = await Promise.all([
