@@ -83,7 +83,9 @@ test("rejects unsafe ports, review identifiers and non-UUID run identity", () =>
 
 const root = fileURLToPath(new URL("../", import.meta.url))
 function cli(args: string[], body: string): ReturnType<typeof spawnSync> {
-  return spawnSync(process.execPath, ["--import", "tsx", "scripts/e2e/trial-access-plan.ts", ...args], {
+  // End Node's option parsing explicitly: Node 24 can otherwise consume an
+  // --env-file argument intended for the CLI before our rejection code runs.
+  return spawnSync(process.execPath, ["--import", "tsx", "--", "scripts/e2e/trial-access-plan.ts", ...args], {
     cwd: root,
     // Do not inherit NODE_OPTIONS, dotenv/loader flags or real provider credentials.
     env: {
@@ -105,7 +107,7 @@ test("CLI accepts only explicit non-secret stdin and cannot turn a plan into a l
   assert.doesNotMatch(String(result.stdout) + String(result.stderr), /ambient-dummy|sk_live|ADMIN_REQUIRE_DEVICE_KEY/)
   for (const args of [[], ["--launch"], ["--provision"], ["--dry-run", "--launch"], ["--env-file=.env.local"]]) {
     const denied = cli(args, JSON.stringify(input))
-    assert.equal(denied.status, 2)
+    assert.equal(denied.status, 2, `args=${JSON.stringify(args)} stderr=${String(denied.stderr)}`)
     assert.equal(denied.stdout, "")
     assert.match(String(denied.stderr), /^dry_run_only:/)
   }
