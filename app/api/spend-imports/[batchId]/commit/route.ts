@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { NextResponse } from "next/server"
 
 import { withUserContext } from "@/lib/db/withUserContext"
+import { handoffCompletedSpendDetection } from "@/lib/commitguard/detectionRequest"
 import { getSpendImportDirection, parseSpendImportDate, parseSpendImportMoney } from "@/lib/spendImport/mapping"
 import { type SpendImportCanonicalField } from "@/lib/spendImport/template"
 import { createClient } from "@/lib/supabase/server"
@@ -75,6 +76,7 @@ async function POSTHandler(_request: Request, { params }: Params): Promise<NextR
     if (!batch) return { ok: false as const, reason: "not_found" as const }
 
     if (batch.status === "completed") {
+      await handoffCompletedSpendDetection(tx, user.id, { sourceKind: "spend_import_batch", sourceId: batchId })
       const mappingMeta = (batch.mapping ?? {}) as { commitResult?: CommitResult }
       const commitResult = mappingMeta.commitResult ?? {
         recordsUpserted: 0,
@@ -341,6 +343,8 @@ async function POSTHandler(_request: Request, { params }: Params): Promise<NextR
         mapping: { ...existingMapping, commitResult } as Prisma.InputJsonValue,
       },
     })
+
+    await handoffCompletedSpendDetection(tx, user.id, { sourceKind: "spend_import_batch", sourceId: batchId })
 
     return { ok: true as const, batch: updated, commitResult, replay: false, classificationHandoffs }
   })

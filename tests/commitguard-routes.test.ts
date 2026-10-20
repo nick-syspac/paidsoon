@@ -13,6 +13,8 @@ let capturedUpdateArgs: unknown = null
 let capturedTransitionArgs: unknown = null
 let capturedReviewArgs: unknown = null
 let capturedListCommitmentsUserId: string | null = null
+let creationFailure: string | null = null
+let reviewResult: object = { status: "updated", commitmentId: "commitment-1" }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let listRouteGET: any
@@ -84,11 +86,12 @@ describe("CommitGuard API routes", () => {
         },
         createCommitment: async (userId: string, input: unknown) => {
           capturedCreateArgs = { userId, input }
+          if (creationFailure) throw new Error(creationFailure)
           return { ...baseCommitment, ...(input as object) }
         },
         updateCommitment: async (userId: string, commitmentId: string, input: unknown) => {
           capturedUpdateArgs = { userId, commitmentId, input }
-          return { ...baseCommitment, id: commitmentId, ...(input as object) }
+          return { commitment: { ...baseCommitment, id: commitmentId, ...(input as object) }, audit: null }
         },
         transitionCommitment: async (
           userId: string,
@@ -97,7 +100,7 @@ describe("CommitGuard API routes", () => {
           actorId: string,
         ) => {
           capturedTransitionArgs = { userId, commitmentId, action, actorId }
-          return { ...baseCommitment, id: commitmentId, status: action === "cancel" ? "cancelled" : "active" }
+          return { commitment: { ...baseCommitment, id: commitmentId, status: action === "cancel" ? "cancelled" : "active" }, audit: null }
         },
       },
     })
@@ -106,7 +109,8 @@ describe("CommitGuard API routes", () => {
       namedExports: {
         reviewDetectedCommitmentCandidate: async (input: unknown) => {
           capturedReviewArgs = input
-          return { status: "ok", candidateId: "candidate-1" }
+          if (creationFailure) throw new Error(creationFailure)
+          return reviewResult
         },
       },
     })
@@ -126,6 +130,8 @@ describe("CommitGuard API routes", () => {
     capturedTransitionArgs = null
     capturedReviewArgs = null
     capturedListCommitmentsUserId = null
+    creationFailure = null
+    reviewResult = { status: "updated", commitmentId: "commitment-1" }
   })
 
   test("returns 401 when unauthenticated", async () => {
@@ -173,6 +179,25 @@ describe("CommitGuard API routes", () => {
 
     const body = (await res.json()) as { commitment: { id: string } }
     assert.equal(body.commitment.id, "commitment-1")
+  })
+
+  test("manual create and conversion return the same safe 403 for allowance or refreshed access denial", async () => {
+    for (const error of ["Commitment limit reached", "Upgrade required"]) {
+      creationFailure = error
+      for (const conversion of [false, true]) {
+        const req = new Request("http://localhost/api/commitguard", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(conversion ? { action: "confirm" } : {
+            name: "Synthetic", category: "other", amountCents: 1000, currency: "aud", frequency: "monthly",
+          }),
+        })
+        const response = conversion
+          ? await reviewRoutePOST(req, { params: Promise.resolve({ id: "candidate-1" }) })
+          : await listRoutePOST(req)
+        assert.equal(response.status, 403)
+        assert.deepEqual(await response.json(), { error })
+      }
+    }
   })
 
   test("updates commitments with id and tenant context", async () => {
@@ -278,5 +303,58 @@ describe("CommitGuard API routes", () => {
     assert.equal(args?.action, "edit")
     assert.equal(args?.actorId, "user-1")
     assert.equal(args?.patch.name, "Adjusted cloud plan")
+  })
+
+  test("conversion result maps to safe 200/404/409 without leaking storage details", async () => {
+    for (const [result, status] of [
+      [{ status: "updated", commitmentId: "original" }, 200],
+      [{ status: "not_found" }, 404],
+      [{ status: "conflict", reason: "conversion_review_required", reviewReasons: ["duplicate_audit_evidence"] }, 409],
+      [{ status: "conflict", reason: "candidate_already_converted", commitmentId: "original" }, 409],
+      [{ status: "conflict", reason: "invalid_candidate_transition" }, 409],
+    ] as const) {
+      reviewResult = result
+      const response = await reviewRoutePOST(new Request("http://localhost/api/commitguard/review", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "confirm" }),
+      }), { params: Promise.resolve({ id: "candidate-1" }) })
+      assert.equal(response.status, status)
+      const body = await response.json()
+      if (status === 409) assert.equal(body.reason, "reason" in result ? result.reason : undefined)
+      assert.equal("userId" in body, false)
+      assert.equal("metadata" in body, false)
+    }
+  })
+
+  test("non-edit patches, forged conversion links and actor IDs fail validation before the service", async () => {
+    for (const payload of [
+      ...["confirm", "ignore", "not_a_commitment"].map((action) => ({ action, patch: { name: "Conflicting patch" } })),
+      { action: "confirm", sourceDetectionCandidateId: "forged" },
+      { action: "confirm", actorId: "forged" },
+      { action: "confirm", userId: "forged" },
+    ]) {
+      const response = await reviewRoutePOST(new Request("http://localhost/api/commitguard/review", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      }), { params: Promise.resolve({ id: "candidate-1" }) })
+      assert.equal(response.status, 400)
+      assert.equal(capturedReviewArgs, null)
+    }
+  })
+
+  test("review authentication precedes mutation and unexpected errors have a safe 500 body", async () => {
+    const request = () => new Request("http://localhost/api/commitguard/review", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "confirm" }),
+    })
+    const context = { params: Promise.resolve({ id: "candidate-1" }) }
+    mockUser = null
+    assert.equal((await reviewRoutePOST(request(), context)).status, 401)
+    assert.equal(capturedReviewArgs, null)
+    mockUser = { id: "user-1" }
+    creationFailure = "synthetic private database detail"
+    const log = mock.method(console, "error", () => {})
+    try {
+      const response = await reviewRoutePOST(request(), context)
+      assert.equal(response.status, 500)
+      assert.deepEqual(await response.json(), { error: "Internal server error" })
+    } finally { log.mock.restore() }
   })
 })

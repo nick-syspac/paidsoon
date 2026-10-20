@@ -1,15 +1,13 @@
-import { withUserContext } from "@/lib/db/withUserContext"
+import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
+import { Prisma } from "@/lib/generated/prisma/client"
 import { requireFeature } from "@/lib/billing"
 import {
   getCommitGuardEntitlements,
   requireCommitGuardCoreAccess,
 } from "@/lib/commitguard/entitlements"
 import {
-  buildCommitmentHorizonTotals,
-  buildRenewalAssessments,
-  calculateFreeCashBreakdown,
-  resolveSafetyBufferCents,
-  type CommitmentHorizonTotals,
+  buildCommitmentProtection,
+  type CommitmentProtectionProjection,
   type FreeCashBreakdown,
   type RenewalAssessment,
 } from "@/lib/commitguard/engine"
@@ -26,20 +24,22 @@ import {
   normalizeSafetyBufferMode,
   type CommitmentSnapshot,
   type CommitGuardSettingsSnapshot,
-  type SafetyBufferMode,
 } from "@/lib/commitguard/types"
-import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
+import { CommitGuardSettingsSchema, type CommitGuardSettingsInput } from "@/lib/commitguard/settingsSchema"
+import { requestCommitGuardEvaluation } from "@/lib/commitguard/evaluationRequest"
+import { lockCommitGuardTenant } from "@/lib/commitguard/tenantLock"
+import { z } from "zod"
+import { lockCommitmentForMutation, planCommitmentTransition, commitmentChangedFields } from "@/lib/commitguard/commitmentMutation"
+import { validateCommitmentScheduleWrite } from "@/lib/commitguard/commitmentSchedule"
+import { loadCommitGuardCashContextInTransaction } from "@/lib/commitguard/cashContextLoader"
+import { loadCommitGuardProtectionFactsInTransaction } from "@/lib/commitguard/protectionFactsLoader"
+import { loadCommitGuardCoverageInputsInTransaction } from "@/lib/commitguard/coverageService"
+import { buildCommitGuardSummary, buildCommitGuardCashPlanAdapter,
+  type CommitGuardSummaryInput, type CommitGuardSummary } from "@/lib/commitguard/summary"
+
+export type { CommitGuardSummary } from "@/lib/commitguard/summary"
 
 const DEFAULT_RENEWAL_WARNING_DAYS = [90, 60, 30, 14, 7]
-const MATERIAL_AMOUNT_DELTA_CENTS = 5_000
-const MATERIAL_AMOUNT_DELTA_PERCENT = 0.15
-
-export interface CommitGuardSummary {
-  settings: CommitGuardSettingsSnapshot
-  horizons: CommitmentHorizonTotals[]
-  renewals: RenewalAssessment[]
-  freeCash: FreeCashBreakdown
-}
 
 export interface UpsertCommitmentInput {
   name: string
@@ -115,6 +115,7 @@ function toCommitmentSnapshot(row: {
   notes: string | null
   linkedSpendInsightId: string | null
   linkedCostGuardAlertId: string | null
+  archivedAt?: Date | null
   createdAt: Date
   updatedAt: Date
 }): CommitmentSnapshot {
@@ -145,6 +146,7 @@ function toCommitmentSnapshot(row: {
     notes: row.notes,
     linkedSpendInsightId: row.linkedSpendInsightId,
     linkedCostGuardAlertId: row.linkedCostGuardAlertId,
+    archivedAt: row.archivedAt ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -155,6 +157,7 @@ function toSettingsSnapshot(row: {
   defaultHorizonDays: number
   safetyBufferMode: string
   safetyBufferFixedCents: number
+  safetyBufferCurrency: string | null
   safetyBufferPercent: number | null
   safetyBufferWeeks: number | null
   detectRecurringCommitments: boolean
@@ -175,6 +178,7 @@ function toSettingsSnapshot(row: {
     defaultHorizonDays: row.defaultHorizonDays,
     safetyBufferMode: normalizeSafetyBufferMode(row.safetyBufferMode),
     safetyBufferFixedCents: row.safetyBufferFixedCents,
+    safetyBufferCurrency: row.safetyBufferCurrency ?? null,
     safetyBufferPercent: row.safetyBufferPercent,
     safetyBufferWeeks: row.safetyBufferWeeks,
     detectRecurringCommitments: row.detectRecurringCommitments,
@@ -207,6 +211,7 @@ export async function getCommitGuardSettings(userId: string): Promise<CommitGuar
         defaultHorizonDays: true,
         safetyBufferMode: true,
         safetyBufferFixedCents: true,
+        safetyBufferCurrency: true,
         safetyBufferPercent: true,
         safetyBufferWeeks: true,
         detectRecurringCommitments: true,
@@ -230,29 +235,24 @@ export async function getCommitGuardSettings(userId: string): Promise<CommitGuar
 
 export async function saveCommitGuardSettings(
   userId: string,
-  input: Partial<{
-    enabled: boolean
-    defaultHorizonDays: number
-    safetyBufferMode: SafetyBufferMode
-    safetyBufferFixedCents: number
-    safetyBufferPercent: number | null
-    safetyBufferWeeks: number | null
-    detectRecurringCommitments: boolean
-    detectionMinOccurrences: number
-    detectionAmountVariancePercent: number
-    detectionIntervalToleranceDays: number
-    detectionConfidenceThreshold: string
-    alertCommitmentDueSoon: boolean
-    alertRenewalApproaching: boolean
-    alertNoticePeriodApproaching: boolean
-    alertCommitmentAmountChanged: boolean
-    alertCommitmentBufferLow: boolean
-    alertCommitmentShortfall: boolean
-    renewalWarningDays: number[]
-  }>,
+  input: CommitGuardSettingsInput,
 ): Promise<CommitGuardSettingsSnapshot> {
   await requireCommitGuardCoreAccess(userId)
+  input = CommitGuardSettingsSchema.parse(input)
   return withUserContext(userId, async (tx) => {
+    // Same lock as cash-context writes: policy, revision and pending evaluation
+    // commit together, without racing a cash attestation or another policy write.
+    await lockCommitGuardTenant(tx, userId)
+    const previous = await tx.commitGuardSetting.findUnique({ where: { userId } })
+    if (previous) {
+      const current = toSettingsSnapshot(previous)
+      const proposed = toSettingsSnapshot({ ...previous, ...Object.fromEntries(
+        Object.entries(input).filter(([, value]) => value !== undefined),
+      ) })
+      // Compare effective policy before writing, preserving updatedAt on retries
+      // (including legacy warning lists that normalize to the same defaults).
+      if (JSON.stringify(current) === JSON.stringify(proposed)) return current
+    }
     const settings = await tx.commitGuardSetting.upsert({
       where: { userId },
       create: {
@@ -260,7 +260,8 @@ export async function saveCommitGuardSettings(
         enabled: input.enabled ?? false,
         defaultHorizonDays: input.defaultHorizonDays ?? 30,
         safetyBufferMode: normalizeSafetyBufferMode(input.safetyBufferMode),
-        safetyBufferFixedCents: Math.max(0, Math.round(input.safetyBufferFixedCents ?? 0)),
+        safetyBufferFixedCents: input.safetyBufferFixedCents ?? 0,
+        safetyBufferCurrency: input.safetyBufferCurrency ?? null,
         safetyBufferPercent: input.safetyBufferPercent ?? null,
         safetyBufferWeeks: input.safetyBufferWeeks ?? null,
         detectRecurringCommitments: input.detectRecurringCommitments ?? false,
@@ -285,7 +286,8 @@ export async function saveCommitGuardSettings(
         safetyBufferFixedCents:
           input.safetyBufferFixedCents === undefined
             ? undefined
-            : Math.max(0, Math.round(input.safetyBufferFixedCents)),
+            : input.safetyBufferFixedCents,
+        safetyBufferCurrency: input.safetyBufferCurrency,
         safetyBufferPercent: input.safetyBufferPercent,
         safetyBufferWeeks: input.safetyBufferWeeks,
         detectRecurringCommitments: input.detectRecurringCommitments,
@@ -308,6 +310,7 @@ export async function saveCommitGuardSettings(
         defaultHorizonDays: true,
         safetyBufferMode: true,
         safetyBufferFixedCents: true,
+        safetyBufferCurrency: true,
         safetyBufferPercent: true,
         safetyBufferWeeks: true,
         detectRecurringCommitments: true,
@@ -325,7 +328,11 @@ export async function saveCommitGuardSettings(
       },
     })
 
-    return toSettingsSnapshot(settings)
+    const snapshot = toSettingsSnapshot(settings)
+    if (previous === null || JSON.stringify(toSettingsSnapshot(previous)) !== JSON.stringify(snapshot)) {
+      await requestCommitGuardEvaluation(tx, userId)
+    }
+    return snapshot
   })
 }
 
@@ -345,12 +352,15 @@ export async function createCommitment(userId: string, input: UpsertCommitmentIn
   commitment: CommitmentSnapshot
   audit: CommitGuardAuditPayload
 }> {
-  const entitlements = await getCommitGuardEntitlements(userId)
-  if (!entitlements.hasCoreAccess) {
-    throw new Error("Upgrade required")
-  }
+  await requireCommitGuardCoreAccess(userId)
 
+  validateCommitmentScheduleWrite(input)
   return withUserContext(userId, async (tx) => {
+    // Manual creation and detection conversion share this transaction lock.
+    // Refresh access after waiting; count and create must stay in this boundary.
+    await lockCommitGuardTenant(tx, userId)
+    const entitlements = await getCommitGuardEntitlements(userId)
+    if (!entitlements.hasCoreAccess) throw new Error("Upgrade required")
     const currentCount = await tx.commitment.count({ where: { userId, archivedAt: null } })
     if (currentCount >= entitlements.commitmentsTrackedLimit) {
       throw new Error("Commitment limit reached")
@@ -368,7 +378,7 @@ export async function createCommitment(userId: string, input: UpsertCommitmentIn
         nextDueDate: input.nextDueDate ?? null,
         startDate: input.startDate ?? null,
         endDate: input.endDate ?? null,
-        recurrenceRule: input.recurrenceRule as never,
+        recurrenceRule: input.recurrenceRule === null ? Prisma.DbNull : undefined,
         supplierName: input.supplierName ?? null,
         supplierId: input.supplierId ?? null,
         accountId: input.accountId ?? null,
@@ -398,6 +408,7 @@ export async function createCommitment(userId: string, input: UpsertCommitmentIn
       },
     }
 
+    await requestCommitGuardEvaluation(tx, userId)
     await tx.commitmentEvent.create({
       data: {
         userId,
@@ -421,17 +432,17 @@ export async function updateCommitment(
   userId: string,
   commitmentId: string,
   input: Partial<UpsertCommitmentInput>,
-): Promise<{ commitment: CommitmentSnapshot; audit: CommitGuardAuditPayload } | null> {
+): Promise<{ commitment: CommitmentSnapshot; audit: CommitGuardAuditPayload | null } | null> {
   await requireCommitGuardCoreAccess(userId)
   return withUserContext(userId, async (tx) => {
-    const existing = await tx.commitment.findFirst({
-      where: { id: commitmentId, userId },
-    })
+    const existing = await lockCommitmentForMutation(tx, userId, commitmentId)
     if (!existing) return null
 
-    const row = await tx.commitment.update({
-      where: { id: existing.id },
-      data: {
+    if (input.status !== undefined) {
+      throw new z.ZodError([{ code: "custom", path: ["status"], message: "Use lifecycle actions to change status." }])
+    }
+    validateCommitmentScheduleWrite(input, existing)
+    const data = {
         name: input.name,
         description: input.description,
         category: input.category,
@@ -442,12 +453,11 @@ export async function updateCommitment(
         nextDueDate: input.nextDueDate,
         startDate: input.startDate,
         endDate: input.endDate,
-        recurrenceRule: input.recurrenceRule as never,
+        recurrenceRule: input.recurrenceRule === null ? Prisma.DbNull : undefined,
         supplierName: input.supplierName,
         supplierId: input.supplierId,
         accountId: input.accountId,
         source: input.source ? normalizeCommitmentSource(input.source) : undefined,
-        status: input.status ? normalizeCommitmentStatus(input.status) : undefined,
         confidence: input.confidence ? normalizeCommitmentConfidence(input.confidence) : undefined,
         noticePeriodDays: input.noticePeriodDays,
         renewalDate: input.renewalDate,
@@ -459,7 +469,15 @@ export async function updateCommitment(
         notes: input.notes,
         linkedSpendInsightId: input.linkedSpendInsightId,
         linkedCostGuardAlertId: input.linkedCostGuardAlertId,
-      },
+      }
+    const proposed = { ...existing, ...Object.fromEntries(Object.entries(data)
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => [key, value === Prisma.DbNull ? null : value])) }
+    const changedFields = commitmentChangedFields(existing, proposed, Object.keys(data))
+    if (Object.keys(changedFields).length === 0) return { commitment: toCommitmentSnapshot(existing), audit: null }
+    const row = await tx.commitment.update({
+      where: { id: existing.id, userId },
+      data,
     })
 
     const audit: CommitGuardAuditPayload = {
@@ -468,13 +486,13 @@ export async function updateCommitment(
       message: `${row.name} has been updated.`,
       commitmentId: row.id,
       metadata: {
-        previousAmountCents: existing.amountCents,
-        amountCents: row.amountCents,
-        previousNextDueDate: existing.nextDueDate?.toISOString() ?? null,
-        nextDueDate: row.nextDueDate?.toISOString() ?? null,
+        changedFields,
       },
     }
 
+    // Every actual edit invalidates the input revision, independently of the
+    // amount-alert threshold/preferences and its early return below.
+    const inputRevision = await requestCommitGuardEvaluation(tx, userId)
     await tx.commitmentEvent.create({
       data: {
         userId,
@@ -483,70 +501,10 @@ export async function updateCommitment(
         severity: "info",
         title: audit.title,
         message: audit.message,
-        metadata: audit.metadata as never,
+        inputRevision,
+        metadata: { ...audit.metadata, currency: row.currency, previousCurrency: existing.currency } as never,
       },
     })
-
-    const amountDeltaCents = Math.abs(row.amountCents - existing.amountCents)
-    const amountDeltaBaseline = Math.max(existing.amountCents, 1)
-    const amountDeltaPercent = amountDeltaCents / amountDeltaBaseline
-    const isMaterialChange =
-      amountDeltaCents >= MATERIAL_AMOUNT_DELTA_CENTS ||
-      amountDeltaPercent >= MATERIAL_AMOUNT_DELTA_PERCENT
-
-    if (isMaterialChange) {
-      const settings = await tx.commitGuardSetting.findUnique({
-        where: { userId },
-        select: { alertCommitmentAmountChanged: true },
-      })
-      if (settings && !settings.alertCommitmentAmountChanged) {
-        return {
-          commitment: toCommitmentSnapshot(row),
-          audit,
-        }
-      }
-
-      const dedupeKey = buildCommitGuardEventDedupeKey({
-        eventType: COMMIT_GUARD_EVENT_TYPES.COMMITMENT_AMOUNT_CHANGED,
-        commitmentId: row.id,
-        amountCents: row.amountCents,
-      })
-
-      if (dedupeKey) {
-        await tx.commitmentEvent.upsert({
-          where: {
-            userId_dedupeKey: {
-              userId,
-              dedupeKey,
-            },
-          },
-          update: {
-            message: `${row.name} changed from ${existing.amountCents} to ${row.amountCents}.`,
-            metadata: {
-              previousAmountCents: existing.amountCents,
-              currentAmountCents: row.amountCents,
-              amountDeltaCents,
-              amountDeltaPercent,
-            } as never,
-          },
-          create: {
-            userId,
-            commitmentId: row.id,
-            eventType: COMMIT_GUARD_EVENT_TYPES.COMMITMENT_AMOUNT_CHANGED,
-            severity: amountDeltaPercent >= 0.35 ? "warning" : "watch",
-            dedupeKey,
-            title: "Commitment amount changed",
-            message: `${row.name} changed from ${existing.amountCents} to ${row.amountCents}.`,
-            metadata: {
-              previousAmountCents: existing.amountCents,
-              currentAmountCents: row.amountCents,
-              amountDeltaCents,
-              amountDeltaPercent,
-            } as never,
-          },
-        })
-      }
-    }
 
     return {
       commitment: toCommitmentSnapshot(row),
@@ -560,33 +518,17 @@ export async function transitionCommitment(
   commitmentId: string,
   action: "pause" | "resume" | "cancel" | "confirm",
   actorId?: string | null,
-): Promise<{ commitment: CommitmentSnapshot; audit: CommitGuardAuditPayload } | null> {
+): Promise<{ commitment: CommitmentSnapshot; audit: CommitGuardAuditPayload | null } | null> {
   await requireCommitGuardCoreAccess(userId)
   return withUserContext(userId, async (tx) => {
-    const existing = await tx.commitment.findFirst({
-      where: { id: commitmentId, userId },
-    })
+    const existing = await lockCommitmentForMutation(tx, userId, commitmentId)
     if (!existing) return null
 
-    const status =
-      action === "pause"
-        ? "paused"
-        : action === "resume"
-          ? "active"
-          : action === "cancel"
-            ? "cancelled"
-            : existing.status
-
-    const confidence = action === "confirm" ? "confirmed" : existing.confidence
-
+    const data = planCommitmentTransition(existing, action, new Date())
+    if (data === null) return { commitment: toCommitmentSnapshot(existing), audit: null }
     const row = await tx.commitment.update({
-      where: { id: existing.id },
-      data: {
-        status,
-        confidence,
-        pausedAt: action === "pause" ? new Date() : action === "resume" ? null : undefined,
-        cancelledAt: action === "cancel" ? new Date() : undefined,
-      },
+      where: { id: existing.id, userId },
+      data,
     })
 
     const eventType =
@@ -612,9 +554,10 @@ export async function transitionCommitment(
       title: `Commitment ${actionPastTense}`,
       message: `${row.name} has been ${actionPastTense}.`,
       commitmentId: row.id,
-      metadata: { actorId: actorId ?? null },
+      metadata: { changedFields: commitmentChangedFields(existing, row, ["status", "confidence", "pausedAt", "cancelledAt"]) },
     }
 
+    await requestCommitGuardEvaluation(tx, userId)
     await tx.commitmentEvent.create({
       data: {
         userId,
@@ -635,63 +578,93 @@ export async function transitionCommitment(
   })
 }
 
-export async function summarizeCommitGuard(input: {
+async function loadCommitGuardProtectionInputs(input: {
   userId: string
   now?: Date
-  cashAvailableCents: number | null
-  taxProtectedCashCents?: number
-  weeklyOperatingExpensesCents?: number
-}): Promise<CommitGuardSummary> {
+  cashCurrency: string | null
+}): Promise<{
+  settings: CommitGuardSettingsSnapshot
+  commitments: CommitmentSnapshot[]
+  protection: CommitmentProtectionProjection
+}> {
   await requireCommitGuardCoreAccess(input.userId)
-  const { userId } = input
+  return withUserContext(input.userId, async (tx) => {
+    const [saved, rows] = await Promise.all([
+      readCommitGuardSettings(tx, input.userId),
+      tx.commitment.findMany({ where: { userId: input.userId, archivedAt: null }, orderBy: { id: "asc" } }),
+    ])
+    const commitments = rows.map(toCommitmentSnapshot)
+    const settings = saved.settings
+    return { settings, commitments, protection: buildCommitmentProtection({
+      commitments, now: input.now, cashCurrency: input.cashCurrency,
+      selectedHorizonDays: settings.defaultHorizonDays,
+    }) }
+  }, { isolationLevel: "RepeatableRead" })
+}
 
-  let taxProtectedCashCents = Math.max(0, input.taxProtectedCashCents ?? 0)
-  if (input.taxProtectedCashCents === undefined) {
-    const hasTaxBuffer = await requireFeature(userId, "tax_buffer_basic")
-    if (hasTaxBuffer) {
-      const taxBufferSummary = await loadTaxBufferSummary(userId)
-      taxProtectedCashCents = Math.max(0, taxBufferSummary.totalRequiredReserveCents)
-    }
+/** Task 3.3 component contract, not summary v2: preserves incompatible groups
+ * and labels exclusions without asserting a consolidated free-cash amount.
+ * Callers supply an explicit currency; saved cash/quality composition is task 3.7.
+ */
+export async function loadCommitGuardCommitmentProtection(input: {
+  userId: string
+  now?: Date
+  cashCurrency: string | null
+}): Promise<CommitmentProtectionProjection> {
+  return (await loadCommitGuardProtectionInputs(input)).protection
+}
+
+// Canonical schema defaults, in memory ONLY. Reading a missing configuration
+// must never enable the module or materialize a settings row.
+async function readCommitGuardSettings(tx: PrismaTx, userId: string): Promise<{
+  settings: CommitGuardSettingsSnapshot; calculationRevision: number
+}> {
+  const row = await tx.commitGuardSetting.findUnique({ where: { userId } })
+  return row ? { settings: toSettingsSnapshot(row), calculationRevision: row.calculationRevision } : {
+    calculationRevision: 0,
+    settings: { enabled: false, defaultHorizonDays: 30, safetyBufferMode: "fixed_amount",
+      safetyBufferFixedCents: 0, safetyBufferCurrency: null, safetyBufferPercent: null, safetyBufferWeeks: null,
+      detectRecurringCommitments: false, detectionMinOccurrences: 3, detectionAmountVariancePercent: 12,
+      detectionIntervalToleranceDays: 3, detectionConfidenceThreshold: "medium", alertCommitmentDueSoon: true,
+      alertRenewalApproaching: true, alertNoticePeriodApproaching: true, alertCommitmentAmountChanged: true,
+      alertCommitmentBufferLow: true, alertCommitmentShortfall: true, renewalWarningDays: DEFAULT_RENEWAL_WARNING_DAYS },
   }
+}
 
-  const [settings, commitments] = await Promise.all([
-    getCommitGuardSettings(userId),
-    listCommitments(userId),
-  ])
+/** Shared saved-input loader for both GET contracts. All financial reads share
+ * one repeatable-read RLS snapshot; access checks remain outside it. */
+async function loadCommitGuardSummaryInput(input: { userId: string; now?: Date }): Promise<CommitGuardSummaryInput> {
+  const now = input.now ?? new Date()
+  await requireCommitGuardCoreAccess(input.userId)
+  const taxEntitled = await requireFeature(input.userId, "tax_buffer_basic", { now })
+  return withUserContext(input.userId, (tx) =>
+    loadCommitGuardSummaryInputInTransaction(tx, input.userId, taxEntitled, now),
+  { isolationLevel: "RepeatableRead" })
+}
 
-  const horizons = buildCommitmentHorizonTotals({
-    commitments,
-    now: input.now,
-  })
+/** Read-only shared inputs. Job callers supply entitlement resolved by their
+ * transaction boundary, not a queued tier or an independent permission read. */
+export async function loadCommitGuardSummaryInputInTransaction(
+  tx: PrismaTx, userId: string, taxEntitled: boolean, now: Date,
+): Promise<CommitGuardSummaryInput> {
+    const [{ settings, calculationRevision }, cashContext, rows] = await Promise.all([
+      readCommitGuardSettings(tx, userId),
+      loadCommitGuardCashContextInTransaction(tx, userId, now),
+      tx.commitment.findMany({ where: { userId, archivedAt: null }, orderBy: { id: "asc" } }),
+    ])
+    const commitments = rows.map(toCommitmentSnapshot)
+    const tax = await loadCommitGuardProtectionFactsInTransaction(tx, userId, taxEntitled, now, cashContext)
+    const coverage = await loadCommitGuardCoverageInputsInTransaction(tx, userId, now, { commitments, facts: tax })
+    return { settings, calculationRevision, cashContext, commitments, tax, coverage, now }
+}
 
-  const monthWindow = horizons.find((horizon) => horizon.days === 30)
-  const committedCashCents = monthWindow?.totalCents ?? 0
+export async function summarizeCommitGuard(input: { userId: string; now?: Date }): Promise<CommitGuardSummary> {
+  return buildCommitGuardSummary(await loadCommitGuardSummaryInput(input))
+}
 
-  const safetyBufferCents = resolveSafetyBufferCents({
-    settings,
-    monthlyCommitmentsCents: committedCashCents,
-    weeklyOperatingExpensesCents: Math.max(0, input.weeklyOperatingExpensesCents ?? 0),
-  })
-
-  const freeCash = calculateFreeCashBreakdown({
-    cashAvailableCents: input.cashAvailableCents,
-    committedCashCents,
-    taxProtectedCashCents,
-    safetyBufferCents,
-  })
-
-  const renewals = buildRenewalAssessments({
-    commitments,
-    now: input.now,
-    warningDays: settings.renewalWarningDays,
-  })
-
-  return {
-    settings,
-    horizons,
-    renewals,
-    freeCash,
-  }
+export async function loadCommitGuardCashPlanAdapter(input: { userId: string; now?: Date }): Promise<ReturnType<typeof buildCommitGuardCashPlanAdapter>> {
+  const facts = await loadCommitGuardSummaryInput(input)
+  return buildCommitGuardCashPlanAdapter(facts, buildCommitGuardSummary(facts))
 }
 
 export async function recordCommitGuardHealthEvents(input: {

@@ -33,13 +33,9 @@ import { canAccessRunwayGuard } from "@/lib/dashboard/runwayGuardAccess"
 import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
 import { buildTaxBufferDigestSummary } from "@/lib/taxBuffer/engine"
 import { summarizeCommitGuard } from "@/lib/commitguard/service"
+import { CommitGuardCashSummary } from "@/components/dashboard/commitguard/CommitGuardCashSummary"
 import { getCurrentOwnersDigest } from "@/lib/ownersDigest/service"
-import {
-  buildCashPlanForecast,
-  buildCashPlanSummaryResponse,
-  defaultCashPlanSettings,
-  type CashPlanForecastWeek,
-} from "@/lib/cashplan/engine"
+import { loadCashPlanSummary } from "@/lib/cashplan/service"
 import { buildCashPlanDashboardStatus } from "@/lib/dashboard/cashPlanStatus"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
 import {
@@ -195,8 +191,6 @@ export default async function DashboardOverviewPage({
   const commitGuardSummary = canViewCommitGuard
     ? await summarizeCommitGuard({
         userId: user.id,
-        cashAvailableCents: taxBufferSummary?.availableCashCents ?? null,
-        taxProtectedCashCents: taxBufferSummary?.totalRequiredReserveCents,
       })
     : null
   const ownersDigestSummary = canViewOwnersDigest ? await getCurrentOwnersDigest(user.id) : null
@@ -335,92 +329,8 @@ export default async function DashboardOverviewPage({
   const paymentTrend = buildPaymentTrend({ activeInvoices, paidInvoices, now })
   const showCurrencyHeadings = currencySummaries.length > 1
 
-  const cashPlanSummary = await withUserContext(user.id, async (tx) => {
-    const [plan, settings] = await Promise.all([
-      tx.cashPlan.findFirst({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          name: true,
-          currency: true,
-          timezone: true,
-          horizonWeeks: true,
-          bufferTargetCents: true,
-          status: true,
-          updatedAt: true,
-        },
-      }),
-      tx.cashPlanSetting.findFirst({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          currency: true,
-          timezone: true,
-          horizonWeeks: true,
-          bufferTargetCents: true,
-          alertThresholdCents: true,
-          reviewRole: true,
-        },
-      }),
-    ])
-
-    const latestSnapshot = plan
-      ? await tx.cashPlanSnapshot.findFirst({
-          where: { planId: plan.id },
-          orderBy: { createdAt: "desc" },
-          select: {
-            inputHash: true,
-            engineVersion: true,
-            confidence: true,
-            status: true,
-            lowestClosingCashCents: true,
-            bufferGapCents: true,
-            weeks: true,
-          },
-        })
-      : null
-
-    const bufferTargetCents = settings?.bufferTargetCents ?? plan?.bufferTargetCents ?? defaultCashPlanSettings.bufferTargetCents
-
-    if (latestSnapshot && Array.isArray(latestSnapshot.weeks)) {
-      const weeks = latestSnapshot.weeks as unknown as CashPlanForecastWeek[]
-      const forecast = {
-        engineVersion: latestSnapshot.engineVersion,
-        inputHash: latestSnapshot.inputHash,
-        confidence: latestSnapshot.confidence,
-        status: (latestSnapshot.status === "healthy" || latestSnapshot.status === "preliminary" || latestSnapshot.status === "stale"
-          ? latestSnapshot.status
-          : "preliminary") as "healthy" | "preliminary" | "stale",
-        lowestClosingCashCents: latestSnapshot.lowestClosingCashCents,
-        bufferGapCents: latestSnapshot.bufferGapCents,
-        dataQualityIssues: [],
-        inflows: [],
-        outflows: [],
-        weeks,
-      }
-
-      return buildCashPlanSummaryResponse({
-        forecast,
-        title: plan?.name ?? "Base plan",
-      })
-    }
-
-    const forecast = buildCashPlanForecast({
-      openingCashCents: 0,
-      inflows: [],
-      outflows: [],
-      bufferTargetCents,
-      now: new Date(),
-    })
-
-    return buildCashPlanSummaryResponse({
-      forecast,
-      title: plan?.name ?? "Base plan",
-    })
-  })
-
-  const cashPlanStatus = cashPlanSummary ? buildCashPlanDashboardStatus({ summary: cashPlanSummary, hasPlan: true }) : null
+  const cashPlanSummary = await loadCashPlanSummary(user.id, { now })
+  const cashPlanStatus = buildCashPlanDashboardStatus({ summary: cashPlanSummary, hasPlan: cashPlanSummary.planId !== null })
 
   traceEvent(
     () => ({
@@ -669,10 +579,7 @@ export default async function DashboardOverviewPage({
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-gray-500">CommitGuard</p>
-              <h3 className="mt-1 text-lg font-semibold text-gray-900">Free cash {formatOptionalAudCents(commitGuardSummary.freeCash.freeCashCents)}</h3>
-              <p className="mt-2 text-sm text-gray-600">
-                Protected cash {formatAudCents(commitGuardSummary.freeCash.protectedCashCents)} · Status {commitGuardSummary.freeCash.status.replace("_", " ")}
-              </p>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">Saved cash and commitment protection</h3>
             </div>
             <div className="flex gap-2">
               <Link
@@ -689,14 +596,7 @@ export default async function DashboardOverviewPage({
               </Link>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            {commitGuardSummary.horizons.map((horizon) => (
-              <div key={horizon.days} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <p className="text-xs uppercase tracking-wide text-gray-500">{horizon.days}-day commitments</p>
-                <p className="mt-2 text-lg font-semibold text-gray-900">{formatAudCents(horizon.totalCents)}</p>
-              </div>
-            ))}
-          </div>
+          <div className="mt-4"><CommitGuardCashSummary summary={commitGuardSummary} /></div>
           <p className="mt-3 text-xs text-gray-600">
             Renewal items requiring attention: {commitGuardSummary.renewals.filter((item) => item.severity !== "info").length}
           </p>

@@ -1,4 +1,5 @@
 import type { CashPlanSummaryResponse } from "@/lib/cashplan/engine"
+import type { CashPlanCanonicalSummary } from "@/lib/cashplan/service"
 
 export interface CashPlanDashboardStatus {
   title: string
@@ -12,7 +13,7 @@ export interface CashPlanDashboardStatus {
 }
 
 export function buildCashPlanDashboardStatus(input: {
-  summary: CashPlanSummaryResponse
+  summary: CashPlanSummaryResponse | CashPlanCanonicalSummary
   hasPlan: boolean
 }): CashPlanDashboardStatus {
   const { overview } = input.summary
@@ -24,13 +25,14 @@ export function buildCashPlanDashboardStatus(input: {
     stale: "Stale data",
   } satisfies Record<"healthy" | "preliminary" | "stale", string>
 
-  const summaryLabel = `${statusTextMap[status]} · ${overview.confidence}% confidence`
-  const confidenceLabel = `${Math.max(0, overview.confidence)}% confidence`
-  const lowestCashLabel = new Intl.NumberFormat("en-AU", {
+  const unavailable = overview.lowestClosingCashCents === null
+  const summaryLabel = unavailable ? "Cash projection unavailable" : `${statusTextMap[status]} · ${overview.confidence}% confidence`
+  const confidenceLabel = unavailable ? "Not available" : `${Math.max(0, overview.confidence)}% confidence`
+  const lowestCashLabel = unavailable ? "Not available" : new Intl.NumberFormat("en-AU", {
     style: "currency",
-    currency: "AUD",
+    currency: "currency" in input.summary ? input.summary.currency ?? "AUD" : "AUD",
     maximumFractionDigits: 0,
-  }).format(Math.abs(overview.lowestClosingCashCents) / 100)
+  }).format(overview.lowestClosingCashCents! / 100)
 
   return {
     title: overview.title,

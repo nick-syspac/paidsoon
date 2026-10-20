@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { requireFeature } from "@/lib/billing"
 import { createCommitment, listCommitments } from "@/lib/commitguard/service"
+import { CommitmentFrequencyWriteSchema, CommitmentRecurrenceRuleWriteSchema } from "@/lib/commitguard/commitmentSchedule"
 import { createClient } from "@/lib/supabase/server"
 
 const QuerySchema = z.object({
@@ -20,20 +21,11 @@ const CreateCommitmentSchema = z
     category: z.string().trim().min(1).max(80),
     amountCents: z.number().int().min(0),
     currency: z.string().trim().min(3).max(8),
-    frequency: z.enum([
-      "one_off",
-      "weekly",
-      "fortnightly",
-      "monthly",
-      "quarterly",
-      "six_monthly",
-      "annual",
-      "custom",
-    ]),
+    frequency: CommitmentFrequencyWriteSchema,
     nextDueDate: z.coerce.date().optional().nullable(),
     startDate: z.coerce.date().optional().nullable(),
     endDate: z.coerce.date().optional().nullable(),
-    recurrenceRule: z.unknown().optional(),
+    recurrenceRule: CommitmentRecurrenceRuleWriteSchema,
     supplierName: z.string().trim().max(120).optional().nullable(),
     supplierId: z.string().trim().max(120).optional().nullable(),
     accountId: z.string().trim().max(120).optional().nullable(),
@@ -163,6 +155,9 @@ async function POSTHandler(request: Request): Promise<NextResponse> {
     const result = await createCommitment(user.id, parsed.data)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.flatten() }, { status: 400 })
+    }
     if (error instanceof Error && (error.message === "Upgrade required" || error.message === "Commitment limit reached")) {
       return NextResponse.json({ error: error.message }, { status: 403 })
     }

@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { defaultCashPlanSettings } from "@/lib/cashplan/engine"
+import { CashPlanQuerySchema, loadCashPlan, presentCashPlan } from "@/lib/cashplan/service"
+import { cashPlanRouteError } from "@/lib/cashplan/routeError"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -16,32 +18,20 @@ const settingsSchema = z.object({
 import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
 export const GET = withSubscriptionAccess(GETHandler)
 export const PUT = withSubscriptionAccess(PUTHandler)
-async function GETHandler() {
+async function GETHandler(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const settings = await withUserContext(user.id, async (tx) => {
-    const existing = await tx.cashPlanSetting.findFirst({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-    })
-
-    if (!existing) {
-      return defaultCashPlanSettings
-    }
-
-    return {
-      currency: existing.currency,
-      timezone: existing.timezone,
-      horizonWeeks: existing.horizonWeeks,
-      bufferTargetCents: existing.bufferTargetCents,
-      alertThresholdCents: existing.alertThresholdCents,
-      reviewRole: existing.reviewRole,
-    }
-  })
-
-  return NextResponse.json(settings)
+  const parsed = CashPlanQuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams))
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  try {
+    const assembly = await loadCashPlan(user.id, parsed.data)
+    return NextResponse.json({ ...(assembly.inputs.configuration ?? defaultCashPlanSettings),
+      alertThresholdCents: assembly.inputs.settings?.alertThresholdCents ?? 0,
+      reviewRole: assembly.inputs.settings?.reviewRole ?? "owner",
+      settingsSource: assembly.inputs.settingsSource, summary: presentCashPlan(assembly) })
+  } catch (error) { return cashPlanRouteError(error) }
 }
 
 async function PUTHandler(request: Request) {

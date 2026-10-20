@@ -3,7 +3,10 @@ import { z } from "zod"
 
 import { requireFeature } from "@/lib/billing"
 import { listCommitments, updateCommitment } from "@/lib/commitguard/service"
+import { CommitmentMutationConflict } from "@/lib/commitguard/commitmentMutation"
+import { CommitmentFrequencyWriteSchema, CommitmentRecurrenceRuleWriteSchema } from "@/lib/commitguard/commitmentSchedule"
 import { createClient } from "@/lib/supabase/server"
+import { CommitmentDateInputSchema } from "@/lib/commitguard/commitmentEditor"
 
 const ParamsSchema = z.object({
   id: z.string().trim().min(1),
@@ -16,13 +19,11 @@ const UpdateCommitmentSchema = z
     category: z.string().trim().min(1).max(80).optional(),
     amountCents: z.number().int().min(0).optional(),
     currency: z.string().trim().min(3).max(8).optional(),
-    frequency: z
-      .enum(["one_off", "weekly", "fortnightly", "monthly", "quarterly", "six_monthly", "annual", "custom"])
-      .optional(),
-    nextDueDate: z.coerce.date().optional().nullable(),
-    startDate: z.coerce.date().optional().nullable(),
-    endDate: z.coerce.date().optional().nullable(),
-    recurrenceRule: z.unknown().optional(),
+    frequency: CommitmentFrequencyWriteSchema.optional(),
+    nextDueDate: CommitmentDateInputSchema.optional().nullable(),
+    startDate: CommitmentDateInputSchema.optional().nullable(),
+    endDate: CommitmentDateInputSchema.optional().nullable(),
+    recurrenceRule: CommitmentRecurrenceRuleWriteSchema,
     supplierName: z.string().trim().max(120).optional().nullable(),
     supplierId: z.string().trim().max(120).optional().nullable(),
     accountId: z.string().trim().max(120).optional().nullable(),
@@ -37,10 +38,9 @@ const UpdateCommitmentSchema = z
         "system_inferred",
       ])
       .optional(),
-    status: z.enum(["active", "upcoming", "ending", "cancelled", "expired", "paused", "review"]).optional(),
     confidence: z.enum(["confirmed", "high", "medium", "low"]).optional(),
     noticePeriodDays: z.number().int().min(0).max(365).optional().nullable(),
-    renewalDate: z.coerce.date().optional().nullable(),
+    renewalDate: CommitmentDateInputSchema.optional().nullable(),
     autoRenew: z.boolean().optional(),
     cancellable: z.boolean().optional(),
     essentiality: z.enum(["critical", "essential", "operational", "discretionary"]).optional(),
@@ -127,8 +127,18 @@ async function PATCHHandler(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    return NextResponse.json(result)
+    const { userId: _tenant, ...commitment } = result.commitment
+    return NextResponse.json({ commitment, audit: result.audit })
   } catch (error) {
+    if (error instanceof CommitmentMutationConflict) {
+      return NextResponse.json({ error: error.message, reason: error.reason }, { status: 409 })
+    }
+    if (error instanceof Error && error.message === "Upgrade required") {
+      return NextResponse.json({ error: "Upgrade required" }, { status: 403 })
+    }
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.flatten() }, { status: 400 })
+    }
     console.error("[PATCH /api/commitguard/commitments/[id]] Failed to update commitment", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

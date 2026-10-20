@@ -48,6 +48,30 @@ cp .env.example .env   # fill in real values
 
 ## Beat schedule
 
+### CommitGuard extension — UNMERGED / NOT DEPLOYED, release gate OFF
+
+The existing Beat owner includes a code-disabled five-minute CommitGuard
+dispatch extension; it adds no second scheduler/service or environment variable.
+`Config.COMMITGUARD_DISPATCH_ENABLED` remains false, so no new schedule entry
+is registered. Do not turn it on without separate rollout authorization.
+Its authenticated bounded discovery endpoint creates daily UTC work, recovers
+expired leases and rediscovers due pending work. Postgres, not Celery retries or
+`scheduled_task_claims`, owns the six-attempt generation/lease/fence lifecycle.
+Redis enqueue loss leaves pending work discoverable. Local tasks 6.5/6.6 now
+run operational/risk evaluation and complete work/state atomically under the
+final fence; the earlier 202 dependency deferral is historical, not the current
+handler contract. Both internal POST routes reuse `INTERNAL_JOBS_SECRET`;
+admin failed-generation retry instead requires an elevated platform-admin/owner
+session. Do not print credentials or returned routing identities. The Python
+gate also makes direct dispatcher invocation inert, but does not disable the
+HTTP routes; manual calls require separate authorization. No shared SQL,
+scheduler activation or new mail transport is authorized here. Alert history
+does not prove email delivery; task 7.7 digest event integration remains pending.
+See the [queue/recovery contract](../docs/runbooks/commitguard.md#task-63-queue-and-recovery--unmerged--not-deployed)
+and [operator procedures](../docs/runbooks/commitguard.md#task-68-operator-procedures--unmerged--not-deployed)
+for bounded daily repair, six-attempt exhaustion and the exact authenticated
+repair/retry routes. No dedicated CommitGuard repair/retry CLI exists.
+
 Each entry in `paidsoon_worker/celery_app.py`'s `beat_schedule` reads its own env var (see
 `.env.example`), defaulting to `DISPATCH_INTERVAL_SECONDS` (default `120`s) when unset:
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { requireFeature } from "@/lib/billing"
 import { detectCommitmentCandidates, listDetectedCommitmentCandidates } from "@/lib/commitguard/detection"
+import { CommitGuardDetectionError } from "@/lib/commitguard/detectionError"
 import { createClient } from "@/lib/supabase/server"
 
 import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
@@ -59,6 +60,9 @@ async function POSTHandler(): Promise<NextResponse> {
     const candidates = await listDetectedCommitmentCandidates(user.id)
     return NextResponse.json({ detection, candidates })
   } catch (error) {
+    if (error instanceof CommitGuardDetectionError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
+    }
     if (error instanceof Error && error.message === "Upgrade required") {
       return NextResponse.json({ error: error.message }, { status: 403 })
     }

@@ -40,7 +40,6 @@ async function GETHandler(request: Request): Promise<NextResponse> {
   try {
     const summary = await summarizeCommitGuard({
       userId: user.id,
-      cashAvailableCents: null,
     })
 
     const commitments = await listCommitments(user.id)

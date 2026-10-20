@@ -14,7 +14,7 @@ app = Celery(
     "paidsoon_worker",
     broker=Config.REDIS_URL,
     backend=Config.REDIS_URL,
-    include=["paidsoon_worker.tasks", "paidsoon_worker.dispatcher"],
+    include=["paidsoon_worker.tasks", "paidsoon_worker.dispatcher", "paidsoon_worker.commitguard"],
 )
 
 app.conf.timezone = "UTC"
@@ -80,3 +80,10 @@ app.conf.beat_schedule = {
         "schedule": schedule(run_every=Config.DISPATCH_INTERVAL_SECONDS),
     },
 }
+
+# CommitGuard's 5-minute extension uses THIS Beat owner, not a second scheduler.
+if Config.COMMITGUARD_DISPATCH_ENABLED:
+    app.conf.beat_schedule["dispatch-commitguard"] = {
+        "task": "dispatcher.dispatch_commitguard",
+        "schedule": schedule(run_every=Config.COMMITGUARD_INTERVAL_SECONDS),
+    }

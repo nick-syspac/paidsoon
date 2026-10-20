@@ -37,6 +37,7 @@ function isTransactionStartTimeout(error: unknown): boolean {
 export async function withUserContext<T>(
   userId: string,
   fn: (tx: PrismaTx) => Promise<T>,
+  options?: { isolationLevel: "RepeatableRead" },
 ): Promise<T> {
   const claims = JSON.stringify({ sub: userId, role: "authenticated" })
   const executeInRlsTransaction = () =>
@@ -49,6 +50,9 @@ export async function withUserContext<T>(
       {
         maxWait: TX_MAX_WAIT_MS,
         timeout: TX_TIMEOUT_MS,
+        // Opt-in for multi-query financial fact readers; existing callers keep
+        // their current isolation and RLS setup unchanged.
+        ...options,
       },
     )
 

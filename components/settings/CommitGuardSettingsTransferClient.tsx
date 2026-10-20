@@ -1,12 +1,22 @@
 "use client"
 
 import { useState } from "react"
+import { useCommitGuardRefresh } from "@/components/dashboard/commitguard/CommitGuardWorkspaceProvider"
 
 export function CommitGuardSettingsTransferClient() {
   const [jsonValue, setJsonValue] = useState("")
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [refreshFailed, setRefreshFailed] = useState(false)
+  const { refresh, requestMutation } = useCommitGuardRefresh()
+
+  async function reloadWorkspace(): Promise<void> {
+    setLoading(true)
+    try { await refresh(); setRefreshFailed(false); setError(null) }
+    catch { setRefreshFailed(true); setError("Import succeeded, but figures could not refresh. Retry refresh only; do not import again.") }
+    finally { setLoading(false) }
+  }
 
   async function exportSettings() {
     setLoading(true)
@@ -30,15 +40,19 @@ export function CommitGuardSettingsTransferClient() {
   }
 
   async function importSettings() {
+    if (refreshFailed || loading) return
     setLoading(true)
     setError(null)
     setMessage(null)
 
     try {
       const parsed = JSON.parse(jsonValue)
-      const response = await fetch("/api/commitguard/settings", {
+      const response = await requestMutation("/api/commitguard/settings", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CommitGuard-Settings-Transfer": "import",
+        },
         body: JSON.stringify(parsed),
       })
 
@@ -48,6 +62,7 @@ export function CommitGuardSettingsTransferClient() {
       }
 
       setMessage("Settings imported.")
+      await reloadWorkspace()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to import settings")
     } finally {
@@ -57,6 +72,7 @@ export function CommitGuardSettingsTransferClient() {
 
   return (
     <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
+      {refreshFailed ? <button type="button" disabled={loading} onClick={() => void reloadWorkspace()}>Retry workspace refresh (GET only)</button> : null}
       <h2 className="text-base font-medium text-gray-900">CommitGuard settings import / export</h2>
       <p className="text-sm text-gray-600">
         Export your CommitGuard settings to JSON, or paste a previously exported JSON blob to restore your configuration.
@@ -82,7 +98,7 @@ export function CommitGuardSettingsTransferClient() {
         <button
           type="button"
           onClick={importSettings}
-          disabled={loading || jsonValue.trim().length === 0}
+          disabled={loading || refreshFailed || jsonValue.trim().length === 0}
           className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           Import settings

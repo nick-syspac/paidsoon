@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { requireFeature } from "@/lib/billing"
 import { transitionCommitment } from "@/lib/commitguard/service"
+import { CommitmentMutationConflict } from "@/lib/commitguard/commitmentMutation"
 import { createClient } from "@/lib/supabase/server"
 
 const ParamsSchema = z.object({
@@ -59,8 +60,15 @@ async function POSTHandler(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    return NextResponse.json(result)
+    const { userId: _tenant, ...commitment } = result.commitment
+    return NextResponse.json({ commitment, audit: result.audit })
   } catch (error) {
+    if (error instanceof CommitmentMutationConflict) {
+      return NextResponse.json({ error: error.message, reason: error.reason }, { status: 409 })
+    }
+    if (error instanceof Error && error.message === "Upgrade required") {
+      return NextResponse.json({ error: "Upgrade required" }, { status: 403 })
+    }
     console.error("[POST /api/commitguard/commitments/[id]/actions] Failed to transition commitment", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

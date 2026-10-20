@@ -1,18 +1,7 @@
 import { NextResponse } from "next/server"
-import { z } from "zod"
-
-import {
-  buildCashPlanForecast,
-  buildCashPlanSummaryResponse,
-  defaultCashPlanSettings,
-  type CashPlanForecastWeek,
-} from "@/lib/cashplan/engine"
-import { withUserContext } from "@/lib/db/withUserContext"
+import { CashPlanQuerySchema, loadCashPlanSummary, refreshCashPlan } from "@/lib/cashplan/service"
+import { cashPlanRouteError } from "@/lib/cashplan/routeError"
 import { createClient } from "@/lib/supabase/server"
-
-const QuerySchema = z.object({
-  planId: z.string().trim().min(1).optional(),
-})
 
 import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
 export const GET = withSubscriptionAccess(GETHandler)
@@ -27,100 +16,24 @@ async function GETHandler(request: Request): Promise<NextResponse> {
   }
 
   const { searchParams } = new URL(request.url)
-  const parsed = QuerySchema.safeParse({
-    planId: searchParams.get("planId") ?? undefined,
-  })
+  const parsed = CashPlanQuerySchema.safeParse(Object.fromEntries(searchParams))
 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const summary = await withUserContext(user.id, async (tx) => {
-    const [plan, settings] = await Promise.all([
-      tx.cashPlan.findFirst({
-        where: parsed.data.planId
-          ? { id: parsed.data.planId, userId: user.id }
-          : { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          name: true,
-          currency: true,
-          timezone: true,
-          horizonWeeks: true,
-          bufferTargetCents: true,
-          status: true,
-          updatedAt: true,
-        },
-      }),
-      tx.cashPlanSetting.findFirst({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          currency: true,
-          timezone: true,
-          horizonWeeks: true,
-          bufferTargetCents: true,
-          alertThresholdCents: true,
-          reviewRole: true,
-        },
-      }),
-    ])
-
-    const latestSnapshot = plan
-      ? await tx.cashPlanSnapshot.findFirst({
-          where: { planId: plan.id },
-          orderBy: { createdAt: "desc" },
-          select: {
-            inputHash: true,
-            engineVersion: true,
-            confidence: true,
-            status: true,
-            lowestClosingCashCents: true,
-            bufferGapCents: true,
-            weeks: true,
-          },
-        })
-      : null
-
-    const bufferTargetCents = settings?.bufferTargetCents ?? plan?.bufferTargetCents ?? defaultCashPlanSettings.bufferTargetCents
-
-    if (latestSnapshot && Array.isArray(latestSnapshot.weeks)) {
-      const weeks = latestSnapshot.weeks as unknown as CashPlanForecastWeek[]
-      const forecast = {
-        engineVersion: latestSnapshot.engineVersion,
-        inputHash: latestSnapshot.inputHash,
-        confidence: latestSnapshot.confidence,
-        status: (latestSnapshot.status === "healthy" || latestSnapshot.status === "preliminary" || latestSnapshot.status === "stale"
-          ? latestSnapshot.status
-          : "preliminary") as "healthy" | "preliminary" | "stale",
-        lowestClosingCashCents: latestSnapshot.lowestClosingCashCents,
-        bufferGapCents: latestSnapshot.bufferGapCents,
-        dataQualityIssues: [],
-        inflows: [],
-        outflows: [],
-        weeks,
-      }
-
-      return buildCashPlanSummaryResponse({
-        forecast,
-        title: plan?.name ?? "Base plan",
-      })
-    }
-
-    const forecast = buildCashPlanForecast({
-      openingCashCents: 0,
-      inflows: [],
-      outflows: [],
-      bufferTargetCents,
-      now: new Date(),
-    })
-
-    return buildCashPlanSummaryResponse({
-      forecast,
-      title: plan?.name ?? "Base plan",
-    })
-  })
-
-  return NextResponse.json(summary)
+  try { return NextResponse.json(await loadCashPlanSummary(user.id, parsed.data)) }
+  catch (error) { return cashPlanRouteError(error) }
 }
+
+export const POST = withSubscriptionAccess(async (request: Request): Promise<NextResponse> => {
+  const { data: { user } } = await (await createClient()).auth.getUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const query = CashPlanQuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams))
+  const parsed = CashPlanQuerySchema.safeParse(await request.json().catch(() => null))
+  if (!query.success || !parsed.success || (query.data.planId && parsed.data.planId && query.data.planId !== parsed.data.planId)) {
+    return NextResponse.json({ error: "Invalid refresh request" }, { status: 400 })
+  }
+  try { return NextResponse.json(await refreshCashPlan(user.id, { planId: parsed.data.planId ?? query.data.planId })) }
+  catch (error) { return cashPlanRouteError(error) }
+})
