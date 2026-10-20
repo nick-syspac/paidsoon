@@ -28,6 +28,17 @@ export type CommitmentSource =
 
 export type CommitmentConfidence = "confirmed" | "high" | "medium" | "low"
 
+export type CommitmentConfidenceClass = "confirmed" | "probable" | "potential"
+
+// All classes protect cash conservatively; these are partitions, not weights.
+export const COMMITMENT_PROTECTION_CONFIDENCE_CLASSES = [
+  "confirmed", "probable", "potential",
+] as const satisfies readonly CommitmentConfidenceClass[]
+
+export function commitmentConfidenceClass(confidence: CommitmentConfidence): CommitmentConfidenceClass {
+  return confidence === "confirmed" ? "confirmed" : confidence === "low" ? "potential" : "probable"
+}
+
 export type CommitmentEssentiality =
   | "critical"
   | "essential"
@@ -48,6 +59,8 @@ export interface CommitGuardSettingsSnapshot {
   defaultHorizonDays: number
   safetyBufferMode: SafetyBufferMode
   safetyBufferFixedCents: number
+  // Optional for existing in-process policy fixtures; service DTOs always emit null/string.
+  safetyBufferCurrency?: string | null
   safetyBufferPercent: number | null
   safetyBufferWeeks: number | null
   detectRecurringCommitments: boolean
@@ -91,6 +104,7 @@ export interface CommitmentSnapshot {
   notes: string | null
   linkedSpendInsightId: string | null
   linkedCostGuardAlertId: string | null
+  archivedAt?: Date | null
   createdAt: Date
   updatedAt: Date
 }

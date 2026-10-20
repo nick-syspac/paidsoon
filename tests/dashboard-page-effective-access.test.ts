@@ -60,6 +60,7 @@ const tx = {
   taxBufferEvent: { findMany: record("tax-events", () => []) },
   cashPlan: { findFirst: record("cash-plan", () => null) },
   cashPlanSetting: { findFirst: record("cash-settings", () => null) },
+  commitGuardCashContext: { findUnique: record("owner-cash", () => null) },
 }
 
 type Page = (props: { searchParams: Promise<Record<string, string>> }) => Promise<ReactElement>

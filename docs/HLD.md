@@ -81,7 +81,7 @@ endpoint (`app/api/settings/team/invite/route.ts`).
 | Product | Single product: overdue-invoice follow-up automation |
 | Tenancy | One user = one tenant; isolation via Postgres RLS |
 | Frontend + Backend | One Next.js 16 app (App Router); API = route handlers |
-| Async processing | Railway Celery Beat owns scheduled reminders/accounting in Preview (`paidsoon-dev`) and Production (`paidsoon-prod`) per operator confirmation. The approved direct cutover removed the old schedules from `vercel.json`; deploy and verify in Production. Protected legacy routes remain for controlled rollback/housekeeping. Immediate accounting sync delegates to Railway only when both trigger settings are configured, otherwise runs inline; dispatch failure is recorded without inline fallback. See [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md). |
+| Async processing | Railway Celery Beat owns scheduled reminders/accounting in Preview (`paidsoon-dev`) and Production (`paidsoon-prod`) per operator confirmation. The approved direct cutover removed the old schedules from `vercel.json`; deploy and verify in Production. Protected legacy routes remain for controlled rollback/housekeeping. Immediate accounting sync delegates to Railway only when both trigger settings are configured, otherwise runs inline; dispatch failure is recorded without inline fallback. See [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/archive/2026-10-03-migrate-scheduled-jobs-to-railway-celery/design.md). |
 | Verticals / RBAC / workflow / control library | **Not present** |
 
 ---
@@ -241,7 +241,7 @@ what is actually present, and explicitly marks absent capabilities.
 | Dashboard | Overdue + resolved views, upsell | Implemented | `app/dashboard/page.tsx`, `components/dashboard/**`, `lib/dashboardUpsell.ts` | `changes/sample-overdue-preview-upsell/specs/...` | Feature-gated modules |
 | MarginGuard | Margin analytics, threshold alerts, opportunities, and exportable datasets | Implemented | `lib/marginguard/**`, `app/api/margin-guard/**`, `app/api/cron/margin-guard-snapshots/route.ts`, `app/dashboard/margin-guard/**`, `app/dashboard/settings/margin-guard/**` | `changes/implement-marginguard-finops-module` | Overview card on `/dashboard`; cross-module signal integration with SpendLeak, Cost Guard, CommitGuard, and CashPlan while preserving tax-reserve separation |
 | RunwayGuard | Cash-resilience summary, runway timeline, scenario simulation, and threshold-driven alerts | Implemented | `lib/runwayGuard/**`, `app/api/runway-guard/**`, `app/api/cron/runway-guard-snapshots/route.ts`, `app/dashboard/runway-guard/**`, `app/dashboard/settings/runway-guard/**` | `changes/implement-runwayguard-finops-module` | Uses usable cash, protected cash, and cash-plan assumptions to show runway risk, confidence, and exposure with tenant-scoped settings and history |
-| CommitGuard | Commitment registry, detection/review queue, horizon projection, and free-cash guardrails | Implemented | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | `changes/add-commitguard-module` | Bridges spend-side signals to planning by converting recurring commitments into deterministic outflow and free-cash signals |
+| CommitGuard | Commitment registry, detection/review queue, horizon projection, and free-cash guardrails | Existing module; cash-protection remediation UNMERGED / NOT DEPLOYED | `lib/commitguard/**`, `app/api/commitguard/**`, `app/dashboard/commitguard/**`, `app/dashboard/settings/commitguard/**` | `changes/add-commitguard-module`; active `fix-commitguard-cash-protection-workflows` | Local owner-input/v2-quality, coherent controls, history and existing-digest paths; CashPlan section-8 assembler and rollout remain pending |
 | Tax Buffer | Tax reserve control layer and safe-to-spend composition | Implemented | `lib/taxBuffer/**`, `app/api/tax-buffer/**`, `app/dashboard/tax-buffer/**`, `app/dashboard/settings/tax-buffer/**` | `changes/add-tax-buffer-module` | First-time setup suggestions, category-level methods, deduplicated reserve events |
 | Owner's Digest | Cross-module executive briefing, snapshot history, and scheduled email summary | Implemented | `lib/ownersDigest/**`, `app/api/owners-digest/**`, `app/api/internal/jobs/send-owners-digest/route.ts`, `app/dashboard/owners-digest/**`, `app/dashboard/settings/owners-digest/**` | `changes/add-owners-digest-module` | Sits above the FinOps modules, turning deterministic signals into a short prioritized owner briefing with immutable snapshots and deduplicated delivery state |
 | Billing / entitlements | Tiered plans, checkout, portal, webhooks | Implemented | `app/api/billing/**`, `app/api/webhooks/stripe-billing/route.ts`, `lib/billing.ts`, `lib/subscriptionPlans.ts` | `changes/add-business-pro-subscription-tier/specs/...` | 4 public tiers: Essentials A$15 / Business Control A$29 / Small Business A$69 / Business Pro A$149, plus hidden contact-only Accountant Partner |
@@ -267,8 +267,9 @@ PaidSoon's spend-control flow now has a clear progression:
 2. **CommitGuard** translates recurring and contractual obligations into
   explicit commitment outflows, renewal/notice severities, and free-cash risk.
 3. **Tax Buffer** reserves statutory cash and reports tax-protected balances.
-4. **CashPlan** consumes committed-outflow + protected-cash outputs to keep
-  planning projections aligned to real obligations.
+4. **CashPlan** provides the existing forecast engine and snapshot-based views.
+  Bounded v2 commitment/source-fact assembly remains pending in section 8 of the
+  active cash-protection change; the CommitGuard adapter is not proof of consumption.
 5. **RunwayGuard** interprets the resulting forecast as a forecasted runway: usable cash,
   projected exhaustion, confidence, warning/critical bands, and scenario impacts.
 6. **Owner's Digest** aggregates the currently entitled signals from PaidSoon,
@@ -276,13 +277,34 @@ PaidSoon's spend-control flow now has a clear progression:
   RunwayGuard into a short deterministic owner briefing.
 
 In implementation terms, Cost Guard alerts can deep-link into CommitGuard
-filtered commitment views, CommitGuard can consume Tax Buffer protected-cash
-inputs in its free-cash composition, CashPlan consumes CommitGuard's
-integration-safe cash projection contract (`/api/commitguard/cashplan`), and
-RunwayGuard consumes those forecast inputs to calculate the risk posture and
+filtered commitment views. The local unmerged CommitGuard v2 composition uses
+read-only Tax Buffer required-reserve category facts and explicit coverage, not
+the writing Tax Buffer summary. `/api/commitguard/cashplan` exposes occurrences
+and lineage, but current CashPlan summary still reads snapshot weeks or builds
+an empty-input forecast rather than consuming a v2 assembler. RunwayGuard's
+existing forecast consumers calculate the risk posture and
 driver narrative visible on the dashboard and module pages. Owner's Digest sits
 above those modules and persists the ranked cross-module summary as an immutable
 per-period snapshot that can be rendered in-product or delivered by email.
+
+**CommitGuard remediation boundary — UNMERGED / NOT DEPLOYED:** cash is explicit
+owner entry with currency/UTC date, never an automatic bank balance. Cash and
+weekly expense bases independently become stale on day 8; no FX or unavailable-as-zero
+safety assertion is allowed. The local page/overview/digest use shared saved-input
+summary quality. Workspace controls refetch one coherent tenant snapshot, retain
+old figures on read failure and offer GET-only recovery. Classification/renewal
+editing, independent pagination, stable source-relationship links and settings
+horizon/weeks/warning drafts are documented against current local source, not as
+merged availability. History distinguishes current-at-last-evaluation from past
+or suspended relevance and is not an email receipt. Relevant events feed only
+the existing enabled, email-opted-in and entitled Owner's Digest, with current
+preferences, original source identities/dates and cash-pressure deduplication.
+Existing UTC cadence and transport limitations are unchanged: no generic
+notification framework, standalone immediate mail or new mail subscription.
+The Railway extension gate remains OFF. The task ledger is unchanged, section 8
+is pending and shared SQL/activation/rollout require separate authorization. See
+[DDD current contracts](DDD.md#4112-current-consumers-controls-and-digest-boundary--unmerged--not-deployed),
+[user guide](user/commitguard.md) and [operations](runbooks/commitguard.md#14-current-workspace-controls--unmerged--not-deployed).
 
 ---
 
@@ -486,7 +508,7 @@ terms appear nowhere in the code and must not be treated as part of this system.
 | Concern | Actual configuration | Evidence |
 |---|---|---|
 | Frontend + API hosting | Vercel (single Next.js deployment) | `docs/runbooks/vercel.md`, `vercel.json` |
-| Worker hosting | Railway Celery worker, Beat, and Redis are confirmed by the operator in Preview (`paidsoon-dev`) and Production (`paidsoon-prod`). | `worker/`, [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/migrate-scheduled-jobs-to-railway-celery/design.md) |
+| Worker hosting | Railway Celery worker, Beat, and Redis are confirmed by the operator in Preview (`paidsoon-dev`) and Production (`paidsoon-prod`). | `worker/`, [migrate-scheduled-jobs-to-railway-celery](../openspec/changes/archive/2026-10-03-migrate-scheduled-jobs-to-railway-celery/design.md) |
 | Scheduler | Railway Celery Beat runs in both environments and owns reminders/accounting. Vercel still schedules the watchdog and independent maintenance jobs. The direct cutover removed the reminder/accounting entries from source config; verify deployment to ensure they are absent from Production. | `worker/paidsoon_worker/celery_app.py`, `vercel.json` |
 | Database | Supabase Postgres (`paidsoon-dev`, `paidsoon-prod`) | `docs/runbooks/supabase.md` |
 | DB connections | Derived from `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`: transaction pooler `6543` for runtime and session pooler `5432` for migrations/admin commands | `lib/config/supabaseEnvironment.ts`, `prisma.config.ts`, `lib/db/admin.ts` |

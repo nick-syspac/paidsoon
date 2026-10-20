@@ -64,7 +64,7 @@ export function SpendLeakFindingsTable({
               <td className="whitespace-nowrap px-4 py-2 text-gray-700">
                 {(linkedCommitmentCountsByFindingId[finding.id] ?? 0) > 0 ? (
                   <Link
-                    href={`/dashboard/commitguard?search=${encodeURIComponent(finding.summary)}`}
+                    href={`/dashboard/commitguard?linkedSpendInsightId=${encodeURIComponent(finding.id)}`}
                     className="text-blue-700 hover:text-blue-800 hover:underline"
                   >
                     {linkedCommitmentCountsByFindingId[finding.id]} linked

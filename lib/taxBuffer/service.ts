@@ -1,6 +1,7 @@
 import { requireSubscriptionAccess } from "@/lib/billing/accessGuard"
 import { requireFeature } from "@/lib/billing"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
+import { buildLatestOverrideMaps, estimateGstFromInvoiceAmount } from "@/lib/taxBuffer/categoryInputs"
 import {
   buildTaxBufferSummary,
   type TaxBufferAccountingBasis,
@@ -80,52 +81,6 @@ async function ensureDefaults(tx: PrismaTx, userId: string) {
       sourcePreference: category.sourcePreference ?? "auto",
     })),
   })
-}
-
-function estimateGstFromInvoiceAmount(amountCents: number): number {
-  if (amountCents <= 0) return 0
-  return Math.round(amountCents / 11)
-}
-
-function buildLatestOverrideMaps(
-  overrides: Array<{
-    reserveCategoryId: string | null
-    obligationId: string | null
-    overrideValueCents: number
-    reason: string
-    createdBy: string | null
-    createdAt: Date
-  }>,
-) {
-  const categoryOverrideById = new Map<
-    string,
-    { overrideValueCents: number; reason: string; createdBy: string | null; createdAt: Date }
-  >()
-  const obligationOverrideById = new Map<
-    string,
-    { overrideValueCents: number; reason: string; createdBy: string | null; createdAt: Date }
-  >()
-
-  for (const override of overrides) {
-    if (override.reserveCategoryId && !categoryOverrideById.has(override.reserveCategoryId)) {
-      categoryOverrideById.set(override.reserveCategoryId, {
-        overrideValueCents: override.overrideValueCents,
-        reason: override.reason,
-        createdBy: override.createdBy,
-        createdAt: override.createdAt,
-      })
-    }
-    if (override.obligationId && !obligationOverrideById.has(override.obligationId)) {
-      obligationOverrideById.set(override.obligationId, {
-        overrideValueCents: override.overrideValueCents,
-        reason: override.reason,
-        createdBy: override.createdBy,
-        createdAt: override.createdAt,
-      })
-    }
-  }
-
-  return { categoryOverrideById, obligationOverrideById }
 }
 
 export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSummary> {

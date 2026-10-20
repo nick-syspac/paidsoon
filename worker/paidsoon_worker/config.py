@@ -4,6 +4,10 @@ from .supabase_environment import get_database_url
 
 
 class Config:
+    # Release gate, not an environment variable. Separate authorization required.
+    COMMITGUARD_DISPATCH_ENABLED = False
+    COMMITGUARD_INTERVAL_SECONDS = 300
+
     # Read via os.environ.get (not os.environ[...]) so importing this module
     # doesn't require every env var to be set — e.g. pure-logic tests that
     # only exercise a helper function shouldn't need real Redis/DB/secret

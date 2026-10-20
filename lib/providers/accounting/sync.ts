@@ -40,6 +40,7 @@
 
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prismaAdmin } from "@/lib/db/admin"
+import { handoffCompletedSpendDetection } from "@/lib/commitguard/detectionRequest"
 import { getFinancialJobAccessSkip, type FinancialJobSkip } from "@/lib/billing/financialJobAccess"
 import { findOrCreateCustomer } from "@/lib/db/customers"
 import { detectSpendFindings } from "@/lib/spendleak/engine"
@@ -843,16 +844,26 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
   }
 
   // --- Write sync run result ---
-  await prismaAdmin.accountingSyncRun.update({
-    where: { id: syncRun.id },
-    data: {
-      completedAt: new Date(),
-      status: result.status === "success" || result.status === "partial" ? result.status : "failed",
-      invoicesCreated: result.invoicesCreated,
-      invoicesUpdated: result.invoicesUpdated,
-      invoicesSkipped: result.invoicesSkipped,
-      errorMessage: result.errorMessage ?? null,
-    },
+  // Existing background-sync system executor: completion and pending work share
+  // one atomic boundary. Financial detection itself remains a later tenant job.
+  await prismaAdmin.$transaction(async (tx) => {
+    await tx.accountingSyncRun.update({
+      where: { id: syncRun.id },
+      data: {
+        completedAt: new Date(),
+        status: result.status === "success" || result.status === "partial" ? result.status : "failed",
+        invoicesCreated: result.invoicesCreated,
+        invoicesUpdated: result.invoicesUpdated,
+        invoicesSkipped: result.invoicesSkipped,
+        errorMessage: result.errorMessage ?? null,
+      },
+    })
+    if (result.status === "success") {
+      await handoffCompletedSpendDetection(tx, connection.userId, {
+        sourceKind: "accounting_sync_run",
+        sourceId: syncRun.id,
+      })
+    }
   })
 
   return result

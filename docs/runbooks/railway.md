@@ -47,6 +47,21 @@ Vercel dashboard ──authenticated request──▶ trigger web ──enqueues
 
 ### Candidate selection is not execution authorization — trial-access rollout
 
+CommitGuard task 6.3 extends this same owner in code only, with its release
+gate disabled and no additional Beat entry active. It reuses internal-job
+authentication and central execution access; Postgres work rows, not Redis or
+the generic claim table, own retry/lease/fence recovery. Local tasks 6.5/6.6 now
+complete operational/risk evaluation in the same fenced transaction; the old
+202 dependency deferral is historical, not the current handler response.
+No new environment variable or deployment is authorized. Follow the
+[CommitGuard-specific contract](commitguard.md#task-63-queue-and-recovery--unmerged--not-deployed)
+and [authentication, safe diagnosis and repair/retry procedures](commitguard.md#task-68-operator-procedures--unmerged--not-deployed)
+before any separately reviewed activation. The Python gate does not block direct
+HTTP calls; those require separate authorization too. Keep exactly one existing
+Beat owner, no competing Vercel schedule or additional scheduler. SQL application
+and activation remain pending; history is not mail delivery, and task 7.7 digest
+event integration is still pending.
+
 **Working-tree status, 17 October 2026:** customer display/API/limit changes
 (tasks 5.1–5.5) and execution/selector changes (6.1–6.4) are present. This is
 not deployment evidence. Isolated migration/CHECK/RLS verification and separately

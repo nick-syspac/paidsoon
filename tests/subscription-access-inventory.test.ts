@@ -83,7 +83,7 @@ function protectedMethods(file: ts.SourceFile): string[] {
   return guarded
 }
 
-test("D7 inventory covers every API file: 160 wrapped methods, one action-scoped guard, two guarded aliases and explicit cleanup", () => {
+test("D7 inventory covers every API file: 169 wrapped methods, one action-scoped guard, two guarded aliases and explicit cleanup", () => {
   const paths = readdirSync(resolve(root, "app/api"), { recursive: true })
     .filter((path): path is string => typeof path === "string" && path.endsWith("/route.ts"))
   let direct = 0; let methodCount = 0; let excluded = 0
@@ -111,7 +111,7 @@ test("D7 inventory covers every API file: 160 wrapped methods, one action-scoped
     direct++
   }
   assert.deepEqual({ total: paths.length, direct, methodCount, aliases: aliases.size, excluded }, {
-    total: 213, direct: 127, methodCount: 160, aliases: 2, excluded: 84,
+    total: 220, direct: 131, methodCount: 169, aliases: 2, excluded: 87,
   })
 })
 

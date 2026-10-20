@@ -3,6 +3,8 @@ import { withUserContext } from "@/lib/db/withUserContext"
 import { getMarginSummary } from "@/lib/marginguard/service"
 import { loadSpendLeakDashboard } from "@/lib/dashboard/loadSpendLeakDashboard"
 import { summarizeCommitGuard } from "@/lib/commitguard/service"
+import { loadCommitGuardDigestSignals } from "@/lib/commitguard/digestSignals"
+import { presentCommitGuardSummary } from "@/lib/commitguard/summaryPresentation"
 import { loadTaxBufferSummary } from "@/lib/taxBuffer/service"
 import { loadDepositGuardOwnerDigestProvider } from "@/lib/depositGuard/integrations"
 import { getOwnersDigestEntitlements, OwnersDigestAccessError, requireOwnersDigestCoreAccess, requireOwnersDigestHistoryAccess } from "@/lib/ownersDigest/entitlements"
@@ -28,6 +30,7 @@ import type {
   OwnersDigestStatus,
 } from "@/lib/ownersDigest/types"
 import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { loadCashPlanSummary } from "@/lib/cashplan/service"
 
 const ACTIVE_INVOICE_STATUSES = ["pending", "paused", "snoozed", "sequence_complete", "disputed"]
 const STALE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000
@@ -478,60 +481,56 @@ export async function loadCostGuardProvider(userId: string, now: Date): Promise<
 }
 
 export async function loadCashPlanProvider(userId: string, now: Date): Promise<OwnersDigestProviderResult> {
-  const snapshot = await withUserContext(userId, (tx) =>
-    tx.cashPlanSnapshot.findFirst({
-      where: { plan: { userId } },
-      orderBy: { createdAt: "desc" },
-      select: {
-        createdAt: true,
-        confidence: true,
-        status: true,
-        lowestClosingCashCents: true,
-        bufferGapCents: true,
-      },
-    }),
-  )
-
+  const summary = await loadCashPlanSummary(userId, { now })
+  const { overview } = summary
+  const currency = summary.currency ?? "aud"
+  const dataAsOf = summary.startingBalance.balanceAsOf
+    ? new Date(`${summary.startingBalance.balanceAsOf}T00:00:00Z`) : null
+  const money = (value: number): string => new Intl.NumberFormat("en-AU", {
+    style: "currency", currency, maximumFractionDigits: 0,
+  }).format(value / 100)
   const signals: OwnersDigestSignal[] = []
-  if (snapshot && snapshot.bufferGapCents < 0) {
+  if (overview.bufferGapCents !== null && overview.bufferGapCents < 0 && dataAsOf) {
     signals.push({
-      id: `cashplan-buffer-${snapshot.createdAt.toISOString()}`,
+      id: `cashplan-buffer-${summary.planId}:${summary.anchorDate}:${summary.commitmentRevision}:${summary.startingBalance.cashInputRevision}`,
       source: "cashplan",
       signalType: "BUFFER_GAP",
-      title: `Cash forecast falls ${formatCurrency(Math.abs(snapshot.bufferGapCents))} below target buffer`,
-      summary: `The latest cash forecast shows a projected shortfall against the target buffer.`,
-      severity: Math.abs(snapshot.bufferGapCents) >= 20_000 ? "critical" : "warning",
+      title: `Preliminary cash forecast falls ${money(Math.abs(overview.bufferGapCents))} below target buffer`,
+      summary: "Dated owner cash estimate with partial source coverage; confirm missing receivables and payables.",
+      severity: Math.abs(overview.bufferGapCents) >= 20_000 ? "critical" : "warning",
       recommendedAction: "Review the cash plan and confirm near-term inflows and outflows.",
       actionUrl: "/dashboard/settings/cash-plan",
       whyItMatters: "Buffer shortfalls reduce flexibility if receipts land late.",
-      financialImpactCents: Math.abs(snapshot.bufferGapCents),
-      currentValue: snapshot.lowestClosingCashCents,
-      changeValue: snapshot.bufferGapCents,
-      detectedAt: snapshot.createdAt,
+      financialImpactCents: Math.abs(overview.bufferGapCents),
+      currentValue: overview.lowestClosingCashCents,
+      changeValue: overview.bufferGapCents,
+      detectedAt: dataAsOf,
       correlationKey: "cash_pressure",
+      metadata: { currency, quality: summary.quality, anchorDate: summary.anchorDate },
     })
   }
 
   return {
     source: "cashplan",
-    status: snapshot ? "complete" : "not_configured",
+    status: !summary.planId ? "not_configured" : summary.quality.state === "unavailable" ? "unavailable" : "partial",
     signals,
-    metrics: snapshot
+    metrics: overview.lowestClosingCashCents !== null
       ? [{
           key: "cashplan_lowest_cash",
           label: "Lowest projected cash",
           section: "key_numbers",
           unit: "currency_cents",
-          displayValue: formatCurrency(snapshot.lowestClosingCashCents),
-          monetaryValueCents: snapshot.lowestClosingCashCents,
+          displayValue: money(overview.lowestClosingCashCents),
+          monetaryValueCents: overview.lowestClosingCashCents,
           sortOrder: 2,
+          metadata: { currency, quality: summary.quality, balanceAsOf: summary.startingBalance.balanceAsOf },
         }]
       : [],
-    dataAsOf: snapshot?.createdAt ?? null,
-    stale: isStaleDate(snapshot?.createdAt ?? null, now),
+    dataAsOf,
+    stale: summary.quality.reasons.includes("stale_balance"),
     entitled: true,
-    configured: Boolean(snapshot),
-    available: true,
+    configured: summary.planId !== null,
+    available: summary.quality.state !== "unavailable",
   }
 }
 
@@ -584,49 +583,60 @@ export async function loadTaxBufferProvider(userId: string, now: Date): Promise<
   }
 }
 
-export async function loadCommitGuardProvider(userId: string, now: Date): Promise<OwnersDigestProviderResult> {
-  const taxBufferSummary = await loadTaxBufferSummary(userId)
+export async function loadCommitGuardProvider(userId: string, now: Date,
+  period = getOwnersDigestPeriodBounds("weekly", now),
+): Promise<OwnersDigestProviderResult> {
   const summary = await summarizeCommitGuard({
-    userId,
-    cashAvailableCents: taxBufferSummary.availableCashCents ?? null,
-    taxProtectedCashCents: taxBufferSummary.totalRequiredReserveCents,
+    userId, now,
   })
-  const signals: OwnersDigestSignal[] = []
-  if (summary.freeCash.status === "shortfall" || summary.freeCash.status === "at_risk") {
-    signals.push({
-      id: "commitguard-free-cash",
-      source: "commitguard",
-      signalType: "FREE_CASH_RISK",
-      title: `Free cash is ${formatCurrency(summary.freeCash.freeCashCents)} after protected commitments`,
-      summary: `Protected cash commitments are reducing available free cash in the current outlook.`,
-      severity: summary.freeCash.status === "shortfall" ? "critical" : "warning",
-      recommendedAction: "Review near-term commitments and protect only the amounts that are still required.",
-      actionUrl: "/dashboard/commitguard",
-      whyItMatters: "Committed outflows can create cash pressure before invoices are collected.",
-      financialImpactCents: Math.abs(summary.freeCash.protectedCashCents),
-      currentValue: summary.freeCash.freeCashCents,
-      detectedAt: now,
-      correlationKey: "cash_pressure",
-    })
+  const view = presentCommitGuardSummary(summary)
+  const complete = summary.enabled && summary.quality.state === "complete"
+  const metadata = {
+    version: summary.version, currency: summary.cashContext.currency,
+    inputRevision: summary.inputRevision, calculationRevision: summary.calculationRevision,
+    selectedHorizonDays: summary.selectedHorizonDays, quality: summary.quality,
+    cashSource: summary.cashContext.source, sourceDates: summary.sourceDates,
+    balanceAsOf: summary.cashContext.balanceAsOf, freshness: summary.cashContext.freshness,
+    safetyStatus: complete ? summary.freeCash.status : null,
   }
+  const signals = await loadCommitGuardDigestSignals({ userId, now, summary, ...period })
 
   return {
     source: "commitguard",
-    status: summary.settings.enabled ? "complete" : "not_configured",
+    status: !summary.enabled ? "not_configured" : summary.quality.state === "stale" ? "stale"
+      : complete ? "complete" : "partial",
     signals,
     metrics: [{
       key: "free_cash",
       label: "Free cash",
       section: "key_numbers",
       unit: "currency_cents",
-      displayValue: formatCurrency(summary.freeCash.freeCashCents),
-      monetaryValueCents: summary.freeCash.freeCashCents,
+      displayValue: view.freeCash,
+      monetaryValueCents: complete ? summary.freeCash.freeCashCents : null,
       sortOrder: 3,
-    }],
-    dataAsOf: now,
-    stale: false,
+      metadata,
+    }, {
+      key: "commitguard_available_cash", label: "Available cash (owner-entered)", section: "key_numbers",
+      unit: "currency_cents", displayValue: view.availableCash,
+      monetaryValueCents: summary.cashContext.amountCents, sortOrder: 3, metadata,
+    }, {
+      key: "commitguard_protected_cash", label: `Protected cash (${summary.selectedHorizonDays} days)`, section: "key_numbers",
+      unit: "currency_cents", displayValue: view.protectedCash,
+      monetaryValueCents: complete ? summary.freeCash.protectedCashCents : null, sortOrder: 3, metadata,
+    }, {
+      key: "commitguard_quality", label: "CommitGuard input quality", section: "key_numbers", unit: "text",
+      displayValue: `${view.quality} · Safety status: ${view.status} · ${view.balanceDescription} · ${view.protectionDescription}${view.reasons.length ? ` · ${view.reasons.map((reason) => reason.label).join("; ")}` : ""}`,
+      sortOrder: 3, metadata,
+    }, ...view.groups.flatMap((group) => group.horizons.map((horizon) => ({
+      key: `commitguard_${group.currency}_${horizon.days}_days`, label: `${group.currency.toUpperCase()} ${horizon.days}-day commitments`,
+      section: "key_numbers" as const, unit: "text" as const,
+      displayValue: `${horizon.total} · Confirmed ${horizon.confirmed} · Probable ${horizon.probable} · Potential ${horizon.potential}${!group.supportedForFreeCash ? " · Stored cents; unsupported for free cash" : ""}${!summary.enabled ? " · Retained records, not active protection" : ""}`,
+      sortOrder: 3, metadata: { ...metadata, currency: group.currency, supportedForFreeCash: group.supportedForFreeCash },
+    })))],
+    dataAsOf: new Date(summary.asOf),
+    stale: summary.quality.state === "stale" || summary.quality.reasons.includes("cash_stale") || summary.quality.reasons.includes("weekly_expenses_stale"),
     entitled: true,
-    configured: summary.settings.enabled,
+    configured: summary.enabled,
     available: true,
   }
 }
@@ -747,6 +757,7 @@ export async function loadRunwayGuardProvider(userId: string, now: Date): Promis
 async function collectProviderResults(
   userId: string,
   now: Date,
+  period: ReturnType<typeof getOwnersDigestPeriodBounds>,
 ): Promise<OwnersDigestProviderResult[]> {
   const entitlements = await getOwnersDigestEntitlements(userId)
   // Reauthorize after settings/queue preparation, before any provider computation.
@@ -767,7 +778,7 @@ async function collectProviderResults(
     providers.push({ source: "depositguard", load: () => loadDepositGuardOwnerDigestProvider(userId, now) })
   }
   if (hasPlanFeature(entitlements.tier, "commitguard_core")) {
-    providers.push({ source: "commitguard", load: () => loadCommitGuardProvider(userId, now) })
+    providers.push({ source: "commitguard", load: () => loadCommitGuardProvider(userId, now, period) })
   }
   if (hasPlanFeature(entitlements.tier, "marginguard_core")) {
     providers.push({ source: "marginguard", load: () => loadMarginGuardProvider(userId, now) })
@@ -1101,7 +1112,7 @@ export async function generateOwnersDigest(
     }),
   )
 
-  const providerResults = await collectProviderResults(userId, now)
+  const providerResults = await collectProviderResults(userId, now, { frequency, periodLabel, periodStart, periodEnd })
   console.info(
     JSON.stringify({
       event: "owners_digest_provider_results",

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
 import { before, beforeEach, describe, mock, test } from "node:test"
+import { renderToStaticMarkup } from "react-dom/server"
+import { syntheticWorkspace } from "@/tests/helpers/commitGuardWorkspace"
+import { selectWorkspaceCommitments, type WorkspaceQuery } from "@/lib/commitguard/workspaceFilters"
 
 let mockUser: { id: string } | null = { id: "user-1" }
 let costGuardAlerts: Array<{
@@ -201,12 +204,16 @@ describe("CommitGuard and Cost Guard linkage", () => {
       },
     })
 
-    await mock.module("@/components/dashboard/commitguard/CommitGuardWorkspace", {
-      namedExports: {
-        CommitGuardWorkspace: () => ({ type: "mock-commitguard-workspace" }) as unknown,
+    await mock.module("next/navigation", { namedExports: { useRouter: () => ({ refresh: () => {} }), redirect: () => { throw new Error("REDIRECT") } } })
+    await mock.module("@/lib/commitguard/workspaceLoader", { namedExports: {
+      loadCommitGuardWorkspace: async (_userId: string, query: WorkspaceQuery) => {
+        const dto = syntheticWorkspace()
+        dto.commitments = commitGuardCommitments.map((row, index) => ({ ...dto.commitments[0], ...row, id: `commitment-${index}` }))
+        dto.upcoming = selectWorkspaceCommitments(dto.commitments, query, dto.asOf)
+        return dto
       },
-    })
-
+    } })
+    await mock.module("@/components/dashboard/commitguard/CommitGuardWorkspace", { namedExports: { CommitGuardWorkspace: () => null } })
     ;({ default: CostGuardDashboardPage } = await import("@/app/dashboard/cost-guard/page"))
     ;({ default: CommitGuardDashboardPage } = await import("@/app/dashboard/commitguard/page"))
   })
@@ -245,7 +252,7 @@ describe("CommitGuard and Cost Guard linkage", () => {
       searchParams: Promise.resolve({ costGuardAlertId: "alert-123" }),
     })
 
-    const text = collectText(element)
+    const text = renderToStaticMarkup(element)
     assert.ok(element)
     assert.match(text, /Filtered to commitments linked to Cost Guard alert\s+alert-123\s*\./)
     assert.match(text, /Matched cloud plan/)

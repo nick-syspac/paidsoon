@@ -253,6 +253,7 @@ export interface CashPlanPlannedItem {
   kind: CashPlanItemKind
   amountCents: number
   weekIndex: number
+  plannedDate: Date | null
   reason: string
   owner: string | null
   createdBy: string | null
@@ -354,6 +355,7 @@ export function buildCashPlanPlannedItem(input: {
   kind: CashPlanItemKind
   amountCents: number
   weekIndex: number
+  plannedDate?: Date | null
   reason: string
   owner?: string | null
   createdBy?: string | null
@@ -375,6 +377,7 @@ export function buildCashPlanPlannedItem(input: {
     kind: input.kind,
     amountCents: Math.max(0, Math.round(input.amountCents)),
     weekIndex: input.weekIndex,
+    plannedDate: input.plannedDate ?? null,
     reason: input.reason,
     owner: input.owner ?? null,
     createdBy: input.createdBy ?? null,

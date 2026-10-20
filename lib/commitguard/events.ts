@@ -37,12 +37,6 @@ export interface CommitGuardEventRecordInput {
   dedupeKey?: string | null
 }
 
-export interface CommitGuardNotificationPlan {
-  immediate: Array<{ id: string; eventType: CommitGuardEventType; title: string; message: string }>
-  daily: Array<{ id: string; eventType: CommitGuardEventType; title: string; message: string }>
-  weekly: Array<{ id: string; eventType: CommitGuardEventType; title: string; message: string }>
-}
-
 function isoDate(value: Date): string {
   return value.toISOString().slice(0, 10)
 }
@@ -85,65 +79,4 @@ export function buildCommitGuardEventDedupeKey(input: {
       return null
   }
 }
-
-export function buildCommitGuardNotificationPlan(
-  events: Array<{
-    id: string
-    eventType: CommitGuardEventType
-    title: string
-    message: string
-    severity?: string | null
-  }>,
-): CommitGuardNotificationPlan {
-  const immediate = events.filter((event) => {
-    return (
-      event.eventType === COMMIT_GUARD_EVENT_TYPES.COMMITMENT_SHORTFALL ||
-      event.eventType === COMMIT_GUARD_EVENT_TYPES.COMMITMENT_NOTICE_PERIOD_APPROACHING ||
-      event.severity === "critical"
-    )
-  })
-
-  const daily = events.filter((event) => {
-    return (
-      event.eventType === COMMIT_GUARD_EVENT_TYPES.COMMITMENT_DUE_SOON ||
-      event.eventType === COMMIT_GUARD_EVENT_TYPES.COMMITMENT_RENEWAL_APPROACHING ||
-      event.eventType === COMMIT_GUARD_EVENT_TYPES.COMMITMENT_AMOUNT_CHANGED ||
-      event.severity === "warning"
-    )
-  })
-
-  const immediateIds = new Set(immediate.map((event) => event.id))
-  const dailyIds = new Set(daily.map((event) => event.id))
-
-  const weekly = events.filter((event) => {
-    if (immediateIds.has(event.id) || dailyIds.has(event.id)) return false
-    return (
-      event.eventType === COMMIT_GUARD_EVENT_TYPES.COMMITMENT_DETECTED ||
-      event.eventType === COMMIT_GUARD_EVENT_TYPES.COMMITMENT_BUFFER_LOW ||
-      event.severity === "watch" ||
-      event.severity === "info" ||
-      !event.severity
-    )
-  })
-
-  return {
-    immediate: immediate.map((event) => ({
-      id: event.id,
-      eventType: event.eventType,
-      title: event.title,
-      message: event.message,
-    })),
-    daily: daily.map((event) => ({
-      id: event.id,
-      eventType: event.eventType,
-      title: event.title,
-      message: event.message,
-    })),
-    weekly: weekly.map((event) => ({
-      id: event.id,
-      eventType: event.eventType,
-      title: event.title,
-      message: event.message,
-    })),
-  }
-}
+// Delivery is owned exclusively by the enabled, entitled Owner's Digest path.

@@ -383,13 +383,91 @@ subsection documents a functional module.
 
 ### 4.11 CommitGuard (`lib/commitguard/**`, `app/api/commitguard/**`)
 
+**Cash-protection remediation: UNMERGED / NOT DEPLOYED — local storage,
+cash-context API/form, coverage, version-2 summary, evaluation/history and
+section-7 workspace/settings/digest paths.** The contracts below describe local
+source and regression fixtures, not merged/deployed behavior. The task ledger
+is unchanged by task 8.5; checkboxes are not deployment evidence.
+The bounded section-8 CashPlan paths exist locally; section 9 acceptance/rollout
+remains pending. The [D9 boundary](#4113-bounded-cashplan-consumption--local--unmerged--not-deployed)
+supersedes earlier section-8-pending notes without certifying rollout.
+Earlier task-specific notes describe their original bounded scope; the
+[current consumer/control contract](#4112-current-consumers-controls-and-digest-boundary--unmerged--not-deployed)
+supersedes stale future-work statements about section-7 code.
+Tasks 1.1–1.5 of `fix-commitguard-cash-protection-workflows` add schema,
+reviewed supplemental CHECKs, targeted ACL/RLS, and a pure legacy report. They do
+not establish end-to-end cash entry, atomic conversion, scheduled evaluation,
+digest delivery, or CashPlan forecast consumption. The existing flows below are
+not acceptance evidence for those replacement workflows. See the
+[storage additions](#631-commitguard-cash-protection-storage),
+[ordered migration review](runbooks/commitguard.md#5-cash-protection-storage--unmerged--not-deployed),
+and [isolated verification evidence](release-notes/commitguard-storage-verification-2026-10-19.md).
+
+- **Task 2.2 API (unmerged/not deployed):**
+  [cash-context route](../app/api/commitguard/cash-context/route.ts) adds GET/PUT
+  with authenticated subscription access and `commitguard_core`, independently
+  of Tax Buffer. GET only selects saved safe fields; missing rows have revision
+  zero and null financial inputs, without default writes. PUT accepts strict
+  `expectedRevision` plus optional all-or-none cash/expense groups and independent
+  tax currency. Dates are UTC calendar dates, amounts integer cents, and the
+  eight supported currencies are lowercase; future dates are rejected.
+  [The mutation service](../lib/commitguard/cashContextMutation.ts) serializes
+  tenant writes with `pg_advisory_xact_lock(hashtext('commitguard:' || userId))`
+  before cash row locks, then checks revision (including first creation).
+  A material change increments cash revision and settings `calculationRevision`,
+  inserts pending evaluation work, and records `COMMITGUARD_CASH_CONTEXT_UPDATED`
+  in one `withUserContext` transaction. Audit metadata contains only
+  `changedFields`, never old/new values or amounts. Identical saves check revision
+  but do not write, increment or enqueue. Clearing one group retains the other
+  group's currency/date and the tax attestation. Initial uniqueness races and
+  conditional-update conflicts return 409. DTOs omit identities/internal fields;
+  errors/logs omit financial values. See the
+  [endpoint runbook contract](runbooks/commitguard.md#54-cash-context-endpoint--unmerged--not-deployed).
+  This is not UI, worker, provider-sync, summary-consumer or deployment evidence.
+
+- **Task 2.5 form (unmerged/not deployed):** the existing authenticated,
+  core-entitled `/dashboard/commitguard#cash-inputs` surface now mounts a
+  [cash-input panel](../components/dashboard/commitguard/CommitGuardCashContextPanel.tsx)
+  using the unchanged GET/PUT contract. It provides labeled cash, weekly-expense
+  and tax-currency groups, explicit owner-entered/not bank-verified wording,
+  source dates, missing/stale edit actions, exact decimal-to-Int-cents conversion,
+  and draft-only clear controls. 409 and unconfirmed saves preserve drafts and
+  block resaving until explicit reload/revision review. Confirmed saves adopt
+  their DTO, reload cash inputs and request a router refresh; failed reads offer
+  a GET-only retry without replaying PUT. A concurrently newer DTO requires
+  review. This does not wire shared summaries or complete task 7.2's coherent
+  workspace refresh; `router.refresh()` completion is not observable here.
+  No settings policy, fixed-buffer review, provider balances, tax coverage or
+  mail delivery is added. See the
+  [form/API operations contract and bounded verification](runbooks/commitguard.md#55-owner-input-form-contract--unmerged--not-deployed)
+  and [user instructions](user/commitguard.md#owner-entered-cash-inputs--unmerged--not-deployed).
+
 - **Responsibility:** track upcoming commitments, project near-term cash impact,
   and surface renewal / notice actions before commitments become cash stress.
-- **Core service flow:** `summarizeCommitGuard()` composes commitment horizons
-  (7/30/60/90), renewal severities, and canonical free-cash status from
-  available cash, commitment outflow, tax-protected cash, and safety buffer.
-  When tax-protected cash is not supplied, it is derived from
-  `loadTaxBufferSummary()` (feature-gated) to prevent duplicated reserve logic.
+- **Task 3.6 coverage (unmerged/not deployed):**
+  [coverage CRUD](../app/api/commitguard/coverage/route.ts) exposes authenticated,
+  subscription/core-gated GET/POST/PUT/DELETE over
+  [tenant-locked services](../lib/commitguard/coverageService.ts). Material changes,
+  settings calculation revision, pending evaluation and before/after audit commit
+  atomically under the existing cash/settings tenant lock. Ownership, exact live
+  UTC projected date, currency, aggregate occurrence and explicit unpaid-bill caps
+  are checked before writing. No schema, ACL or plan change is added.
+  [Pure reconciliation](../lib/commitguard/coverage.ts) retains the full commitment
+  total and adds each enabled category's `max(0, R - aggregate C)`. Thus R=12000
+  with C=10000 protects 12000; C=12000/15000 protects 12000/15000 respectively.
+  Bill/tax portions are disjoint; missing, paid, disabled, settled or stale targets
+  cannot reduce protection and require review. Existing explicit bill/category
+  attribution is required for bill-covered tax portions; nothing is guessed from
+  supplier names or amounts. Task 3.7 now composes this read-only integration
+  point into summary v2; coverage editor controls and CashPlan consumption remain
+  separate work. See the
+  [bounded contract and evidence](runbooks/commitguard.md#56-coverage-crud-and-reconciliation--unmerged--not-deployed).
+- **Local version-2 service flow (unmerged/not deployed):**
+  `summarizeCommitGuard()` reads settings, saved owner cash, commitments,
+  read-only tax category facts and coverage in one `withUserContext`
+  RepeatableRead transaction using one evaluation clock. It does not call the
+  writing `loadTaxBufferSummary()` orchestration. Missing settings are disabled
+  in memory, not created by a read. See the calculation contract below.
 - **Detection flow:** `detectCommitmentCandidates()` groups canonical spend
   signals by supplier/currency, applies deterministic recurrence + amount
   variance thresholds, and writes `CommitmentDetectionCandidate` rows with
@@ -402,8 +480,306 @@ subsection documents a functional module.
   `COMMITMENT_BUFFER_LOW`.
 - **Cross-module integration:** SpendLeak findings surface linked active
   commitment counts; Cost Guard alerts deep-link to CommitGuard filtered by
-  `costGuardAlertId`; CashPlan can consume committed-outflow/free-cash via
-  `GET /api/commitguard/cashplan`.
+  `costGuardAlertId`; `GET /api/commitguard/cashplan` exposes an occurrence
+  adapter, not proof that CashPlan's forecast consumes it.
+
+Task 4.3's **UNMERGED / NOT DEPLOYED** lifecycle implementation now shares
+tenant advisory and commitment row locks across PATCH/actions, applies the
+owner-approved matrix, and atomically records changed-field before/after audit.
+PATCH cannot change lifecycle status. Cancelled/expired records retain other
+edits; archived records are read-only and no archive action exists. Repeated
+pause/cancel/eligible confirm or identical PATCH does not write or audit; resume
+is only paused → active. Confirm preserves status. See the
+[exact matrix and conflict contract](runbooks/commitguard.md#tasks-4344-lifecycle-contract--unmerged--not-deployed)
+and [verification evidence](release-notes/commitguard-lifecycle-verification-2026-10-19.md).
+Task 4.4 subsequently added revision increments and durable evaluation requests
+in the same mutation transaction; pending work alone proves no execution/delivery.
+
+#### 4.11.1 Cash-protection calculation contract — UNMERGED / NOT DEPLOYED
+
+Tasks 6.2–6.6 provide the local internal job admission/dispatch and evaluation
+pipeline, **UNMERGED / NOT DEPLOYED, scheduler gate OFF**. `POST /api/internal/jobs/commitguard`
+requires a configured `INTERNAL_JOBS_SECRET` bearer credential and a strict
+identity-only body `{userId, workItemId, kind: "detect" | "evaluate"}`. Unknown
+keys (including tier/permissions/lease/fence/source overrides) fail with 400;
+missing/invalid/unconfigured credentials fail with 401 before database access.
+Tenant/item/kind mismatches return the same safe skipped result. The documented
+system exception reads/claims persisted work and successful-source metadata only;
+financial reads and writes execute under tenant RLS in the task 6.1 transaction.
+Current central effective access is checked before claim and again inside the
+side-effect boundary before reads and before commit. Candidate/event/state writes
+and completion share the revision/owner/lease/fence assertion, not independent
+transactions. Detection uses current settings rather than ingestion revision zero.
+
+The route returns only `{status}` or `{status, reason}`: no tenant/work IDs,
+amounts, suppliers, recipients, source evidence or lease metadata. Detection can
+complete real persisted accounting-run/import-batch work. Evaluation now runs
+operational due/renewal and risk/material-amount evaluators with the canonical v2
+saved-input summary under the same fence. Successful default dispatch returns
+200 completed, not the historical 202 pending-pipeline response. Event relevance,
+staged evaluation state and completion commit together after final checks; only
+committed daily work records successful daily evaluation. Unavailable financial
+inputs complete without an invented risk alert. The trusted optional composition
+point runs after the default pipeline in that same transaction; it is not
+request-injectable. No scheduler, new secret, standalone email or deployment is
+enabled here. See [task 6.6 evidence](release-notes/commitguard-risk-evaluation-verification-2026-10-19.md).
+
+**Task 6.3 — local / UNMERGED / NOT DEPLOYED:** the existing Railway Beat owner
+has a code-disabled five-minute CommitGuard extension. The internal
+`POST /api/internal/jobs/commitguard/dispatch` uses the same secret, strict optional
+daily keyset cursor, and three independently bounded 100-item scans: enabled
+tenants (current `getFinancialJobAccessSkip`), expired leases, and due pending
+work. One `daily:<UTC date>` evaluation identity per eligible tenant survives
+enqueue failure and repeated scans. Task 6.4 adds the independent daily source
+repair pass described below. Financial execution remains in the existing tenant-RLS fence boundary;
+Python receives only tenant/item/kind identities, never entitlement or finance.
+
+The existing work fields carry six-attempt exponential retry (60/120/240/480/
+960/1920 seconds), 60-second private fence renewal, expired-lease recovery,
+safe failure reason and terminal exhaustion. Outdated evaluation revisions are
+skipped; distinct ingestion sources execute under current settings. Lost enqueue
+does not change pending state. The lifecycle helper retains generic dependency
+deferral support, but default evaluation no longer uses it. Daily success is
+staged only after the complete evaluator pipeline commits under its final fence.
+
+`POST /api/admin/tenants/[id]/commitguard/retry` requires existing elevated
+platform-admin/owner authorization and strict `{workItemId, expectedGeneration}`.
+The system-only metadata exception rechecks role/session expiry/revocation inside
+the conditional update, appends prior generation/attempt/reason and trusted
+actor/session history, and resets only a failed matching generation. Source,
+dedupe identity, calculation revision and monotonically increasing fence remain
+unchanged. Safe responses contain only status. No tenant lifecycle UPDATE grants
+are added; the targeted and canonical pending INSERT policies reserve the daily
+identity namespace for the executor. No schema migration is needed for 6.3;
+existing task-1 schema and reviewed ACL application remain deployment prerequisites.
+See the [task 6.3 operations contract](runbooks/commitguard.md#task-63-queue-and-recovery--unmerged--not-deployed).
+
+**Task 6.4 — local / UNMERGED / NOT DEPLOYED:** the same dispatch endpoint accepts
+strict optional `repairState` (database UTC date, independent accounting/import
+ID cursors and completion flags). Each five-minute tick advances at most 100
+missing sources per stream until the daily pass completes; individual failures
+advance rather than blocking subsequent sources. The next UTC day restarts the
+pass, revisiting failed or late-completed sources. Restart safely replays hints.
+The documented system exception discovers source identity/completion metadata
+only, checking canonical tenant/kind/dedupe identity regardless of work state or
+generation. Tenant-RLS transactions then reuse the original task-5.4 helper to
+revalidate ownership and exact successful-completion predicates and insert only
+minimal request fields with database-owned pending defaults/conflict no-op.
+Failed/partial sources create no jobs; existing exhausted generations never reset.
+Repair runs before pending discovery, without executing detection or evaluation.
+The Railway release gate remains OFF; no schema/ACL/activation is changed.
+See [repair operations and verification](runbooks/commitguard.md#task-64-source-completion-repair--unmerged--not-deployed).
+
+Task 6.8's [operator procedures](runbooks/commitguard.md#task-68-operator-procedures--unmerged--not-deployed)
+cover existing-secret authentication, exactly one scheduler owner, privacy-safe
+backlog counts/ages/attempts/codes, and the precise repair/retry actions. Local
+task 6.7 history is read-only, tenant scoped and paginated, with active versus
+historical relevance and unavailable-evaluation context; it is not an email
+receipt. Relevant-event integration with the existing Owner's Digest is now
+present locally (task 7.7 checkbox unchanged); see §4.11.2. Shared SQL application and gate activation require separate
+authorization under the ordered storage review; no deployment is asserted.
+
+This task 3.8 reference documents the local D3 recurrence engine and task 3.7
+summary, not completion of the broader dashboard, job, digest or forecast work.
+Sources: [engine](../lib/commitguard/engine.ts),
+[summary](../lib/commitguard/summary.ts),
+[protection composition](../lib/commitguard/protectionComposition.ts),
+[tax facts](../lib/commitguard/protectionFacts.ts) and
+[coverage reconciliation](../lib/commitguard/coverage.ts).
+
+- **Recurrence:** normalize to UTC calendar dates and project half-open windows
+  `[today, today + days)` for 7/30/60/90 days. At 2026-10-19, seven days include
+  October 19–25, not October 26. Commitment start/end dates are inclusive only
+  inside that window. Active/upcoming/ending/review records contribute;
+  archived/paused/cancelled/expired records do not. Weekly/fortnightly schedules
+  skip historical occurrences mathematically. Monthly/quarterly/six-monthly/
+  annual schedules retain the original `nextDueDate` anchor, not a previously
+  clamped date or `startDate`. January 31, 2028 yields February 29 then March 31;
+  an annual February 29, 2028 yields February 28 in 2029–2031, then February 29,
+  2032. An actual February 29 monthly anchor instead yields March 29: no guessed
+  month-end intent. Relevant legacy custom recurrence is unsupported, not
+  one-off; new custom writes are rejected. Invalid schedules, emitted-row caps
+  or integer-cent overflow produce incomplete quality, never silently truncated
+  complete totals.
+- **Conservative confidence:** confirmed is `confirmed`, high/medium are
+  `probable`, low is `potential`. All three partitions contribute their **full**
+  amounts without probability weighting. Pending detection suggestions are not
+  commitments. Currency-specific partitions remain separately labeled.
+- **Horizon and buffer:** `selectedHorizonDays` follows saved settings and controls
+  commitment protection. The separately labeled **Committed (Next 30 Days)** hero
+  metric and percentage buffer basis remain 30 days, not a calendar month or
+  the selected horizon. The fixed buffer needs its own matching currency unless
+  explicitly zero. Percentage buffer is the compatible 30-day total × percent / 100;
+  weeks buffer is saved weeks × a dated, same-currency weekly operating-expense
+  basis. Round the final product to integer cents. Four × 20000 = 80000 cents.
+  Missing weeks/basis is not zero; even explicit zero weeks/basis requires the
+  complete dated compatible basis group. Cash and expense dates independently
+  remain fresh at UTC age 0–7 inclusive, stale at day 8. At evaluation 2026-10-19,
+  October 12 is fresh and October 11 stale. Changing cash currency never relabels
+  a retained fixed buffer or expense basis.
+- **Full tax reserve and explicit coverage:** gross cash includes reserved cash,
+  so use full `requiredReserveCents`, not reserved balance or reserve shortfall.
+  Required 12000 with 5000 reserved still protects 12000, not 5000 or 7000.
+  For each enabled category, aggregate valid same-currency selected-horizon
+  coverage C before comparing to required reserve R. Keep full commitment total
+  K and add `sum(max(0, R - C))`, then the safety buffer. Equivalently protect
+  `max(R, C)` for each linked category plus uncovered commitments/unrelated
+  reserves. R=12000/C=10000 protects 12000; two covered 6000 occurrences protect
+  12000 once; C=15000 protects 15000, not 27000. Bill/direct-tax links consume
+  disjoint portions of an occurrence; bill-covered tax requires explicit category
+  attribution. Never match by supplier/amount/date similarity. Missing, paid,
+  disabled, settled, stale or currency-invalid targets do not erase commitments;
+  they require review. Unlinked tax-classified commitments require overlap review
+  when tax protection is active. Other categories stay distinct: correct owner
+  tax classification is necessary. Tax Buffer not entitled/explicitly disabled is
+  zero/`not_applicable`; entitled but unconfigured or ambiguous is unavailable.
+- **Currency and quality:** no FX. Keep source-currency 7/30/60/90 totals in
+  `horizonsByCurrency`; the cash allowlist is AUD/USD/NZD/GBP/EUR/CAD/SGD/HKD.
+  Unsupported stored currencies remain visible, not converted or relabeled.
+  Foreign selected-horizon occurrences appear in `excludedCurrencies` and block
+  consolidated free cash, even if a compatible component remains numeric. A
+  percentage policy also requires compatible 30-day commitments outside a shorter
+  selected horizon. Legacy `horizons` is null unless there is exactly one supported,
+  completely projected currency group; its presence does not prove cash quality.
+  Preserve all reasons/actions; primary-state precedence is disabled → missing →
+  stale → unsupported_currency → incomplete → complete. Currency mismatch can
+  therefore have primary state `unsupported_currency` even for two supported codes.
+- **Unavailable is not risk:** only complete compatible inputs yield
+  `protectedCashCents`, `freeCashCents` and a safety status. Otherwise these are
+  **null**, never a fabricated zero or WATCH; saved cash and independently valid
+  component/group totals may remain visible. For complete inputs, free cash is
+  gross cash minus protected cash: negative → `shortfall`; nonnegative through
+  25% of buffer → `at_risk`; above 25% through 100% → `watch`; above buffer →
+  `safe`. Zero free cash with zero buffer is `at_risk`.
+- **Read-only API:** summary GET returns `{summary}` with `version: 2`, evaluation
+  `asOf`, cash `inputRevision`, settings `calculationRevision`, selected horizon,
+  cash context, grouped horizons, protection/coverage lineage, source dates,
+  quality reasons/actions and nullable free cash. The CashPlan adapter is also v2
+  and exposes unnetted occurrences over 91 half-open UTC days with coverage IDs.
+  Neither GET creates defaults, events, evaluation state, work or snapshots.
+  Both reject **all query keys** with 400, including legacy cash/tax/expense
+  overrides; save inputs through cash-context PUT instead. These endpoints do
+  not alone prove consumer refresh, job execution or section 8 CashPlan
+  assembly/deductions. Local consumers/controls are described next.
+
+Exact numeric/date examples and their existing executable regression fixtures
+are indexed in [the runbook](runbooks/commitguard.md#57-calculation-and-summary-v2-reference--unmerged--not-deployed).
+
+#### 4.11.2 Current consumers, controls and digest boundary — UNMERGED / NOT DEPLOYED
+
+- The CommitGuard page, overview and Owner's Digest cash metrics use the saved
+  owner-entered context, v2 summary and shared quality/currency formatter. Cash
+  entry does not require Tax Buffer. Supported cash codes remain AUD/USD/NZD/GBP/
+  EUR/CAD/SGD/HKD, without FX; balances and weekly bases are independently fresh
+  through UTC day 7, stale on day 8. Unavailable is null, never zero or WATCH.
+  Selected 7/30/60/90-day protection remains distinct from the next-30-days metric
+  and percentage-buffer basis. No automatic provider/bank balance path exists.
+- [Workspace loader](../lib/commitguard/workspaceLoader.ts) supplies a version-1
+  safe envelope around summary v2, cash/settings, commitments/upcoming selection,
+  candidates/count, renewals and history from one tenant-RLS RepeatableRead
+  snapshot/clock. [Client publication](../lib/commitguard/workspaceClient.ts)
+  rejects mixed/stale revisions and refreshes all sections together after writes.
+  Confirmed-save/read failure retains labeled old figures and GET-only retry,
+  not mutation replay. Router refresh is requested, not proof of live RSC completion.
+- [Validated URL filters](../lib/commitguard/workspaceFilters.ts) apply before
+  twelve-row commitment pagination. Search/category/status/essentiality/frequency/
+  source/currency/due dates/sort affect only upcoming selection. Due filters use
+  saved next-due UTC dates with inclusive-from/exclusive-to bounds. Renewal and
+  alert pages remain independent. SpendLeak uses `linkedSpendInsightId`, Cost
+  Guard uses `costGuardAlertId`; neither relies on renamed display text.
+  Missing/foreign IDs never disclose other tenants' data.
+- The editor exposes classification, source-currency amount, recurrence/dates and
+  renewal/notice/auto-renew/cancellable fields; status stays actions-only. Renewals
+  show eight rows per independent page, notice deadline/missed context and
+  annualized source-currency run rate, unavailable for one-off/custom schedules.
+  Settings expose horizon, independent fixed-buffer currency, percent and weeks;
+  the dated expense basis stays in owner inputs. Warning commas/clears remain
+  drafts until save validates 1–12 integer entries of 1–365, then normalizes.
+  Disabling retains editable records/history while suppressing protection,
+  automated evaluation/detection, digest signals and adapter contribution.
+  No coverage-editor UI is claimed.
+- Tenant-scoped twelve-entry alert history distinguishes active-at-last-evaluation,
+  resolved/superseded/suspended/historical impact and unavailable evaluation.
+  `eventId` selects the actual event page; independent `commitmentId` navigation
+  reaches owned inactive records outside filters. Stable event/candidate targets
+  reveal no foreign records. History GET neither evaluates nor sends mail.
+- [Digest adapter](../lib/commitguard/digestSignals.ts) is read-only and uses
+  existing `loadCommitGuardProvider`, preserving event/entity identities, original
+  source dates and current actionable relevance/preferences/access. Informational
+  amount/detection events use existing UTC digest period bounds; risk requires
+  complete current same-day episode/revision/horizon/currency state. An equivalent
+  stored risk event and live summary signal do not both enter the digest. Existing
+  AUD cash-pressure correlation never sums the overlapping impacts; foreign
+  currencies stay separate, without AUD ranking amounts or FX.
+- Only the existing enabled/opted-in/entitled Owner's Digest mail path delivers
+  relevant ranked/material signals. Current category/advanced-alert checks still
+  apply; detection additionally checks detection access/opt-in/current evidence.
+  Existing cadence, recipient, UTC period/hour checks and delivery identity are
+  unchanged. Disabled/not-due/unentitled mail creates no replacement subscription.
+  Events/history/evaluation are not receipts; no generic notification framework,
+  standalone immediate/weekly mail or exactly-once transport promise is added.
+- **Bounded CashPlan local integration:** the v2 adapter remains external;
+  summary/items/settings/overview/digest now use the internal assembler below,
+  not opaque snapshot weeks or an empty zero-opening fallback. This is local
+  offline evidence only, not completed rollout or full provider ingestion.
+
+See [current runbook contracts](runbooks/commitguard.md#14-current-workspace-controls--unmerged--not-deployed),
+[user controls](user/commitguard.md) and
+[task 7.8 evidence](release-notes/commitguard-documentation-verification-2026-10-19.md).
+All remain local/unmerged/not deployed; scheduler gate OFF, shared SQL/activation
+and authenticated rollout acceptance require separate authorization/evidence.
+
+#### 4.11.3 Bounded CashPlan consumption — LOCAL / UNMERGED / NOT DEPLOYED
+
+[Canonical service](../lib/cashplan/service.ts),
+[input selection](../lib/cashplan/inputLoader.ts),
+[tenant fact loader](../lib/cashplan/factLoader.ts) and
+[pure assembler](../lib/cashplan/factAssembler.ts) are shared by summary/items/settings,
+the read-only Cash Plan review page, overview and CashPlan Owner's Digest provider.
+The external CommitGuard adapter is not HTTP-called. Calendar/explanation/data-quality/
+periods/export and unrelated scenario/ingestion paths are outside this rollout.
+
+- Requested plans must be owned; otherwise latest existing createdAt/ID wins.
+  Plan settings precede global settings then plan configuration. GET creates no plan.
+  Only 13 weeks are supported, anchored at local evaluation-date midnight in the
+  selected timezone. UTC obligation dates convert to that local calendar with DST.
+- Opening balance is fresh saved owner-attested **gross cash** with currency,
+  balance date and revision, never free cash or an old snapshot balance. UTC day
+  7 is usable; day 8 stale. A still-fresh earlier balance has
+  `unreconciled_balance_age`, not a claim of reconciled current bank cash.
+  Missing/stale/incompatible inputs return null money/no displayed weeks, not zero.
+- Exact sources: compatible eligible non-archived CommitGuard occurrences;
+  explicitly covered unpaid in-window imported bills with supported persisted
+  balances; v2 source facts reconstructed/validated from those live sources and
+  dated manual items; latest valid exact-target overrides. Current bill support
+  is numeric Xero `AmountDue`/MYOB `BalanceDue`, not total-as-balance, provider calls
+  or full provider coverage. Untimed legacy manual rows remain `timing_review`.
+- Coverage applies after overrides and only to included same-window/currency
+  movements: included bill 6000 plus commitment residual 4000 represents a 10000
+  occurrence once. Paid/absent/excluded/incompatible/out-of-window/unsupported
+  bills leave the gross residual and coverage review. Tax reserves and buffers
+  are **not cash movements**. No broad receivables/payments/DepositGuard feed,
+  supplier similarity matching, bank-balance ingestion, reconciliation or FX.
+  All forecasts stay preliminary; receivables missing/payables partial and
+  commitment-only source coverage are explicit.
+- GET/page/overview/CashPlan-provider reads write no defaults/events/work/CashPlan
+  snapshots. Only explicit summary POST or trusted fenced evaluation appends v2
+  snapshots; unavailable input persists no invented money. Metadata validates
+  plan/scenario, local anchor/timezone/horizon, currency, cash/commitment/settings
+  revisions, source references/hashes/dates, coverage, quality and input hash.
+  Legacy and superseded v2 records remain unchanged history, never merged into
+  active weekly totals. Changed sources invalidate reuse without writing on GET.
+- Current subscription-only admission and Essentials core fallback are preserved;
+  no extra CashPlan feature gate. Disable suppresses commitment/linked-bill reads
+  and contribution but retains cash, editable records, coverage, manual items and
+  history. Revoked subscription blocks reads, regardless of saved snapshots.
+
+[Integration fixtures](../tests/cashplan-canonical-consumers.test.ts) execute actual
+routes, services, settings page, overview formatter and digest provider with
+synthetic rows and fail-closed GET guards. Overview page wiring is static evidence,
+not live Next.js acceptance. See the [CashPlan runbook](runbooks/cashplan.md) for
+the exact boundary and [verification record](release-notes/cashplan-bounded-integration-verification-2026-10-19.md).
+No external DB/API/email, schema/SQL/ACL changes or scheduler activation is included.
 
 ### 4.12 Training content destination governance and fallback
 
@@ -1290,6 +1666,86 @@ provider objects. The optional shadow check is not recorded as passed.
 
 > ERDs for compliance/controls/obligations/evidence, workflow, and vertical models are **not applicable** — no such tables exist.
 
+### 6.3.1 CommitGuard cash-protection storage
+
+**UNMERGED / NOT DEPLOYED — storage implementation only**, against [the current Prisma schema](../prisma/schema.prisma).
+The [generated additive migration](../prisma/migrations/20261018111014_fix_commitguard_cash_protection_workflows/migration.sql)
+adds four tables, 26 columns on six existing tables, 15 explicit indexes plus
+four primary-key indexes, and eight RESTRICT/RESTRICT foreign keys. No trial or
+billing model is altered. New inverse profile FKs intentionally restrict profile
+deletion while these records exist; account-erasure ordering needs review, not
+an unreviewed cascade.
+
+| Model / storage | Additions and compatibility | Reviewed authenticated access (not deployed) |
+| --- | --- | --- |
+| `CommitGuardCashContext` / `commit_guard_cash_contexts` | Unique `userId`; nullable signed Int `amountCents`, `currency`, UTC `balanceAsOf`; independent optional weekly-expense amount/currency/date and `taxProtectionCurrency`; revision/timestamps | Own SELECT; column-allowlisted INSERT/UPDATE; no owner/id reassignment or DELETE. Clear inputs by UPDATE, not row deletion. |
+| `CommitmentCoverage` / `commitment_coverages` | Commitment, UTC occurrence date, currency, positive Int covered cents, discriminant and typed bill/category IDs; unique per tenant/commitment/date/target | Own SELECT/INSERT/UPDATE/DELETE, with immutable owner/id; same-tenant composite FKs to commitment, bill and tax category. Remove coverage explicitly before deleting referenced financial rows. |
+| `CommitGuardWorkItem` / `commit_guard_work_items` | `detect`/`evaluate`, unique `(userId,kind,dedupeKey)`, source/revision identity, state, attempts, generation/history, requested/next-attempt/completion dates, lease owner/expiry, fence, safe error | Own safe-column SELECT and pending-request INSERT only; no tenant UPDATE/DELETE. Lifecycle/fence/history writes require the future trusted executor, not tenant privileges. |
+| `CommitGuardEvaluationState` / `commit_guard_evaluation_states` | Unique `userId`; last evaluation/daily success, calculation/cash revisions and risk-episode/status/relevance/resolution fields | Own SELECT; no tenant INSERT/UPDATE/DELETE. System-write-only storage does not mean a worker exists. |
+| `CommitGuardSetting` | `safetyBufferCurrency` nullable; `calculationRevision` defaults to zero | Existing ACL unchanged. Legacy positive untagged fixed buffers remain stored for explicit currency review. |
+| `CommitmentDetectionCandidate` | Nullable tenant-unique `candidateKey`; `connectionId`, observation/anchor/suggested dates, suppression evidence, user corrections/fingerprint, `conversionReviewRequired` default false | Existing ACL unchanged; no new connection FK or automatic evidence validation is implied. |
+| `Commitment` | Nullable `sourceDetectionCandidateId`, unique per tenant, composite same-tenant candidate FK | Existing ACL unchanged. Storage uniqueness alone does not make confirmation atomic/idempotent or enforce the plan allowance. |
+| `CommitmentEvent` | `cycleKey`, `inputRevision`, UTC `occurrenceDate`, `relevance` default `historical`, `resolvedAt`; relevance/time index | Existing ACL unchanged; metadata is not proof of operational alerts or digest consumption. |
+| `CashPlanSnapshot` | `inputVersion` defaults to **1**, nullable anchor/currency/cash and commitment revisions, canonical facts, coverage and input quality | Local D9 ACL dependency: plan-owned SELECT and column-allowlisted base-snapshot INSERT; no UPDATE/DELETE or non-null scenario insertion. Explicit summary POST/trusted fenced job appends v2. Legacy/superseded history retained; GET never persists/merges opaque weeks. Not deployed. |
+| `CashPlanOverride` | Nullable UTC `plannedDate` | Local D9 ACL dependency: plan-owned SELECT/column-allowlisted INSERT; no UPDATE/DELETE/reassignment. Legacy timing remains unknown until explicitly supplied. Not deployed. |
+
+Composite `(userId,id)` unique targets are added to commitments, candidates and
+tax categories; the imported-bill target already exists. Coverage and conversion
+FKs use `ON DELETE RESTRICT ON UPDATE RESTRICT`, including their inverse FK
+triggers; no financial history is merged/deleted.
+
+The [23 supplemental CHECKs](../prisma/commitguard-constraints.sql) enforce
+all-or-none cash/expense groups, independent lowercase currency allowlists
+(`aud`, `usd`, `nzd`, `gbp`, `eur`, `cad`, `sgd`, `hkd`), nonnegative expenses
+and revisions/counters, exactly one correctly typed coverage target, positive
+coverage, attempts 0–6, paired leases and pending/processing/completed row
+shapes. PostgreSQL INTEGER bounds cents. Signed/zero cash and zero expenses are
+valid; no cash, FX or default AUD is inferred. Future dates/freshness require
+later clock-aware validation. **Cross-row occurrence and unpaid-bill coverage
+caps are not enforced by these CHECKs: tenant-locked aggregate validation is
+pending task 3.6.**
+
+The [targeted policy artifact](../prisma/rls-commitguard-policies.sql) matches the
+marked canonical block in [the RLS catalog](../prisma/rls-policies.sql). It enables
+RLS and resets PUBLIC/anon/authenticated table **and column** grants on only the
+four new tables, then installs ten ownership policies and explicit allowlists.
+Work INSERT fixes pending/zero attempts/fence/generation/null lease/completion/
+error/history through grants, defaults and policy checks. Retries may retain
+counters/history under system control. Work SELECT is limited to `id`, `kind`,
+`state`, `attempts`, `requested_at`, `completed_at`, `safe_error_code`,
+`created_at`, `updated_at`: **use explicit ORM `select` and returning columns;
+default return-all / `SELECT *` / `RETURNING *` fails by design.** Tenant DTOs
+must still omit user IDs and internal metadata.
+
+The separately scoped [CashPlan D9 policy artifact](../prisma/rls-cashplan-commitguard-policies.sql)
+is mirrored exactly in canonical RLS. It touches only plans, overrides and
+snapshots: plans are tenant-readable with no client writes; child ownership is
+derived from the actual `plan_id` to `cash_plans.user_id`, not descriptive
+`owner`/`created_by`. INSERT allowlists include Prisma-emitted creation timestamps.
+It replaces only five named policies and refuses unknown overlapping client
+SELECT/INSERT/ALL policies, preserving unrelated-operation policies. Both table
+and column client grants are reset on those three tables only; no schema/default
+ACLs, roles, trial/billing/profile or other CashPlan tables change. Application
+twice, 53 raw role/identity probes and real refresh/fenced publication pass in a
+disposable local clone; this is not shared/deployed RLS evidence. See the
+[9.2 verification record](release-notes/commitguard-task-9-2-verification-2026-10-19.md).
+
+[The legacy conversion report](../lib/commitguard/legacyConversionReport.ts) is
+a pure advisory `buildLegacyConversionReport()` with `dryRun: true`, not a DB
+loader, endpoint, CLI backfill or flag writer. It accepts a caller-provided
+complete snapshot (including archived commitments), trusts only unique
+tenant-matching creation-event `sourceCandidateId` audit evidence, and reports
+unambiguous/missing/duplicate/conflicting cases without mutation. A proposed
+link is not applied; review-required results do not yet block legacy runtime
+confirmation. Loader authorization, backfill and lifecycle enforcement remain
+future work.
+
+Apply nothing to a shared target on the strength of isolated tests. Review its
+actual pending trial/journal migrations, profile/reservation/effective-access
+ACLs and exact order first. The runbook requires generated migration → CHECK
+transaction **once** → targeted policies atomically; never full canonical SQL or
+blanket migrate-deploy while unrelated pending changes remain unapproved.
+
 ### 6.4 RLS design
 
 `prisma/rls-policies.sql` enables RLS on user-scoped tables. Policies key on
@@ -1362,6 +1818,9 @@ for safe fields, 202/404/409/502/503 semantics and no automatic POST retry.
 | `PATCH /api/spend-classification/review/[classificationId]` | `app/api/spend-classification/review/[classificationId]/route.ts` | path ID; strict correction, `mark_transfer`, `link_refund`, or `unlink_refund` action | session | atomic tenant-scoped review service (`withUserContext`) | → `{classification}` | Implemented — transfer exclusion and refund-link actions are explicit and audited; refunds cannot exceed original spend |
 | `POST /api/spend-classification/review/bulk-confirm` | `app/api/spend-classification/review/bulk-confirm/route.ts` | strict explicit unique ID list (1–100), category, optional reason | session | atomic tenant-scoped review service (`withUserContext`) | → `{classifications}` | Implemented — one audit event per assignment; manual assignments cannot be overwritten |
 | `POST /api/internal/jobs/send-reminder` | `.../internal/jobs/send-reminder/route.ts` | `zod` `{userId,trackedInvoiceId}` | `Bearer INTERNAL_JOBS_SECRET` | `withUserContext` | → `{outcome,...}` | Implemented — called by the Railway Celery `reminder_email` task, not public |
+| `POST /api/internal/jobs/commitguard` | `app/api/internal/jobs/commitguard/route.ts` | Strict Zod `{userId,workItemId,kind}`; kind `detect` / `evaluate` only | Configured `Bearer INTERNAL_JOBS_SECRET`; fresh central execution access | System metadata claim; tenant RLS financial transaction with atomic work fence | 200 completed/skipped; 400/401/500 safe fixed DTOs | Tasks 6.2–6.6 local/unmerged: detection or operational/risk evaluation, staged state and completion in one fence. Gate OFF; no deployment/email guarantee |
+| `POST /api/internal/jobs/commitguard/dispatch` | `app/api/internal/jobs/commitguard/dispatch/route.ts` | Strict Zod optional nullable `dailyCursor` and `repairState` | Configured `Bearer INTERNAL_JOBS_SECRET`; central access before daily creation | System metadata-only daily requests/source discovery, tenant-RLS source repair, bounded recovery/pending scan | Identity-only jobs, daily cursor, repair state/new-request/failure counts and recovery count; safe 400/401/500 | Tasks 6.3/6.4 local/unmerged; existing Railway Beat gate remains OFF |
+| `POST /api/admin/tenants/[id]/commitguard/retry` | `app/api/admin/tenants/[id]/commitguard/retry/route.ts` | Strict Zod tenant path and `{workItemId,expectedGeneration}` | Existing elevated platform-admin/owner; atomic role/session recheck | System metadata-only failed-generation update and retained private retry history | Status-only pending / 409 not-retryable; safe 400/401/403/500 | Task 6.3 local/unmerged; no worker-secret or tenant lifecycle-write authority |
 | `GET/POST /api/deposit-guard/jobs` | `app/api/deposit-guard/jobs/route.ts` | query `includeArchived?`; create payload (`zod`) | session + DepositGuard entitlement checks | `withUserContext` via service | → `{jobs}` / `{job}` | Implemented — supports preview-mode and active-job-limit upgrade responses |
 | `PATCH/DELETE /api/deposit-guard/jobs/[jobId]` | `app/api/deposit-guard/jobs/[jobId]/route.ts` | path `jobId`; patch payload (`zod`) | session + DepositGuard entitlement checks | `withUserContext` via service | → `{job}` / `{archived}` | Implemented |
 | `POST /api/deposit-guard/jobs/preview` | `app/api/deposit-guard/jobs/preview/route.ts` | guided create-workflow payload (`zod`) | session | preview-only calculation helper | → `{preview}` | Implemented — server-authoritative preview totals for the DepositGuard create wizard |
@@ -1435,15 +1894,23 @@ for safe fields, 202/404/409/502/503 semantics and no automatic POST retry.
 | `GET /api/invoices/export` | `app/api/invoices/export/route.ts` | query `format=csv\|xlsx`, `statusBucket?`, `overviewFilter?`, `statuses?`, `customerId?`, `provider?`, `dateField?`, `dateFrom?`, `dateTo?` (`zod`) | session + `csv_export` feature | `withUserContext` (`loadInvoicesForExport`) | → CSV/XLSX file download (`Content-Disposition: attachment; filename="paidsoon-invoices-<YYYY-MM-DD>.<ext>"`, `X-PaidSoon-Export-Row-Count` header) | Implemented — 403 without querying invoice data if the tier lacks the feature; 413 if the row-count ceiling is exceeded |
 | `GET /api/spendleak/export` | `app/api/spendleak/export/route.ts` | query `format=csv\|xlsx`, `module?` (`zod`) | session + `csv_export` feature | `withUserContext` (`loadSpendLeakFindingsForExport`) | → CSV/XLSX analysis report (`Content-Disposition: attachment; filename="paidsoon-spendleak-report-<YYYY-MM-DD>.<ext>"`, `X-PaidSoon-SpendLeak-Export-Row-Count` header) | Implemented — exports the current SpendLeak dashboard scope (`module` filter) and keeps fields analysis-only (not accounting-format output) |
 | `GET /api/margin-guard/export` | `app/api/margin-guard/export/route.ts` | query `format=csv\|xlsx`, `dataset=summary\|customers\|alerts\|opportunities`, `period?` (`zod`) | session + `csv_export` + `marginguard_core` feature | `withUserContext` (via `loadMarginGuardExport`) | → CSV/XLSX dataset file (`Content-Disposition: attachment; filename="paidsoon-marginguard-<dataset>-<YYYY-MM-DD>.<ext>"`, `X-PaidSoon-MarginGuard-Export-Row-Count` header) | Implemented — 403 for missing tier entitlements; 413 if dataset row-count ceiling is exceeded |
-| `GET /api/commitguard/summary` | `app/api/commitguard/summary/route.ts` | query `cashAvailableCents?`, `taxProtectedCashCents?`, `weeklyOperatingExpensesCents?` (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{settings,horizons,renewals,freeCash}` | Implemented — canonical summary contract for dashboard + integrations |
+| GET/POST /api/cashplan/summary | [CashPlan summary route](../app/api/cashplan/summary/route.ts) | Strict optional owned `planId`; POST optional body/query IDs must agree; no financial query overrides | session + subscription wrapper, no new feature gate | `withUserContext`, shared canonical assembly | v2 dated gross starting cash, nullable overview money, quality/source coverage, workspace; POST `{snapshotId,summary}` | LOCAL / UNMERGED / NOT DEPLOYED — GET read-only; only explicit POST/trusted fenced job appends v2; legacy/superseded snapshots retained |
+| GET/POST /api/cashplan/items | [CashPlan items route](../app/api/cashplan/items/route.ts) | GET optional owned `planId`; POST explicit planned UTC date, positive cents, kind/reason and optional effective interval | session + subscription wrapper | tenant-scoped canonical read or manual override insert | GET canonical facts/coverage/planned review/items/summary; POST dated manual item | LOCAL / UNMERGED / NOT DEPLOYED — legacy untimed items visible as timing_review; no guessed scheduling or GET snapshot writes |
+| GET/PUT /api/cashplan/settings | [CashPlan settings route](../app/api/cashplan/settings/route.ts) | GET optional owned `planId`; existing PUT settings validation | session + subscription wrapper | tenant-scoped canonical read; existing global settings write | GET selected configuration/settingsSource plus canonical summary | LOCAL / UNMERGED / NOT DEPLOYED — plan/global/plan-config precedence; only 13-week canonical forecasts supported; page remains read-only |
+| GET /api/commitguard/summary | [summary route](../app/api/commitguard/summary/route.ts) | No query keys; legacy cash/tax/expense overrides and unknown keys return 400 | session + subscription wrapper + core feature | `withUserContext`, read-only RepeatableRead snapshot | `{summary}` v2: revisions, cash context, selected horizon, grouped/nullable legacy horizons, protection/coverage, source dates, quality/actions, nullable free cash/status | UNMERGED / NOT DEPLOYED — task 3.7 read contract; no defaults/events/state/work/snapshot writes or broad consumer-rollout claim |
+| GET /api/commitguard/workspace | [workspace route](../app/api/commitguard/workspace/route.ts) | Strict existing navigation keys; duplicate/unknown keys rejected; expanded filters remain task 7.3 | session + subscription wrapper + core feature | `withUserContext`, one read-only RepeatableRead snapshot | `{workspace}` v1 containing summary v2, saved cash, settings, commitments, candidates/review count, renewals and alert history; no tenant or lease metadata; private no-store | UNMERGED / NOT DEPLOYED — task 7.2 verification only; atomic client publication, coherent GET plus server refresh after successful mutations, explicit GET-only failure retry; [verification](release-notes/commitguard-workspace-verification-2026-10-19.md) |
+| `GET/PUT /api/commitguard/cash-context` | `app/api/commitguard/cash-context/route.ts` | no query keys; PUT strict `expectedRevision` and optional cash/expense groups, `taxProtectionCurrency` | authenticated session + subscription wrapper + `commitguard_core`; no Tax Buffer requirement | `withUserContext`; PUT tenant advisory lock, cash row lock and revision check | `200 {cashContext}` safe dated DTO; `401` session, `403` access, `400` input, `409` conflict, safe `500`; subscription verification failure `503` | UNMERGED / NOT DEPLOYED — task 2.2 only; atomic changed-field audit, revision and pending request; GET has no writes; no worker/UI/consumer rollout |
 | `GET/POST /api/commitguard/commitments` | `app/api/commitguard/commitments/route.ts` | query filters (`status`,`search`,`currency`,`sortBy`,`sortOrder`) / create payload (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{commitments}` / `201` created commitment | Implemented — enforces plan limits and lifecycle-safe shapes |
+| GET/POST/PUT/DELETE /api/commitguard/coverage | [coverage route](../app/api/commitguard/coverage/route.ts) | No query keys; strict POST commitment/date/currency/cents/typed target; PUT adds coverage ID; DELETE ID only | session + subscription wrapper + core feature | `withUserContext`, shared tenant advisory lock on writes, aggregate caps | Safe coverage DTO/list; 201 create, 200 read/update/delete; 400 invalid input, 404 missing/foreign, 409 stale/overallocated, safe 500 | UNMERGED / NOT DEPLOYED — task 3.6; atomic revision/work/audit, read-only GET; summary v2 composes reconciliation separately, no editor rollout |
 | `GET/PATCH /api/commitguard/commitments/[id]` | `app/api/commitguard/commitments/[id]/route.ts` | path `id`; patch payload (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{commitment}` or `404` | Implemented |
 | `POST /api/commitguard/commitments/[id]/actions` | `app/api/commitguard/commitments/[id]/actions/route.ts` | `zod` `{action}` (`pause|resume|cancel|confirm`) | session + `commitguard_core` feature | `withUserContext` (via service) | → transitioned commitment | Implemented |
-| `GET /api/commitguard/detections` | `app/api/commitguard/detections/route.ts` | query `status?`, `source?`, `limit?` (`zod`) | session + `commitguard_core` + `commitguard_detection` | `withUserContext` (via service) | → `{candidates}` | Implemented |
+| `GET /api/commitguard/detections` | `app/api/commitguard/detections/route.ts` | No supported filters (broad URL filters remain later work) | session + `commitguard_core` + `commitguard_detection` | `withUserContext` (via service) | → `{candidates}`; local 5.5 adds allowlisted evidence and review fields | Existing route; 5.5 DTO/UI changes UNMERGED / NOT DEPLOYED |
+| `POST /api/commitguard/detections` | `app/api/commitguard/detections/route.ts` | No body required; manual persisted-evidence analysis | session + core + detection; current execution access/enablement/opt-in inside detector | `withUserContext` (via service) | → `{detection: {created, updated, skipped, warnings?}, candidates}`; safe 400/401/403/409/500 | Existing route; local 5.5 Detect UI UNMERGED / NOT DEPLOYED; no automatic worker claim |
 | `POST /api/commitguard/detections/[id]/review` | `app/api/commitguard/detections/[id]/review/route.ts` | path `id`; `zod` review payload (`confirm|ignore|not_a_commitment|edit`) | session + `commitguard_core` + `commitguard_detection` | `withUserContext` (via service) | → review outcome / `404` | Implemented |
 | `GET/PUT /api/commitguard/settings` | `app/api/commitguard/settings/route.ts` | settings payload (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{settings}` | Implemented |
 | `GET /api/commitguard/timeline` | `app/api/commitguard/timeline/route.ts` | query `limit?` (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{events}` | Implemented |
-| `GET /api/commitguard/cashplan` | `app/api/commitguard/cashplan/route.ts` | query `cashAvailableCents?`, `taxProtectedCashCents?`, `weeklyOperatingExpensesCents?` (`zod`) | session + `commitguard_core` feature | `withUserContext` (via service) | → `{committedOutflow,freeCash}` | Implemented — integration-safe contract for CashPlan consumption |
+| GET /api/commitguard/alerts | [alerts route](../app/api/commitguard/alerts/route.ts) | Strict optional integer `page` (minimum 1, clamped to last page), `eventId`; unknown/repeated keys rejected | Verified session + subscription wrapper + core feature; advanced access affects actionable relevance, not history access | Read-only RepeatableRead `withUserContext`; explicit tenant predicates on events and related entities | Allowlisted alert DTOs, stable newest-first pages of 12, evaluation availability, safe recorded impact/context and owned-entity links; no tenant/actor/raw metadata | Task 6.7 LOCAL / UNMERGED / NOT DEPLOYED: workspace alert pages and event permalinks; independent linked-commitment target includes inactive/archived records. GET creates no events/defaults/work/evaluation state; no new delivery channel or scheduler activation |
+| GET /api/commitguard/cashplan | [adapter route](../app/api/commitguard/cashplan/route.ts) | No query keys; same 400 migration contract as summary | session + subscription wrapper + core feature | `withUserContext`, read-only RepeatableRead snapshot | v2 adapter: shared saved-input summary context, 91-day UTC occurrence window, source revisions/coverage IDs, nullable 30-day aggregates/free cash | UNMERGED / NOT DEPLOYED — task 3.7 adapter only; no bill deductions, reserve movements, snapshots, events or proof of forecast consumption |
 | `GET /api/owners-digest/current` | `app/api/owners-digest/current/route.ts` | none | session + `owners_digest_core` feature | `withUserContext` via Owner's Digest service | → `{digest}` | Implemented — lazily generates the current period snapshot when needed |
 | `GET /api/owners-digest/history` | `app/api/owners-digest/history/route.ts` | query `limit?` (`zod`) | session + `owners_digest_history` feature | `withUserContext` snapshot history | → `{history}` | Implemented |
 | `GET /api/owners-digest/[digestId]` | `app/api/owners-digest/[digestId]/route.ts` | path `digestId` (`zod`) | session + `owners_digest_history` feature | `withUserContext` snapshot lookup | → `{digest}` or `404` | Implemented |

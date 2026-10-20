@@ -61,10 +61,17 @@ const taxBufferSummary = {
   recommendation: { transferNowCents: 20000, weeklyTargetCents: 5000, reasons: [] },
 } as const
 const commitGuardSummary = {
+  version: 2, inputRevision: 4, calculationRevision: 9, asOf: "2026-01-12T07:00:00.000Z",
+  enabled: true, selectedHorizonDays: 30,
+  quality: { state: "complete", reasons: [], actions: [] },
+  cashContext: { amountCents: 50000, currency: "aud", balanceAsOf: "2026-01-12", source: "owner_entered", freshness: "fresh" },
+  sourceDates: { balanceAsOf: "2026-01-12", commitments: [], taxCategories: [] },
+  horizonsByCurrency: [],
+  currency: "aud",
   settings: { enabled: true },
   horizons: [],
   renewals: [],
-  freeCash: { status: "at_risk", freeCashCents: 15000, protectedCashCents: 35000 },
+  freeCash: { status: "at_risk", currency: "aud", freeCashCents: 15000, protectedCashCents: 35000 },
 }
 const marginSummary = {
   revenueCents: 100000,
@@ -79,6 +86,16 @@ let providersModule: any
 
 describe("Owner's Digest providers", () => {
   before(async () => {
+    await mock.module("@/lib/cashplan/service", { namedExports: {
+      loadCashPlanSummary: async () => ({ planId: "plan", anchorDate: "2026-01-12", commitmentRevision: 1,
+        currency: "aud", quality: { state: "preliminary", reasons: ["partial_source_coverage"] },
+        startingBalance: { balanceAsOf: "2026-01-12", cashInputRevision: 1 },
+        overview: cashPlanSnapshot }),
+    } })
+    await mock.module("@/lib/billing", { namedExports: {
+      requireFeature: async (_userId: string, feature: string) => feature === "commitguard_core",
+      getSubscriptionTier: async () => "business_control",
+    } })
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
         withUserContext: async (_userId: string, fn: (tx: unknown) => unknown) =>
@@ -191,10 +208,11 @@ describe("Owner's Digest providers", () => {
     assert.equal(result.signals[0].severity, "critical")
   })
 
-  test("CommitGuard provider emits free-cash risk signal", async () => {
+  test("CommitGuard provider retains cash metrics but no advanced signals without current alert access", async () => {
     const result = await providersModule.loadCommitGuardProvider("user-1", new Date("2026-01-12T07:00:00.000Z"))
     assert.equal(result.source, "commitguard")
-    assert.equal(result.signals[0].severity, "warning")
+    assert.deepEqual(result.signals, [])
+    assert.equal(result.metrics[0].monetaryValueCents, 15000)
   })
 
   test("MarginGuard provider emits margin warning signal", async () => {

@@ -1,109 +1,26 @@
 import { redirect } from "next/navigation"
 
 import { getAuthenticatedUser } from "@/lib/supabase/server"
-import { withUserContext } from "@/lib/db/withUserContext"
-import {
-  buildCashPlanForecast,
-  buildCashPlanSummaryResponse,
-  defaultCashPlanSettings,
-  type CashPlanForecastWeek,
-} from "@/lib/cashplan/engine"
+import { defaultCashPlanSettings } from "@/lib/cashplan/engine"
+import { loadCashPlan, presentCashPlan } from "@/lib/cashplan/service"
 import { buildCashPlanDashboardStatus } from "@/lib/dashboard/cashPlanStatus"
 
-function formatAmountFromCents(value: number | null | undefined) {
+function formatAmountFromCents(value: number | null | undefined, currency: string) {
+  if (value === null || value === undefined) return "Not available"
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
-    currency: "AUD",
+    currency,
     maximumFractionDigits: 0,
-  }).format((value ?? 0) / 100)
+  }).format(value / 100)
 }
 
 export default async function CashPlanSettingsPage() {
   const { data: { user } } = await getAuthenticatedUser()
   if (!user) redirect("/sign-in")
 
-  const { plan, settings, summary } = await withUserContext(user.id, async (tx) => {
-    const [plan, settings] = await Promise.all([
-      tx.cashPlan.findFirst({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          name: true,
-          currency: true,
-          timezone: true,
-          horizonWeeks: true,
-          bufferTargetCents: true,
-          status: true,
-          updatedAt: true,
-        },
-      }),
-      tx.cashPlanSetting.findFirst({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          currency: true,
-          timezone: true,
-          horizonWeeks: true,
-          bufferTargetCents: true,
-          alertThresholdCents: true,
-          reviewRole: true,
-        },
-      }),
-    ])
-
-    const latestSnapshot = plan
-      ? await tx.cashPlanSnapshot.findFirst({
-          where: { planId: plan.id },
-          orderBy: { createdAt: "desc" },
-          select: {
-            inputHash: true,
-            engineVersion: true,
-            confidence: true,
-            status: true,
-            lowestClosingCashCents: true,
-            bufferGapCents: true,
-            weeks: true,
-          },
-        })
-      : null
-
-    const bufferTargetCents = settings?.bufferTargetCents ?? plan?.bufferTargetCents ?? defaultCashPlanSettings.bufferTargetCents
-
-    const forecast = latestSnapshot && Array.isArray(latestSnapshot.weeks)
-      ? {
-          engineVersion: latestSnapshot.engineVersion,
-          inputHash: latestSnapshot.inputHash,
-          confidence: latestSnapshot.confidence,
-          status: (latestSnapshot.status === "healthy" || latestSnapshot.status === "preliminary" || latestSnapshot.status === "stale"
-            ? latestSnapshot.status
-            : "preliminary") as "healthy" | "preliminary" | "stale",
-          lowestClosingCashCents: latestSnapshot.lowestClosingCashCents,
-          bufferGapCents: latestSnapshot.bufferGapCents,
-          dataQualityIssues: [],
-          inflows: [],
-          outflows: [],
-          weeks: latestSnapshot.weeks as unknown as CashPlanForecastWeek[],
-        }
-      : buildCashPlanForecast({
-          openingCashCents: 0,
-          inflows: [],
-          outflows: [],
-          bufferTargetCents,
-          now: new Date(),
-        })
-
-    const summary = buildCashPlanSummaryResponse({
-      forecast,
-      title: plan?.name ?? "Base plan",
-    })
-
-    return {
-      plan,
-      settings,
-      summary,
-    }
-  })
+  const assembly = await loadCashPlan(user.id)
+  const { plan, settings } = assembly.inputs
+  const summary = presentCashPlan(assembly)
 
   const status = buildCashPlanDashboardStatus({ summary, hasPlan: Boolean(plan) })
 
@@ -153,7 +70,7 @@ export default async function CashPlanSettingsPage() {
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-gray-500">Buffer target</dt>
-            <dd className="mt-1 text-sm text-gray-900">{formatAmountFromCents(settings?.bufferTargetCents ?? plan?.bufferTargetCents ?? defaultCashPlanSettings.bufferTargetCents)}</dd>
+            <dd className="mt-1 text-sm text-gray-900">{formatAmountFromCents(assembly.inputs.configuration?.bufferTargetCents, summary.currency ?? "AUD")}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-gray-500">Review role</dt>

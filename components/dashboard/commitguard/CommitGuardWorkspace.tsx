@@ -1,55 +1,59 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { CommitGuardCommitmentEditor } from "@/components/dashboard/commitguard/CommitGuardCommitmentEditor"
+import type { EditableCommitment } from "@/lib/commitguard/commitmentEditor"
+import { formatCommitGuardMoney } from "@/lib/commitguard/summaryPresentation"
+import { SUPPORTED_COMMITMENT_FREQUENCIES } from "@/lib/commitguard/commitmentSchedule"
+import { CommitGuardCandidateReview, type DetectionControls } from "@/components/dashboard/commitguard/CommitGuardCandidateReview"
+import type { CandidateDisplay } from "@/lib/commitguard/candidatePresentation"
+import { useCommitGuardWorkspace, useCommitGuardRefresh } from "@/components/dashboard/commitguard/CommitGuardWorkspaceProvider"
 
-type CommitmentItem = {
-  id: string
-  name: string
-  category: string
-  amountCents: number
-  frequency: string
-  nextDueDate: string | null
-  confidence: string
-  status: string
-}
+type CommitmentItem = EditableCommitment
 
-type DetectedCandidate = {
-  id: string
-  name: string
-  category: string
-  frequency: string
-  typicalAmountCents: number
-  confidence: string
-  source: string
-  status: string
-}
+type DetectedCandidate = CandidateDisplay
 
 interface CommitGuardWorkspaceProps {
   initialCommitments: CommitmentItem[]
   initialDetectedCandidates: DetectedCandidate[]
   detectionEnabled: boolean
+  detectionSettings?: DetectionControls | null
 }
 
-const FREQUENCY_OPTIONS = [
-  "one_off",
-  "weekly",
-  "fortnightly",
-  "monthly",
-  "quarterly",
-  "six_monthly",
-  "annual",
-  "custom",
-] as const
+const FREQUENCY_OPTIONS = SUPPORTED_COMMITMENT_FREQUENCIES
+
+function mutationFieldErrors(payload: unknown): Record<string, string> {
+  if (!payload || typeof payload !== "object" || !("error" in payload)) return {}
+  const error = payload.error
+  if (!error || typeof error !== "object" || !("fieldErrors" in error) || !error.fieldErrors || typeof error.fieldErrors !== "object") return {}
+  return Object.fromEntries(Object.entries(error.fieldErrors).map(([field, messages]) => [
+    field, Array.isArray(messages) ? messages.filter((message) => typeof message === "string").join(" ") : "",
+  ]))
+}
+
+function mutationErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object" || !("error" in payload)) return fallback
+  const error = payload.error
+  if (typeof error === "string") return error
+  return Object.entries(mutationFieldErrors(payload))
+    .filter(([, message]) => message)
+    .map(([field, message]) => `${field}: ${message}`).join(" ") || fallback
+}
 
 export function CommitGuardWorkspace({
   initialCommitments,
   initialDetectedCandidates,
   detectionEnabled,
+  detectionSettings,
 }: CommitGuardWorkspaceProps) {
-  const [commitments, setCommitments] = useState<CommitmentItem[]>(initialCommitments)
-  const [candidates, setCandidates] = useState<DetectedCandidate[]>(initialDetectedCandidates)
+  const context = useCommitGuardWorkspace()
+  const { refresh, requestMutation } = useCommitGuardRefresh()
+  const commitments: CommitmentItem[] = context?.workspace.commitments ?? initialCommitments
+  const [needsReload, setNeedsReload] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [createFieldErrors, setCreateFieldErrors] = useState<Record<string, string>>({})
 
   const [formName, setFormName] = useState("")
   const [formCategory, setFormCategory] = useState("operations")
@@ -63,79 +67,42 @@ export function CommitGuardWorkspace({
   const [formNoticePeriodDays, setFormNoticePeriodDays] = useState("30")
   const [formAutoRenew, setFormAutoRenew] = useState(false)
 
-  const [editCommitmentId, setEditCommitmentId] = useState<string | null>(null)
-  const [editName, setEditName] = useState("")
-  const [editCategory, setEditCategory] = useState("")
-  const [editAmountAud, setEditAmountAud] = useState("0")
-  const [editFrequency, setEditFrequency] = useState<(typeof FREQUENCY_OPTIONS)[number]>("monthly")
-  const [editNextDueDate, setEditNextDueDate] = useState("")
-
-  const commitmentById = useMemo(() => {
-    const map = new Map<string, CommitmentItem>()
-    for (const commitment of commitments) {
-      map.set(commitment.id, commitment)
+  // Freeze the opening baseline, not the live refreshed row: GET-only conflict
+  // recovery keeps drafts and does not turn untouched fields into writes.
+  const [editing, setEditing] = useState<CommitmentItem | null>(null)
+  const editTrigger = useRef<HTMLButtonElement | null>(null)
+  const restoreEditFocus = useRef(false)
+  useEffect(() => {
+    if (!editing && !context?.refreshing && !context?.mutating && restoreEditFocus.current) {
+      editTrigger.current?.focus()
+      restoreEditFocus.current = false
     }
-    return map
-  }, [commitments])
+  }, [editing, context?.refreshing, context?.mutating])
+
+  function closeEdit(): void {
+    restoreEditFocus.current = true
+    setEditing(null)
+  }
 
   async function refreshData() {
-    const [commitmentsResponse, detectionsResponse] = await Promise.all([
-      fetch("/api/commitguard/commitments"),
-      detectionEnabled ? fetch("/api/commitguard/detections") : Promise.resolve(null),
-    ])
-
-    if (!commitmentsResponse.ok) {
-      throw new Error("Failed to refresh commitments")
-    }
-
-    const commitmentsPayload = await commitmentsResponse.json()
-    const normalizedCommitments = (Array.isArray(commitmentsPayload?.commitments)
-      ? commitmentsPayload.commitments
-      : []) as Array<Record<string, unknown>>
-
-    setCommitments(
-      normalizedCommitments.map((item) => ({
-        id: String(item.id ?? ""),
-        name: String(item.name ?? ""),
-        category: String(item.category ?? ""),
-        amountCents: Number(item.amountCents ?? 0),
-        frequency: String(item.frequency ?? "monthly"),
-        nextDueDate: typeof item.nextDueDate === "string" ? item.nextDueDate : null,
-        confidence: String(item.confidence ?? "medium"),
-        status: String(item.status ?? "active"),
-      })),
-    )
-
-    if (detectionEnabled && detectionsResponse) {
-      if (detectionsResponse.ok) {
-        const detectionsPayload = await detectionsResponse.json()
-        const normalizedCandidates = (Array.isArray(detectionsPayload?.candidates)
-          ? detectionsPayload.candidates
-          : []) as Array<Record<string, unknown>>
-
-        setCandidates(
-          normalizedCandidates.map((item) => ({
-            id: String(item.id ?? ""),
-            name: String(item.name ?? ""),
-            category: String(item.category ?? "other"),
-            frequency: String(item.frequency ?? "custom"),
-            typicalAmountCents: Number(item.typicalAmountCents ?? 0),
-            confidence: String(item.confidence ?? "medium"),
-            source: String(item.source ?? "system_inferred"),
-            status: String(item.status ?? "pending"),
-          })),
-        )
-      }
+    try { await refresh(); setNeedsReload(false) }
+    catch {
+      // With a provider, its GET-only retry owns this failure state. Do not
+      // leave a second local latch blocking actions after that retry succeeds.
+      if (!context) { setNeedsReload(true); setError("Save succeeded, but figures could not refresh. Retry workspace refresh only; do not save again.") }
     }
   }
 
   async function createCommitment(event: React.FormEvent) {
     event.preventDefault()
+    if (loading || needsReload || context?.mutating || context?.refreshFailed || context?.refreshing) return
     setLoading(true)
     setError(null)
+    setCreateFieldErrors({})
+    setSaved(false)
 
     try {
-      const response = await fetch("/api/commitguard/commitments", {
+      const response = await requestMutation("/api/commitguard/commitments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -155,10 +122,13 @@ export function CommitGuardWorkspace({
       })
 
       if (!response.ok) {
+        if (response.status === 409) setNeedsReload(true)
         const payload = await response.json().catch(() => ({ error: "Failed to create commitment" }))
-        throw new Error(typeof payload.error === "string" ? payload.error : "Failed to create commitment")
+        setCreateFieldErrors(mutationFieldErrors(payload))
+        throw new Error(mutationErrorMessage(payload, "Failed to create commitment"))
       }
 
+      setSaved(true)
       setFormName("")
       setFormCategory("operations")
       setFormAmountAud("0")
@@ -172,6 +142,7 @@ export function CommitGuardWorkspace({
       setFormAutoRenew(false)
       await refreshData()
     } catch (err) {
+      setNeedsReload(true)
       setError(err instanceof Error ? err.message : "Failed to create commitment")
     } finally {
       setLoading(false)
@@ -179,98 +150,36 @@ export function CommitGuardWorkspace({
   }
 
   function startEdit(commitmentId: string) {
-    const commitment = commitmentById.get(commitmentId)
-    if (!commitment) return
-
-    setEditCommitmentId(commitment.id)
-    setEditName(commitment.name)
-    setEditCategory(commitment.category)
-    setEditAmountAud((commitment.amountCents / 100).toString())
-    setEditFrequency((FREQUENCY_OPTIONS.includes(commitment.frequency as (typeof FREQUENCY_OPTIONS)[number])
-      ? commitment.frequency
-      : "monthly") as (typeof FREQUENCY_OPTIONS)[number])
-    setEditNextDueDate(
-      commitment.nextDueDate ? new Date(commitment.nextDueDate).toISOString().slice(0, 10) : "",
-    )
-  }
-
-  async function saveEdit(event: React.FormEvent) {
-    event.preventDefault()
-    if (!editCommitmentId) return
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch(`/api/commitguard/commitments/${editCommitmentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editName,
-          category: editCategory,
-          amountCents: Math.max(0, Math.round(Number(editAmountAud) * 100)),
-          frequency: editFrequency,
-          nextDueDate: editNextDueDate ? new Date(editNextDueDate).toISOString() : null,
-        }),
-      })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({ error: "Failed to save commitment" }))
-        throw new Error(typeof payload.error === "string" ? payload.error : "Failed to save commitment")
-      }
-
-      setEditCommitmentId(null)
-      await refreshData()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save commitment")
-    } finally {
-      setLoading(false)
-    }
+    const commitment = commitments.find((row) => row.id === commitmentId)
+    if (!commitment || commitment.archivedAt) return
+    setSaved(false)
+    setEditing({ ...commitment })
   }
 
   async function runLifecycleAction(commitmentId: string, action: "pause" | "resume" | "cancel" | "confirm") {
+    if (loading || needsReload || context?.mutating || context?.refreshFailed || context?.refreshing) return
     setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch(`/api/commitguard/commitments/${commitmentId}/actions`, {
+      setSaved(false)
+      const response = await requestMutation(`/api/commitguard/commitments/${commitmentId}/actions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       })
 
       if (!response.ok) {
+        if (response.status === 409) setNeedsReload(true)
         const payload = await response.json().catch(() => ({ error: "Action failed" }))
         throw new Error(typeof payload.error === "string" ? payload.error : "Action failed")
       }
 
+      setSaved(true)
       await refreshData()
     } catch (err) {
+      setNeedsReload(true)
       setError(err instanceof Error ? err.message : "Action failed")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function reviewCandidate(candidateId: string, action: "confirm" | "ignore" | "not_a_commitment") {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch(`/api/commitguard/detections/${candidateId}/review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({ error: "Review action failed" }))
-        throw new Error(typeof payload.error === "string" ? payload.error : "Review action failed")
-      }
-
-      await refreshData()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Review action failed")
     } finally {
       setLoading(false)
     }
@@ -278,9 +187,11 @@ export function CommitGuardWorkspace({
 
   return (
     <section className="space-y-6">
+      {saved ? <p role="status">Commitment saved successfully.</p> : null}
+      {needsReload ? <div role="alert"><p>Reload current workspace before another mutation. Any unsaved edit draft is retained.</p><button type="button" disabled={loading} onClick={() => { void refresh().then(() => { setNeedsReload(false); setError(null) }).catch(() => setError("Could not reload workspace. Drafts retained; retry GET only.")) }}>Reload workspace (keep drafts)</button></div> : null}
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-base font-semibold text-gray-900">Add commitment</h2>
-        <form onSubmit={createCommitment} className="mt-4 space-y-4">
+        <form onSubmit={(event) => { if (needsReload || context?.refreshFailed) { event.preventDefault(); return }; void createCommitment(event) }} className="mt-4 space-y-4">
           <div className="grid gap-3 md:grid-cols-5">
           <label className="md:col-span-2">
             <span className="mb-1 block text-xs uppercase tracking-wide text-gray-500">Name</span>
@@ -316,6 +227,8 @@ export function CommitGuardWorkspace({
             <span className="mb-1 block text-xs uppercase tracking-wide text-gray-500">Frequency</span>
             <select
               value={formFrequency}
+              aria-invalid={Boolean(createFieldErrors.frequency)}
+              aria-describedby={createFieldErrors.frequency ? "commitguard-create-frequency-error" : undefined}
               onChange={(event) => setFormFrequency(event.target.value as (typeof FREQUENCY_OPTIONS)[number])}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
             >
@@ -325,20 +238,24 @@ export function CommitGuardWorkspace({
                 </option>
               ))}
             </select>
+            {createFieldErrors.frequency ? <span id="commitguard-create-frequency-error" className="text-xs text-red-700">{createFieldErrors.frequency}</span> : null}
           </label>
           <label>
             <span className="mb-1 block text-xs uppercase tracking-wide text-gray-500">Next due date</span>
             <input
               type="date"
               value={formNextDueDate}
+              aria-invalid={Boolean(createFieldErrors.nextDueDate)}
+              aria-describedby={createFieldErrors.nextDueDate ? "commitguard-create-due-error" : undefined}
               onChange={(event) => setFormNextDueDate(event.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
             />
+            {createFieldErrors.nextDueDate ? <span id="commitguard-create-due-error" className="text-xs text-red-700">{createFieldErrors.nextDueDate}</span> : null}
           </label>
           <div className="flex items-end">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || needsReload || context?.mutating || context?.refreshing || context?.refreshFailed}
               className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {loading ? "Saving..." : "Add commitment"}
@@ -409,45 +326,30 @@ export function CommitGuardWorkspace({
         </form>
       </div>
 
-      {editCommitmentId ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <h3 className="text-sm font-semibold text-amber-900">Edit commitment</h3>
-          <form onSubmit={saveEdit} className="mt-3 grid gap-3 md:grid-cols-5">
-            <input value={editName} onChange={(event) => setEditName(event.target.value)} className="rounded-md border border-amber-300 px-3 py-2 text-sm text-gray-900 md:col-span-2" />
-            <input value={editCategory} onChange={(event) => setEditCategory(event.target.value)} className="rounded-md border border-amber-300 px-3 py-2 text-sm text-gray-900" />
-            <input type="number" min={0} step={1} value={editAmountAud} onChange={(event) => setEditAmountAud(event.target.value)} className="rounded-md border border-amber-300 px-3 py-2 text-sm text-gray-900" />
-            <select value={editFrequency} onChange={(event) => setEditFrequency(event.target.value as (typeof FREQUENCY_OPTIONS)[number])} className="rounded-md border border-amber-300 px-3 py-2 text-sm text-gray-900">
-              {FREQUENCY_OPTIONS.map((frequency) => (
-                <option key={frequency} value={frequency}>{frequency.replaceAll("_", " ")}</option>
-              ))}
-            </select>
-            <input type="date" value={editNextDueDate} onChange={(event) => setEditNextDueDate(event.target.value)} className="rounded-md border border-amber-300 px-3 py-2 text-sm text-gray-900" />
-            <div className="md:col-span-2 flex gap-2">
-              <button type="submit" disabled={loading} className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-50">Save changes</button>
-              <button type="button" onClick={() => setEditCommitmentId(null)} className="rounded-md border border-amber-300 px-3 py-2 text-sm text-amber-900">Cancel</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      {editing ? <CommitGuardCommitmentEditor key={editing.id} row={editing}
+        blocked={Boolean(loading || needsReload || context?.mutating || context?.refreshing || context?.refreshFailed)}
+        onConflict={() => setNeedsReload(true)} onCancel={closeEdit}
+        onSaved={async () => { setSaved(true); closeEdit(); await refreshData() }} /> : null}
 
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-base font-semibold text-gray-900">Lifecycle actions</h2>
         <div className="mt-3 space-y-2">
           {commitments.map((commitment) => (
-            <div key={commitment.id} className="rounded-md border border-gray-200 p-3">
+            <div key={commitment.id} id={`commitment-${commitment.id}`} tabIndex={-1} className="rounded-md border border-gray-200 p-3">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900">{commitment.name}</p>
+                  {commitment.frequency === "custom" ? <p className="text-xs text-amber-800">Unsupported custom recurrence — edit to choose a supported frequency.</p> : null}
                   <p className="text-xs text-gray-600">
-                    {commitment.status.replaceAll("_", " ")} · {(commitment.amountCents / 100).toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 })}
+                    {commitment.status.replaceAll("_", " ")} · {formatCommitGuardMoney(commitment.amountCents, commitment.currency ?? "aud")}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => startEdit(commitment.id)} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700">Edit</button>
-                  <button type="button" onClick={() => runLifecycleAction(commitment.id, "pause")} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700">Pause</button>
-                  <button type="button" onClick={() => runLifecycleAction(commitment.id, "resume")} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700">Resume</button>
-                  <button type="button" onClick={() => runLifecycleAction(commitment.id, "cancel")} className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700">Cancel</button>
-                </div>
+                {commitment.archivedAt ? <p className="text-sm">Archived (read-only)</p> : <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={loading || context?.mutating || context?.refreshing} onClick={(event) => { editTrigger.current = event.currentTarget; startEdit(commitment.id) }} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700">Edit</button>
+                  {["active", "upcoming", "ending", "review"].includes(commitment.status) ? <button type="button" disabled={loading || needsReload || context?.mutating || context?.refreshing || context?.refreshFailed} onClick={() => runLifecycleAction(commitment.id, "pause")} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700">Pause</button> : null}
+                  {commitment.status === "paused" ? <button type="button" disabled={loading || needsReload || context?.mutating || context?.refreshing || context?.refreshFailed} onClick={() => runLifecycleAction(commitment.id, "resume")} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700">Resume</button> : null}
+                  {!["cancelled", "expired"].includes(commitment.status) ? <button type="button" disabled={loading || needsReload || context?.mutating || context?.refreshing || context?.refreshFailed} onClick={() => runLifecycleAction(commitment.id, "cancel")} className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700">Cancel</button> : null}
+                </div>}
               </div>
             </div>
           ))}
@@ -455,30 +357,7 @@ export function CommitGuardWorkspace({
       </div>
 
       {detectionEnabled ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="text-base font-semibold text-gray-900">Detected commitments review</h2>
-          {candidates.filter((candidate) => candidate.status === "pending").length === 0 ? (
-            <p className="mt-3 text-sm text-gray-600">No pending detection candidates right now.</p>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {candidates
-                .filter((candidate) => candidate.status === "pending")
-                .map((candidate) => (
-                  <div key={candidate.id} className="rounded-md border border-gray-200 p-3">
-                    <p className="text-sm font-medium text-gray-900">{candidate.name}</p>
-                    <p className="mt-1 text-xs text-gray-600">
-                      {candidate.frequency.replaceAll("_", " ")} · {(candidate.typicalAmountCents / 100).toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 })} · {candidate.source.replaceAll("_", " ")}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <button type="button" onClick={() => reviewCandidate(candidate.id, "confirm")} className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700">Confirm</button>
-                      <button type="button" onClick={() => reviewCandidate(candidate.id, "ignore")} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700">Ignore</button>
-                      <button type="button" onClick={() => reviewCandidate(candidate.id, "not_a_commitment")} className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700">Not a commitment</button>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
-        </div>
+        <CommitGuardCandidateReview candidates={initialDetectedCandidates} settings={detectionSettings} />
       ) : null}
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

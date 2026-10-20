@@ -293,6 +293,10 @@ model UserProfile {
   runwayGuardAlertEvents        RunwayGuardAlertEvent[]
   runwayGuardScenarios          RunwayGuardScenario[]
   commitGuardSettings           CommitGuardSetting[]
+  commitGuardCashContext        CommitGuardCashContext?
+  commitGuardWorkItems          CommitGuardWorkItem[]
+  commitGuardEvaluationState    CommitGuardEvaluationState?
+  commitmentCoverages           CommitmentCoverage[]
   commitments                   Commitment[]
   commitmentDetectionCandidates CommitmentDetectionCandidate[]
   commitmentEvents              CommitmentEvent[]
@@ -1426,6 +1430,7 @@ model ImportedBill {
   marginCostClassifications MarginCostClassification[]
   spendClassifications      SpendClassification[]
   taxBufferObligations      TaxBufferObligation[]
+  commitmentCoverages       CommitmentCoverage[]
 
   @@unique([accountingConnectionId, sourceId])
   @@unique([userId, id])
@@ -1925,6 +1930,14 @@ model CashPlanSnapshot {
   lowestClosingCashCents Int      @default(0) @map("lowest_closing_cash_cents")
   bufferGapCents         Int      @default(0) @map("buffer_gap_cents")
   weeks                  Json
+  inputVersion           Int      @default(1) @map("input_version")
+  anchorDate             DateTime? @db.Date @map("anchor_date")
+  inputCurrency          String?  @map("input_currency")
+  cashInputRevision      Int?     @map("cash_input_revision")
+  commitmentRevision     Int?     @map("commitment_revision")
+  canonicalFacts         Json?    @map("canonical_facts")
+  coverage               Json?
+  inputQuality           Json?    @map("input_quality")
   createdAt              DateTime @default(now()) @map("created_at")
 
   plan     CashPlan          @relation(fields: [planId], references: [id], onDelete: Cascade)
@@ -1944,6 +1957,7 @@ model CashPlanOverride {
   owner         String?
   effectiveFrom DateTime? @map("effective_from")
   expiresAt     DateTime? @map("expires_at")
+  plannedDate   DateTime? @db.Date @map("planned_date")
   sourceType    String    @default("manual") @map("source_type")
   sourceId      String?   @map("source_id")
   createdBy     String?   @map("created_by")
@@ -2527,7 +2541,9 @@ model TaxReserveCategory {
   userProfile UserProfile           @relation(fields: [userId], references: [userId])
   obligations TaxBufferObligation[]
   overrides   TaxBufferOverride[]
+  commitmentCoverages CommitmentCoverage[]
 
+  @@unique([userId, id])
   @@index([userId, categoryType])
   @@index([userId, enabled])
   @@map("tax_reserve_categories")
@@ -2641,6 +2657,7 @@ model CommitGuardSetting {
   defaultHorizonDays             Int      @default(30) @map("default_horizon_days")
   safetyBufferMode               String   @default("fixed_amount") @map("safety_buffer_mode") // fixed_amount | percentage_monthly_commitments | weeks_operating_expenses
   safetyBufferFixedCents         Int      @default(0) @map("safety_buffer_fixed_cents")
+  safetyBufferCurrency           String?  @map("safety_buffer_currency")
   safetyBufferPercent            Float?   @map("safety_buffer_percent")
   safetyBufferWeeks              Float?   @map("safety_buffer_weeks")
   detectRecurringCommitments     Boolean  @default(false) @map("detect_recurring_commitments")
@@ -2655,6 +2672,7 @@ model CommitGuardSetting {
   alertCommitmentBufferLow       Boolean  @default(true) @map("alert_commitment_buffer_low")
   alertCommitmentShortfall       Boolean  @default(true) @map("alert_commitment_shortfall")
   renewalWarningDays             Json?    @map("renewal_warning_days")
+  calculationRevision            Int      @default(0) @map("calculation_revision")
   createdAt                      DateTime @default(now()) @map("created_at")
   updatedAt                      DateTime @updatedAt @map("updated_at")
 
@@ -2662,6 +2680,79 @@ model CommitGuardSetting {
 
   @@unique([userId])
   @@map("commit_guard_settings")
+}
+
+// Financial attestations are not portable module settings. All-or-none field
+// groups and tenant/job write restrictions require the CommitGuard SQL policies.
+model CommitGuardCashContext {
+  id                           String    @id @default(cuid())
+  userId                       String    @unique @map("user_id")
+  amountCents                  Int?      @map("amount_cents")
+  currency                     String?
+  balanceAsOf                  DateTime? @db.Date @map("balance_as_of")
+  weeklyOperatingExpensesCents Int?      @map("weekly_operating_expenses_cents")
+  weeklyExpensesCurrency       String?   @map("weekly_expenses_currency")
+  weeklyExpensesAsOf           DateTime? @db.Date @map("weekly_expenses_as_of")
+  taxProtectionCurrency        String?   @map("tax_protection_currency")
+  revision                     Int       @default(0)
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("commit_guard_cash_contexts")
+}
+
+model CommitGuardWorkItem {
+  id                  String    @id @default(cuid())
+  userId              String    @map("user_id")
+  kind                String // detect | evaluate
+  dedupeKey           String    @map("dedupe_key")
+  sourceKind          String    @map("source_kind")
+  sourceId            String?   @map("source_id")
+  calculationRevision Int       @map("calculation_revision")
+  state               String    @default("pending") // pending | processing | completed | skipped | failed
+  attempts            Int       @default(0)
+  generation          Int       @default(0)
+  attemptHistory      Json?     @map("attempt_history") // retained across authorized retry generations
+  requestedAt         DateTime  @default(now()) @map("requested_at")
+  nextAttemptAt       DateTime  @default(now()) @map("next_attempt_at")
+  completedAt         DateTime? @map("completed_at")
+  leaseOwner          String?   @map("lease_owner")
+  leaseExpiresAt      DateTime? @map("lease_expires_at")
+  fence               Int       @default(0)
+  safeErrorCode       String?   @map("safe_error_code")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([userId, kind, dedupeKey])
+  @@index([state, nextAttemptAt])
+  @@index([state, leaseExpiresAt])
+  @@index([userId, requestedAt])
+  @@map("commit_guard_work_items")
+}
+
+// Tenant readable, system writable only; fence validation and financial writes
+// must share one transaction before this evaluation state can advance.
+model CommitGuardEvaluationState {
+  id                            String    @id @default(cuid())
+  userId                        String    @unique @map("user_id")
+  lastEvaluatedAt               DateTime? @map("last_evaluated_at")
+  lastSuccessfulDailyEvaluationAt DateTime? @map("last_successful_daily_evaluation_at")
+  calculationRevision           Int?      @map("calculation_revision")
+  cashInputRevision             Int?      @map("cash_input_revision")
+  cashRiskEpisodeId             String?   @map("cash_risk_episode_id")
+  cashRiskStatus                String?   @map("cash_risk_status")
+  cashRiskRelevance             String?   @map("cash_risk_relevance") // active | suspended | resolved
+  cashRiskResolvedAt            DateTime? @map("cash_risk_resolved_at")
+  createdAt                     DateTime  @default(now()) @map("created_at")
+  updatedAt                     DateTime  @updatedAt @map("updated_at")
+
+  userProfile UserProfile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("commit_guard_evaluation_states")
 }
 
 model Commitment {
@@ -2691,6 +2782,7 @@ model Commitment {
   notes                  String?
   linkedSpendInsightId   String?   @map("linked_spend_insight_id")
   linkedCostGuardAlertId String?   @map("linked_cost_guard_alert_id")
+  sourceDetectionCandidateId String? @map("source_detection_candidate_id")
   pausedAt               DateTime? @map("paused_at")
   cancelledAt            DateTime? @map("cancelled_at")
   expiredAt              DateTime? @map("expired_at")
@@ -2700,7 +2792,11 @@ model Commitment {
 
   userProfile UserProfile       @relation(fields: [userId], references: [userId])
   events      CommitmentEvent[]
+  sourceDetectionCandidate CommitmentDetectionCandidate? @relation("CommitmentConversion", fields: [userId, sourceDetectionCandidateId], references: [userId, id], onDelete: Restrict, onUpdate: Restrict)
+  coverages CommitmentCoverage[]
 
+  @@unique([userId, id])
+  @@unique([userId, sourceDetectionCandidateId])
   @@index([userId, nextDueDate])
   @@index([userId, status])
   @@index([userId, renewalDate])
@@ -2710,9 +2806,37 @@ model Commitment {
   @@map("commitments")
 }
 
+// Typed target columns use separate unique indexes because PostgreSQL permits
+// multiple NULLs. Supplemental SQL enforces exactly one target and matching kind.
+model CommitmentCoverage {
+  id                   String   @id @default(cuid())
+  userId               String   @map("user_id")
+  commitmentId         String   @map("commitment_id")
+  occurrenceDate       DateTime @db.Date @map("occurrence_date")
+  currency             String
+  coveredCents         Int      @map("covered_cents")
+  targetKind           String   @map("target_kind") // imported_bill | tax_reserve_category
+  importedBillId       String?  @map("imported_bill_id")
+  taxReserveCategoryId String?  @map("tax_reserve_category_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  userProfile        UserProfile         @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  commitment         Commitment          @relation(fields: [userId, commitmentId], references: [userId, id], onDelete: Restrict, onUpdate: Restrict)
+  importedBill       ImportedBill?       @relation(fields: [userId, importedBillId], references: [userId, id], onDelete: Restrict, onUpdate: Restrict)
+  taxReserveCategory TaxReserveCategory? @relation(fields: [userId, taxReserveCategoryId], references: [userId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([userId, commitmentId, occurrenceDate, importedBillId], map: "commitment_coverage_bill_unique")
+  @@unique([userId, commitmentId, occurrenceDate, taxReserveCategoryId], map: "commitment_coverage_tax_unique")
+  @@index([userId, occurrenceDate])
+  @@map("commitment_coverages")
+}
+
 model CommitmentDetectionCandidate {
   id                           String    @id @default(cuid())
   userId                       String    @map("user_id")
+  candidateKey                 String?   @map("candidate_key") // nullable only for legacy evidence
+  connectionId                 String?   @map("connection_id")
   name                         String
   supplierName                 String?   @map("supplier_name")
   supplierId                   String?   @map("supplier_id")
@@ -2727,6 +2851,13 @@ model CommitmentDetectionCandidate {
   evidence                     Json?
   evidenceFingerprint          String?   @map("evidence_fingerprint")
   rejectionEvidenceFingerprint String?   @map("rejection_evidence_fingerprint")
+  suppressionEvidence          Json?     @map("suppression_evidence") // immutable baseline until deliberate review/reactivation
+  userCorrections              Json?     @map("user_corrections")
+  correctionsEvidenceFingerprint String? @map("corrections_evidence_fingerprint")
+  latestObservedAt             DateTime? @db.Date @map("latest_observed_at")
+  recurrenceAnchor             DateTime? @db.Date @map("recurrence_anchor")
+  suggestedDueDate             DateTime? @db.Date @map("suggested_due_date")
+  conversionReviewRequired     Boolean   @default(false) @map("conversion_review_required")
   firstDetectedAt              DateTime  @default(now()) @map("first_detected_at")
   lastDetectedAt               DateTime  @default(now()) @map("last_detected_at")
   nextSuggestedAt              DateTime? @map("next_suggested_at")
@@ -2736,7 +2867,10 @@ model CommitmentDetectionCandidate {
 
   userProfile UserProfile       @relation(fields: [userId], references: [userId])
   events      CommitmentEvent[]
+  convertedCommitment Commitment? @relation("CommitmentConversion")
 
+  @@unique([userId, id])
+  @@unique([userId, candidateKey])
   @@index([userId, status, lastDetectedAt])
   @@index([userId, source])
   @@index([userId, supplierId])
@@ -2755,6 +2889,11 @@ model CommitmentEvent {
   message              String
   actorId              String?  @map("actor_id")
   metadata             Json?
+  occurrenceDate       DateTime? @db.Date @map("occurrence_date")
+  cycleKey             String?  @map("cycle_key")
+  inputRevision        Int?     @map("input_revision")
+  relevance            String   @default("historical") // active | resolved | superseded | suspended | historical
+  resolvedAt           DateTime? @map("resolved_at")
   occurredAt           DateTime @default(now()) @map("occurred_at")
   createdAt            DateTime @default(now()) @map("created_at")
 
@@ -2763,6 +2902,7 @@ model CommitmentEvent {
   detectionCandidate CommitmentDetectionCandidate? @relation(fields: [detectionCandidateId], references: [id], onDelete: SetNull)
 
   @@unique([userId, dedupeKey])
+  @@index([userId, relevance, occurredAt])
   @@index([userId, occurredAt])
   @@index([commitmentId, occurredAt])
   @@index([detectionCandidateId, occurredAt])

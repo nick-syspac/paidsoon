@@ -1,6 +1,9 @@
 import "@/tests/helpers/subscriptionAccess"
 import assert from "node:assert/strict"
 import { before, beforeEach, describe, mock, test } from "node:test"
+import { detectionSqlAdapter, type DetectionWork } from "@/tests/helpers/commitGuardDetection"
+import { requestCommitGuardDetection } from "@/lib/commitguard/detectionRequest"
+import type { PrismaTx } from "@/lib/db/withUserContext"
 
 let mockUser: { id: string } | null = { id: "user-1" }
 
@@ -12,6 +15,8 @@ let mockBatch: {
   mapping: Record<string, unknown>
   rowsSkipped: number
   startedAt: Date | null
+  completedAt: Date | null
+  rowsFailed: number
 }
 
 let stagingRowsRead = false
@@ -20,12 +25,22 @@ let mockSourceType: "bill" | "transaction" = "bill"
 let capturedBankTransaction: Record<string, unknown> | null = null
 const classificationHandoffs: Array<{ userId: string; sourceType: string; sourceRecordId: string }> = []
 let classificationHandoffFails = false
+const detectionWork = new Map<string, DetectionWork>()
+let detectionInsertFails = false
+let sourceWriteFails = false
+let commitFails = false
+let invalidRow = false
+let detectionCalls = 0
+let committedRows = 0
+let lastTx: PrismaTx
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let POST: any
+let POST: typeof import("@/app/api/spend-imports/[batchId]/commit/route").POST
 
 describe("Spend import commit route", () => {
   before(async () => {
+    await mock.module("@/lib/commitguard/detection", { namedExports: {
+      detectCommitmentCandidates: async () => { detectionCalls++; throw new Error("detector must not run during commit") },
+    } })
     await mock.module("@/lib/supabase/server", {
       namedExports: {
         createClient: async () => ({ auth: { getUser: async () => ({ data: { user: mockUser } }) } }),
@@ -70,13 +85,22 @@ describe("Spend import commit route", () => {
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
         withUserContext: async (_userId: string, fn: (tx: unknown) => unknown) => {
+          const previousBatch = structuredClone(mockBatch)
+          const previousWork = structuredClone(detectionWork)
+          const previousRows = committedRows
           const tx = {
+            ...detectionSqlAdapter(detectionWork, () => detectionInsertFails),
             spendImportBatch: {
-              findFirst: async (args: { where: { id: string; userId: string } }) => {
+              findFirst: async (args: { where: { id: string; userId: string; status?: string; completedAt?: unknown; rowsSkipped?: number; rowsFailed?: number } }) => {
                 if (args.where.id !== mockBatch.id || args.where.userId !== mockBatch.userId) return null
+                if (args.where.status && (mockBatch.status !== args.where.status || !mockBatch.completedAt
+                  || mockBatch.rowsSkipped !== 0 || mockBatch.rowsFailed !== 0)) return null
                 return mockBatch
               },
-              update: async ({ data }: { data: Record<string, unknown> }) => ({ ...mockBatch, ...data }),
+              update: async ({ data }: { data: Record<string, unknown> }) => {
+                mockBatch = { ...mockBatch, ...data }
+                return mockBatch
+              },
             },
             spendImportStagingRow: {
               findMany: async () => {
@@ -86,7 +110,7 @@ describe("Spend import commit route", () => {
                     id: "row-1",
                     rowNumber: 2,
                     normalized: {
-                      supplier_name: "Acme Pty Ltd",
+                      supplier_name: invalidRow ? "" : "Acme Pty Ltd",
                       amount: "100.00",
                       transaction_date: "2026-09-01",
                       source_type: mockSourceType,
@@ -107,7 +131,11 @@ describe("Spend import commit route", () => {
               findMany: async () => [{ sourceId: "supplier:acme", supplierName: "Acme Pty Ltd" }],
             },
             importedBill: {
-              upsert: async () => ({ id: "bill-1" }),
+              upsert: async () => {
+                committedRows++
+                if (sourceWriteFails) throw new Error("mock source write failure")
+                return { id: "bill-1" }
+              },
               findMany: async () => [
                 {
                   sourceId: "bill-1",
@@ -134,7 +162,18 @@ describe("Spend import commit route", () => {
             },
           }
 
-          return fn(tx)
+          lastTx = tx as unknown as PrismaTx
+          try {
+            const result = await fn(tx)
+            if (commitFails) throw new Error("mock transaction commit failure")
+            return result
+          } catch (error) {
+            mockBatch = previousBatch
+            committedRows = previousRows
+            detectionWork.clear()
+            for (const [key, value] of previousWork) detectionWork.set(key, value)
+            throw error
+          }
         },
       },
     })
@@ -152,6 +191,8 @@ describe("Spend import commit route", () => {
       mapping: {},
       rowsSkipped: 0,
       startedAt: null,
+      completedAt: null,
+      rowsFailed: 0,
     }
     stagingRowsRead = false
     capturedFindings = []
@@ -159,6 +200,13 @@ describe("Spend import commit route", () => {
     capturedBankTransaction = null
     classificationHandoffs.length = 0
     classificationHandoffFails = false
+    detectionWork.clear()
+    detectionInsertFails = false
+    sourceWriteFails = false
+    commitFails = false
+    invalidRow = false
+    detectionCalls = 0
+    committedRows = 0
   })
 
   test("returns 401 when unauthenticated", async () => {
@@ -216,6 +264,7 @@ describe("Spend import commit route", () => {
 
     assert.equal(first.status, 200)
     assert.equal(second.status, 200)
+    assert.equal(detectionWork.size, 2)
     assert.deepEqual(classificationHandoffs, [
       { userId: "user-1", sourceType: "imported_bill", sourceRecordId: "bill-1" },
       { userId: "user-1", sourceType: "imported_bill", sourceRecordId: "bill-1" },
@@ -233,6 +282,87 @@ describe("Spend import commit route", () => {
     assert.equal(body.status, "completed")
     assert.equal(body.recordsUpserted, 1)
     assert.equal(classificationHandoffs.length, 1)
+    assert.equal(detectionWork.size, 1)
+  })
+
+  test("completion and replay persist exactly one tenant-owned pending identity without detector execution", async () => {
+    const invoke = () => POST(new Request("http://localhost/api/spend-imports/batch-1/commit", { method: "POST" }), {
+      params: Promise.resolve({ batchId: "batch-1" }),
+    })
+    assert.equal((await invoke()).status, 200)
+    assert.equal(mockBatch.status, "completed")
+    assert.equal(detectionWork.size, 1)
+    assert.deepEqual([...detectionWork.values()][0], {
+      userId: "user-1", kind: "detect", dedupeKey: "detection:spend_import_batch:batch-1",
+      sourceKind: "spend_import_batch", sourceId: "batch-1", calculationRevision: 0,
+      state: "pending", attempts: 0, generation: 0,
+    })
+    stagingRowsRead = false
+    assert.equal((await (await invoke()).json()).replay, true)
+    assert.equal(stagingRowsRead, false)
+    assert.equal(committedRows, 1)
+    assert.equal(detectionWork.size, 1)
+    assert.equal(detectionCalls, 0)
+  })
+
+  test("failed handoff cannot undo committed rows; canonical recovery after crash is tenant-scoped and idempotent", async () => {
+    detectionInsertFails = true
+    const res = await POST(new Request("http://localhost/commit", { method: "POST" }), { params: Promise.resolve({ batchId: "batch-1" }) })
+    assert.equal(res.status, 200)
+    assert.equal(mockBatch.status, "completed")
+    assert.equal(committedRows, 1)
+    assert.equal(detectionWork.size, 0)
+    detectionInsertFails = false
+    const source = { sourceKind: "spend_import_batch", sourceId: "batch-1" } as const
+    assert.equal(await requestCommitGuardDetection(lastTx, "foreign-user", source), false)
+    assert.equal(await requestCommitGuardDetection(lastTx, "user-1", source), true)
+    assert.equal(await requestCommitGuardDetection(lastTx, "user-1", source), false)
+    const work = [...detectionWork.values()][0]
+    work.state = "failed"
+    work.attempts = 6
+    work.generation = 3
+    assert.equal(await requestCommitGuardDetection(lastTx, "user-1", source), false)
+    assert.equal(work.attempts, 6)
+    assert.equal(work.generation, 3)
+    assert.equal(detectionCalls, 0)
+  })
+
+  for (const failure of ["source", "commit"] as const) {
+    test(`${failure} failure rolls back source mutations and leaves no orphan work`, async () => {
+      sourceWriteFails = failure === "source"
+      commitFails = failure === "commit"
+      await assert.rejects(() => POST(new Request("http://localhost/commit", { method: "POST" }), {
+        params: Promise.resolve({ batchId: "batch-1" }),
+      }), /mock .*failure/)
+      assert.equal(mockBatch.status, "validated")
+      assert.equal(committedRows, 0)
+      assert.equal(detectionWork.size, 0)
+      assert.equal(classificationHandoffs.length, 0)
+    })
+  }
+
+  for (const status of ["failed", "processing", "uploaded"] as const) {
+    test(`${status} batch cannot create detection work`, async () => {
+      mockBatch.status = status
+      const res = await POST(new Request("http://localhost/commit", { method: "POST" }), { params: Promise.resolve({ batchId: "batch-1" }) })
+      assert.equal(res.status, 409)
+      assert.equal(detectionWork.size, 0)
+    })
+  }
+
+  test("completed batch with skipped/failed rows or absent completion date is not eligible for automatic work", async () => {
+    invalidRow = true
+    const res = await POST(new Request("http://localhost/commit", { method: "POST" }), { params: Promise.resolve({ batchId: "batch-1" }) })
+    assert.equal(res.status, 200)
+    assert.equal(mockBatch.rowsSkipped, 1)
+    assert.equal(detectionWork.size, 0)
+    const source = { sourceKind: "spend_import_batch", sourceId: "batch-1" } as const
+    mockBatch.rowsSkipped = 0
+    mockBatch.rowsFailed = 1
+    assert.equal(await requestCommitGuardDetection(lastTx, "user-1", source), false)
+    mockBatch.rowsFailed = 0
+    mockBatch.completedAt = null
+    assert.equal(await requestCommitGuardDetection(lastTx, "user-1", source), false)
   })
 
   test("stores CSV transaction direction and expense coding separately from bank account fields", async () => {
