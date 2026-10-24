@@ -533,6 +533,8 @@ async function withRetry<T>(
  * Mirrors TOKEN_PROPAGATION_RETRY_DELAYS_MS in the callback route.
  */
 const TOKEN_PROPAGATION_RETRY_DELAYS_MS = [1500, 3000, 6000, 10000]
+const ACCOUNTING_SYNC_STALE_RUNNING_THRESHOLD_MS = 2 * 60 * 60 * 1000
+const ACCOUNTING_SYNC_STALE_RUNNING_RECOVERY_ERROR = "stale_running_recovered"
 
 async function withTokenPropagationRetry<T>(
   fn: () => Promise<T>,
@@ -552,6 +554,31 @@ async function withTokenPropagationRetry<T>(
   }
 }
 
+async function recoverStaleRunningSyncRuns(connectionId: string, now: Date): Promise<number> {
+  const staleBefore = new Date(now.getTime() - ACCOUNTING_SYNC_STALE_RUNNING_THRESHOLD_MS)
+  const recovered = await prismaAdmin.accountingSyncRun.updateMany({
+    where: {
+      accountingConnectionId: connectionId,
+      status: "running",
+      completedAt: null,
+      startedAt: { lt: staleBefore },
+    },
+    data: {
+      status: "failed",
+      completedAt: now,
+      errorMessage: ACCOUNTING_SYNC_STALE_RUNNING_RECOVERY_ERROR,
+    },
+  })
+
+  if (recovered.count > 0) {
+    console.warn(
+      `[sync] recovered ${recovered.count} stale running accounting sync run(s) for connection ${connectionId}`
+    )
+  }
+
+  return recovered.count
+}
+
 export async function syncConnection(connectionId: string): Promise<SyncResult> {
   const result: SyncResult = {
     connectionId,
@@ -565,9 +592,11 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
     spendSuppliersUpserted: 0,
   }
 
-  // Guard: skip if another sync is already running for this connection
+  await recoverStaleRunningSyncRuns(connectionId, new Date())
+
+  // Guard: skip if another non-stale sync is already running for this connection
   const inProgress = await prismaAdmin.accountingSyncRun.findFirst({
-    where: { accountingConnectionId: connectionId, status: "running" },
+    where: { accountingConnectionId: connectionId, status: "running", completedAt: null },
     select: { id: true },
   })
   if (inProgress) {

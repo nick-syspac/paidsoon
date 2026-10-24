@@ -77,7 +77,9 @@ by MYOB as "Not available online" and is not used during connect).
    `?code=connected` and the connection card shows a status other than
    **Sync error** — a first sync now runs automatically as part of connecting.
 5. If the card shows **Importing…** for more than a minute, use **Sync now** to retry, or
-   check server logs for `[myob/callback] initial sync failed to run`.
+   check server logs for `[myob/callback] initial sync failed to run`. Stale
+   historical `running` sync rows are auto-recovered to `failed` on the next sync trigger,
+   so a lingering old `running` row should no longer permanently block retries.
 
 ### 3.2 Production
 
@@ -92,7 +94,7 @@ gate `G-MYOB2` in [go-live-decision-matrix.md](./go-live-decision-matrix.md).
 | MYOB redirects with `error=myob_cancelled` | User declined authorisation | Expected — no action needed |
 | MYOB redirects with `error=missing_params` | The callback did not include `code`, `state`, or `businessId` | Check server logs for the callback request; confirm the MYOB app's redirect URI matches `MYOB_REDIRECT_URI` exactly (a mismatch can cause MYOB to omit params or redirect elsewhere) |
 | MYOB redirects with `error=connection_save_failed` | The `AccountingConnection` upsert failed after a successful token exchange | Check server logs for `[myob/callback] failed to store connection`; likely a transient DB issue — ask the user to retry |
-| Connection stays in **Importing…** | The inline first sync failed or the process restarted mid-request | Click **Sync now**; if it keeps failing, check `AccountingSyncRun.errorMessage` for that connection via the admin tenant detail page |
+| Connection stays in **Importing…** | The inline first sync failed or the process restarted mid-request | Click **Sync now**; stale `running` rows older than the processing window are auto-recovered on entry. If it still stays in Importing, check `AccountingSyncRun.errorMessage` for the newest run via the admin tenant detail page |
 | Connection shows **Sync error** | The first sync ran and failed | Click **Retry sync**; investigate the `errorMessage` on the most recent `AccountingSyncRun` row |
 | 401 errors against real company files | Missing `x-myobapi-key` / `x-myobapi-version` header, or an expired token | Confirm `MYOB_CLIENT_ID` matches the app the token was issued for; tokens expire after 20 minutes and are refreshed automatically before each sync |
 | Spend sync shows `scope_upgrade_required` | Existing connection grant predates current spend-read scope set | Reconnect MYOB from **Settings → Connections** to re-consent with `sme-purchases`, `sme-banking`, `sme-general-ledger`, and `sme-contacts-supplier` |

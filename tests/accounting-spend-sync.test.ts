@@ -51,17 +51,35 @@ let detectionInsertFails = false
 let completionFails = false
 let transactionCommitFails = false
 let invoiceFetchFails = false
+let invoiceFetchDelayMs = 0
 let spendWriteFails = false
 let detectionCalls = 0
 let runId = "sync-run-1"
+let createdRunCount = 0
+let staleRecoveryUpdates = 0
+type MockRunningSyncRow = {
+  id: string
+  accountingConnectionId: string
+  status: "running" | "failed" | "success" | "partial"
+  completedAt: Date | null
+  startedAt: Date
+  errorMessage: string | null
+}
+let runningRows: MockRunningSyncRow[] = []
 
 function completionTx(): PrismaTx {
   return {
     ...detectionSqlAdapter(detectionWork, () => detectionInsertFails),
     accountingSyncRun: {
-      update: async ({ data }: { data: Record<string, unknown> }) => {
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         if (completionFails) throw new Error("mock source completion failure")
-        completedRun = { id: runId, userId: "user-1", ...data } as typeof completedRun
+        const row = runningRows.find((item) => item.id === where.id)
+        if (row) {
+          row.status = String(data.status) as MockRunningSyncRow["status"]
+          row.completedAt = data.completedAt as Date
+          row.errorMessage = (data.errorMessage as string | null | undefined) ?? null
+        }
+        completedRun = { id: where.id, userId: "user-1", ...data } as typeof completedRun
         return completedRun
       },
       findFirst: async ({ where }: { where: Record<string, unknown> }) => {
@@ -132,7 +150,11 @@ describe("accounting spend sync orchestration", () => {
       namedExports: {
         getAccountingProvider: () => ({
           refreshTokens: async () => ({ accessToken: "at", refreshToken: "rt", expiresIn: 3600 }),
-          getInvoices: async () => { if (invoiceFetchFails) throw new Error("mock provider failure"); return [] },
+          getInvoices: async () => {
+            if (invoiceFetchDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, invoiceFetchDelayMs))
+            if (invoiceFetchFails) throw new Error("mock provider failure")
+            return []
+          },
           getContacts: async () => [],
           getSpendBills: async () => spendBills,
           getSpendBankTransactions: async () => spendTransactions,
@@ -160,8 +182,53 @@ describe("accounting spend sync orchestration", () => {
             }
           },
           accountingSyncRun: {
-            findFirst: async () => null,
-            create: async () => ({ id: runId }),
+            findFirst: async ({ where }: { where: { accountingConnectionId: string; status: string; completedAt?: null } }) => {
+              const row = runningRows.find((item) =>
+                item.accountingConnectionId === where.accountingConnectionId &&
+                item.status === where.status &&
+                (where.completedAt === null ? item.completedAt === null : true)
+              )
+              return row ? { id: row.id } : null
+            },
+            updateMany: async ({ where, data }: {
+              where: {
+                accountingConnectionId: string
+                status: string
+                completedAt: null
+                startedAt: { lt: Date }
+              }
+              data: { status: string; completedAt: Date; errorMessage: string }
+            }) => {
+              let count = 0
+              for (const row of runningRows) {
+                if (
+                  row.accountingConnectionId === where.accountingConnectionId &&
+                  row.status === where.status &&
+                  row.completedAt === where.completedAt &&
+                  row.startedAt < where.startedAt.lt
+                ) {
+                  row.status = data.status as MockRunningSyncRow["status"]
+                  row.completedAt = data.completedAt
+                  row.errorMessage = data.errorMessage
+                  count += 1
+                }
+              }
+              staleRecoveryUpdates += count
+              return { count }
+            },
+            create: async () => {
+              createdRunCount += 1
+              const createdId = runId
+              runningRows.push({
+                id: createdId,
+                accountingConnectionId: "conn-1",
+                status: "running",
+                completedAt: null,
+                startedAt: new Date(),
+                errorMessage: null,
+              })
+              return { id: createdId }
+            },
             update: async () => null,
           },
           accountingConnection: {
@@ -255,9 +322,13 @@ describe("accounting spend sync orchestration", () => {
     completionFails = false
     transactionCommitFails = false
     invoiceFetchFails = false
+    invoiceFetchDelayMs = 0
     spendWriteFails = false
     detectionCalls = 0
     runId = "sync-run-1"
+    createdRunCount = 0
+    staleRecoveryUpdates = 0
+    runningRows = []
     upsertBillKeys.clear()
     upsertTxnKeys.clear()
     persistedSpendTransactions.length = 0
@@ -320,6 +391,69 @@ describe("accounting spend sync orchestration", () => {
       { userId: "user-1", sourceType: "imported_bill", sourceRecordId: "db-bill-1" },
       { userId: "user-1", sourceType: "imported_bank_transaction", sourceRecordId: "db-transaction-1" },
     ])
+  })
+
+  test("auto-recovers stale running rows before in-progress guard", async () => {
+    runningRows = [{
+      id: "stale-1",
+      accountingConnectionId: "conn-1",
+      status: "running",
+      completedAt: null,
+      startedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+      errorMessage: null,
+    }]
+
+    const result = await syncConnection?.("conn-1")
+
+    assert.equal(result?.status, "success")
+    assert.equal(staleRecoveryUpdates, 1)
+    assert.equal(createdRunCount, 1)
+    assert.equal(runningRows[0]?.status, "failed")
+    assert.ok(runningRows[0]?.completedAt instanceof Date)
+    assert.equal(runningRows[0]?.errorMessage, "stale_running_recovered")
+  })
+
+  test("does not recover fresh running rows and still blocks second execution", async () => {
+    runningRows = [{
+      id: "fresh-1",
+      accountingConnectionId: "conn-1",
+      status: "running",
+      completedAt: null,
+      startedAt: new Date(Date.now() - 10 * 60 * 1000),
+      errorMessage: null,
+    }]
+
+    const result = await syncConnection?.("conn-1")
+
+    assert.equal(result?.status, "skipped")
+    assert.equal(result?.errorMessage, "Sync already in progress")
+    assert.equal(staleRecoveryUpdates, 0)
+    assert.equal(createdRunCount, 0)
+    assert.equal(runningRows[0]?.status, "running")
+    assert.equal(runningRows[0]?.completedAt, null)
+  })
+
+  test("concurrent entry with stale row recovers once and does not create duplicate active run", async () => {
+    runningRows = [{
+      id: "stale-2",
+      accountingConnectionId: "conn-1",
+      status: "running",
+      completedAt: null,
+      startedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+      errorMessage: null,
+    }]
+    invoiceFetchDelayMs = 25
+
+    const first = syncConnection?.("conn-1")
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const second = await syncConnection?.("conn-1")
+    const firstResult = await first
+
+    assert.equal(staleRecoveryUpdates, 1)
+    assert.equal(createdRunCount, 1)
+    assert.equal(firstResult?.status, "success")
+    assert.equal(second?.status, "skipped")
+    assert.equal(second?.errorMessage, "Sync already in progress")
   })
 
   test("classification handoff failure does not fail provider spend import", async () => {

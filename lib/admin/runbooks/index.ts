@@ -137,13 +137,13 @@ HOW TO DIAGNOSE FURTHER
 RECOMMENDED RESOLUTION
 
 Option A — Trigger a manual resync (status = active or error):
-  Use the "Trigger resync" button on this page to initiate an immediate sync. This is appropriate if the stale state appears transient (e.g. cron was delayed, a brief API outage).
+  Use the "Trigger resync" button on this page to initiate an immediate sync. This is appropriate if the stale state appears transient (e.g. cron was delayed, a brief API outage). The sync entrypoint auto-recovers stale historical `running` rows to `failed`, so an old stuck `running` row should not block this retry.
 
 Option B — Ask tenant to reconnect (status = disconnected or revoked):
   The tenant must go to Settings → Integrations and reconnect their Xero or MYOB account via OAuth. Resync will occur automatically after reconnection.
 
 Option C — Investigate API errors:
-  If the sync repeatedly fails with the same error, escalate to the engineering team with the AccountingSyncRun error_message.`,
+  If the sync repeatedly fails with the same error, or a fresh `running` row never clears, escalate to the engineering team with the AccountingSyncRun error_message and timestamps.`,
   },
   {
     slug: "no-invoices-tracked",
