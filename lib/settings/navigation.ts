@@ -73,7 +73,7 @@ export function getVisibleSettingsNavGroups(tier: string | null | undefined): Se
         if (item.requiresFeature && !hasPlanFeature(tier, item.requiresFeature as never)) return false
         return item.isVisible ? item.isVisible(tier) : true
       })
-      .map(({ isVisible, ...item }) => item),
+      .map(({ isVisible: _isVisible, ...item }) => item),
   })).filter((group) => group.items.length > 0)
 }
 
