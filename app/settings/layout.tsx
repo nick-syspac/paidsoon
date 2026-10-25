@@ -105,7 +105,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
         <div className="space-y-6">
           <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
 
-          <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="flex flex-col gap-6 md:flex-row">
             <SettingsNavigation groups={groups} />
 
             <div className="min-w-0">{children}</div>
