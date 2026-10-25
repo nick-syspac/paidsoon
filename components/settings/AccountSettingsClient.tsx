@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import type { SubscriptionTier } from "@/lib/subscriptionPlans"
+import { isDraftDirty, resolvePersistedDraft } from "@/lib/settings/editDraft"
+import { useUnsavedChangesGuard } from "@/components/settings/useUnsavedChangesGuard"
 
 const TIER_LABELS: Record<string, string> = {
   starter: "Essentials",
@@ -47,8 +49,16 @@ export function AccountSettingsClient({
   createdAt: Date
 }) {
   const [displayName, setDisplayName] = useState(initialDisplayName ?? "")
+  const [persistedDisplayName, setPersistedDisplayName] = useState(initialDisplayName ?? "")
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
+
+  const hasUnsavedChanges = isDraftDirty(
+    { displayName },
+    { displayName: persistedDisplayName },
+  )
+
+  useUnsavedChangesGuard({ hasUnsavedChanges })
 
   async function handleSave() {
     setFeedback(null)
@@ -63,6 +73,9 @@ export function AccountSettingsClient({
       if (!res.ok) {
         setFeedback({ type: "error", message: data.error ?? "Failed to save" })
       } else {
+        setPersistedDisplayName((current) =>
+          resolvePersistedDraft({ displayName }, { displayName: current }, true).displayName,
+        )
         setFeedback({ type: "success", message: "Display name saved" })
       }
     } catch {

@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { isDraftDirty, resolvePersistedDraft } from "@/lib/settings/editDraft"
+import { useUnsavedChangesGuard } from "@/components/settings/useUnsavedChangesGuard"
 
 interface EmailSettingsData {
   fromEmail: string | null
@@ -25,9 +27,25 @@ export function EmailSettingsClient({
   const [fromEmail, setFromEmail] = useState(settings?.fromEmail ?? "")
   const [fromName, setFromName] = useState(settings?.fromName ?? "")
   const [replyTo, setReplyTo] = useState(settings?.replyTo ?? "")
+  const [persistedDraft, setPersistedDraft] = useState({
+    fromEmail: settings?.fromEmail ?? "",
+    fromName: settings?.fromName ?? "",
+    replyTo: settings?.replyTo ?? "",
+  })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const hasUnsavedChanges = isDraftDirty(
+    {
+      fromEmail,
+      fromName,
+      replyTo,
+    },
+    persistedDraft,
+  )
+
+  useUnsavedChangesGuard({ hasUnsavedChanges })
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -44,6 +62,17 @@ export function EmailSettingsClient({
     })
     setSaving(false)
     if (res.ok) {
+      setPersistedDraft((current) =>
+        resolvePersistedDraft(
+          {
+            fromEmail,
+            fromName,
+            replyTo,
+          },
+          current,
+          true,
+        ),
+      )
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } else {
