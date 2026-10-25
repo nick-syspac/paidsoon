@@ -12,7 +12,7 @@ export function SettingsNavigation({ groups }: { groups: SettingsNavGroup[] }) {
   return (
     <nav
       aria-label="Settings navigation"
-      className="shrink-0 md:w-56 md:border-r md:border-gray-200 md:pr-4"
+      className="flex shrink-0 flex-row gap-1 overflow-x-auto border-b border-gray-200 pb-2 md:w-48 md:flex-col md:overflow-visible md:border-b-0 md:border-r md:pb-0 md:pr-4"
     >
       <h2 className="mb-4 text-sm font-medium text-gray-700">Settings</h2>
       <div className="space-y-6">
