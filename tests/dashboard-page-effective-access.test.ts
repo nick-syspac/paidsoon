@@ -140,7 +140,10 @@ before(async () => {
     })
   }
   for (const path of paths) {
-    const loaded = await import(`../app/dashboard/${path ? `${path}/` : ""}page.tsx`)
+    const modulePath = path.startsWith("settings/")
+      ? `../app/${path}/page.tsx`
+      : `../app/dashboard/${path ? `${path}/` : ""}page.tsx`
+    const loaded = await import(modulePath)
     pages[path] = loaded.default
   }
 })
@@ -237,7 +240,7 @@ for (const state of ["expired", "revoked", "future-grant", "unknown-status", "un
     if (state === "missing") profile = null
     if (state === "unpaid") profile!.subscriptionStatus = "unpaid"
     if (state === "risk") risks = [{ kind: "subscription_dispute", stripeStatus: "lost", blocking: true }]
-    for (const path of paths) await assert.rejects(render(path), /REDIRECT:\/dashboard\/settings\/subscription/, path)
+    for (const path of paths) await assert.rejects(render(path), /REDIRECT:\/settings\/subscription/, path)
     assert.deepEqual(services, [])
     assert.equal(calls.some((call) => ["ai-count", "connections", "email", "schedule", "invoice-import", "spend-import"].includes(call.name)), false)
   })
@@ -348,7 +351,10 @@ test("all scoped pages authenticate before reading tenant facts", async () => {
 
 test("scoped raw-tier inventory remains empty, while billing pages stay outside this conversion", async () => {
   for (const path of paths) {
-    const source = await readFile(new URL(`../app/dashboard/${path ? `${path}/` : ""}page.tsx`, import.meta.url), "utf8")
+    const sourcePath = path.startsWith("settings/")
+      ? `../app/${path}/page.tsx`
+      : `../app/dashboard/${path ? `${path}/` : ""}page.tsx`
+    const source = await readFile(new URL(sourcePath, import.meta.url), "utf8")
     assert.doesNotMatch(source, /subscriptionTier|normalizeSubscriptionTier/, path)
     assert.match(source, /getDashboardEffectiveTier/, path)
   }

@@ -108,7 +108,7 @@ describe("GET /api/billing/checkout/success", () => {
     assert.equal(res.status, 307)
     assert.equal(
       res.headers.get("location"),
-      "https://app.example.com/dashboard/settings/subscription?success=upgraded&tier=business_control",
+      "https://app.example.com/settings/subscription?success=upgraded&tier=business_control",
     )
     assert.equal(updateCalls.length, 0, "customer role never writes billing columns")
     assert.deepEqual(lifecycleCalls, [[{ mockedProvider: true }, "user_123", "cs_test_123", { kind: "hosted_lifecycle" }]])
@@ -123,7 +123,7 @@ describe("GET /api/billing/checkout/success", () => {
     lifecycleFails = true
     const res = await routeGet(new Request("https://app.example.com/api/billing/checkout/success?session_id=cs_1"))
     assert.equal(res.status, 307)
-    assert.equal(res.headers.get("location"), "https://app.example.com/dashboard/settings/subscription?success=upgraded")
+    assert.equal(res.headers.get("location"), "https://app.example.com/settings/subscription?success=upgraded")
     assert.equal(lifecycleCalls.length, 1); assert.equal(updateCalls.length, 0)
   })
   test("missing own RLS profile prevents privileged lifecycle access", async () => {

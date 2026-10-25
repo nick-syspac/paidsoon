@@ -123,11 +123,11 @@ test("revocation, exact expiry, unknown states and absent profiles cannot author
 })
 
 test("only exact billing settings and cancellation paths bypass denied dashboard access", () => {
-  for (const path of ["/dashboard/settings/subscription", "/dashboard/settings/subscription/cancel"]) {
+  for (const path of ["/settings/subscription", "/settings/subscription/cancel"]) {
     assert.equal(isDashboardBillingResolutionPath(path), true)
   }
-  for (const path of [null, "/dashboard", "/dashboard/settings", "/dashboard/settings/account",
-    "/dashboard/settings/subscription-fake", "/dashboard/settings/subscription/other"]) {
+  for (const path of [null, "/dashboard", "/settings", "/settings/account",
+    "/settings/subscription-fake", "/settings/subscription/other"]) {
     assert.equal(isDashboardBillingResolutionPath(path), false)
   }
 })

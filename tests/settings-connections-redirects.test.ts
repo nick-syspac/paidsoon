@@ -29,9 +29,9 @@ describe("settings route compatibility redirects", () => {
       },
     })
 
-    ;({ default: stripeSettingsPage } = await import("@/app/dashboard/settings/stripe/page"))
-    ;({ default: integrationsSettingsPage } = await import("@/app/dashboard/settings/integrations/page"))
-    ;({ default: legacyXeroSelectOrgPage } = await import("@/app/dashboard/settings/integrations/xero/select-org/page"))
+    ;({ default: stripeSettingsPage } = await import("@/app/settings/stripe/page"))
+    ;({ default: integrationsSettingsPage } = await import("@/app/settings/integrations/page"))
+    ;({ default: legacyXeroSelectOrgPage } = await import("@/app/settings/integrations/xero/select-org/page"))
   })
 
   test("legacy stripe settings route redirects to canonical connections route", async () => {
@@ -40,7 +40,7 @@ describe("settings route compatibility redirects", () => {
       searchParams: Promise.resolve({ error: "connection_limit_reached" }),
     }).catch((err: unknown) => err)
 
-    expectRedirect(result, "/dashboard/settings/connections?error=connection_limit_reached")
+    expectRedirect(result, "/settings/connections?error=connection_limit_reached")
   })
 
   test("legacy integrations settings route preserves namespaced source/code params", async () => {
@@ -49,7 +49,7 @@ describe("settings route compatibility redirects", () => {
       searchParams: Promise.resolve({ source: "xero", code: "connected" }),
     }).catch((err: unknown) => err)
 
-    expectRedirect(result, "/dashboard/settings/connections?source=xero&code=connected")
+    expectRedirect(result, "/settings/connections?source=xero&code=connected")
   })
 
   test("legacy integrations xero select-org route redirects to canonical path", async () => {
@@ -58,6 +58,6 @@ describe("settings route compatibility redirects", () => {
       searchParams: Promise.resolve({ key: "abc123" }),
     }).catch((err: unknown) => err)
 
-    expectRedirect(result, "/dashboard/settings/connections/xero/select-org?key=abc123")
+    expectRedirect(result, "/settings/connections/xero/select-org?key=abc123")
   })
 })

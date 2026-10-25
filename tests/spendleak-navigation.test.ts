@@ -12,6 +12,6 @@ describe("SpendLeak overview navigation", () => {
   })
 
   test("still routes to upgrade intent when SpendLeak is locked", () => {
-    assert.equal(buildSpendLeakOverviewHref(true, "cash_pressure"), "/dashboard/settings/subscription?intent=spendleak")
+    assert.equal(buildSpendLeakOverviewHref(true, "cash_pressure"), "/settings/subscription?intent=spendleak")
   })
 })

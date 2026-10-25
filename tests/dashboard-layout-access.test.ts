@@ -9,7 +9,7 @@ let pathname: string
 let access: EffectiveAccess
 let missing: boolean
 let layout: typeof import("@/app/dashboard/layout").default
-let settingsLayout: typeof import("@/app/dashboard/settings/layout").default
+let settingsLayout: typeof import("@/app/settings/layout").default
 function resolve(status = "canceled", validGrant = false): EffectiveAccess {
   return resolveEffectiveAccess({ profile: {
     subscriptionStatus: status, subscriptionTier: "essentials", stripeSubscriptionId: "sub_private",
@@ -57,7 +57,7 @@ before(async () => {
     await mock.module(path, { namedExports: { [name]: { [name]: () => null }[name] } })
   }
   ;({ default: layout } = await import("@/app/dashboard/layout"))
-  ;({ default: settingsLayout } = await import("@/app/dashboard/settings/layout"))
+  ;({ default: settingsLayout } = await import("@/app/settings/layout"))
 })
 beforeEach(() => {
   user = { id: "tenant-private", email: "test@example.invalid" }
@@ -75,11 +75,11 @@ test("grant-only canceled/paused tenants enter dashboard using granted shell pla
 })
 
 test("denied access redirects normal routes but exact subscription and cancel pages remain reachable", async () => {
-  for (const path of ["/dashboard", "/dashboard/settings", "/dashboard/invoices", "/dashboard/settings/subscription/other"]) {
+  for (const path of ["/dashboard", "/settings", "/dashboard/invoices", "/settings/subscription/other"]) {
     pathname = path
     await assert.rejects(layout({ children: "content" }), /REDIRECT:\/billing\/checkout\?plan=essentials/)
   }
-  for (const path of ["/dashboard/settings/subscription", "/dashboard/settings/subscription/cancel"]) {
+  for (const path of ["/settings/subscription", "/settings/subscription/cancel"]) {
     pathname = path
     const page = await layout({ children: "recovery" })
     assert.equal(propsFor(page, "UserMenu")?.tier, null)
@@ -92,13 +92,13 @@ test("denied access redirects normal routes but exact subscription and cancel pa
 test("missing profile has no active/default tier but can still reach own billing recovery", async () => {
   missing = true
   await assert.rejects(layout({ children: "content" }), /reason=access_denied/)
-  pathname = "/dashboard/settings/subscription"
+  pathname = "/settings/subscription"
   assert.equal(propsFor(await layout({ children: "recovery" }), "UserMenu")?.tier, null)
 })
 
 test("billing bypass never bypasses authentication", async () => {
   user = null
-  pathname = "/dashboard/settings/subscription"
+  pathname = "/settings/subscription"
   await assert.rejects(layout({ children: "recovery" }), /REDIRECT:\/sign-in/)
 })
 

@@ -49,10 +49,10 @@ const exportCustomers = [{ id: "customer-1", label: "Acme Pty Ltd" }]
 
 describe("combined settings import/export surface", () => {
   test("exposes canonical combined route anchors", () => {
-    assert.equal(IMPORT_EXPORT_SETTINGS_ROUTE, "/dashboard/settings/import-export")
-    assert.equal(IMPORT_EXPORT_SETTINGS_INVOICE_IMPORT_ANCHOR, "/dashboard/settings/import-export#invoice-import")
-    assert.equal(IMPORT_EXPORT_SETTINGS_INVOICE_EXPORT_ANCHOR, "/dashboard/settings/import-export#invoice-export")
-    assert.equal(IMPORT_EXPORT_SETTINGS_MARGINGUARD_EXPORT_ANCHOR, "/dashboard/settings/import-export#marginguard-export")
+    assert.equal(IMPORT_EXPORT_SETTINGS_ROUTE, "/settings/import-export")
+    assert.equal(IMPORT_EXPORT_SETTINGS_INVOICE_IMPORT_ANCHOR, "/settings/import-export#invoice-import")
+    assert.equal(IMPORT_EXPORT_SETTINGS_INVOICE_EXPORT_ANCHOR, "/settings/import-export#invoice-export")
+    assert.equal(IMPORT_EXPORT_SETTINGS_MARGINGUARD_EXPORT_ANCHOR, "/settings/import-export#marginguard-export")
   })
 
   test("renders invoice import, expense import, and export sections on one page", () => {

@@ -31,7 +31,7 @@ describe("MarginGuard opportunity evaluation", () => {
     assert.equal(Boolean(customerMix), true)
     assert.deepEqual((customerMix?.evidence as { handoff?: { commitGuardPath: string; cashPlanPath: string } })?.handoff, {
       commitGuardPath: "/dashboard/commitguard",
-      cashPlanPath: "/dashboard/settings/cash-plan",
+      cashPlanPath: "/settings/cash-plan",
     })
 
     const serviceMix = candidates.find((candidate) => candidate.opportunityType === "service_mix")

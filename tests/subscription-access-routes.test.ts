@@ -209,7 +209,7 @@ describe("central subscription boundary with real resolver and mocked RLS only",
         assert.equal(response.status, 403, `${state}: ${action}`)
         assert.deepEqual(await response.json(), {
           error: "Subscription access required", code: "no_access", allowAccess: false,
-          effectiveTier: null, billingResolutionUrl: "/dashboard/settings/subscription",
+          effectiveTier: null, billingResolutionUrl: "/settings/subscription",
         })
       }
     }

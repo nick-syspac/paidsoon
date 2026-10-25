@@ -66,7 +66,7 @@ describe("Subscription settings page", () => {
       },
     })
 
-    ;({ default: SubscriptionPage } = await import("@/app/dashboard/settings/subscription/page"))
+    ;({ default: SubscriptionPage } = await import("@/app/settings/subscription/page"))
   })
 
   beforeEach(() => {

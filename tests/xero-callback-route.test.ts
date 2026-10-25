@@ -101,7 +101,7 @@ describe("Xero callback route", () => {
     assert.equal(args.update.lastSyncedAt, null)
     assert.deepEqual(triggerArgs, [["conn-new", "xero-owner"]])
     assert.equal(userContextUserId, "xero-owner")
-    assert.equal(locationOf(response), "http://localhost:3000/dashboard/settings/connections?source=xero&code=connected")
+    assert.equal(locationOf(response), "http://localhost:3000/settings/connections?source=xero&code=connected")
   })
 
   test("reconnects the same organisation and triggers using the saved connection id", async () => {
@@ -109,21 +109,21 @@ describe("Xero callback route", () => {
     const response = await callback(makeRequest())
     assert.deepEqual(triggerArgs, [["conn-existing", "xero-owner"]])
     assert.equal((upsertArgs as { update: Record<string, unknown> }).update.lastSyncedAt, null)
-    assert.equal(locationOf(response), "http://localhost:3000/dashboard/settings/connections?source=xero&code=connected")
+    assert.equal(locationOf(response), "http://localhost:3000/settings/connections?source=xero&code=connected")
   })
 
   test("keeps the settings redirect when triggering fails", async () => {
     triggerFailure = true
     const response = await callback(makeRequest())
     assert.deepEqual(triggerArgs, [["conn-new", "xero-owner"]])
-    assert.equal(locationOf(response), "http://localhost:3000/dashboard/settings/connections?source=xero&code=connected")
+    assert.equal(locationOf(response), "http://localhost:3000/settings/connections?source=xero&code=connected")
   })
 
   test("redirects safely and does not trigger when persistence fails", async () => {
     persistFailure = true
     const response = await callback(makeRequest())
     assert.deepEqual(triggerArgs, [])
-    assert.equal(locationOf(response), "http://localhost:3000/dashboard/settings/connections?source=xero&code=connection_save_failed")
+    assert.equal(locationOf(response), "http://localhost:3000/settings/connections?source=xero&code=connection_save_failed")
   })
 
 })
