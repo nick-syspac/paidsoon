@@ -7,6 +7,7 @@ import {
   type SpendLeakSourceSettings,
   type SpendLeakSourceType,
 } from "@/lib/spendleak/sourceSettingsContract"
+import { useUnsavedChangesGuard } from "@/components/settings/useUnsavedChangesGuard"
 
 interface SourceOption {
   id: SpendLeakSourceType
@@ -45,12 +46,18 @@ export function SpendLeakSettingsClient({
 }: {
   initialSettings: SpendLeakSourceSettings
 }) {
-  const [enabledSourceTypes, setEnabledSourceTypes] = useState<SpendLeakSourceType[]>(
-    normalizeSelection(initialSettings.enabledSourceTypes),
-  )
+  const normalizedInitialSelection = normalizeSelection(initialSettings.enabledSourceTypes)
+  const [enabledSourceTypes, setEnabledSourceTypes] = useState<SpendLeakSourceType[]>(normalizedInitialSelection)
+  const [persistedSourceTypes, setPersistedSourceTypes] = useState<SpendLeakSourceType[]>(normalizedInitialSelection)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const hasUnsavedChanges =
+    enabledSourceTypes.length !== persistedSourceTypes.length ||
+    enabledSourceTypes.some((source, index) => source !== persistedSourceTypes[index])
+
+  useUnsavedChangesGuard({ hasUnsavedChanges })
 
   function toggleSource(source: SpendLeakSourceType): void {
     setSaved(false)
@@ -88,7 +95,9 @@ export function SpendLeakSettingsClient({
     }
 
     const body = (await response.json()) as { settings?: SpendLeakSourceSettings }
-    setEnabledSourceTypes(normalizeSelection(body.settings?.enabledSourceTypes ?? enabledSourceTypes))
+    const nextSelection = normalizeSelection(body.settings?.enabledSourceTypes ?? enabledSourceTypes)
+    setEnabledSourceTypes(nextSelection)
+    setPersistedSourceTypes(nextSelection)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }

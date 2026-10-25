@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { isDraftDirty, resolvePersistedDraft } from "@/lib/settings/editDraft"
+import { useUnsavedChangesGuard } from "@/components/settings/useUnsavedChangesGuard"
 
 interface ScheduleConfig {
   email1DaysAfterDue: number
@@ -16,9 +18,14 @@ export function ScheduleSettingsClient({
   schedule: ScheduleConfig
 }) {
   const [values, setValues] = useState(schedule)
+  const [persistedValues, setPersistedValues] = useState(schedule)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const hasUnsavedChanges = isDraftDirty(values, persistedValues)
+
+  useUnsavedChangesGuard({ hasUnsavedChanges })
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -31,6 +38,7 @@ export function ScheduleSettingsClient({
     })
     setSaving(false)
     if (res.ok) {
+      setPersistedValues((current) => resolvePersistedDraft(values, current, true))
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } else {

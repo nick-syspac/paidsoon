@@ -4,6 +4,8 @@ import { useState, useCallback, useRef } from "react"
 import { TemplateEditor, TEMPLATE_VARIABLES, type TemplateEditorHandle, type TemplateVariable } from "./TemplateEditor"
 import { Spinner } from "@/components/ui/Spinner"
 import type { RewriteOutput } from "@/lib/email/ai-rewrite"
+import { isDraftDirty } from "@/lib/settings/editDraft"
+import { useUnsavedChangesGuard } from "@/components/settings/useUnsavedChangesGuard"
 
 interface StageTemplate {
   subject: string
@@ -26,6 +28,12 @@ interface TemplateData {
 interface AiRewriteErrorPayload {
   error?: string
   remainingMonthlyCredits?: number
+}
+
+interface StageDraftSnapshot {
+  subject: string
+  htmlBody: string
+  textBody: string
 }
 
 export function formatAiRewriteErrorMessage(payload: AiRewriteErrorPayload): string {
@@ -124,6 +132,13 @@ export function TemplatesClient({
   const [error, setError] = useState<string | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
   const editorRef = useRef<TemplateEditorHandle>(null)
+  const [persistedStageDrafts, setPersistedStageDrafts] = useState<Record<number, StageDraftSnapshot>>({
+    [data.stage]: {
+      subject: data.subject,
+      htmlBody: data.htmlBody,
+      textBody: data.textBody,
+    },
+  })
 
   // AI rewrite state
   const [aiVariants, setAiVariants] = useState<RewriteOutput | null>(null)
@@ -138,6 +153,22 @@ export function TemplatesClient({
     2: "firm",
     3: "final_notice",
   }
+
+  const currentPersistedDraft = persistedStageDrafts[stage] ?? {
+    subject,
+    htmlBody,
+    textBody,
+  }
+  const hasUnsavedChanges = isDraftDirty(
+    {
+      subject,
+      htmlBody,
+      textBody,
+    },
+    currentPersistedDraft,
+  )
+
+  useUnsavedChangesGuard({ hasUnsavedChanges })
 
   async function handleAiRewrite() {
     setAiLoading(true)
@@ -179,6 +210,14 @@ export function TemplatesClient({
       setSubject(payload.subject)
       setHtmlBody(payload.htmlBody)
       setTextBody(payload.textBody)
+      setPersistedStageDrafts((current) => ({
+        ...current,
+        [s]: {
+          subject: payload.subject,
+          htmlBody: payload.htmlBody,
+          textBody: payload.textBody,
+        },
+      }))
       setCustomFlags((prev) => ({ ...prev, [s]: payload.isCustom }))
     } catch {
       setError("Failed to load template for this stage")
@@ -219,6 +258,14 @@ export function TemplatesClient({
       setError(typeof payload.error === "string" ? payload.error : "Failed to save template")
       return
     }
+    setPersistedStageDrafts((current) => ({
+      ...current,
+      [stage]: {
+        subject,
+        htmlBody,
+        textBody,
+      },
+    }))
     setCustomFlags((prev) => ({ ...prev, [stage]: true }))
     setMessage("Template saved successfully")
   }

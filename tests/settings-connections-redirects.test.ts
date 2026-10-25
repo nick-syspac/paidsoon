@@ -9,6 +9,12 @@ let stripeSettingsPage: any
 let integrationsSettingsPage: any
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let legacyXeroSelectOrgPage: any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let settingsIndexPage: any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let importSettingsPage: any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let exportSettingsPage: any
 
 function expectRedirect(value: unknown, expectedUrl: string): void {
   assert.equal(value instanceof Error, true)
@@ -32,6 +38,9 @@ describe("settings route compatibility redirects", () => {
     ;({ default: stripeSettingsPage } = await import("@/app/settings/stripe/page"))
     ;({ default: integrationsSettingsPage } = await import("@/app/settings/integrations/page"))
     ;({ default: legacyXeroSelectOrgPage } = await import("@/app/settings/integrations/xero/select-org/page"))
+    ;({ default: settingsIndexPage } = await import("@/app/settings/page"))
+    ;({ default: importSettingsPage } = await import("@/app/settings/import/page"))
+    ;({ default: exportSettingsPage } = await import("@/app/settings/export/page"))
   })
 
   test("legacy stripe settings route redirects to canonical connections route", async () => {
@@ -59,5 +68,24 @@ describe("settings route compatibility redirects", () => {
     }).catch((err: unknown) => err)
 
     expectRedirect(result, "/settings/connections/xero/select-org?key=abc123")
+  })
+
+  test("settings root route redirects to canonical account settings", async () => {
+    redirectedTo = null
+    const result = await Promise.resolve()
+      .then(() => settingsIndexPage())
+      .catch((err: unknown) => err)
+
+    expectRedirect(result, "/settings/account")
+  })
+
+  test("legacy import and export helper routes preserve canonical anchors", async () => {
+    redirectedTo = null
+    const importResult = await importSettingsPage().catch((err: unknown) => err)
+    expectRedirect(importResult, "/settings/import-export#invoice-import")
+
+    redirectedTo = null
+    const exportResult = await exportSettingsPage().catch((err: unknown) => err)
+    expectRedirect(exportResult, "/settings/import-export#invoice-export")
   })
 })

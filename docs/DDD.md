@@ -824,12 +824,12 @@ integrations registry, and any `apps/api/apps/**` modules — **not present**.
 | SpendLeak finding detail page | `app/dashboard/spendleak/[id]/page.tsx` | Evidence-first drill-down for a single finding, with structured evidence cards, raw evidence disclosure, and lifecycle controls |
 | Dashboard Invoices page | `app/dashboard/invoices/page.tsx` | Active-invoice table; feature-gated module + upsell; supports `?filter=` from Overview card click-throughs |
 | Dashboard Resolved Invoices page | `app/dashboard/resolved/page.tsx` | Paid/manually-resolved invoice table; feature-gated module + upsell |
-| Settings pages | `app/settings/{account,schedule,email,templates,team,stripe,subscription,spendleak}/page.tsx` | Each pairs with a `*Client.tsx`; AI controls are embedded in the templates page; SpendLeak settings configure readiness source expectations |
+| Settings pages | `app/settings/{account,connections,schedule,email,templates,team,stripe,integrations,import,export,import-export,subscription,spendleak}/page.tsx` | Canonical settings namespace with helper aliases (`/settings`, `/settings/stripe`, `/settings/integrations`, `/settings/import`, `/settings/export`) redirecting to canonical destinations; AI controls are embedded in templates; SpendLeak settings configure readiness source expectations |
 | CommitGuard settings page | `app/settings/commitguard/page.tsx`, `components/settings/CommitGuardSettingsClient.tsx` | Tier-gated module settings for horizon defaults, safety-buffer strategy, detection thresholds, and event toggles |
 | Tax Buffer settings page | `app/settings/tax-buffer/page.tsx`, `components/settings/TaxBufferSettingsClient.tsx` | Tier-gated settings with first-time suggested defaults, reserve account/manual balance controls, and category method/recurrence tuning |
 | Owner's Digest settings page | `app/settings/owners-digest/page.tsx`, `components/settings/OwnersDigestSettingsClient.tsx` | Tier-gated digest settings for cadence, delivery, included sections, recipient scope, action-item cap, and materiality threshold |
 | Dashboard components | `components/dashboard/{InvoiceTable,LockedDashboardPreview,UpgradeBanner,OverviewCards,DashboardNavRail}.tsx` | Table + locked preview + banner + Overview cards + nav rail |
-| Settings clients | `components/settings/*Client.tsx` | Client-side forms calling the settings APIs |
+| Settings clients | `components/settings/*Client.tsx`, `components/settings/SettingsNavigation.tsx` | Client-side settings forms calling settings APIs plus sectioned settings navigation with module collapse/expand, in-nav discovery search, and unsaved-change leave protection for editable settings forms |
 | Shared UI | `components/ui/Spinner.tsx` | Only shared primitive |
 | API clients | (none) | Components call route handlers via `fetch`; Supabase via `@supabase/ssr` |
 | Env config | `process.env.NEXT_PUBLIC_*` | Supabase URL/key, `NEXT_PUBLIC_APP_URL` |
