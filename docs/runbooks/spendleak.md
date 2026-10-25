@@ -80,7 +80,7 @@ Behavior:
 
 Primary paths:
 
-- `app/dashboard/settings/spendleak/page.tsx`
+- `app/settings/spendleak/page.tsx`
 - `components/settings/SpendLeakSettingsClient.tsx`
 - `app/api/settings/spendleak/route.ts`
 - `lib/spendleak/sourceSettings.ts`
@@ -163,6 +163,6 @@ Likely causes:
 
 Actions:
 
-1. Open `/dashboard/settings/spendleak` and confirm expected source selection.
+1. Open `/settings/spendleak` and confirm expected source selection.
 2. Verify selected sources have recent `syncedAt` evidence in imported spend tables.
 3. Trigger accounting sync/import and confirm selected-source coverage updates.

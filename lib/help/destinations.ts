@@ -37,25 +37,25 @@ export const TRAINING_DESTINATION_REGISTRY: Record<string, TrainingDestinationDe
   "settings.connections": {
     key: "settings.connections",
     label: "Settings - Connections",
-    href: "/dashboard/settings/connections",
+    href: "/settings/connections",
     audience: "signed_in",
   },
   "settings.templates": {
     key: "settings.templates",
     label: "Settings - Templates",
-    href: "/dashboard/settings/templates",
+    href: "/settings/templates",
     audience: "signed_in",
   },
   "settings.schedule": {
     key: "settings.schedule",
     label: "Settings - Schedule",
-    href: "/dashboard/settings/schedule",
+    href: "/settings/schedule",
     audience: "signed_in",
   },
   "settings.subscription": {
     key: "settings.subscription",
     label: "Settings - Subscription",
-    href: "/dashboard/settings/subscription",
+    href: "/settings/subscription",
     audience: "signed_in",
   },
 } as const

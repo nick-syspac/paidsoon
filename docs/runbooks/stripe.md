@@ -345,7 +345,7 @@ or `prevented` can resolve that specific dispute. All blocking facts must clear,
 and the grant must still be valid/unrevoked before it can supply access again.
 An unrelated paid invoice, subscription deletion or timestamp never clears risk.
 
-Direct the customer to `/dashboard/settings/subscription` and the existing
+Direct the customer to `/settings/subscription` and the existing
 billing portal (`POST /api/billing/portal`) for supported billing/payment fixes,
 or existing support/contact for disputed/lost debt requiring investigation.
 This is not an in-app dispute adjudication, waiver or debt-forgiveness workflow.

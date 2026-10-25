@@ -28,7 +28,7 @@ async function GETHandler() {
   const maxConnections = getInvoiceSourceLimitForTier(tier)
   if (activeConnections >= maxConnections) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/connections?source=stripe&code=connection_limit_reached`,
+      `${process.env.NEXT_PUBLIC_APP_URL}/settings/connections?source=stripe&code=connection_limit_reached`,
     )
   }
 

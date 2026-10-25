@@ -31,7 +31,7 @@ async function GETHandler() {
   const hasFeature = await requireFeature(user.id, "accounting_integrations")
   if (!hasFeature) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/connections?source=xero&code=upgrade_required`
+      `${process.env.NEXT_PUBLIC_APP_URL}/settings/connections?source=xero&code=upgrade_required`
     )
   }
 
@@ -41,7 +41,7 @@ async function GETHandler() {
   const activeConnections = await withUserContext(user.id, (tx) => countActiveInvoiceSources(tx, user.id))
   if (activeConnections >= maxConnections) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/connections?source=xero&code=connection_limit_reached`
+      `${process.env.NEXT_PUBLIC_APP_URL}/settings/connections?source=xero&code=connection_limit_reached`
     )
   }
 

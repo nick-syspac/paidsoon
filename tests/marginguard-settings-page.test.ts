@@ -167,7 +167,7 @@ describe("MarginGuard settings page", () => {
       },
     })
 
-    ;({ default: MarginGuardSettingsPage } = await import("@/app/dashboard/settings/margin-guard/page"))
+    ;({ default: MarginGuardSettingsPage } = await import("@/app/settings/margin-guard/page"))
   })
 
   beforeEach(() => {

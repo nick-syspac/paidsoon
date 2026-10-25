@@ -57,8 +57,8 @@ export function getDashboardSubscriptionAccessState(
 
 /** Exact billing destinations only, not a general settings entitlement bypass. */
 export function isDashboardBillingResolutionPath(pathname: string | null): boolean {
-  return pathname === "/dashboard/settings/subscription" ||
-    pathname === "/dashboard/settings/subscription/cancel"
+  return pathname === "/settings/subscription" ||
+    pathname === "/settings/subscription/cancel"
 }
 
 export interface ApplicationAccessPresentation {

@@ -146,7 +146,7 @@ describe("MYOB callback route", () => {
     )
     assert.equal(
       locationOf(res),
-      "http://localhost:3000/dashboard/settings/connections?source=myob&code=missing_params"
+      "http://localhost:3000/settings/connections?source=myob&code=missing_params"
     )
     assert.equal(upsertArgs, null)
   })
@@ -217,7 +217,7 @@ describe("MYOB callback route", () => {
     assert.equal(syncConnectionCalledWith, "conn-1")
     assert.equal(
       locationOf(res),
-      "http://localhost:3000/dashboard/settings/connections?source=myob&code=connected"
+      "http://localhost:3000/settings/connections?source=myob&code=connected"
     )
   })
 
@@ -252,7 +252,7 @@ describe("MYOB callback route", () => {
 
     assert.equal(
       locationOf(res),
-      "http://localhost:3000/dashboard/settings/connections?source=myob&code=scope_upgrade_required"
+      "http://localhost:3000/settings/connections?source=myob&code=scope_upgrade_required"
     )
   })
 
@@ -263,7 +263,7 @@ describe("MYOB callback route", () => {
     )
     assert.equal(
       locationOf(res),
-      "http://localhost:3000/dashboard/settings/connections?source=myob&code=invalid_state"
+      "http://localhost:3000/settings/connections?source=myob&code=invalid_state"
     )
   })
 
@@ -279,7 +279,7 @@ describe("MYOB callback route", () => {
     const res = await callbackRoute(makeRequest({ error: "access_denied" }))
     assert.equal(
       locationOf(res),
-      "http://localhost:3000/dashboard/settings/connections?source=myob&code=cancelled"
+      "http://localhost:3000/settings/connections?source=myob&code=cancelled"
     )
   })
 })

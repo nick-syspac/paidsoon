@@ -65,15 +65,15 @@ test("allows a dashboard request with a verified user", async () => {
 test("overwrites forged billing-resolution pathname with actual requested path", async () => {
   mockUser = { id: "user-1" }
   const response = await proxy(new NextRequest("http://localhost/dashboard/invoices", {
-    headers: { "x-paidsoon-pathname": "/dashboard/settings/subscription" },
+    headers: { "x-paidsoon-pathname": "/settings/subscription" },
   }))
   assert.equal(response.headers.get("x-middleware-request-x-paidsoon-pathname"), "/dashboard/invoices")
 })
 
 test("forwards exact billing recovery pathname to the dashboard layout", async () => {
   mockUser = { id: "user-1" }
-  const response = await proxy(new NextRequest("http://localhost/dashboard/settings/subscription/cancel"))
-  assert.equal(response.headers.get("x-middleware-request-x-paidsoon-pathname"), "/dashboard/settings/subscription/cancel")
+  const response = await proxy(new NextRequest("http://localhost/settings/subscription/cancel"))
+  assert.equal(response.headers.get("x-middleware-request-x-paidsoon-pathname"), "/settings/subscription/cancel")
 })
 
 test("treats an expired session returned without a user as unauthenticated", async () => {

@@ -13,7 +13,7 @@ CashPlan feature gate; Essentials retains core CommitGuard contribution.
 
 ## Review the current plan
 
-Open **Settings → Cash Plan** at `/dashboard/settings/cash-plan`. Review:
+Open **Settings → Cash Plan** at `/settings/cash-plan`. Review:
 
 - **Preliminary status** or an explanation that cash amounts are unavailable.
 - **Confidence** and **Lowest cash** as shown for the current forecast.

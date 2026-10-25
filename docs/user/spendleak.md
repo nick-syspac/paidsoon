@@ -4,7 +4,7 @@ SpendLeak analyzes connected or imported spend for patterns such as recurring sp
 
 ## Set expected source coverage
 
-Open **Settings → SpendLeak** at `/dashboard/settings/spendleak`. Under **Expected source coverage**, select the sources you expect to use:
+Open **Settings → SpendLeak** at `/settings/spendleak`. Under **Expected source coverage**, select the sources you expect to use:
 
 - **Bills** — supplier bills and invoice-like charges.
 - **Bank transactions** — outgoing transactions used for duplicate-payment and cash-pressure evidence.
@@ -20,7 +20,7 @@ The **External classification with Jev** setting is off by default. When enabled
 
 ## Import expenses
 
-To add file-based spend, open **Settings → InvoiceGuard → Import / Export** at `/dashboard/settings/import-export` and use **Expense import**. It accepts CSV or XLSX files up to 5 MB. Download the expense template, map the source columns, select a duplicate-handling option, review validation results, and commit the import. The import history shows previous batches. For the separate invoice CSV workflow, see [InvoiceGuard](invoiceguard.md).
+To add file-based spend, open **Settings → InvoiceGuard → Import / Export** at `/settings/import-export` and use **Expense import**. It accepts CSV or XLSX files up to 5 MB. Download the expense template, map the source columns, select a duplicate-handling option, review validation results, and commit the import. The import history shows previous batches. For the separate invoice CSV workflow, see [InvoiceGuard](invoiceguard.md).
 
 ## Review SpendLeak findings
 

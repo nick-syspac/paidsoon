@@ -128,7 +128,7 @@ export function CommitGuardCandidateReview({ candidates: initialCandidates, sett
     <div className="flex flex-wrap gap-2">
       <button type="button" disabled={busy || Boolean(disabledReason) || needsReload} onClick={() => void detect()} aria-describedby="detection-policy" className="rounded-md bg-blue-700 px-3 py-2 text-sm text-white disabled:opacity-50">{busy ? "Working…" : "Detect now"}</button>
       <button type="button" disabled={busy} onClick={() => void retryLoad()} className="rounded-md border px-3 py-2 text-sm">{needsReload ? "Retry load (do not repeat action)" : "Reload candidates and settings"}</button>
-      <a href="/dashboard/settings/commitguard" className="text-sm underline">Detection settings</a>
+      <a href="/settings/commitguard" className="text-sm underline">Detection settings</a>
     </div>
     <p id="detection-policy" className="text-sm text-amber-800">{disabledReason ?? "Enabled with current saved settings. Access and opt-in are rechecked on the server at execution."}</p>
     {result ? <p role="status" className="text-sm text-green-800">{result}</p> : null}

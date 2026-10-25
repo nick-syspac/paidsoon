@@ -72,23 +72,23 @@ describe("settings navigation configuration", () => {
   })
 
   test("matches the currently active settings page across nested routes", () => {
-    assert.equal(isSettingsItemActive("/dashboard/settings/connections", "/dashboard/settings/connections"), true)
-    assert.equal(isSettingsItemActive("/dashboard/settings/connections?source=xero", "/dashboard/settings/connections"), true)
-    assert.equal(isSettingsItemActive("/dashboard/settings/cash-plan", "/dashboard/settings/cash-plan"), true)
-    assert.equal(isSettingsItemActive("/dashboard/settings/cash-plan/assumptions", "/dashboard/settings/cash-plan"), true)
-    assert.equal(isSettingsItemActive("/dashboard/settings/account", "/dashboard/settings/connections"), false)
+    assert.equal(isSettingsItemActive("/settings/connections", "/settings/connections"), true)
+    assert.equal(isSettingsItemActive("/settings/connections?source=xero", "/settings/connections"), true)
+    assert.equal(isSettingsItemActive("/settings/cash-plan", "/settings/cash-plan"), true)
+    assert.equal(isSettingsItemActive("/settings/cash-plan/assumptions", "/settings/cash-plan"), true)
+    assert.equal(isSettingsItemActive("/settings/account", "/settings/connections"), false)
   })
 
   test("returns the active item for a nested route", () => {
-    const active = findActiveSettingsItem("/dashboard/settings/cash-plan")
+    const active = findActiveSettingsItem("/settings/cash-plan")
     assert.equal(active?.label, "Forecast settings")
-    assert.equal(active?.href, "/dashboard/settings/cash-plan")
+    assert.equal(active?.href, "/settings/cash-plan")
   })
 
   test("returns the CommitGuard item for commitguard settings routes", () => {
-    const active = findActiveSettingsItem("/dashboard/settings/commitguard")
+    const active = findActiveSettingsItem("/settings/commitguard")
     assert.equal(active?.label, "CommitGuard")
-    assert.equal(active?.href, "/dashboard/settings/commitguard")
+    assert.equal(active?.href, "/settings/commitguard")
   })
 
   test("shows SpendLeak settings only for eligible tiers", () => {
@@ -99,6 +99,6 @@ describe("settings navigation configuration", () => {
     const smallBusinessSpendLeak = smallBusinessGroups.find((group) => group.id === "spendleak")
 
     assert.equal(essentialsSpendLeak, undefined)
-    assert.equal(smallBusinessSpendLeak?.items.some((item) => item.href === "/dashboard/settings/spendleak"), true)
+    assert.equal(smallBusinessSpendLeak?.items.some((item) => item.href === "/settings/spendleak"), true)
   })
 })

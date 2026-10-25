@@ -59,7 +59,7 @@ describe("trial access notification templates", () => {
       assert.match(body, /2026-11-01 01:30:00 UTC \(exclusive\)/)
       assert.match(body, /changes the timing of first billing/)
       assert.match(body, /not a waiver of future charges/)
-      assert.match(body, /https:\/\/app\.paidsoon\.com\.au\/dashboard\/settings\/subscription/)
+        assert.match(body, /https:\/\/app\.paidsoon\.com\.au\/settings\/subscription/)
       assert.doesNotMatch(body, /Stripe billing unchanged/)
     }
     assert.equal(payload.subject, "Your PaidSoon Stripe trial has been extended")
@@ -150,15 +150,15 @@ describe("trial access notification templates", () => {
     result.targetExpiresAt = "2027-01-01T00:00:00Z"; person.email = "changed@customer.com.au"
     assert.ok(Object.isFrozen(payload))
     assert.equal(JSON.stringify(payload), original)
-    assert.match(payload.html, /href="https:\/\/app.paidsoon.com.au\/dashboard\/settings\/subscription"/)
+    assert.match(payload.html, /href="https:\/\/app.paidsoon.com.au\/settings\/subscription"/)
     assert.doesNotMatch(payload.html, /other.vercel.app|custom@evil.com/)
   })
 
   test("VERCEL_URL hostname fallback and explicit local HTTP yield absolute fixed-path links", () => {
     assert.match(build(grant(), contact, { ...env, NEXT_PUBLIC_APP_URL: undefined, VERCEL_URL: "preview.vercel.app" }).text,
-      /https:\/\/preview.vercel.app\/dashboard\/settings\/subscription/)
+      /https:\/\/preview.vercel.app\/settings\/subscription/)
     assert.match(build(grant(), contact, { ...env, NEXT_PUBLIC_APP_URL: "http://localhost:4001/" }).text,
-      /http:\/\/localhost:4001\/dashboard\/settings\/subscription/)
+      /http:\/\/localhost:4001\/settings\/subscription/)
   })
 
   test("unsafe or missing app URLs fail closed rather than produce injected or relative links", () => {

@@ -47,7 +47,7 @@ describe("Team settings page", () => {
       },
     })
 
-    ;({ default: TeamSettingsPage } = await import("@/app/dashboard/settings/team/page"))
+    ;({ default: TeamSettingsPage } = await import("@/app/settings/team/page"))
   })
 
   beforeEach(() => {

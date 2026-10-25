@@ -133,7 +133,7 @@ export default async function DashboardOverviewPage({
   } = await loadDashboardOverview(user.id, traceContext, COMPONENT)
 
   const tier = getDashboardEffectiveTier(profile)
-  if (tier === null) redirect("/dashboard/settings/subscription")
+  if (tier === null) redirect("/settings/subscription")
   const canViewSpendLeak = canAccessSpendLeak(tier)
   const canViewOwnersDigest = canAccessOwnersDigest(tier)
   const canViewMarginGuard = canAccessMarginGuard(tier)
@@ -367,7 +367,7 @@ export default async function DashboardOverviewPage({
         <section className="rounded-xl border border-gray-200 bg-white p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Cash posture</h2>
-            <Link href="/dashboard/settings/cash-plan" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            <Link href="/settings/cash-plan" className="text-sm font-medium text-blue-600 hover:text-blue-700">
               Forecast settings
             </Link>
           </div>
@@ -379,13 +379,13 @@ export default async function DashboardOverviewPage({
             </div>
             <div className="flex gap-2">
               <Link
-                href="/dashboard/settings/cash-plan"
+                href="/settings/cash-plan"
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 Open settings
               </Link>
               <Link
-                href="/dashboard/settings/cash-plan"
+                href="/settings/cash-plan"
                 className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
                 Review forecast
@@ -439,7 +439,7 @@ export default async function DashboardOverviewPage({
                 Open module
               </Link>
               <Link
-                href="/dashboard/settings/runway-guard"
+                href="/settings/runway-guard"
                 className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
                 Adjust settings
@@ -475,7 +475,7 @@ export default async function DashboardOverviewPage({
             </div>
             <div className="flex gap-2">
               <Link
-                href="/dashboard/settings/tax-buffer"
+                href="/settings/tax-buffer"
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 Open settings
@@ -538,7 +538,7 @@ export default async function DashboardOverviewPage({
             </div>
             <div className="flex gap-2">
               <Link
-                href="/dashboard/settings/owners-digest"
+                href="/settings/owners-digest"
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 Open settings
@@ -583,7 +583,7 @@ export default async function DashboardOverviewPage({
             </div>
             <div className="flex gap-2">
               <Link
-                href="/dashboard/settings/commitguard"
+                href="/settings/commitguard"
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 Open settings

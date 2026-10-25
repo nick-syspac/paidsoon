@@ -15,7 +15,7 @@ This release introduces CommitGuard: recurring commitment tracking, deterministi
 
 ### Scope Included
 - New CommitGuard module (`lib/commitguard/**`) covering settings, commitment lifecycle, recurrence projection, horizon aggregation, detection/review flow, and event timeline output.
-- New dashboard and settings module surfaces: `/dashboard/commitguard` and `/dashboard/settings/commitguard`.
+- New dashboard and settings module surfaces: `/dashboard/commitguard` and `/settings/commitguard`.
 - New API routes under `/api/commitguard/**` for summary, commitments, actions, detections, review, settings, timeline, renewals, and CashPlan integration output.
 - Cross-module links: Cost Guard alert -> CommitGuard filtered view (`?costGuardAlertId=`), SpendLeak active commitment linkage metadata, Tax Buffer reserve integration in free-cash composition.
 
@@ -109,7 +109,7 @@ This release adds invoice export (CSV/XLSX) for Small Business and Accountant Pa
 - Manual cross-application verification (Excel/Numbers/Sheets/LibreOffice, screen reader) — see openspec/changes/add-invoice-export/tasks.md Group 10.
 
 ### Technical Changes
-- New modules: `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/api/invoices/export/route.ts`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx`, `app/dashboard/settings/export/page.tsx`.
+- New modules: `lib/invoices/exportFields.ts`, `lib/invoices/exportQuery.ts`, `lib/invoices/export.ts`, `app/api/invoices/export/route.ts`, `components/dashboard/InvoiceExportButton.tsx`, `components/settings/InvoiceExportClient.tsx`, `app/settings/export/page.tsx`.
 - Extracted `lib/dashboard/invoiceStatusLabels.ts` so `InvoiceTable.tsx` and the export service share one set of status/stage labels.
 - Confirmed via direct inspection of the installed `xlsx@0.18.5` (SheetJS Community Edition) writer source that frozen panes are not serialised by this library version — documented as a known cosmetic gap rather than silently dropped.
 

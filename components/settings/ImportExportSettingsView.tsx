@@ -76,7 +76,7 @@ export function ImportExportSettingsView({
               Export your invoices to CSV or XLSX with custom filters — available on the Small Business plan and above.
             </p>
             <a
-              href="/dashboard/settings/subscription"
+              href="/settings/subscription"
               className="inline-block bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
             >
               Upgrade now
@@ -97,7 +97,7 @@ export function ImportExportSettingsView({
               MarginGuard CSV/XLSX exports are available on plans that include export entitlement.
             </p>
             <a
-              href="/dashboard/settings/subscription"
+              href="/settings/subscription"
               className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
             >
               Upgrade now

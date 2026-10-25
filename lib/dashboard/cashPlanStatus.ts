@@ -41,7 +41,7 @@ export function buildCashPlanDashboardStatus(input: {
     confidenceLabel,
     lowestCashLabel,
     freshnessLabel: overview.freshnessLabel,
-    primaryActionHref: input.hasPlan ? "/dashboard/settings/cash-plan" : "/dashboard/settings",
+    primaryActionHref: input.hasPlan ? "/settings/cash-plan" : "/settings",
     recommendedActions: overview.recommendedActions.slice(0, 3),
   }
 }

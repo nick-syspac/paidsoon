@@ -680,7 +680,7 @@ describe("D6a real durable coordinator with transactional Prisma mocks (offline)
           plan: "small_business", source: "paidsoon_checkout", operationId: rootId } },
         metadata: { user_id: tenant, userId: tenant, plan: "small_business", selectedTier: "small_business", source: "paidsoon_checkout", operationId: rootId },
         success_url: "https://paidsoon.test/api/billing/checkout/success?session_id={CHECKOUT_SESSION_ID}&tier=small_business",
-        cancel_url: "https://paidsoon.test/dashboard/settings/subscription?cancelled=true",
+        cancel_url: "https://paidsoon.test/settings/subscription?cancelled=true",
       } }])
     })
     for (const trialSetting of ["0", "-1", "not-a-number"]) test(`Checkout preserves no-trial behavior for ${trialSetting} while correlating future subscription`, async () => {
@@ -696,7 +696,7 @@ describe("D6a real durable coordinator with transactional Prisma mocks (offline)
         params: { items: [{ price: "price_small" }], proration_behavior: "create_prorations", metadata: { userId: tenant, operationId: rootId } } }])
       assert.equal(db.profile.subscriptionStatus, "past_due"); assert.equal(db.profile.subscriptionTier, "small_business")
       assert.deepEqual(db.profile.subscriptionCurrentPeriodEnd, new Date(1900000000000))
-      assert.deepEqual(result.result, { url: "https://paidsoon.test/dashboard/settings/subscription?success=upgraded&tier=small_business" })
+      assert.deepEqual(result.result, { url: "https://paidsoon.test/settings/subscription?success=upgraded&tier=small_business" })
     })
     test("normalized legacy tiers remain supported, hidden/unknown grant rules are not used for checkout", () => {
       assert.deepEqual(plansApi.normalizeCustomerBillingIntent("checkout", "solo"), { kind: "checkout", tier: "business_control" })
@@ -721,14 +721,14 @@ describe("D6a real durable coordinator with transactional Prisma mocks (offline)
       assert.equal(calls.length, 0); assert.equal(customerReads, 0); assert.equal(subscriptionReads, 0); assert.equal(listCalls.length, 0)
       assert.equal(db.profile.trialEndsAt, null); assert.deepEqual(db.profile.independentGrant, { id: "grant", expiresAt: "2027-01-01" })
       assert.equal(db.profile.subscriptionStatus, "canceled"); assert.equal(db.profile.subscriptionTier, "essentials")
-      assert.deepEqual(result.result, { redirectUrl: "https://paidsoon.test/dashboard/settings/subscription?cancellation=ended" })
+      assert.deepEqual(result.result, { redirectUrl: "https://paidsoon.test/settings/subscription?cancellation=ended" })
     })
     test("cancel portal freezes exact flow/period redirect and never cancels the subscription", async () => {
       await runIntent({ kind: "cancel" })
       assert.deepEqual(calls, [{ method: "portal.create", target: null, key: `billing/${rootId}/cancel_portal_create`, params: {
-        customer: "cus_1", return_url: "https://paidsoon.test/dashboard/settings/subscription", flow_data: {
+        customer: "cus_1", return_url: "https://paidsoon.test/settings/subscription", flow_data: {
           type: "subscription_cancel", subscription_cancel: { subscription: "sub_1" }, after_completion: {
-            type: "redirect", redirect: { return_url: `https://paidsoon.test/dashboard/settings/subscription?cancellation=scheduled&cancelAt=${encodeURIComponent(new Date(1900000000000).toISOString())}` },
+            type: "redirect", redirect: { return_url: `https://paidsoon.test/settings/subscription?cancellation=scheduled&cancelAt=${encodeURIComponent(new Date(1900000000000).toISOString())}` },
           },
         },
       } }])
@@ -743,7 +743,7 @@ describe("D6a real durable coordinator with transactional Prisma mocks (offline)
     test("general portal has no unsupported metadata/retrieve and does not change lifecycle", async () => {
       await runIntent({ kind: "portal" })
       assert.deepEqual(calls, [{ method: "portal.create", target: null, key: `billing/${rootId}/portal_create`,
-        params: { customer: "cus_1", return_url: "https://paidsoon.test/dashboard/settings/subscription" } }])
+        params: { customer: "cus_1", return_url: "https://paidsoon.test/settings/subscription" } }])
       assert.equal(db.profile.subscriptionStatus, "past_due"); assert.equal(db.profile.pendingBillingMutationId, null)
     })
     test("customer prerequisite is keyed, verified and atomically handed off before root creation", async () => {
@@ -1025,7 +1025,7 @@ describe("D6a real durable coordinator with transactional Prisma mocks (offline)
       test("upgrade uses actual Stripe plan instead of stale local or grant tier and never synthesizes active", async () => {
         db.profile.subscriptionTier = "business_pro"; db.profile.independentGrant = { plan: "business_pro" }
         assert.deepEqual(await ok(checkoutPost, '{"tier":"small_business"}'), {
-          url: "https://paidsoon.test/dashboard/settings/subscription?success=upgraded&tier=small_business",
+          url: "https://paidsoon.test/settings/subscription?success=upgraded&tier=small_business",
         })
         assert.equal(calls[0].method, "subscription.update"); assert.equal(db.profile.subscriptionTier, "small_business")
         assert.equal(db.profile.subscriptionStatus, "past_due"); assert.equal(db.profile.pendingBillingMutationId, null)
@@ -1086,7 +1086,7 @@ describe("D6a real durable coordinator with transactional Prisma mocks (offline)
         db.profile.independentGrant = { plan: "small_business", expiresAt: "2027-01-01" }
         db.profile.risk = { blocking: true }; db.profile.invoiceSequence = { stage: 2, paused: false }
         const before = structuredClone(db.profile)
-        assert.deepEqual(await ok(cancelPost), { redirectUrl: "https://paidsoon.test/dashboard/settings/subscription?cancellation=ended" })
+        assert.deepEqual(await ok(cancelPost), { redirectUrl: "https://paidsoon.test/settings/subscription?cancellation=ended" })
         assert.equal(calls.length, 0); assert.equal(customerReads, 0); assert.equal(subscriptionReads, 0)
         assert.equal(db.profile.trialEndsAt, null); assert.equal(db.profile.subscriptionStatus, "canceled")
         for (const key of ["independentGrant", "risk", "invoiceSequence"]) assert.deepEqual(db.profile[key], before[key])

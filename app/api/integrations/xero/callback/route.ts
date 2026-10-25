@@ -38,13 +38,13 @@ async function GETHandler(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=xero&code=cancelled`
+      `${APP_URL}/settings/connections?source=xero&code=cancelled`
     )
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=xero&code=missing_params`
+      `${APP_URL}/settings/connections?source=xero&code=missing_params`
     )
   }
 
@@ -59,7 +59,7 @@ async function GETHandler(request: Request) {
     oauthState.expiresAt < new Date()
   ) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=xero&code=invalid_state`
+      `${APP_URL}/settings/connections?source=xero&code=invalid_state`
     )
   }
 
@@ -82,7 +82,7 @@ async function GETHandler(request: Request) {
   } catch (err) {
     console.error("[xero/callback] token exchange failed", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=xero&code=token_exchange_failed`
+      `${APP_URL}/settings/connections?source=xero&code=token_exchange_failed`
     )
   }
 
@@ -92,13 +92,13 @@ async function GETHandler(request: Request) {
   } catch (err) {
     console.error("[xero/callback] getOrganisations failed", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=xero&code=org_fetch_failed`
+      `${APP_URL}/settings/connections?source=xero&code=org_fetch_failed`
     )
   }
 
   if (organisations.length === 0) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=xero&code=no_organisations`
+      `${APP_URL}/settings/connections?source=xero&code=no_organisations`
     )
   }
 
@@ -170,12 +170,12 @@ async function GETHandler(request: Request) {
       }
       if (err instanceof Error && err.message === "CONNECTION_LIMIT_REACHED") {
         return NextResponse.redirect(
-          `${APP_URL}/dashboard/settings/connections?source=xero&code=connection_limit_reached`
+          `${APP_URL}/settings/connections?source=xero&code=connection_limit_reached`
         )
       }
       console.error("[xero/callback] failed to store connection", err)
       return NextResponse.redirect(
-        `${APP_URL}/dashboard/settings/connections?source=xero&code=connection_save_failed`
+        `${APP_URL}/settings/connections?source=xero&code=connection_save_failed`
       )
     }
 
@@ -188,7 +188,7 @@ async function GETHandler(request: Request) {
     }
 
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=xero&code=connected`
+      `${APP_URL}/settings/connections?source=xero&code=connected`
     )
   }
 
@@ -211,7 +211,7 @@ async function GETHandler(request: Request) {
     path: "/",
   })
 
-  const selectUrl = new URL(`${APP_URL}/dashboard/settings/connections/xero/select-org`)
+  const selectUrl = new URL(`${APP_URL}/settings/connections/xero/select-org`)
   selectUrl.searchParams.set("key", pendingKey)
   return NextResponse.redirect(selectUrl.toString())
 }

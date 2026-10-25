@@ -1,0 +1,159 @@
+import { redirect } from "next/navigation"
+import type { ReactElement } from "react"
+
+import { ImportExportSettingsView } from "@/components/settings/ImportExportSettingsView"
+import { withUserContext } from "@/lib/db/withUserContext"
+import { hasPlanFeature } from "@/lib/subscriptionPlans"
+import { getDashboardProfile } from "@/lib/dashboard/loadDashboardProfile"
+import { getDashboardEffectiveTier } from "@/lib/dashboard/effectiveTier"
+import { getAuthenticatedUser } from "@/lib/supabase/server"
+
+type InvoiceImportBatchSummary = {
+  id: string
+  fileName: string
+  fileType: string
+  status: string
+  duplicateMode: string
+  rowsTotal: number
+  rowsValid: number
+  rowsWarning: number
+  rowsFailed: number
+  rowsSkipped: number
+  createdAt: string
+  validatedAt: string | null
+  completedAt: string | null
+}
+
+type SpendImportBatchSummary = {
+  id: string
+  fileName: string
+  fileType: string
+  status: string
+  duplicateMode: string
+  rowsTotal: number
+  rowsValid: number
+  rowsWarning: number
+  rowsFailed: number
+  rowsSkipped: number
+  createdAt: string
+  validatedAt: string | null
+  completedAt: string | null
+}
+
+type ExportCustomer = { id: string; label: string }
+
+type AuthenticatedUser = {
+  id: string
+}
+
+async function loadInvoiceImportBatches(userId: string): Promise<InvoiceImportBatchSummary[]> {
+  const batches = await withUserContext(userId, (tx) =>
+    tx.invoiceImportBatch.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        fileName: true,
+        fileType: true,
+        status: true,
+        duplicateMode: true,
+        rowsTotal: true,
+        rowsValid: true,
+        rowsWarning: true,
+        rowsFailed: true,
+        rowsSkipped: true,
+        createdAt: true,
+        validatedAt: true,
+        completedAt: true,
+      },
+    }),
+  )
+
+  return batches.map((batch) => ({
+    ...batch,
+    createdAt: batch.createdAt.toISOString(),
+    validatedAt: batch.validatedAt?.toISOString() ?? null,
+    completedAt: batch.completedAt?.toISOString() ?? null,
+  }))
+}
+
+async function loadSpendImportBatches(userId: string): Promise<SpendImportBatchSummary[]> {
+  const batches = await withUserContext(userId, (tx) =>
+    tx.spendImportBatch.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        fileName: true,
+        fileType: true,
+        status: true,
+        duplicateMode: true,
+        rowsTotal: true,
+        rowsValid: true,
+        rowsWarning: true,
+        rowsFailed: true,
+        rowsSkipped: true,
+        createdAt: true,
+        validatedAt: true,
+        completedAt: true,
+      },
+    }),
+  )
+
+  return batches.map((batch) => ({
+    ...batch,
+    createdAt: batch.createdAt.toISOString(),
+    validatedAt: batch.validatedAt?.toISOString() ?? null,
+    completedAt: batch.completedAt?.toISOString() ?? null,
+  }))
+}
+
+async function loadExportCustomers(userId: string): Promise<ExportCustomer[]> {
+  const customers = await withUserContext(userId, (tx) =>
+    tx.customer.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        financialContact: { select: { name: true, email: true } },
+      },
+    }),
+  )
+
+  return customers
+    .map((customer) => ({
+      id: customer.id,
+      label: customer.financialContact.name || customer.financialContact.email || "Unknown",
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label))
+}
+
+export default async function ImportExportSettingsPage(): Promise<ReactElement> {
+  const {
+    data: { user },
+  } = await getAuthenticatedUser()
+  if (!user) redirect("/sign-in")
+
+  const authenticatedUser = user as AuthenticatedUser
+  const tier = getDashboardEffectiveTier(await getDashboardProfile(authenticatedUser.id))
+  if (tier === null) redirect("/settings/subscription")
+  const [initialBatches, initialSpendBatches] = await Promise.all([
+    loadInvoiceImportBatches(authenticatedUser.id),
+    loadSpendImportBatches(authenticatedUser.id),
+  ])
+
+  const canExport = hasPlanFeature(tier, "csv_export")
+  const canManageMarginGuard = hasPlanFeature(tier, "marginguard_core")
+  const canManageCommitGuard = hasPlanFeature(tier, "commitguard_core")
+  const exportCustomers = canExport ? await loadExportCustomers(authenticatedUser.id) : []
+
+  return (
+    <ImportExportSettingsView
+      initialBatches={initialBatches}
+      initialSpendBatches={initialSpendBatches}
+      canExport={canExport}
+      canManageMarginGuard={canManageMarginGuard}
+      canManageCommitGuard={canManageCommitGuard}
+      exportCustomers={exportCustomers}
+    />
+  )
+}

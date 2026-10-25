@@ -26,7 +26,7 @@ function WorkspaceSurfaces({ params }: { params: WorkspaceQuery }): React.JSX.El
     <section className="rounded-xl border border-gray-200 bg-white p-5">
       <h1 className="text-xl font-semibold">CommitGuard</h1>
       <p className="mt-1 text-sm text-gray-600">Protect upcoming cash with commitment forecasting, renewal visibility, and confidence-scored detection.</p>
-      <div className="mt-3 flex gap-4"><Link href="/dashboard/settings/commitguard">Settings</Link><Link href="/dashboard/settings/import-export">Import / export</Link></div>
+      <div className="mt-3 flex gap-4"><Link href="/settings/commitguard">Settings</Link><Link href="/settings/import-export">Import / export</Link></div>
       {params.costGuardAlertId ? <p>Filtered to commitments linked to Cost Guard alert {params.costGuardAlertId}.</p> : null}
     </section>
     {summary.quality.reasons.includes("unsupported_recurrence") ? <p role="status">Forecast incomplete: a commitment has an unsupported or invalid schedule. Totals and free cash are not available. Existing commitments remain editable; choose a supported frequency for custom recurrence.</p> : null}

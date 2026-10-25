@@ -161,7 +161,7 @@ test("409 refreshes version/reservation presentation without automatic new key o
   assert.equal(s.uuids(), 1)
 })
 
-for (const result of [{ url: "https://checkout.stripe.com/test" }, { redirectUrl: "https://paidsoon.test/dashboard/settings/subscription?cancellation=ended" }, { scheduledAt: "2026-11-01T00:00:00.000Z" }, { cancelled: true }] satisfies BillingResult[]) {
+for (const result of [{ url: "https://checkout.stripe.com/test" }, { redirectUrl: "https://paidsoon.test/settings/subscription?cancellation=ended" }, { scheduledAt: "2026-11-01T00:00:00.000Z" }, { cancelled: true }] satisfies BillingResult[]) {
   test(`preserves successful result ${Object.keys(result)[0]} and stores no result/URL`, async () => {
     const s = setup(async () => json(result))
     await s.controller.start(checkout, 1)
@@ -268,7 +268,7 @@ test("opaque server scope changes on user/sign-in but is stable across render/ve
 test("result navigation preserves hosted/local redirects; scheduling and undo require refresh only", () => {
   const origin = "https://paidsoon.test"
   assert.equal(billingResultNavigation({ url: "https://checkout.stripe.com/known" }, origin), "https://checkout.stripe.com/known")
-  assert.equal(billingResultNavigation({ redirectUrl: "/dashboard/settings/subscription?cancellation=ended" }, origin), `${origin}/dashboard/settings/subscription?cancellation=ended`)
+  assert.equal(billingResultNavigation({ redirectUrl: "/settings/subscription?cancellation=ended" }, origin), `${origin}/settings/subscription?cancellation=ended`)
   assert.equal(billingResultNavigation({ scheduledAt: "2026-11-01T00:00:00.000Z" }, origin), null)
   assert.equal(billingResultNavigation({ cancelled: true }, origin), null)
   assert.equal(billingResultNavigation({ url: "javascript:alert(1)" }, origin), null)

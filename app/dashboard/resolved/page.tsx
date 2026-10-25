@@ -61,7 +61,7 @@ export default async function DashboardResolvedPage({
   const { profile, chaseAllowance } = await loadDashboardContext(user.id, traceContext, COMPONENT)
 
   const tier = getDashboardEffectiveTier(profile)
-  if (tier === null) redirect("/dashboard/settings/subscription")
+  if (tier === null) redirect("/settings/subscription")
   const plan = getPlanByTier(tier)
   const canViewPaymentStatus = hasPlanFeature(plan.id, "payment_status_dashboard")
 

@@ -180,5 +180,5 @@ test("trial banner checkoutUrl points to /billing/checkout for trialing user", (
 
 test("trial banner checkoutUrl does not point to subscription settings page", () => {
   const url = buildTrialCheckoutUrl("small_business")
-  assert.equal(url.includes("/dashboard/settings/subscription"), false)
+  assert.equal(url.includes("/settings/subscription"), false)
 })

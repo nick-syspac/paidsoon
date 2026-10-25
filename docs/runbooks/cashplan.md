@@ -138,7 +138,7 @@ Shared RLS, scheduled execution and delivery acceptance remain pending.
 
 Primary user-facing surface:
 
-- `/dashboard/settings/cash-plan`
+- `/settings/cash-plan`
 
 Primary routes:
 
@@ -173,7 +173,7 @@ Relevant shared dependencies:
 
 - CashPlan should remain described as a planning tool, not as a source-of-truth accounting ledger.
 - Forecast confidence and data-quality warnings are part of the product behavior and should not be treated as incidental UI noise.
-- Related cash plan views are implemented, but the canonical documented operator entry point is `/dashboard/settings/cash-plan`.
+- Related cash plan views are implemented, but the canonical documented operator entry point is `/settings/cash-plan`.
 
 ## 4. Troubleshooting
 

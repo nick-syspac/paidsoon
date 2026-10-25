@@ -67,7 +67,7 @@ Routes:
 
 Implemented pages:
 - `/dashboard/tax-buffer`
-- `/dashboard/settings/tax-buffer`
+- `/settings/tax-buffer`
 
 Implemented UI behavior:
 - Entitlement-aware route access (`tax_buffer_basic`)

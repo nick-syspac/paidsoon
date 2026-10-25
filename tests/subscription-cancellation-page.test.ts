@@ -51,7 +51,7 @@ describe("Subscription cancellation page", () => {
       },
     })
 
-    ;({ default: SubscriptionCancellationPage } = await import("@/app/dashboard/settings/subscription/cancel/page"))
+    ;({ default: SubscriptionCancellationPage } = await import("@/app/settings/subscription/cancel/page"))
   })
 
   beforeEach(() => {

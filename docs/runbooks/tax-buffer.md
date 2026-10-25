@@ -28,7 +28,7 @@ Operational notes:
 Primary user-facing surfaces:
 
 - `/dashboard/tax-buffer`
-- `/dashboard/settings/tax-buffer`
+- `/settings/tax-buffer`
 
 Primary routes:
 
@@ -84,7 +84,7 @@ Likely causes:
 
 Actions:
 
-1. Open `/dashboard/settings/tax-buffer` and confirm current configuration.
+1. Open `/settings/tax-buffer` and confirm current configuration.
 2. Check whether the tenant has reliable upstream invoice and bill inputs.
 3. Re-run the summary after correcting configuration rather than forcing manual overrides first.
 

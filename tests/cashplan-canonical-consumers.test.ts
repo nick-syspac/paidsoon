@@ -102,7 +102,7 @@ mock.module("@/lib/taxBuffer/service", { namedExports: { loadTaxBufferSummary: a
 const summaryRoute = await import("@/app/api/cashplan/summary/route")
 const itemsRoute = await import("@/app/api/cashplan/items/route")
 const settingsRoute = await import("@/app/api/cashplan/settings/route")
-const { default: SettingsPage } = await import("@/app/dashboard/settings/cash-plan/page")
+const { default: SettingsPage } = await import("@/app/settings/cash-plan/page")
 const { loadCashPlanSummary, loadCashPlan, refreshCashPlanInTransaction } = await import("@/lib/cashplan/service")
 const { buildCashPlanDashboardStatus } = await import("@/lib/dashboard/cashPlanStatus")
 const { loadCashPlanProvider } = await import("@/lib/ownersDigest/service")

@@ -367,7 +367,7 @@ The matrix is exhaustive against the code as of June 2026. Every env var the app
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | [app/api/webhooks/stripe-connect/route.ts](../../app/api/webhooks/stripe-connect/route.ts) |
 | `STRIPE_DEPOSIT_WEBHOOK_SECRET` | [lib/depositGuard/payments/stripeConnectProvider.ts](../../lib/depositGuard/payments/stripeConnectProvider.ts) (optional override for deposit-payment webhooks) |
 | `RESEND_API_KEY` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendOwnersDigest.ts](../../lib/email/sendOwnersDigest.ts), [lib/email/sendDepositReminder.ts](../../lib/email/sendDepositReminder.ts), [app/api/settings/email/route.ts](../../app/api/settings/email/route.ts) |
-| `RESEND_FROM_EMAIL` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendDepositReminder.ts](../../lib/email/sendDepositReminder.ts), [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) |
+| `RESEND_FROM_EMAIL` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendDepositReminder.ts](../../lib/email/sendDepositReminder.ts), [app/settings/email/page.tsx](../../app/settings/email/page.tsx) |
 | `RESEND_FROM_NAME` | [lib/email/send.ts](../../lib/email/send.ts), [lib/email/sendDepositReminder.ts](../../lib/email/sendDepositReminder.ts) |
 | `RESEND_WEBHOOK_SECRET` | [app/api/webhooks/resend/route.ts](../../app/api/webhooks/resend/route.ts) |
 | `OPENAI_API_KEY` | `lib/email/ai-rewrite.ts` (to be created) — server-side only, never browser |

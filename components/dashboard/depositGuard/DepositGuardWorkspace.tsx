@@ -98,13 +98,13 @@ export function DepositGuardWorkspace({
               Create job
             </Link>
             <Link
-              href="/dashboard/settings"
+              href="/settings"
               className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Settings
             </Link>
             <Link
-              href="/dashboard/settings/import-export"
+              href="/settings/import-export"
               className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               Import / export
@@ -274,7 +274,7 @@ export function DepositGuardWorkspace({
                           Open
                         </Link>
                         <Link
-                          href="/dashboard/settings"
+                          href="/settings"
                           className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                         >
                           Settings

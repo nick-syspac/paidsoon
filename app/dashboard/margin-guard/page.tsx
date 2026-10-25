@@ -169,9 +169,9 @@ export default async function MarginGuardPage({
             Connect accounting software, import transactions, classify expenses, and set target margins before relying on profitability analysis.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Link href="/dashboard/settings/connections" className="rounded-md bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800">Connect accounting</Link>
-            <Link href="/dashboard/settings/import-export" className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-blue-800 border border-blue-300 hover:bg-blue-100">Import data</Link>
-            <Link href="/dashboard/settings/margin-guard" className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-blue-800 border border-blue-300 hover:bg-blue-100">Configure MarginGuard</Link>
+            <Link href="/settings/connections" className="rounded-md bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800">Connect accounting</Link>
+            <Link href="/settings/import-export" className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-blue-800 border border-blue-300 hover:bg-blue-100">Import data</Link>
+            <Link href="/settings/margin-guard" className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-blue-800 border border-blue-300 hover:bg-blue-100">Configure MarginGuard</Link>
           </div>
         </section>
       ) : null}

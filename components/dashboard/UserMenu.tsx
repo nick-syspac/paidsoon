@@ -93,14 +93,14 @@ export function UserMenu({
           {/* Links */}
           <div className="py-1">
             <Link
-              href="/dashboard/settings/account"
+              href="/settings/account"
               onClick={() => setOpen(false)}
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >
               Account
             </Link>
             <Link
-              href="/dashboard/settings"
+              href="/settings"
               onClick={() => setOpen(false)}
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >

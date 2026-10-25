@@ -37,7 +37,7 @@ describe("Checkout frozen purchase contract (no DB or provider)", () => {
       assert.equal(params.subscription_data?.metadata?.operationId, operationId)
       assert.equal(params.metadata?.userId, tenant); assert.equal(params.metadata?.selectedTier, tier)
       assert.equal(params.success_url, `https://paidsoon.test/api/billing/checkout/success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`)
-      assert.equal(params.cancel_url, "https://paidsoon.test/dashboard/settings/subscription?cancelled=true")
+      assert.equal(params.cancel_url, "https://paidsoon.test/settings/subscription?cancelled=true")
       assert.equal(step.objectTarget, "/v1/checkout/sessions"); assert.equal(step.method, "POST")
     })
   }

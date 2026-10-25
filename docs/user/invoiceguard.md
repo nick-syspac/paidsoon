@@ -4,7 +4,7 @@ InvoiceGuard is the invoice follow-up area in Settings. Configure a schedule, co
 
 ## Schedule
 
-Open **Settings → InvoiceGuard → Schedule** at `/dashboard/settings/schedule`.
+Open **Settings → InvoiceGuard → Schedule** at `/settings/schedule`.
 
 The sequence has three stages, each set as a number of days after the invoice due date. The default sequence is 3, 10, and 21 days after the due date.
 
@@ -15,7 +15,7 @@ Changing a schedule affects follow-up timing. Review the configured intervals be
 
 ## Email
 
-Open **Settings → InvoiceGuard → Email** at `/dashboard/settings/email`.
+Open **Settings → InvoiceGuard → Email** at `/settings/email`.
 
 - **Essentials:** reminder emails use the PaidSoon system From address, and replies go to your account email.
 - **Business Control and above:** you can set an optional Reply-to address and a custom From name.
@@ -25,7 +25,7 @@ Select **Save email settings** after making changes. Use an address you control 
 
 ## Templates
 
-Open **Settings → InvoiceGuard → Templates** at `/dashboard/settings/templates`.
+Open **Settings → InvoiceGuard → Templates** at `/settings/templates`.
 
 The editor is organized by reminder stage:
 
@@ -52,7 +52,7 @@ Features are subject to current plan entitlements and any verification requireme
 
 ## Import / Export
 
-Open **Settings → InvoiceGuard → Import / Export** at `/dashboard/settings/import-export`. This screen contains separate invoice import, expense import, invoice export, MarginGuard export, and CommitGuard settings-transfer tools. These do not make a full PaidSoon account backup.
+Open **Settings → InvoiceGuard → Import / Export** at `/settings/import-export`. This screen contains separate invoice import, expense import, invoice export, MarginGuard export, and CommitGuard settings-transfer tools. These do not make a full PaidSoon account backup.
 
 ### Import overdue invoices
 

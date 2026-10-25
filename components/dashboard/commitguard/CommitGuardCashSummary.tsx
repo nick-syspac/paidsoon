@@ -18,7 +18,7 @@ export function CommitGuardCashSummary({ summary }: { summary: CommitGuardSummar
       {summary.quality.actions.length ? <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
         {summary.quality.actions.includes("update_cash_context") || summary.quality.actions.includes("update_weekly_expenses") || summary.quality.actions.includes("review_tax_protection")
           ? <Link className="underline" href="/dashboard/commitguard#commitguard-cash-context">Update owner cash / expense / tax inputs</Link> : null}
-        <Link className="underline" href="/dashboard/settings/commitguard">Review CommitGuard settings</Link>
+        <Link className="underline" href="/settings/commitguard">Review CommitGuard settings</Link>
         {summary.quality.actions.includes("review_commitments") || summary.quality.actions.includes("review_coverage")
           ? <Link className="underline" href="/dashboard/commitguard">Review commitments and coverage</Link> : null}
       </div> : null}

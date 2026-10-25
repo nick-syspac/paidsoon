@@ -253,8 +253,8 @@ See [stripe.md §4.3](./stripe.md). Confirm `https://paidsoon.com/api/stripe/con
 - Open `https://paidsoon.com` → loads.
 - `https://paidsoon.com/sign-up` → sign up with email; confirm email arrives; lands on `/dashboard`.
 - Open in a second private window with a different account → both accounts see only their own data (RLS).
-- `/dashboard/settings/stripe` → click Connect → finishes OAuth → returns with `success=connected`.
-- `/dashboard/settings/subscription` → click Upgrade → completes a live Stripe checkout (or use test mode if you're verifying before launch).
+- `/settings/stripe` → click Connect → finishes OAuth → returns with `success=connected`.
+- `/settings/subscription` → click Upgrade → completes a live Stripe checkout (or use test mode if you're verifying before launch).
 - Trigger the manual cron from §6; confirm `200` and `emailsSent`/`processed` increments.
 
 For the full end-to-end flow (Connect → invoice → 3 emails → payment → sequence stops), see the end-to-end test plan, which depends on Stripe Connect approval.

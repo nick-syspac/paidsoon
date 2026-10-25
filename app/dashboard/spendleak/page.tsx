@@ -47,7 +47,7 @@ export default async function SpendLeakDashboardPage({
 
   const profile = await getDashboardProfile(user.id)
   const tier = getDashboardEffectiveTier(profile)
-  if (tier === null) redirect("/dashboard/settings/subscription")
+  if (tier === null) redirect("/settings/subscription")
   if (!canAccessSpendLeak(tier)) {
     return (
       <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-6">
@@ -56,7 +56,7 @@ export default async function SpendLeakDashboardPage({
           SpendLeak is currently available on selected tiers. Upgrade to access spend-side insights.
         </p>
         <Link
-          href="/dashboard/settings/subscription?intent=spendleak"
+          href="/settings/subscription?intent=spendleak"
           className="inline-flex rounded-md bg-amber-700 px-3 py-1.5 text-sm text-white hover:bg-amber-800"
         >
           View plans

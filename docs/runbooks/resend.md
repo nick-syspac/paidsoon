@@ -86,7 +86,7 @@ Per the matrix in [README.md](./README.md):
 
 The `(dev)` / `(preview)` suffix on `RESEND_FROM_NAME` is **highly recommended** — it makes test emails visually distinct in the inbox so you don't mistake them for production traffic.
 
-`RESEND_FROM_EMAIL` is also displayed on [app/dashboard/settings/email/page.tsx](../../app/dashboard/settings/email/page.tsx) as the fallback "From" address shown to Essentials-tier users in the Email Settings UI.
+`RESEND_FROM_EMAIL` is also displayed on [app/settings/email/page.tsx](../../app/settings/email/page.tsx) as the fallback "From" address shown to Essentials-tier users in the Email Settings UI.
 
 ### 3.1 Tier-gated custom senders
 
@@ -161,7 +161,7 @@ Generic test-email instructions in §5 do not authorize trial notification sends
 	`RESEND_FROM_NAME` (default `PaidSoon`) and `NEXT_PUBLIC_APP_URL`. If app URL is
 	unset, `VERCEL_URL` is used as an HTTPS hostname. Configured app URL must be an
 	origin (root path), HTTPS except local HTTP, without credentials/query/fragment;
-	link is `/dashboard/settings/subscription`, not the marketing site URL.
+	link is `/settings/subscription`, not the marketing site URL.
 	Existing Stripe billing credentials and `SUPABASE_SECRET_KEY` support contact
 	reads. Use the [existing env matrix](./README.md#environment-variable-matrix),
 	verified sender/domain and sandbox recipient restriction above. **No new secret

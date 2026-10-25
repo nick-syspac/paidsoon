@@ -13,13 +13,13 @@ export default async function SpendClassificationReviewPage() {
 
   const profile = await getDashboardProfile(user.id)
   const tier = getDashboardEffectiveTier(profile)
-  if (tier === null) redirect("/dashboard/settings/subscription")
+  if (tier === null) redirect("/settings/subscription")
   if (!canAccessSpendLeak(tier)) {
     return (
       <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-6">
         <h1 className="text-xl font-semibold text-amber-900">Imported spend review</h1>
         <p className="text-sm text-amber-900">Imported spend classification is currently available on selected tiers.</p>
-        <Link href="/dashboard/settings/subscription?intent=spendleak" className="inline-flex rounded-md bg-amber-700 px-3 py-1.5 text-sm text-white hover:bg-amber-800">
+        <Link href="/settings/subscription?intent=spendleak" className="inline-flex rounded-md bg-amber-700 px-3 py-1.5 text-sm text-white hover:bg-amber-800">
           View plans
         </Link>
       </div>
