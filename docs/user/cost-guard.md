@@ -5,7 +5,7 @@ Cost Guard is a cost-monitoring dashboard for reviewing spend changes, supplier/
 ## Open Cost Guard and check your data
 
 - Dashboard: `/dashboard/cost-guard`
-- Settings: `/dashboard/settings/cost-guard`
+- Settings: `/settings/cost-guard`
 - The Cost Guard routes currently require sign-in but do not check a Cost Guard plan feature flag. Product availability is marked **Private beta**; the route being visible does not imply unrestricted product availability.
 
 For the live portions of the dashboard, connect an accounting source or wait for relevant financial data to sync. Cost Guard reads its forecast and alert records and also shows recurring-spend findings from SpendLeak. If you see the first-review message, review your connections and data imports. If you see a stale-data warning, check that the source has synced recently. A zero or empty card is not proof that no costs exist.

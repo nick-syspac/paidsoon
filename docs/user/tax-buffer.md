@@ -6,7 +6,7 @@ Tax Buffer estimates tax reserves, reserve gaps, upcoming obligations, and safe-
 
 ## Set up Tax Buffer
 
-Open **Settings → Tax Buffer** at `/dashboard/settings/tax-buffer`.
+Open **Settings → Tax Buffer** at `/settings/tax-buffer`.
 
 1. If **Suggested first-time setup available** appears, review the reasons and select **Apply suggested defaults** only if they fit your business. Suggestions prefill settings; they do not verify your tax position.
 2. Enable Tax Buffer, choose **Accounting basis** (Cash or Accrual), enter your **Business type**, and select **GST frequency** (Monthly, Quarterly, or Annually).

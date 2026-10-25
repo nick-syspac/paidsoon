@@ -4,7 +4,7 @@ DepositGuard tracks jobs that need a deposit, payment requests, outstanding bala
 
 ## Configure DepositGuard
 
-Open **Settings → DepositGuard** at `/dashboard/settings/deposit-guard`. Set the options that apply to your workflow, then select **Save settings**.
+Open **Settings → DepositGuard** at `/settings/deposit-guard`. Set the options that apply to your workflow, then select **Save settings**.
 
 ### Rules and reminders
 

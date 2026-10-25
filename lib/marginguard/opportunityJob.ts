@@ -125,7 +125,7 @@ export function evaluateOpportunityCandidates(input: OpportunityContext): Opport
         cashPlanBufferGapCents: input.cashPlanBufferGapCents,
         handoff: {
           commitGuardPath: "/dashboard/commitguard",
-          cashPlanPath: "/dashboard/settings/cash-plan",
+          cashPlanPath: "/settings/cash-plan",
         },
         commitmentsAreNotRealizedCosts: true,
         taxReserveExcludedFromOperatingMargin: true,

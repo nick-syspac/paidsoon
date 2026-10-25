@@ -10,7 +10,7 @@ The dashboard may prompt you to add cash-plan data or connect source data. Those
 
 ## Configure RunwayGuard settings
 
-Open **Settings → RunwayGuard** at `/dashboard/settings/runway-guard`. Set the controls and select **Save settings**:
+Open **Settings → RunwayGuard** at `/settings/runway-guard`. Set the controls and select **Save settings**:
 
 - **Module status:** enable or disable the forecast without deleting runway history.
 - **Forecast horizon:** choose 30, 60, 90, 180, or 365 days.

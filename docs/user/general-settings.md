@@ -4,7 +4,7 @@ Open **Settings** from the signed-in dashboard. The **General** group contains A
 
 ## Account
 
-Open `/dashboard/settings/account` to review your profile and account status.
+Open `/settings/account` to review your profile and account status.
 
 - **Display name:** Enter your name or business name and select **Save**. This name can appear in automated invoice reminder emails. A blank name cannot be saved.
 - **Email:** The account email is displayed but is read-only on this page. It cannot be changed from Account settings.
@@ -14,7 +14,7 @@ If the saved display name does not appear in a reminder, confirm that you saved 
 
 ## Connections
 
-Open `/dashboard/settings/connections` to connect payment or accounting data used by PaidSoon.
+Open `/settings/connections` to connect payment or accounting data used by PaidSoon.
 
 ### Connect a source
 
@@ -29,7 +29,7 @@ Only the providers currently listed in Connections are documented here. QuickBoo
 
 ## Subscription
 
-Open `/dashboard/settings/subscription` to review your current plan and subscription status. The customer-selectable plans are **Essentials**, **Business Control**, **Small Business**, and **Business Pro**. Accountant Partner is contact-only, not a self-serve plan option.
+Open `/settings/subscription` to review your current plan and subscription status. The customer-selectable plans are **Essentials**, **Business Control**, **Small Business**, and **Business Pro**. Accountant Partner is contact-only, not a self-serve plan option.
 
 ### Application access versus billing — rollout in progress
 

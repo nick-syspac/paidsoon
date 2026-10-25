@@ -57,7 +57,7 @@ export default async function TaxBufferPage() {
           </p>
           <div className="mt-3">
             <Link
-              href="/dashboard/settings/tax-buffer"
+              href="/settings/tax-buffer"
               className="inline-flex rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
             >
               Open Tax Buffer setup

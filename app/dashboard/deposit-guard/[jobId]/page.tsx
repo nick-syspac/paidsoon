@@ -122,7 +122,7 @@ export default async function DepositGuardJobPage({
               Create job
             </Link>
             <Link
-              href="/dashboard/settings"
+              href="/settings"
               className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Settings

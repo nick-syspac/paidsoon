@@ -59,7 +59,7 @@ function subscriptionUrl(env: NodeJS.ProcessEnv): string {
     const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
     if ((url.protocol !== "https:" && !(url.protocol === "http:" && local)) || url.username || url.password ||
         url.search || url.hash || url.pathname !== "/") return invalid()
-    return new URL("/dashboard/settings/subscription", url.origin).href
+    return new URL("/settings/subscription", url.origin).href
   } catch { return invalid() }
 }
 

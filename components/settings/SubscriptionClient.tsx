@@ -93,7 +93,7 @@ export function SubscriptionClient({
   }
 
   async function handleCancelSubscription() {
-    window.location.assign("/dashboard/settings/subscription/cancel")
+    window.location.assign("/settings/subscription/cancel")
   }
 
   return (

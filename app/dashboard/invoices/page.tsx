@@ -71,7 +71,7 @@ export default async function DashboardInvoicesPage({
   )
 
   const tier = getDashboardEffectiveTier(profile)
-  if (tier === null) redirect("/dashboard/settings/subscription")
+  if (tier === null) redirect("/settings/subscription")
   // Access must be established before the catalog's forgiving tier lookup.
   const plan = getPlanByTier(tier)
   const canViewOverdue = hasPlanFeature(plan.id, "overdue_invoice_dashboard")
@@ -152,7 +152,7 @@ export default async function DashboardInvoicesPage({
           )}
           {canViewOverdue && (
             <a
-              href="/dashboard/settings/import"
+              href="/settings/import"
               className="text-sm bg-white text-gray-700 border border-gray-300 px-3 py-1.5 rounded-md hover:bg-gray-50"
             >
               Import invoices
@@ -160,7 +160,7 @@ export default async function DashboardInvoicesPage({
           )}
           {!connection && canViewOverdue && (
             <a
-              href="/dashboard/settings/connections"
+              href="/settings/connections"
               className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700"
             >
               Connect Stripe →

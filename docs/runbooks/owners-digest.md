@@ -33,7 +33,7 @@ Primary user-facing surfaces:
 
 - `/dashboard/owners-digest`
 - `/dashboard/owners-digest/[digestId]`
-- `/dashboard/settings/owners-digest`
+- `/settings/owners-digest`
 
 Primary routes:
 

@@ -151,7 +151,7 @@ Offline evidence and exact validation results are recorded in the
 Primary user-facing surfaces:
 
 - `/dashboard/commitguard`
-- `/dashboard/settings/commitguard`
+- `/settings/commitguard`
 
 Primary routes:
 

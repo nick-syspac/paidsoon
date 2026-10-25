@@ -58,7 +58,7 @@ export function freezeCustomerBillingPlan(
   const requestedTier = "tier" in intent ? intent.tier : null
   const priceId = requestedTier ? Object.keys(priceCatalog).find((id) => priceCatalog[id] === requestedTier) ?? null : null
   if (requestedTier && !priceId) return fail("billing_price_not_configured")
-  const returnUrl = `${env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription`
+  const returnUrl = `${env.NEXT_PUBLIC_APP_URL}/settings/subscription`
   const trialDays = Number(env.STRIPE_TRIAL_PERIOD_DAYS ?? 14)
   const currentPriceId = subscription ? stripeObjectId(subscription.items.data[0]?.price) : null
   const invoicePeriodEnd = subscription && typeof subscription.latest_invoice === "object"

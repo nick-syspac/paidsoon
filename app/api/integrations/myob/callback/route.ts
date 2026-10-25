@@ -51,13 +51,13 @@ async function GETHandler(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=cancelled`
+      `${APP_URL}/settings/connections?source=myob&code=cancelled`
     )
   }
 
   if (!code || !state || !businessId) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=missing_params`
+      `${APP_URL}/settings/connections?source=myob&code=missing_params`
     )
   }
 
@@ -72,7 +72,7 @@ async function GETHandler(request: Request) {
     oauthState.expiresAt < new Date()
   ) {
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=invalid_state`
+      `${APP_URL}/settings/connections?source=myob&code=invalid_state`
     )
   }
 
@@ -94,7 +94,7 @@ async function GETHandler(request: Request) {
   } catch (err) {
     console.error("[myob/callback] token exchange failed", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=token_exchange_failed`
+      `${APP_URL}/settings/connections?source=myob&code=token_exchange_failed`
     )
   }
 
@@ -192,12 +192,12 @@ async function GETHandler(request: Request) {
     }
     if (err instanceof Error && err.message === "CONNECTION_LIMIT_REACHED") {
       return NextResponse.redirect(
-        `${APP_URL}/dashboard/settings/connections?source=myob&code=connection_limit_reached`
+        `${APP_URL}/settings/connections?source=myob&code=connection_limit_reached`
       )
     }
     console.error("[myob/callback] failed to store connection", err)
     return NextResponse.redirect(
-      `${APP_URL}/dashboard/settings/connections?source=myob&code=connection_save_failed`
+      `${APP_URL}/settings/connections?source=myob&code=connection_save_failed`
     )
   }
 
@@ -214,7 +214,7 @@ async function GETHandler(request: Request) {
 
   const redirectCode = scopeUpgradeRequired ? "scope_upgrade_required" : "connected"
   return NextResponse.redirect(
-    `${APP_URL}/dashboard/settings/connections?source=myob&code=${redirectCode}`
+    `${APP_URL}/settings/connections?source=myob&code=${redirectCode}`
   )
 }
 

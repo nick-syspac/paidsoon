@@ -499,7 +499,7 @@ export async function loadCashPlanProvider(userId: string, now: Date): Promise<O
       summary: "Dated owner cash estimate with partial source coverage; confirm missing receivables and payables.",
       severity: Math.abs(overview.bufferGapCents) >= 20_000 ? "critical" : "warning",
       recommendedAction: "Review the cash plan and confirm near-term inflows and outflows.",
-      actionUrl: "/dashboard/settings/cash-plan",
+      actionUrl: "/settings/cash-plan",
       whyItMatters: "Buffer shortfalls reduce flexibility if receipts land late.",
       financialImpactCents: Math.abs(overview.bufferGapCents),
       currentValue: overview.lowestClosingCashCents,

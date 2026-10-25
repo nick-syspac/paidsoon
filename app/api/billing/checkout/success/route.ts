@@ -11,7 +11,7 @@
  * The dashboard's trial-expired gate (app/dashboard/layout.tsx) re-checks
  * subscription state on every request under /dashboard/**. Without this
  * reconciliation, a user redirected straight back to
- * /dashboard/settings/subscription after paying could land there before the
+ * /settings/subscription after paying could land there before the
  * webhook updates the profile, get bounced by the still-stale trial-expired
  * gate back to /billing/checkout, and appear stuck in a loop immediately
  * after successfully subscribing.
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/sign-in`)
   }
 
-  const successBase = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings/subscription?success=upgraded`
+  const successBase = `${process.env.NEXT_PUBLIC_APP_URL}/settings/subscription?success=upgraded`
   let successUrl = successBase
 
   if (!sessionId || !z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(255).safeParse(sessionId).success) {

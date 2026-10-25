@@ -180,7 +180,7 @@ Each module below maps to one or more test cases in this runbook.
 
 ### TC-12 Schedule settings
 
-1. Open `/dashboard/settings/schedule` as `owner@coastline-demo.test`.
+1. Open `/settings/schedule` as `owner@coastline-demo.test`.
 2. Verify existing seeded cadence loads.
 3. Change offsets to a valid ascending sequence and save.
 4. Reload page and verify persistence.
@@ -191,7 +191,7 @@ Each module below maps to one or more test cases in this runbook.
 
 ### TC-13 Email identity settings
 
-1. Open `/dashboard/settings/email` as primary business account.
+1. Open `/settings/email` as primary business account.
 2. Verify custom sender/reply-to controls are visible for this tier.
 3. Save a valid custom sender name and reply-to.
 4. Verify success feedback and persisted values after reload.
@@ -201,7 +201,7 @@ Each module below maps to one or more test cases in this runbook.
 
 ### TC-14 Templates and AI rewrite
 
-1. Open `/dashboard/settings/templates` as primary business account.
+1. Open `/settings/templates` as primary business account.
 2. Edit stage 1 template text and save.
 3. Reload and verify saved content persists.
 4. Trigger AI rewrite for the edited text.
@@ -212,7 +212,7 @@ Each module below maps to one or more test cases in this runbook.
 
 ### TC-15 Team seats/invite scaffold behavior
 
-1. Open `/dashboard/settings/team`.
+1. Open `/settings/team`.
 2. Verify seat usage summary loads.
 3. Submit an invite with invalid email.
 4. Verify validation error.
@@ -222,7 +222,7 @@ Each module below maps to one or more test cases in this runbook.
 
 ### TC-16 Billing and subscription management
 
-1. Open `/dashboard/settings/subscription` as starter account.
+1. Open `/settings/subscription` as starter account.
 2. Trigger upgrade flow to checkout initiation.
 3. Verify checkout session redirect/url creation works.
 4. Open billing portal action (if available for seeded account state).
@@ -232,7 +232,7 @@ Each module below maps to one or more test cases in this runbook.
 
 ### TC-17 Stripe connection lifecycle module
 
-1. Open `/dashboard/settings/stripe` or integrations connection UI.
+1. Open `/settings/stripe` or integrations connection UI.
 2. Start Stripe connect authorization flow.
 3. Verify redirect to provider and safe callback handling.
 4. Return/cancel and confirm app handles cancellation gracefully.
@@ -242,7 +242,7 @@ Each module below maps to one or more test cases in this runbook.
 
 ### TC-18 Accounting integrations (MYOB/Xero)
 
-1. Open `/dashboard/settings/integrations` and connections pages.
+1. Open `/settings/integrations` and connections pages.
 2. As primary account, verify seeded accounting connection states are visible.
 3. As second tenant (`owner@yarravalley-demo.test`), verify independent seeded connection with error-state example is visible.
 4. If "Sync now" exists, trigger it and verify safe status feedback.
@@ -250,7 +250,7 @@ Each module below maps to one or more test cases in this runbook.
 
 ### TC-19 Invoice import module
 
-1. Open `/dashboard/settings/import-export` or `/dashboard/settings/import`.
+1. Open `/settings/import-export` or `/settings/import`.
 2. Download invoice import template.
 3. Upload a minimally valid test file based on template.
 4. Verify mapping UI appears.
@@ -304,7 +304,7 @@ Each module below maps to one or more test cases in this runbook.
 1. Open `/dashboard/runway-guard`.
 2. Verify runway summary timeline/cards render.
 3. Trigger scenario simulation (if available in UI) and verify deterministic output.
-4. Open `/dashboard/settings/runway-guard` and save a non-destructive settings change.
+4. Open `/settings/runway-guard` and save a non-destructive settings change.
 5. Reload to verify persistence.
 6. Revert the settings change.
 7. Pass criteria: dashboard and settings persist correctly.
@@ -313,7 +313,7 @@ Each module below maps to one or more test cases in this runbook.
 
 1. Open `/dashboard/tax-buffer`.
 2. Verify reserve totals, safe-to-spend, category breakdown, and obligations render.
-3. Open `/dashboard/settings/tax-buffer`.
+3. Open `/settings/tax-buffer`.
 4. Modify one configurable category setting and save.
 5. Create one manual override (small value) and verify summary updates.
 6. Reload page and verify settings/override persistence.
@@ -326,13 +326,13 @@ Each module below maps to one or more test cases in this runbook.
 2. Verify horizon totals, upcoming commitments, and detection candidates render.
 3. Open one candidate/commitment lifecycle action (confirm, pause, resume, cancel) and execute one reversible action.
 4. Verify event history updates accordingly.
-5. Open `/dashboard/settings/commitguard`, adjust one setting, save, and verify persistence.
+5. Open `/settings/commitguard`, adjust one setting, save, and verify persistence.
 6. Revert changes.
 7. Pass criteria: commitment lifecycle and settings are operational.
 
 ### TC-27 CashPlan module
 
-1. Open `/dashboard/settings/cash-plan` and related cash plan views.
+1. Open `/settings/cash-plan` and related cash plan views.
 2. Verify seeded scenario data is present (base + conservative where available).
 3. Adjust a non-destructive override/scenario value.
 4. Save and verify summary changes.
@@ -346,7 +346,7 @@ Each module below maps to one or more test cases in this runbook.
 2. Verify summary sections render: attention, opportunities, positive signals, metrics.
 3. Open one digest detail at `/dashboard/owners-digest/[digestId]`.
 4. Verify source completeness and historical delivery records are visible.
-5. Open `/dashboard/settings/owners-digest`.
+5. Open `/settings/owners-digest`.
 6. Change cadence or materiality threshold and save.
 7. Reload and verify persistence.
 8. Revert change.

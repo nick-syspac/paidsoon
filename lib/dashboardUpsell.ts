@@ -131,7 +131,7 @@ export function buildDashboardUpsellModel({
       sampleRows: LOCKED_DASHBOARD_SAMPLE_ROWS,
       recommendedTier: null,
       ctaLabel: "Manage subscription",
-      ctaHref: "/dashboard/settings/subscription",
+      ctaHref: "/settings/subscription",
       nearLimit,
     }
   }
@@ -145,7 +145,7 @@ export function buildDashboardUpsellModel({
     sampleRows: LOCKED_DASHBOARD_SAMPLE_ROWS,
     recommendedTier: nextTier,
     ctaLabel: `Upgrade to ${recommendedPlan.name} — $${recommendedPlan.monthlyPriceAud}/mo`,
-    ctaHref: `/dashboard/settings/subscription?recommend=${nextTier}`,
+    ctaHref: `/settings/subscription?recommend=${nextTier}`,
     nearLimit,
   }
 }

@@ -14,7 +14,7 @@ MarginGuard currently recommends connecting accounting software, importing trans
 
 ## Set targets and alerts
 
-Open **Settings → MarginGuard** at `/dashboard/settings/margin-guard`.
+Open **Settings → MarginGuard** at `/settings/margin-guard`.
 
 - **General:** enable or disable MarginGuard and choose a default period: 30 days, 3 months, 6 months, 12 months, or financial year.
 - **Margin Targets:** enter target, warning, and critical gross-margin percentages. Critical must be below warning, and warning must be below target. Save the organization target, or configure a scoped override for a customer, product/service, category, or project/job using its scope key. Where there is no scoped target, the organization target is used.

@@ -4,7 +4,7 @@ Owner’s Digest combines prioritized signals and key numbers from modules that 
 
 ## Configure the Digest
 
-Open **Settings → Owner’s Digest** at `/dashboard/settings/owners-digest` and select **Save settings** after changing options.
+Open **Settings → Owner’s Digest** at `/settings/owners-digest` and select **Save settings** after changing options.
 
 - **Digest status** controls whether the Digest is enabled. **Email delivery** is a separate on/off choice.
 - **Frequency** can be Off, Daily, Weekly, or Monthly. For any scheduled frequency, choose a delivery time; for Weekly, also choose a delivery day.

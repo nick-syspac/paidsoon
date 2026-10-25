@@ -199,7 +199,7 @@ are documented separately from later deployment, notification and UI acceptance.
 ## Configure CommitGuard
 
 **Local controls — UNMERGED / NOT DEPLOYED.** Open **Settings → CommitGuard** at
-`/dashboard/settings/commitguard`. Change the controls you need and select **Save settings**.
+`/settings/commitguard`. Change the controls you need and select **Save settings**.
 
 - **Module status:** disabling retains editable commitments, saved inputs and history but suppresses active protection, automated evaluation/detection and digest signals. The adapter and bounded local CashPlan assembler emit no commitment/linked-bill contribution; independent dated manual CashPlan items and gross cash remain.
 - **Default horizon:** choose 7, 30, 60, or 90 days for commitment protection. The next-30-days metric and percentage buffer basis stay at 30 days.

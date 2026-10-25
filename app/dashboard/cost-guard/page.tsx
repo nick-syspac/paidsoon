@@ -120,7 +120,7 @@ export default async function CostGuardOverviewPage() {
           title="Cost Guard is ready for its first review"
           description="Connect your accounting data or wait for the next data sync, and Cost Guard will surface supplier, category, and forecast changes automatically."
           actionLabel="Open settings"
-          actionHref="/dashboard/settings/cost-guard"
+          actionHref="/settings/cost-guard"
         />
       ) : null}
 
@@ -130,7 +130,7 @@ export default async function CostGuardOverviewPage() {
           title="Data looks stale"
           description="The latest cost model has not refreshed recently. Sync your accounting data to keep Cost Guard alerts accurate."
           actionLabel="Check data sources"
-          actionHref="/dashboard/settings/cost-guard"
+          actionHref="/settings/cost-guard"
         />
       ) : null}
 

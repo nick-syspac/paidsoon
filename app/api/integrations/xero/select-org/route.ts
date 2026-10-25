@@ -30,7 +30,7 @@ interface PendingXeroSelection {
 
 function redirectWithCode(code: string): NextResponse {
   return NextResponse.redirect(
-    `${APP_URL}/dashboard/settings/connections?source=xero&code=${encodeURIComponent(code)}`
+    `${APP_URL}/settings/connections?source=xero&code=${encodeURIComponent(code)}`
   )
 }
 

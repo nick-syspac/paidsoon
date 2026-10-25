@@ -1,7 +1,7 @@
 import { getEffectiveAccess } from "@/lib/billing/effectiveAccessLoader"
 import type { EffectiveAccess } from "@/lib/billing/effectiveAccess"
 
-export const BILLING_RESOLUTION_URL = "/dashboard/settings/subscription"
+export const BILLING_RESOLUTION_URL = "/settings/subscription"
 
 /** Safe customer contract: never serialize a profile, grant, or provider identity. */
 export const NO_SUBSCRIPTION_ACCESS = {

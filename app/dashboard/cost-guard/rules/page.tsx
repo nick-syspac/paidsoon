@@ -36,7 +36,7 @@ export default async function CostGuardRulesPage() {
           title="Cost Guard onboarding is active"
           description="The default watchlist is enabled now. Add or tune rules below to match your spend thresholds and alert appetite."
           actionLabel="Review settings"
-          actionHref="/dashboard/settings/cost-guard"
+          actionHref="/settings/cost-guard"
         />
       ) : null}
       <div>
