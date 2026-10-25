@@ -12,13 +12,13 @@ export function SettingsNavigation({ groups }: { groups: SettingsNavGroup[] }) {
   return (
     <nav
       aria-label="Settings navigation"
-      className="rounded-xl border border-gray-200 bg-white p-4 lg:sticky lg:top-6"
+      className="shrink-0 md:w-56 md:border-r md:border-gray-200 md:pr-4"
     >
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.12em] text-gray-500">Settings</h2>
+      <h2 className="mb-4 text-sm font-medium text-gray-700">Settings</h2>
       <div className="space-y-6">
         {groups.map((group) => (
           <div key={group.id}>
-            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
               {group.label}
             </h3>
             {group.items.length === 0 ? (
@@ -34,10 +34,10 @@ export function SettingsNavigation({ groups }: { groups: SettingsNavGroup[] }) {
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         className={[
-                          "block rounded-md px-3 py-2 text-sm transition-colors",
+                          "block rounded-md px-3 py-2 text-sm font-medium transition-colors",
                           active
-                            ? "bg-blue-50 font-medium text-blue-700 ring-1 ring-inset ring-blue-200"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                            ? "bg-blue-50 text-blue-700"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
                         ].join(" ")}
                       >
                         {item.label}
