@@ -16,6 +16,8 @@ export default async function AccountSettingsPage() {
     <AccountSettingsClient
       email={user.email ?? ""}
       displayName={profile?.displayName ?? null}
+      accountDisplayFromDate={profile?.accountDisplayFromDate ?? null}
+      accountDisplayRevision={profile?.accountDisplayRevision ?? 0}
       tier={tier}
       status={profile?.subscriptionStatus ?? "unknown"}
       createdAt={profile?.createdAt ?? new Date()}

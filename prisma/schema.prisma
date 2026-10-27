@@ -225,6 +225,9 @@ model UserProfile {
   pendingBillingMutationId       String?   @db.Uuid @map("pending_billing_mutation_id")
   onboardingCompletedAt          DateTime? @map("onboarding_completed_at")
   displayName                    String?   @map("display_name")
+  accountDisplayFromDate         DateTime? @map("account_display_from_date") @db.Date
+  accountDisplayRevision         Int       @default(0) @map("account_display_revision")
+  accountDisplayTimeZone         String    @default("Australia/Melbourne") @map("account_display_time_zone")
   createdAt                      DateTime  @default(now())
   updatedAt                      DateTime  @updatedAt
 

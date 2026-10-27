@@ -35,27 +35,42 @@ function formatDate(date: Date | string): string {
   })
 }
 
+function dateOnlyInput(value: Date | string | null): string {
+  if (!value) return ""
+  if (typeof value === "string") return value.slice(0, 10)
+  return value.toISOString().slice(0, 10)
+}
+
 export function AccountSettingsClient({
   email,
   displayName: initialDisplayName,
+  accountDisplayFromDate: initialAccountDisplayFromDate,
+  accountDisplayRevision: initialAccountDisplayRevision,
   tier,
   status,
   createdAt,
 }: {
   email: string
   displayName: string | null
+  accountDisplayFromDate: Date | string | null
+  accountDisplayRevision: number
   tier: SubscriptionTier
   status: string
   createdAt: Date
 }) {
   const [displayName, setDisplayName] = useState(initialDisplayName ?? "")
   const [persistedDisplayName, setPersistedDisplayName] = useState(initialDisplayName ?? "")
+  const [displayFromDate, setDisplayFromDate] = useState(dateOnlyInput(initialAccountDisplayFromDate))
+  const [persistedDisplayFromDate, setPersistedDisplayFromDate] = useState(dateOnlyInput(initialAccountDisplayFromDate))
+  const [accountDisplayRevision, setAccountDisplayRevision] = useState(initialAccountDisplayRevision)
   const [saving, setSaving] = useState(false)
+  const [savingAccountDate, setSavingAccountDate] = useState(false)
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
+  const [accountDateFeedback, setAccountDateFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
   const hasUnsavedChanges = isDraftDirty(
-    { displayName },
-    { displayName: persistedDisplayName },
+    { displayName, displayFromDate },
+    { displayName: persistedDisplayName, displayFromDate: persistedDisplayFromDate },
   )
 
   useUnsavedChangesGuard({ hasUnsavedChanges })
@@ -82,6 +97,41 @@ export function AccountSettingsClient({
       setFeedback({ type: "error", message: "An unexpected error occurred" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleAccountDateSave(nextValue: string | null) {
+    setAccountDateFeedback(null)
+    setSavingAccountDate(true)
+    try {
+      const res = await fetch("/api/settings/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          displayFromDate: nextValue,
+          expectedRevision: accountDisplayRevision,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setAccountDateFeedback({
+          type: "error",
+          message: res.status === 409 ? "This account date changed elsewhere. Review the current value and try again." : data.error ?? "Failed to save account date",
+        })
+        return
+      }
+
+      setPersistedDisplayFromDate(data.displayFromDate ?? "")
+      setDisplayFromDate(data.displayFromDate ?? "")
+      setAccountDisplayRevision(data.revision)
+      setAccountDateFeedback({
+        type: "success",
+        message: data.displayFromDate ? "Display from date saved" : "Display from date cleared",
+      })
+    } catch {
+      setAccountDateFeedback({ type: "error", message: "An unexpected error occurred" })
+    } finally {
+      setSavingAccountDate(false)
     }
   }
 
@@ -134,6 +184,63 @@ export function AccountSettingsClient({
           <p className="text-sm text-gray-900 bg-gray-50 rounded-md border border-gray-200 px-3 py-2">
             {email}
           </p>
+        </div>
+      </div>
+
+      <div className="space-y-4 border border-gray-200 rounded-md p-4 bg-gray-50">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900 mb-1">Display from</h2>
+          <p className="text-sm text-gray-500">
+            Hide older invoices and reminders before this date. A blank value keeps the current account history visible.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="accountDisplayFromDate" className="block text-sm font-medium text-gray-700 mb-1">
+            Account display date
+          </label>
+          <div className="flex gap-3 items-center">
+            <input
+              id="accountDisplayFromDate"
+              type="date"
+              value={displayFromDate}
+              onChange={(event) => {
+                setDisplayFromDate(event.target.value)
+                setAccountDateFeedback(null)
+              }}
+              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            />
+            <button
+              type="button"
+              onClick={() => handleAccountDateSave(displayFromDate || null)}
+              disabled={savingAccountDate || displayFromDate === persistedDisplayFromDate}
+              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingAccountDate ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayFromDate(persistedDisplayFromDate)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDisplayFromDate("")
+                setAccountDateFeedback(null)
+              }}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100"
+            >
+              Clear
+            </button>
+          </div>
+          {accountDateFeedback && (
+            <p className={`mt-2 text-sm ${accountDateFeedback.type === "success" ? "text-green-600" : "text-red-600"}`}>
+              {accountDateFeedback.message}
+            </p>
+          )}
         </div>
       </div>
 

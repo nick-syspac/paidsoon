@@ -12,6 +12,9 @@ import {
 export const DASHBOARD_PROFILE_SELECT = {
   ...EFFECTIVE_ACCESS_PROFILE_SELECT,
   displayName: true,
+  accountDisplayFromDate: true,
+  accountDisplayRevision: true,
+  accountDisplayTimeZone: true,
   createdAt: true,
   subscriptionCurrentPeriodStart: true,
   subscriptionCurrentPeriodEnd: true,
