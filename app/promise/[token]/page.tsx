@@ -1,4 +1,5 @@
 import { prismaAdmin as prisma } from "@/lib/db/admin"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 import PromiseForm from "./PromiseForm"
 
 function formatCurrency(cents: number, currency: string) {
@@ -36,6 +37,25 @@ export default async function PromisePage({
   })
 
   if (!invoice) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+          <div className="text-4xl mb-4">🔗</div>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Link not found</h1>
+          <p className="text-gray-500 text-sm">
+            This link is no longer valid or has expired.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId: invoice.userId },
+    select: { accountDisplayFromDate: true },
+  })
+  const cutoffDate = profile?.accountDisplayFromDate ?? null
+  if (!invoiceMatchesAccountCutoff(invoice, cutoffDate)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">

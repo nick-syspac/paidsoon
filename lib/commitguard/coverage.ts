@@ -58,12 +58,15 @@ export function isLiveCoverageOccurrence(commitment: CoverageCommitment, occurre
   if (!Number.isFinite(occurrenceDate.getTime()) || occurrenceDate.toISOString() !== `${dateKey(occurrenceDate)}T00:00:00.000Z`) return false
   if (!["one_off", "weekly", "fortnightly", "monthly", "quarterly", "six_monthly", "annual"].includes(commitment.frequency) ||
     !["active", "upcoming", "ending", "review"].includes(commitment.status)) return false
+  const normalized = { ...commitment, frequency: normalizeCommitmentFrequency(commitment.frequency),
+    status: normalizeCommitmentStatus(commitment.status), confidence: normalizeCommitmentConfidence(commitment.confidence) }
+  const maybeStartDate = commitment.startDate ? dateKey(commitment.startDate) : null
+  if (maybeStartDate && maybeStartDate === dateKey(occurrenceDate)) return true
   const end = new Date(occurrenceDate)
   end.setUTCDate(end.getUTCDate() + 1)
   try {
     return projectCommitmentOccurrences({
-      commitment: { ...commitment, frequency: normalizeCommitmentFrequency(commitment.frequency),
-        status: normalizeCommitmentStatus(commitment.status), confidence: normalizeCommitmentConfidence(commitment.confidence) },
+      commitment: normalized,
       windowStart: occurrenceDate, windowEnd: end,
     }).some((row) => dateKey(row.dueDate) === dateKey(occurrenceDate))
   } catch { return false }

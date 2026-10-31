@@ -150,24 +150,36 @@ export function dedupeOwnersDigestSignals(signals: OwnersDigestSignal[]): Owners
   return Array.from(merged.values()).sort(compareSignals)
 }
 
-export function determineOwnersDigestStatus(items: OwnersDigestItem[]): OwnersDigestStatus {
+export function determineOwnersDigestStatus(
+  items: OwnersDigestItem[],
+  completenessStatus: "complete" | "partial" | "stale" | "insufficient_data" = "complete",
+): OwnersDigestStatus {
+  if (completenessStatus === "partial" || completenessStatus === "stale" || completenessStatus === "insufficient_data") {
+    return "watch"
+  }
   if (items.some((item) => item.severity === "critical")) return "critical"
   if (items.some((item) => item.severity === "warning" && item.priorityScore >= 45)) return "action_required"
   if (items.some((item) => item.severity === "warning")) return "watch"
   return "healthy"
 }
 
-export function buildOwnersDigestSummary(status: OwnersDigestStatus, items: OwnersDigestItem[]): string {
+export function buildOwnersDigestSummary(
+  status: OwnersDigestStatus,
+  items: OwnersDigestItem[],
+  completenessStatus: "complete" | "partial" | "stale" | "insufficient_data" = "complete",
+): string {
   const attentionCount = items.filter((item) => item.section === "needs_attention").length
   const opportunityCount = items.filter((item) => item.section === "opportunities").length
   const positiveCount = items.filter((item) => item.section === "positive_changes").length
-  const label = status === "healthy"
-    ? "Everything looks on track."
-    : status === "watch"
-      ? "Your business remains stable, but a few issues need review."
-      : status === "action_required"
-        ? "Several issues need near-term attention."
-        : "Immediate financial attention is required."
+  const label = completenessStatus !== "complete"
+    ? "This digest is only partial because some data is unavailable or stale."
+    : status === "healthy"
+      ? "Everything looks on track."
+      : status === "watch"
+        ? "Your business remains stable, but a few issues need review."
+        : status === "action_required"
+          ? "Several issues need near-term attention."
+          : "Immediate financial attention is required."
 
   return [
     label,

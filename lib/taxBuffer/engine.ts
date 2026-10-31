@@ -39,6 +39,7 @@ export interface TaxBufferMetricsInput {
   unpaidInvoiceGstCents: number
   paygWithholdingCents?: number
   paygInstalmentCents?: number
+  sourcePeriodComplete?: boolean
 }
 
 export interface TaxBufferThresholds {
@@ -64,6 +65,21 @@ export interface TaxBufferRecommendation {
   reasons: string[]
 }
 
+// The tax buffer must fail closed when the source window is incomplete: the quality state
+// stays unavailable instead of silently treating missing data as healthy cash.
+export interface TaxBufferSummaryQuality {
+  state: "complete" | "partial" | "insufficient_data"
+  reasons: string[]
+}
+
+// The effective range is anchored to the resolved account-display policy for the request.
+// If the policy is absent, the window is intentionally incomplete rather than inferred.
+export interface TaxBufferSummaryRange {
+  start: string | null
+  end: string | null
+  status: "complete" | "partial" | "insufficient_data"
+}
+
 export interface TaxBufferSummary {
   accountingBasis: TaxBufferAccountingBasis
   availableCashCents: number | null
@@ -73,6 +89,9 @@ export interface TaxBufferSummary {
   reserveGapCents: number
   safeToSpendCents: number | null
   healthStatus: TaxBufferHealthStatus
+  quality: TaxBufferSummaryQuality
+  effectiveDateRange: TaxBufferSummaryRange
+  status: "complete" | "partial" | "insufficient_data"
   warnings: string[]
   categories: TaxBufferCategoryResult[]
   recommendation: TaxBufferRecommendation
@@ -249,6 +268,8 @@ export function buildTaxBufferSummary(input: {
   reservedByCategory: Record<string, number>
 }): TaxBufferSummary {
   const warnings: string[] = []
+  const sourcePeriodComplete = input.metrics.sourcePeriodComplete ?? true
+  const qualityReasons: string[] = []
 
   const categoryResults = input.categories.map((category) =>
     computeTaxReserveCategory({
@@ -270,18 +291,33 @@ export function buildTaxBufferSummary(input: {
   const reserveGapCents = Math.max(0, totalRequiredReserveCents - totalReservedCents)
 
   const safeToSpendCents =
-    input.metrics.availableCashCents === null
+    input.metrics.availableCashCents === null || !sourcePeriodComplete
       ? null
       : input.metrics.availableCashCents - totalRequiredReserveCents - input.metrics.committedOutflowsCents
 
-  const healthStatus = evaluateTaxBufferHealth({
+  let healthStatus = evaluateTaxBufferHealth({
     requiredReserveCents: totalRequiredReserveCents,
     reservedCents: totalReservedCents,
     thresholds: input.thresholds,
   })
 
+  if (!sourcePeriodComplete) {
+    healthStatus = totalRequiredReserveCents > 0 ? "unknown" : healthStatus
+    qualityReasons.push("tax_source_period_incomplete")
+    warnings.push("Tax source period is incomplete; reserve estimates are unavailable for safe-to-spend.")
+  }
+
   if (input.metrics.availableCashCents === null) {
+    qualityReasons.push("available_cash_missing")
     warnings.push("Available cash is missing, safe-to-spend is an estimate")
+  }
+
+  const qualityState: TaxBufferSummary["quality"]["state"] =
+    !sourcePeriodComplete ? "insufficient_data" : input.metrics.availableCashCents === null ? "partial" : "complete"
+  const effectiveRange: TaxBufferSummaryRange = {
+    start: null,
+    end: null,
+    status: qualityState,
   }
 
   const recommendationReasons = categoryResults
@@ -308,6 +344,12 @@ export function buildTaxBufferSummary(input: {
     reserveGapCents,
     safeToSpendCents,
     healthStatus,
+    quality: {
+      state: qualityState,
+      reasons: qualityReasons,
+    },
+    effectiveDateRange: effectiveRange,
+    status: qualityState,
     warnings,
     categories: categoryResults,
     recommendation: {

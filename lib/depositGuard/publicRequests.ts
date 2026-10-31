@@ -1,6 +1,21 @@
 import { createHash } from "node:crypto"
 
 import { prismaAdmin } from "@/lib/db/admin"
+import {
+  depositRequestMatchesAccountCutoff,
+  jobMatchesAccountCutoff,
+  matchesAccountDisplayDate,
+  milestoneMatchesAccountCutoff,
+  paymentMatchesAccountCutoff,
+} from "@/lib/depositGuard/accountCutoff"
+
+export {
+  depositRequestMatchesAccountCutoff,
+  jobMatchesAccountCutoff,
+  matchesAccountDisplayDate,
+  milestoneMatchesAccountCutoff,
+  paymentMatchesAccountCutoff,
+}
 
 export type PublicDepositRequestState = "active" | "paid" | "expired" | "cancelled" | "unavailable"
 
@@ -130,6 +145,30 @@ export async function getPublicDepositRequestView(
   })
 
   if (!request) {
+    return {
+      id: "",
+      state: "unavailable",
+      amountCents: 0,
+      taxAmountCents: null,
+      totalAmountCents: 0,
+      currency: "aud",
+      dueDate: now,
+      description: null,
+      externalPaymentUrl: null,
+      firstViewedAt: null,
+      lastViewedAt: null,
+      paidAt: null,
+      cancelledAt: null,
+      tokenExpiresAt: null,
+    }
+  }
+
+  const profile = await prismaAdmin.userProfile.findUnique({
+    where: { userId: request.job.userId },
+    select: { accountDisplayFromDate: true },
+  })
+  const cutoffDate = profile?.accountDisplayFromDate ?? null
+  if (!depositRequestMatchesAccountCutoff(request.dueDate, cutoffDate)) {
     return {
       id: "",
       state: "unavailable",

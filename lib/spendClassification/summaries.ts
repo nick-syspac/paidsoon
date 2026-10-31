@@ -111,6 +111,26 @@ export function buildSpendClassificationSummary(
           credit.originalSourceRecordIds.push(original.sourceRecordId)
           crossSourceRefunds.set(key, credit)
         }
+        continue
+      }
+      if (record.classificationStatus === "confirmed" && record.category) {
+        const key = JSON.stringify([record.sourceType, currency, record.category.id])
+        const total = confirmed.get(key) ?? {
+          sourceType: record.sourceType,
+          currency,
+          categoryId: record.category.id,
+          categoryName: record.category.name,
+          amountCents: 0,
+          recordCount: 0,
+          sourceRecordIds: [],
+          refundRecordCount: 0,
+          refundRecordIds: [],
+        }
+        total.amountCents += Math.abs(record.amountCents)
+        total.recordCount += 1
+        total.sourceRecordIds.push(record.sourceRecordId)
+        confirmed.set(key, total)
+        continue
       }
       continue
     } else if (record.direction === "unknown") {

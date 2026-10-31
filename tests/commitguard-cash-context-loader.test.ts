@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { before, describe, mock, test } from "node:test"
+import { before, beforeEach, describe, mock, test } from "node:test"
 import type { CommitGuardCashContextRecord } from "@/lib/commitguard/cashContext"
 
 const now = new Date("2026-10-19T12:00:00Z")
@@ -15,17 +15,23 @@ const rows = new Map<string, CommitGuardCashContextRecord>([
     taxProtectionCurrency: null, revision: 2,
   }],
 ])
+const profiles = new Map<string, { accountDisplayFromDate: Date | null; accountDisplayRevision: number; accountDisplayTimeZone: string }>()
 const calls: { userId: string; query: unknown }[] = []
 let load: typeof import("@/lib/commitguard/cashContextLoader").loadCommitGuardCashContext
 let readError: Error | null = null
 
 describe("CommitGuard tenant cash-context loader", () => {
+  beforeEach(() => {
+    profiles.clear()
+  })
+
   before(async () => {
     // Install before dynamic import: no real Prisma/environment initialization.
     await mock.module("@/lib/db/withUserContext", {
       namedExports: {
         withUserContext: async <T>(userId: string, fn: (tx: {
           commitGuardCashContext: { findUnique: (query: { where: { userId: string }; select: object }) => Promise<CommitGuardCashContextRecord | null> }
+          userProfile: { findUnique: (query: { where: { userId: string }; select: { accountDisplayFromDate: true; accountDisplayRevision: true; accountDisplayTimeZone: true } }) => Promise<{ accountDisplayFromDate: Date | null; accountDisplayRevision: number; accountDisplayTimeZone: string } | null> }
         }) => Promise<T>): Promise<T> => fn({
           commitGuardCashContext: {
             findUnique: async (query) => {
@@ -33,6 +39,12 @@ describe("CommitGuard tenant cash-context loader", () => {
               calls.push({ userId, query })
               if (readError) throw readError
               return rows.get(userId) ?? null
+            },
+          },
+          userProfile: {
+            findUnique: async (query) => {
+              assert.equal(query.where.userId, userId)
+              return profiles.get(userId) ?? null
             },
           },
         }),
@@ -84,6 +96,24 @@ describe("CommitGuard tenant cash-context loader", () => {
     assert.equal(dto.currency, null)
     assert.equal(dto.freshness, "missing")
     assert.equal(dto.revision, 0)
+  })
+
+  test("filters a pre-cutoff cash anchor instead of inventing a current balance", async () => {
+    profiles.set("tenant-a", { accountDisplayFromDate: new Date("2026-10-15T00:00:00Z"), accountDisplayRevision: 9, accountDisplayTimeZone: "Australia/Melbourne" })
+    const dto = await load("tenant-a", new Date("2026-10-20T00:00:00Z"))
+    assert.equal(dto.amountCents, null)
+    assert.equal(dto.currency, null)
+    assert.equal(dto.balanceAsOf, null)
+    assert.equal(dto.freshness, "missing")
+    assert.equal(dto.revision, 0)
+  })
+
+  test("retains a current dated anchor on or after the active cutoff", async () => {
+    profiles.set("tenant-a", { accountDisplayFromDate: new Date("2026-10-12T00:00:00Z"), accountDisplayRevision: 9, accountDisplayTimeZone: "Australia/Melbourne" })
+    const dto = await load("tenant-a", now)
+    assert.equal(dto.amountCents, -500)
+    assert.equal(dto.balanceAsOf, "2026-10-12")
+    assert.equal(dto.freshness, "fresh")
   })
 
   test("uses the injected clock on subsequent reads rather than caching freshness", async () => {

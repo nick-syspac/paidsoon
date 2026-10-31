@@ -22,6 +22,7 @@ let requestRow: {
   tokenExpiresAt: Date | null
   job: { userId: string }
 } | null = null
+let profileRow: { accountDisplayFromDate: Date | null } | null = null
 
 function tokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex")
@@ -50,6 +51,14 @@ describe("DepositGuard public request helper", () => {
                 lastViewedAt: data.lastViewedAt ?? requestRow.lastViewedAt,
               }
               return requestRow
+            },
+          },
+          userProfile: {
+            findUnique: async ({ where }: { where: { userId: string } }) => {
+              if (!profileRow || where.userId !== "user_1") {
+                return null
+              }
+              return profileRow
             },
           },
           depositGuardEvent: {
@@ -98,6 +107,7 @@ describe("DepositGuard public request helper", () => {
 
   beforeEach(() => {
     viewEvents.length = 0
+    profileRow = { accountDisplayFromDate: null }
     requestRow = {
       id: "req_1",
       jobId: "job_1",
@@ -168,6 +178,27 @@ describe("DepositGuard public request helper", () => {
     assert.ok(second.lastViewedAt)
     assert.equal(viewEvents.length, 1)
     assert.equal(viewEvents[0]?.userId, "user_1")
+  })
+
+  test("returns unavailable for excluded account cutoffs", async () => {
+    const { getPublicDepositRequestView, resetPublicDepositRequestLookupThrottleForTests } = await import(
+      "@/lib/depositGuard/publicRequests",
+    )
+
+    resetPublicDepositRequestLookupThrottleForTests()
+    profileRow = { accountDisplayFromDate: new Date("2026-10-02T00:00:00.000Z") }
+    requestRow = {
+      ...requestRow!,
+      dueDate: new Date("2026-10-01T00:00:00.000Z"),
+    }
+
+    const result = await getPublicDepositRequestView("valid-token", {
+      clientFingerprint: "client-d",
+      now: TEST_NOW,
+    })
+
+    assert.equal(result.state, "unavailable")
+    assert.equal(result.id, "")
   })
 
   test("returns unavailable for unknown tokens", async () => {

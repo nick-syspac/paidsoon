@@ -10,6 +10,7 @@ import {
   type SpendLeakDashboardStatus,
   type SpendLeakModuleSummary,
 } from "@/lib/dashboard/spendleakPresentation"
+import { filterCurrentSpendFindings } from "@/lib/spendleak/persist"
 import { getSpendLeakSourceSettings, type SpendLeakSourceType } from "@/lib/spendleak/sourceSettings"
 
 export interface SpendLeakSourceCoverage {
@@ -45,6 +46,23 @@ function latestDate(dates: Array<Date | null>): Date | null {
 
 export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakDashboardData> {
   return withUserContext(userId, async (tx) => {
+    const profile = await tx.userProfile.findUnique({
+      where: { userId },
+      select: {
+        accountDisplayFromDate: true,
+        accountDisplayRevision: true,
+        accountDisplayTimeZone: true,
+      },
+    })
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
+    const billWhere = cutoffDate ? { userId, dueDate: { gte: cutoffDate } } : { userId }
+    const bankTransactionWhere = cutoffDate ? { userId, transactionDate: { gte: cutoffDate } } : { userId }
+    const currentPolicy = {
+      accountDisplayRevision: profile?.accountDisplayRevision ?? 0,
+      accountDisplayFromDate: cutoffDate,
+      accountDisplayTimeZone: profile?.accountDisplayTimeZone ?? "Australia/Melbourne",
+    }
+
     const [
       findings,
       connectionCount,
@@ -81,17 +99,17 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
         orderBy: { syncedAt: "desc" },
         select: { syncedAt: true },
       }),
-      tx.importedBill.count({ where: { userId } }),
-      tx.importedBankTransaction.count({ where: { userId } }),
+      tx.importedBill.count({ where: billWhere }),
+      tx.importedBankTransaction.count({ where: bankTransactionWhere }),
       tx.supplierProfile.count({ where: { userId } }),
       getSpendLeakSourceSettings(userId, tx),
       tx.importedBill.findMany({
-        where: { userId },
-        select: { id: true, amountCents: true, currency: true, status: true },
+        where: billWhere,
+        select: { id: true, amountCents: true, currency: true, status: true, dueDate: true },
       }),
       tx.importedBankTransaction.findMany({
-        where: { userId },
-        select: { id: true, amountCents: true, currency: true, direction: true },
+        where: bankTransactionWhere,
+        select: { id: true, amountCents: true, currency: true, direction: true, transactionDate: true },
       }),
       tx.spendClassification.findMany({
         where: { userId },
@@ -112,6 +130,7 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       }),
     ])
 
+    const activeFindings = filterCurrentSpendFindings(findings as Array<{ accountDisplayRevision?: number | null; accountDisplayFromDate?: Date | null; accountDisplayTimeZone?: string | null }>, currentPolicy)
     const classificationBySource = new Map(
       classifications.map((classification) => [
         JSON.stringify([classification.sourceType, classification.sourceRecordId]),
@@ -158,7 +177,7 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
     ]
     const categorySpendSummaries = buildSpendLeakCategorySpendSummaries(spendRecords)
 
-    const findingIds = findings.map((finding) => finding.id)
+    const findingIds = activeFindings.map((finding) => finding.id)
     const linkedCommitments = findingIds.length
       ? await tx.commitment.findMany({
           where: {
@@ -211,9 +230,9 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
     const expectedSourceCount = sourceSettings.enabledSourceTypes.length
 
     return {
-      findings,
+      findings: activeFindings as SpendInsight[],
       linkedCommitmentCountsByFindingId,
-      modules: buildSpendLeakModuleSummaries(findings),
+      modules: buildSpendLeakModuleSummaries(activeFindings as SpendInsight[]),
       categorySpendSummaries,
       latestSyncAt,
       hasAccountingConnection: connectionCount > 0,
@@ -226,7 +245,7 @@ export async function loadSpendLeakDashboard(userId: string): Promise<SpendLeakD
       selectedSourcesWithDataCount: selectedSourceCoverage.filter((source) => source.recordCount > 0).length,
       selectedSourcesWithoutDataCount: selectedSourceCoverage.filter((source) => source.recordCount === 0).length,
       status: buildSpendLeakDashboardStatus({
-        findingsCount: findings.length,
+        findingsCount: activeFindings.length,
         hasAccountingConnection: connectionCount > 0,
         latestSyncAt,
         sourceSyncCount,

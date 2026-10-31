@@ -1,0 +1,8 @@
+CONFIRM_PRODUCTION_RESET=reset-production \
+CONFIRM_PROJECT_REF=rtnjcvjqimnavghmrhlx \
+
+  1. npm run db:reset:production -- --confirm-production-reset
+  2. node --import tsx scripts/verify-rls.ts
+  3. Re-sign-up via the app, then npm run seed:support-account
+
+  cd /Users/syspac/work/paidsoon && SUPABASE_PROJECT_REF=rtnjcvjqimnavghmrhlx SUPABASE_DB_PASSWORD=Xwp2VK7OUWrP3j5b node --experimental-test-module-mocks --import tsx --test tests/load-dashboard-invoices.test.ts tests/dashboard-overview-loader.test.ts

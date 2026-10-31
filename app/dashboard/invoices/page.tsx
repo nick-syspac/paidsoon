@@ -99,17 +99,20 @@ export default async function DashboardInvoicesPage({
   if (canViewOverdue) {
     // Keep dashboard loaders sequential to avoid overlapping db-adapter query
     // execution on shared request scope clients.
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
     invoices = await loadDashboardInvoices(
       user.id,
       ACTIVE_INVOICE_STATUSES,
       { nextEmailAt: "asc" },
       traceContext,
       COMPONENT,
+      cutoffDate,
     )
     brokenPromiseCountsByDebtor = await loadBrokenPromiseCountsByDebtor(
       user.id,
       traceContext,
       COMPONENT,
+      cutoffDate,
     )
     escalationThreshold = await loadEscalationThreshold(user.id, traceContext, COMPONENT)
   }

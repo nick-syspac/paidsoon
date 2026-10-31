@@ -6,6 +6,7 @@ type Params = { params: Promise<{ id: string }> }
 
 // POST /api/invoices/[id]/cancel-snooze — manually end an in-progress snooze early
 import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 export const POST = withSubscriptionAccess(POSTHandler)
 async function POSTHandler(_req: Request, { params }: Params) {
   const { id } = await params
@@ -14,10 +15,14 @@ async function POSTHandler(_req: Request, { params }: Params) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const result = await withUserContext(user.id, async (tx) => {
+    const profile = await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
     const invoice = await tx.trackedInvoice.findFirst({
       where: { id, userId: user.id, status: "snoozed" },
+      include: { financialInvoice: { select: { issueDate: true, dueDate: true } } },
     })
     if (!invoice) return { ok: false as const }
+    if (!invoiceMatchesAccountCutoff(invoice, cutoffDate)) return { ok: false as const }
 
     await tx.trackedInvoice.update({
       where: { id },

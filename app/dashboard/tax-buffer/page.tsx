@@ -23,6 +23,15 @@ function statusClasses(status: string): string {
   return "bg-slate-100 text-slate-700"
 }
 
+function formatDate(value: string | null): string {
+  if (!value) return "Not available"
+  return new Date(value).toLocaleDateString("en-AU")
+}
+
+function qualityLabel(state: string): string {
+  return state.replaceAll("_", " ")
+}
+
 export default async function TaxBufferPage() {
   const {
     data: { user },
@@ -68,14 +77,31 @@ export default async function TaxBufferPage() {
 
       {summary.warnings.length > 0 ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <h2 className="text-sm font-semibold text-amber-900">Data quality warning</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-amber-900">Data quality warning</h2>
+            <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+              {qualityLabel(summary.quality.state)}
+            </span>
+          </div>
           <ul className="mt-2 space-y-1 text-xs text-amber-800">
             {summary.warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
           </ul>
         </section>
-      ) : null}
+      ) : (
+        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-slate-900">Data quality</h2>
+            <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+              {qualityLabel(summary.quality.state)}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-slate-700">
+            Effective range: {formatDate(summary.effectiveDateRange.start)} to {formatDate(summary.effectiveDateRange.end)}
+          </p>
+        </section>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -95,6 +121,18 @@ export default async function TaxBufferPage() {
           <p className="mt-2 text-2xl font-semibold text-gray-900">{formatAudCents(summary.safeToSpendCents)}</p>
         </div>
       </div>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Quality status</p>
+            <p className="mt-1 text-base font-semibold text-gray-900">{qualityLabel(summary.quality.state)}</p>
+          </div>
+          <div className="text-sm text-gray-600">
+            Effective range: {formatDate(summary.effectiveDateRange.start)} to {formatDate(summary.effectiveDateRange.end)}
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-start justify-between gap-3">

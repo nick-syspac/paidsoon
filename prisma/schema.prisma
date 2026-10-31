@@ -231,6 +231,7 @@ model UserProfile {
   createdAt                      DateTime  @default(now())
   updatedAt                      DateTime  @updatedAt
 
+  accountDisplaySetting          AccountDisplaySetting?
   tenantTrialGrant               TenantTrialGrant?
   tenantTrialOperations          TenantTrialOperation[]
   tenantTrialNotifications       TenantTrialNotification[]
@@ -319,6 +320,36 @@ model UserProfile {
   depositPaymentWebhookEvents   DepositPaymentWebhookEvent[]
 
   @@map("user_profiles")
+}
+
+model AccountDisplaySetting {
+  userId             String    @unique @map("user_id")
+  displayFromDate    DateTime? @db.Date @map("display_from_date")
+  revision           Int       @default(0)
+  timeZone           String    @default("Australia/Melbourne") @map("time_zone")
+  createdAt          DateTime  @default(now()) @db.Timestamptz(0) @map("created_at")
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(0) @map("updated_at")
+
+  userProfile        UserProfile                     @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  audits            AccountDisplaySettingAudit[]   @relation("AccountDisplaySettingOwner")
+
+  @@map("account_display_settings")
+}
+
+model AccountDisplaySettingAudit {
+  id                 String    @id @default(cuid())
+  userId             String    @map("user_id")
+  oldDisplayFromDate DateTime? @db.Date @map("old_display_from_date")
+  newDisplayFromDate DateTime? @db.Date @map("new_display_from_date")
+  oldRevision        Int       @map("old_revision")
+  newRevision        Int       @map("new_revision")
+  actorUserId        String    @map("actor_user_id")
+  createdAt          DateTime  @default(now()) @db.Timestamptz(0) @map("created_at")
+
+  setting            AccountDisplaySetting @relation("AccountDisplaySettingOwner", fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@map("account_display_setting_audits")
 }
 
 // ---------------------------------------------------------------------------
@@ -1519,6 +1550,9 @@ model SpendInsight {
   evidenceFingerprint    String?   @map("evidence_fingerprint")
   estimatedMonthlyCents  Int?      @map("estimated_monthly_cents")
   estimatedAnnualCents   Int?      @map("estimated_annual_cents")
+  accountDisplayRevision Int?      @map("account_display_revision")
+  accountDisplayFromDate DateTime? @db.Date @map("account_display_from_date")
+  accountDisplayTimeZone String?   @map("account_display_time_zone")
   evidence               Json
   detectedAt             DateTime  @default(now()) @map("detected_at")
   resolvedAt             DateTime? @map("resolved_at")
@@ -1938,6 +1972,9 @@ model CashPlanSnapshot {
   inputCurrency          String?  @map("input_currency")
   cashInputRevision      Int?     @map("cash_input_revision")
   commitmentRevision     Int?     @map("commitment_revision")
+  accountDisplayRevision Int?     @map("account_display_revision")
+  accountDisplayFromDate DateTime? @db.Date @map("account_display_from_date")
+  accountDisplayTimeZone String?  @map("account_display_time_zone")
   canonicalFacts         Json?    @map("canonical_facts")
   coverage               Json?
   inputQuality           Json?    @map("input_quality")
@@ -1974,21 +2011,24 @@ model CashPlanOverride {
 }
 
 model CashPlanAlert {
-  id               String    @id @default(cuid())
-  userId           String    @map("user_id")
-  planId           String    @map("plan_id")
-  alertType        String    @map("alert_type")
-  severity         String    @default("medium")
-  title            String
-  description      String
-  status           String    @default("open")
-  materialityCents Int       @default(0) @map("materiality_cents")
-  metadata         Json?
-  triggeredAt      DateTime  @default(now()) @map("triggered_at")
-  acknowledgedAt   DateTime? @map("acknowledged_at")
-  resolvedAt       DateTime? @map("resolved_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  id                     String    @id @default(cuid())
+  userId                 String    @map("user_id")
+  planId                 String    @map("plan_id")
+  alertType              String    @map("alert_type")
+  severity               String    @default("medium")
+  title                  String
+  description            String
+  status                 String    @default("open")
+  materialityCents       Int       @default(0) @map("materiality_cents")
+  accountDisplayRevision Int?      @map("account_display_revision")
+  accountDisplayFromDate DateTime? @db.Date @map("account_display_from_date")
+  accountDisplayTimeZone String?   @map("account_display_time_zone")
+  metadata               Json?
+  triggeredAt            DateTime  @default(now()) @map("triggered_at")
+  acknowledgedAt         DateTime? @map("acknowledged_at")
+  resolvedAt             DateTime? @map("resolved_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   userProfile UserProfile @relation(fields: [userId], references: [userId])
   plan        CashPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
@@ -1998,17 +2038,20 @@ model CashPlanAlert {
 }
 
 model CashPlanDataQualityIssue {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  planId    String   @map("plan_id")
-  issueType String   @map("issue_type")
-  severity  String   @default("medium")
-  message   String
-  status    String   @default("open")
-  weekIndex Int?     @map("week_index")
-  metadata  Json?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                     String   @id @default(cuid())
+  userId                 String   @map("user_id")
+  planId                 String   @map("plan_id")
+  issueType              String   @map("issue_type")
+  severity               String   @default("medium")
+  message                String
+  status                 String   @default("open")
+  weekIndex              Int?     @map("week_index")
+  accountDisplayRevision Int?     @map("account_display_revision")
+  accountDisplayFromDate DateTime? @db.Date @map("account_display_from_date")
+  accountDisplayTimeZone String?  @map("account_display_time_zone")
+  metadata               Json?
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   userProfile UserProfile @relation(fields: [userId], references: [userId])
   plan        CashPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
@@ -2746,6 +2789,9 @@ model CommitGuardEvaluationState {
   lastSuccessfulDailyEvaluationAt DateTime? @map("last_successful_daily_evaluation_at")
   calculationRevision           Int?      @map("calculation_revision")
   cashInputRevision             Int?      @map("cash_input_revision")
+  accountDisplayRevision        Int?      @map("account_display_revision")
+  accountDisplayFromDate        DateTime? @db.Date @map("account_display_from_date")
+  accountDisplayTimeZone        String?   @map("account_display_time_zone")
   cashRiskEpisodeId             String?   @map("cash_risk_episode_id")
   cashRiskStatus                String?   @map("cash_risk_status")
   cashRiskRelevance             String?   @map("cash_risk_relevance") // active | suspended | resolved
@@ -2857,6 +2903,9 @@ model CommitmentDetectionCandidate {
   suppressionEvidence          Json?     @map("suppression_evidence") // immutable baseline until deliberate review/reactivation
   userCorrections              Json?     @map("user_corrections")
   correctionsEvidenceFingerprint String? @map("corrections_evidence_fingerprint")
+  accountDisplayRevision       Int?      @map("account_display_revision")
+  accountDisplayFromDate       DateTime? @db.Date @map("account_display_from_date")
+  accountDisplayTimeZone       String?   @map("account_display_time_zone")
   latestObservedAt             DateTime? @db.Date @map("latest_observed_at")
   recurrenceAnchor             DateTime? @db.Date @map("recurrence_anchor")
   suggestedDueDate             DateTime? @db.Date @map("suggested_due_date")

@@ -9,6 +9,12 @@ import {
   type DepositGuardEventSummary,
   type DepositGuardTimelineEntry,
 } from "@/lib/depositGuard/jobDetailTimeline"
+import {
+  depositRequestMatchesAccountCutoff,
+  jobMatchesAccountCutoff,
+  milestoneMatchesAccountCutoff,
+  paymentMatchesAccountCutoff,
+} from "@/lib/depositGuard/accountCutoff"
 
 export interface DepositGuardPaymentSummary {
   id: string
@@ -100,6 +106,15 @@ export async function getDepositGuardJobDetail(
     })
 
     if (!job) {
+      return null
+    }
+
+    const profile = await tx.userProfile.findUnique({
+      where: { userId },
+      select: { accountDisplayFromDate: true },
+    })
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
+    if (!jobMatchesAccountCutoff(job, cutoffDate)) {
       return null
     }
 
@@ -201,29 +216,43 @@ export async function getDepositGuardJobDetail(
       }),
     ])
 
+    const eligibleRequestIds = new Set(
+      requests.filter((request) => depositRequestMatchesAccountCutoff(request.dueDate, cutoffDate)).map((request) => request.id),
+    )
+    const eligibleMilestones = milestones.filter((milestone) => milestoneMatchesAccountCutoff(milestone, cutoffDate))
+    const eligiblePayments = payments.filter((payment) => paymentMatchesAccountCutoff(payment, cutoffDate))
+    const eligibleReminderIds = new Set(
+      reminders.filter((reminder) => eligibleRequestIds.has(reminder.depositRequestId)).map((reminder) => reminder.id),
+    )
+    const eligibleEvents = events.filter((event) => {
+      if (event.depositRequestId && !eligibleRequestIds.has(event.depositRequestId)) return false
+      if (event.depositPaymentId && !eligiblePayments.some((payment) => payment.id === event.depositPaymentId)) return false
+      return true
+    })
+
     return {
       entitlements,
       job: {
         ...job,
         depositPercentage: job.depositPercentage === null ? null : Number(job.depositPercentage),
       },
-      requests,
-      milestones: milestones.map((milestone) => ({
+      requests: requests.filter((request) => eligibleRequestIds.has(request.id)),
+      milestones: eligibleMilestones.map((milestone) => ({
         ...milestone,
         percentage: milestone.percentage === null ? null : Number(milestone.percentage),
       })),
-      payments,
-      reminders: reminders.map((reminder) => ({
+      payments: eligiblePayments,
+      reminders: reminders.filter((reminder) => eligibleReminderIds.has(reminder.id)).map((reminder) => ({
         ...reminder,
         reminderType: reminder.reminderType,
         deliveryStatus: reminder.deliveryStatus,
       })),
-      events: events.map((event) => ({
+      events: eligibleEvents.map((event) => ({
         ...event,
         metadata: (event.metadata ?? null) as Record<string, unknown> | null,
       })),
       timeline: buildDepositGuardTimelineEntries(
-        events.map((event) => ({
+        eligibleEvents.map((event) => ({
           ...event,
           metadata: (event.metadata ?? null) as Record<string, unknown> | null,
         })),

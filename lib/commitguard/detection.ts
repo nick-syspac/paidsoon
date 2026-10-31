@@ -142,6 +142,10 @@ export async function detectCommitmentCandidatesInTransaction(
       }),
     ])
 
+    const accountDisplayPolicy = await tx.userProfile.findUnique({
+      where: { userId },
+      select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true },
+    })
     const analysis = inferScopedCommitmentCandidates({
       signals: buildDetectionSignals({ bills, bankTransactions }),
       minOccurrences: policy.detectionMinOccurrences,
@@ -229,8 +233,9 @@ export async function detectCommitmentCandidatesInTransaction(
             confidenceScore: score,
             evidence: evidence as never,
             evidenceFingerprint,
-            firstDetectedAt: sorted[0].date,
-            lastDetectedAt: latestSignal.date,
+          accountDisplayRevision: accountDisplayPolicy?.accountDisplayRevision ?? 0,
+          accountDisplayFromDate: accountDisplayPolicy?.accountDisplayFromDate ?? null,
+          accountDisplayTimeZone: accountDisplayPolicy?.accountDisplayTimeZone ?? "Australia/Melbourne",
             status: "pending",
           },
         })
@@ -302,6 +307,9 @@ export async function detectCommitmentCandidatesInTransaction(
           confidenceScore: score,
           evidence: evidence as never,
           evidenceFingerprint,
+          accountDisplayRevision: accountDisplayPolicy?.accountDisplayRevision ?? 0,
+          accountDisplayFromDate: accountDisplayPolicy?.accountDisplayFromDate ?? null,
+          accountDisplayTimeZone: accountDisplayPolicy?.accountDisplayTimeZone ?? "Australia/Melbourne",
           lastDetectedAt: latestSignal.date,
           nextSuggestedAt: suppressed || changed ? now : existing.nextSuggestedAt,
           reviewNote: reviewRequired ? "evidence_changed_since_correction" : existing.reviewNote,

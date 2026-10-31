@@ -7,6 +7,7 @@ import {
   type DepositType,
 } from "@/lib/depositGuard/calculations"
 import { getDepositGuardEntitlements } from "@/lib/depositGuard/entitlements"
+import { jobMatchesAccountCutoff } from "@/lib/depositGuard/accountCutoff"
 import { deriveCommencementState } from "@/lib/depositGuard/service"
 
 export type DepositGuardAccessErrorCode =
@@ -195,35 +196,44 @@ export async function listDepositGuardJobs(
   await ensureAccess(userId)
 
   return withUserContext(userId, async (tx) => {
-    const rows = await tx.depositGuardJob.findMany({
-      where: {
-        userId,
-        ...(options.includeArchived ? {} : { archivedAt: null }),
-      },
-      orderBy: [{ updatedAt: "desc" }],
-      select: {
-        id: true,
-        customerId: true,
-        name: true,
-        description: true,
-        reference: true,
-        currency: true,
-        totalAmountCents: true,
-        requiredDepositAmountCents: true,
-        amountPaidCents: true,
-        outstandingAmountCents: true,
-        workStatus: true,
-        paymentStatus: true,
-        commencementBlocked: true,
-        expectedStartDate: true,
-        expectedCompletionDate: true,
-        createdAt: true,
-        updatedAt: true,
-        archivedAt: true,
-      },
-    })
+    const [profile, rows] = await Promise.all([
+      tx.userProfile.findUnique({
+        where: { userId },
+        select: { accountDisplayFromDate: true },
+      }),
+      tx.depositGuardJob.findMany({
+        where: {
+          userId,
+          ...(options.includeArchived ? {} : { archivedAt: null }),
+        },
+        orderBy: [{ updatedAt: "desc" }],
+        select: {
+          id: true,
+          customerId: true,
+          name: true,
+          description: true,
+          reference: true,
+          currency: true,
+          totalAmountCents: true,
+          requiredDepositAmountCents: true,
+          amountPaidCents: true,
+          outstandingAmountCents: true,
+          workStatus: true,
+          paymentStatus: true,
+          commencementBlocked: true,
+          expectedStartDate: true,
+          expectedCompletionDate: true,
+          createdAt: true,
+          updatedAt: true,
+          archivedAt: true,
+        },
+      }),
+    ])
 
-    return rows.map((row) => toSummary(row))
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
+    return rows
+      .filter((row) => jobMatchesAccountCutoff(row, cutoffDate))
+      .map((row) => toSummary(row))
   })
 }
 

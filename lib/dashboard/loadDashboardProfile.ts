@@ -45,6 +45,17 @@ export async function getDashboardProfileWithTx(
     where: { userId }, select: DASHBOARD_PROFILE_SELECT,
   })
   if (!profile) return null
+  const accountDisplaySetting = await tx.accountDisplaySetting?.findUnique?.({
+    where: { userId },
+    select: {
+      displayFromDate: true,
+      revision: true,
+      timeZone: true,
+    },
+  }) ?? null
+  const resolvedAccountDisplayFromDate = accountDisplaySetting?.displayFromDate ?? profile.accountDisplayFromDate ?? null
+  const resolvedAccountDisplayRevision = accountDisplaySetting?.revision ?? profile.accountDisplayRevision ?? 0
+  const resolvedAccountDisplayTimeZone = accountDisplaySetting?.timeZone ?? profile.accountDisplayTimeZone ?? "Australia/Melbourne"
   const grant = await tx.tenantTrialGrant.findUnique({
     where: { userId }, select: EFFECTIVE_ACCESS_GRANT_SELECT,
   })
@@ -52,8 +63,14 @@ export async function getDashboardProfileWithTx(
     where: { userId }, select: EFFECTIVE_ACCESS_RISK_SELECT,
   })
   const platformOwnerAccess = await readPlatformOwnerAccess(userId)
-  return {
+  const resolvedProfile: DashboardProfileFacts = {
     ...profile,
-    effectiveAccess: resolveEffectiveAccess({ profile, grant, billingRisks, platformOwnerAccess }, options.now ?? new Date()),
+    accountDisplayFromDate: resolvedAccountDisplayFromDate,
+    accountDisplayRevision: resolvedAccountDisplayRevision,
+    accountDisplayTimeZone: resolvedAccountDisplayTimeZone,
+  }
+  return {
+    ...resolvedProfile,
+    effectiveAccess: resolveEffectiveAccess({ profile: resolvedProfile, grant, billingRisks, platformOwnerAccess }, options.now ?? new Date()),
   }
 }

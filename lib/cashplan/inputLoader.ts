@@ -16,14 +16,14 @@ export class CashPlanNotFoundError extends Error {
 /** Caller supplies authenticated identity and enforces CashPlan access. No GET
  * defaults, snapshots, or other financial writes; no dependency on Tax Buffer. */
 export async function loadCashPlanInputs(
-  userId: string, options: { planId?: string; now?: Date } = {},
+  userId: string, options: { planId?: string; now?: Date; accountDisplayPolicy?: { accountDisplayRevision: number; accountDisplayFromDate: Date | null; accountDisplayTimeZone: string | null } | null } = {},
 ): Promise<CashPlanAssemblyInputs> {
   const now = options.now ?? new Date()
   return withUserContext(userId, (tx) => loadCashPlanInputsInTransaction(tx, userId, { ...options, now }))
 }
 
 export async function loadCashPlanInputsInTransaction(
-  tx: PrismaTx, userId: string, options: { planId?: string; now: Date },
+  tx: PrismaTx, userId: string, options: { planId?: string; now: Date; accountDisplayPolicy?: { accountDisplayRevision: number; accountDisplayFromDate: Date | null; accountDisplayTimeZone: string | null } | null },
 ): Promise<CashPlanAssemblyInputs> {
   const plan = await tx.cashPlan.findFirst({
     where: { userId, ...(options.planId === undefined ? {} : { id: options.planId }) },
@@ -40,6 +40,14 @@ export async function loadCashPlanInputsInTransaction(
     where: { userId, planId: null }, orderBy: [...latestFirst],
     select: { id: true, planId: true, ...configurationSelect, alertThresholdCents: true, reviewRole: true },
   })
-  const cashContext = await loadCommitGuardCashContextInTransaction(tx, userId, options.now)
+  const accountDisplayPolicy = options.accountDisplayPolicy ?? (tx.userProfile ? await tx.userProfile.findUnique({
+    where: { userId },
+    select: {
+      accountDisplayRevision: true,
+      accountDisplayFromDate: true,
+      accountDisplayTimeZone: true,
+    },
+  }) : null)
+  const cashContext = await loadCommitGuardCashContextInTransaction(tx, userId, options.now, accountDisplayPolicy)
   return assembleCashPlanInputs({ plan, settings, cashContext, now: options.now })
 }

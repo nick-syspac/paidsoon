@@ -5,6 +5,7 @@ import { loadCommitGuardSummaryInputInTransaction } from "@/lib/commitguard/serv
 import { buildCommitGuardSummary } from "@/lib/commitguard/summary"
 import { listCommitGuardAlertsInTransaction, loadAlertCommitmentInTransaction } from "@/lib/commitguard/alertHistory"
 import { safeCandidateDate, safeCandidateEvidence } from "@/lib/commitguard/candidatePresentation"
+import { filterCurrentAccountDisplayRows } from "@/lib/commitguard/cashContextLoader"
 import { WorkspaceQuerySchema, type CommitGuardWorkspaceDTO, type WorkspaceQuery } from "@/lib/commitguard/workspace"
 import { selectWorkspaceCommitments } from "@/lib/commitguard/workspaceFilters"
 
@@ -18,14 +19,21 @@ export async function loadCommitGuardWorkspace(userId: string, query: WorkspaceQ
     requireFeature(userId, "commitguard_advanced_alerts", { now }), getCommitGuardEntitlements(userId),
   ])
   return withUserContext(userId, async (tx) => {
-    const [input, rows, alerts, linkedCommitment] = await Promise.all([
+    const [input, rows, alerts, linkedCommitment, accountDisplayPolicy] = await Promise.all([
       loadCommitGuardSummaryInputInTransaction(tx, userId, tax, now),
       detection ? tx.commitmentDetectionCandidate.findMany({ where: { userId },
-        orderBy: [{ status: "asc" }, { lastDetectedAt: "desc" }], take: entitlements.detectionCandidatesPerCycleLimit }) : [],
+        orderBy: [{ status: "asc" }, { lastDetectedAt: "desc" }], take: entitlements.detectionCandidatesPerCycleLimit,
+        select: { id: true, name: true, category: true, frequency: true, typicalAmountCents: true, currency: true,
+          source: true, confidence: true, status: true, supplierName: true, suggestedDueDate: true,
+          latestObservedAt: true, recurrenceAnchor: true, evidence: true, userCorrections: true,
+          correctionsEvidenceFingerprint: true, evidenceFingerprint: true, conversionReviewRequired: true,
+          accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } }) : [],
       listCommitGuardAlertsInTransaction(tx, userId, { page: Number(params.alertPage ?? 1), eventId: params.eventId }, now, advanced, detection),
       params.commitmentId ? loadAlertCommitmentInTransaction(tx, userId, params.commitmentId) : null,
+      tx.userProfile.findUnique({ where: { userId }, select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } }),
     ])
     const summary = buildCommitGuardSummary(input)
+    const eligibleRows = filterCurrentAccountDisplayRows(rows, accountDisplayPolicy)
     const commitments = input.commitments.map((row) => ({ id: row.id, name: row.name, category: row.category,
       amountCents: row.amountCents, currency: row.currency, frequency: row.frequency,
       nextDueDate: row.nextDueDate?.toISOString() ?? null, confidence: row.confidence, status: row.status,
@@ -35,7 +43,7 @@ export async function loadCommitGuardWorkspace(userId: string, query: WorkspaceQ
       renewalDate: row.renewalDate?.toISOString() ?? null, noticePeriodDays: row.noticePeriodDays,
       autoRenew: row.autoRenew, cancellable: row.cancellable, archivedAt: row.archivedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString() }))
-    const candidates = rows.map((row) => ({ id: row.id, name: row.name, category: row.category,
+    const candidates = eligibleRows.map((row) => ({ id: row.id, name: row.name, category: row.category,
       frequency: row.frequency, typicalAmountCents: row.typicalAmountCents, currency: row.currency,
       source: row.source, confidence: row.confidence, status: row.status, supplierName: row.supplierName,
       suggestedDueDate: safeCandidateDate(row.suggestedDueDate), latestObservedAt: safeCandidateDate(row.latestObservedAt),

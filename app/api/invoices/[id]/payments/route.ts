@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { TERMINAL_TRACKED_INVOICE_STATUSES } from "@/lib/invoiceImport/matching"
 import { recordInvoicePayment } from "@/lib/invoices/payments"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 
 const bodySchema = z.object({
   amount: z.number().int().positive(),
@@ -28,11 +29,16 @@ async function POSTHandler(req: Request, { params }: Params) {
   }
 
   const result = await withUserContext(user.id, async (tx) => {
+    const profile = await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
     const invoice = await tx.trackedInvoice.findFirst({
       where: { id, userId: user.id, status: { notIn: [...TERMINAL_TRACKED_INVOICE_STATUSES] } },
-      include: { financialInvoice: { select: { amountDueCents: true, currency: true } } },
+      include: { financialInvoice: { select: { amountDueCents: true, currency: true, issueDate: true, dueDate: true } } },
     })
     if (!invoice) return { ok: false as const, reason: "not_found" as const }
+    if (!invoiceMatchesAccountCutoff(invoice, cutoffDate)) {
+      return { ok: false as const, reason: "not_found" as const }
+    }
     if (invoice.financialInvoice.currency !== parsed.data.currency) {
       return { ok: false as const, reason: "currency_mismatch" as const }
     }

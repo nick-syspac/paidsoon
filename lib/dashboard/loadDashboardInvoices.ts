@@ -40,11 +40,41 @@ function groupByTrackedInvoiceId<T extends { trackedInvoiceId: string }>(rows: T
   return grouped
 }
 
+export function dateOnlyKey(value: Date | string | null | undefined): string | null {
+  if (!value) return null
+  const asDate = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(asDate.getTime())) return null
+  return asDate.toISOString().slice(0, 10)
+}
+
+export function invoiceMatchesAccountCutoff(
+  invoice: { financialInvoice?: { issueDate?: Date | null; dueDate?: Date | null } | null },
+  cutoffDate: Date | null,
+): boolean {
+  if (!cutoffDate) return true
+  const effectiveDate = invoice.financialInvoice?.issueDate ?? invoice.financialInvoice?.dueDate ?? null
+  if (!effectiveDate) return false
+
+  const cutoffKey = dateOnlyKey(cutoffDate)
+  const invoiceKey = dateOnlyKey(effectiveDate)
+  if (!cutoffKey || !invoiceKey) return false
+
+  return invoiceKey >= cutoffKey
+}
+
+export function filterInvoicesByAccountCutoff<T extends { financialInvoice?: { issueDate?: Date | null; dueDate?: Date | null } | null }>(
+  invoices: T[],
+  cutoffDate: Date | null,
+): T[] {
+  return invoices.filter((invoice) => invoiceMatchesAccountCutoff(invoice, cutoffDate))
+}
+
 export async function loadDashboardInvoicesWithTx(
   tx: PrismaTx,
   userId: string,
   statuses: string[],
   orderBy: { updatedAt: "desc" } | { nextEmailAt: "asc" },
+  cutoffDate: Date | null = null,
 ): Promise<InvoiceWithRelations[]> {
   const invoices = await tx.trackedInvoice.findMany({
     where: {
@@ -137,7 +167,7 @@ export async function loadDashboardInvoicesWithTx(
     })
   }
 
-  return hydratedInvoices
+  return filterInvoicesByAccountCutoff(hydratedInvoices, cutoffDate)
 }
 
 /**
@@ -152,6 +182,7 @@ export async function loadDashboardInvoices(
   orderBy: { updatedAt: "desc" } | { nextEmailAt: "asc" },
   traceContext: TraceContext,
   component: string,
+  cutoffDate: Date | null = null,
 ): Promise<InvoiceWithRelations[]> {
   return traceOperation(
     traceContext,
@@ -164,7 +195,7 @@ export async function loadDashboardInvoices(
       tenant: { context: "user_rls" },
       inputs: { statuses },
     },
-    () => withUserContext(userId, (tx) => loadDashboardInvoicesWithTx(tx, userId, statuses, orderBy)),
+    () => withUserContext(userId, (tx) => loadDashboardInvoicesWithTx(tx, userId, statuses, orderBy, cutoffDate)),
     { success: (result) => ({ outputs: { invoiceCount: result.length } }) },
   )
 }

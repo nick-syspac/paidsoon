@@ -236,6 +236,9 @@ export function AccountSettingsClient({
               Clear
             </button>
           </div>
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Older account history, reminder sequences, and customer links may become unavailable once this date is applied. Setting a later date does not delete historical records; it only changes what is visible and eligible in the account view.
+          </div>
           {accountDateFeedback && (
             <p className={`mt-2 text-sm ${accountDateFeedback.type === "success" ? "text-green-600" : "text-red-600"}`}>
               {accountDateFeedback.message}

@@ -1,5 +1,6 @@
 import { withUserContext } from "@/lib/db/withUserContext"
 import { requireDepositGuardPaymentSchedulesAccess } from "@/lib/depositGuard/entitlements"
+import { milestoneMatchesAccountCutoff } from "@/lib/depositGuard/accountCutoff"
 import { calculateDepositGuardMilestoneAmountCents } from "@/lib/depositGuard/milestonesCore"
 
 type MilestoneStatus =
@@ -65,38 +66,47 @@ export async function listDepositGuardMilestones(
   await requireDepositGuardPaymentSchedulesAccess(userId)
 
   return withUserContext(userId, async (tx) => {
-    const rows = await tx.paymentMilestone.findMany({
-      where: {
-        userId,
-        ...(options.jobId ? { jobId: options.jobId } : {}),
-      },
-      orderBy: [{ sequence: "asc" }, { createdAt: "asc" }],
-      select: {
-        id: true,
-        userId: true,
-        jobId: true,
-        name: true,
-        description: true,
-        sequence: true,
-        amountType: true,
-        percentage: true,
-        fixedAmountCents: true,
-        calculatedAmountCents: true,
-        triggerType: true,
-        targetDate: true,
-        status: true,
-        depositRequestId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
-
-    return rows.map((row) =>
-      toSummary({
-        ...row,
-        percentage: row.percentage === null ? null : Number(row.percentage),
+    const [profile, rows] = await Promise.all([
+      tx.userProfile.findUnique({
+        where: { userId },
+        select: { accountDisplayFromDate: true },
       }),
-    )
+      tx.paymentMilestone.findMany({
+        where: {
+          userId,
+          ...(options.jobId ? { jobId: options.jobId } : {}),
+        },
+        orderBy: [{ sequence: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          userId: true,
+          jobId: true,
+          name: true,
+          description: true,
+          sequence: true,
+          amountType: true,
+          percentage: true,
+          fixedAmountCents: true,
+          calculatedAmountCents: true,
+          triggerType: true,
+          targetDate: true,
+          status: true,
+          depositRequestId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+    ])
+
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
+    return rows
+      .filter((row) => milestoneMatchesAccountCutoff(row, cutoffDate))
+      .map((row) =>
+        toSummary({
+          ...row,
+          percentage: row.percentage === null ? null : Number(row.percentage),
+        }),
+      )
   })
 }
 

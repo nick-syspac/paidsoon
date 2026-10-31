@@ -8,6 +8,7 @@ import {
   shouldBlockClientPromise,
 } from "@/lib/promiseEscalationPolicy"
 import { getPublicSupabaseEnvironment } from "@/lib/config/supabaseEnvironmentRuntime"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 
 // Task 4.3 — Zod schema for the promise submission body
 const PromiseBodySchema = z.object({
@@ -29,6 +30,15 @@ export async function POST(
   })
 
   if (!invoice) {
+    return NextResponse.json({ error: "Link not found" }, { status: 404 })
+  }
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId: invoice.userId },
+    select: { accountDisplayFromDate: true },
+  })
+  const cutoffDate = profile?.accountDisplayFromDate ?? null
+  if (!invoiceMatchesAccountCutoff(invoice, cutoffDate)) {
     return NextResponse.json({ error: "Link not found" }, { status: 404 })
   }
 

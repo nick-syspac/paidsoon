@@ -1588,6 +1588,38 @@ CREATE POLICY "users can update own commit guard settings"
   WITH CHECK (auth.uid()::text = user_id);
 
 -- ---------------------------------------------------------------------------
+-- account display settings
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.account_display_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_display_setting_audits ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL PRIVILEGES ON TABLE public.account_display_settings FROM PUBLIC, anon, authenticated;
+REVOKE ALL PRIVILEGES ON TABLE public.account_display_setting_audits FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.account_display_settings TO authenticated;
+GRANT SELECT ON TABLE public.account_display_setting_audits TO authenticated;
+
+DROP POLICY IF EXISTS "users can view own account display settings" ON public.account_display_settings;
+CREATE POLICY "users can view own account display settings"
+  ON public.account_display_settings FOR SELECT
+  TO authenticated USING ((SELECT auth.uid())::text = user_id);
+
+DROP POLICY IF EXISTS "users can insert own account display settings" ON public.account_display_settings;
+CREATE POLICY "users can insert own account display settings"
+  ON public.account_display_settings FOR INSERT
+  TO authenticated WITH CHECK ((SELECT auth.uid())::text = user_id);
+
+DROP POLICY IF EXISTS "users can update own account display settings" ON public.account_display_settings;
+CREATE POLICY "users can update own account display settings"
+  ON public.account_display_settings FOR UPDATE
+  TO authenticated USING ((SELECT auth.uid())::text = user_id)
+  WITH CHECK ((SELECT auth.uid())::text = user_id);
+
+DROP POLICY IF EXISTS "users can view own account display setting audits" ON public.account_display_setting_audits;
+CREATE POLICY "users can view own account display setting audits"
+  ON public.account_display_setting_audits FOR SELECT
+  TO authenticated USING ((SELECT auth.uid())::text = user_id);
+
+-- ---------------------------------------------------------------------------
 -- commitments
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "users can view own commitments" ON commitments;

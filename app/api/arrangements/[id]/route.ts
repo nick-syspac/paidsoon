@@ -16,6 +16,8 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const arrangement = await withUserContext(user.id, async (tx) => {
+    const profile = await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
     // Explicit userId re-check alongside the RLS-scoped query (defense in
     // depth per backend-api.instructions.md): never leak existence of an
     // arrangement belonging to another user.
@@ -33,6 +35,8 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
                   select: {
                     amountDueCents: true,
                     currency: true,
+                    issueDate: true,
+                    dueDate: true,
                     contact: { select: { name: true, email: true } },
                   },
                 },
@@ -48,6 +52,10 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
+  const visibleCoverages = arrangement.coverages.filter((coverage) =>
+    invoiceMatchesAccountCutoff(coverage.trackedInvoice, cutoffDate),
+  )
+
   return NextResponse.json({
     arrangement: {
       id: arrangement.id,
@@ -62,7 +70,7 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
       breachedAt: arrangement.breachedAt,
       fulfilledAt: arrangement.fulfilledAt,
       createdAt: arrangement.createdAt,
-      coverages: arrangement.coverages.map((coverage) => ({
+      coverages: visibleCoverages.map((coverage) => ({
         invoiceId: coverage.trackedInvoiceId,
         clientName: coverage.trackedInvoice.financialInvoice.contact?.name ?? "",
         clientEmail: coverage.trackedInvoice.financialInvoice.contact?.email ?? "",
