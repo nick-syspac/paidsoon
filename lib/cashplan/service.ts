@@ -5,6 +5,7 @@ import { financialJobAccessSkip } from "@/lib/billing/financialJobAccess"
 import { loadCashPlanFacts, loadCashPlanFactsInTransaction } from "@/lib/cashplan/factLoader"
 import { cashPlanSnapshotFactsHash, cashPlanSnapshotFactsMetadata, type CashPlanFactAssembly } from "@/lib/cashplan/factAssembler"
 import { buildCashPlanSummaryResponse, type CashPlanOverviewSummary, type CashPlanSummaryResponse } from "@/lib/cashplan/engine"
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import type { Prisma } from "@/lib/generated/prisma/client"
 
@@ -101,8 +102,11 @@ export async function refreshCashPlanInTransaction(
     commitGuardEntitled: financialJobAccessSkip(access, "commitguard_core") === null })
   const summary = presentCashPlan(assembly)
   const { inputs, forecast } = assembly
-  const accountDisplayPolicy = await tx.userProfile.findUnique({ where: { userId },
-    select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } })
+  const userProfile = getTxUserProfile(tx)
+  const accountDisplayPolicy = userProfile
+    ? await userProfile.findUnique({ where: { userId },
+      select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } })
+    : null
   if (!forecast || !inputs.plan || !inputs.anchor || !inputs.configuration) return { snapshotId: null, summary }
   // Storage remains Prisma Int; do not wrap/saturate forecast amounts.
   if (![forecast.lowestClosingCashCents, forecast.bufferGapCents].every((value) => Number.isSafeInteger(value) && value >= -2_147_483_648 && value <= 2_147_483_647)) {

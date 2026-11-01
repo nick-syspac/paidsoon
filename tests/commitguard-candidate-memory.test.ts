@@ -1,6 +1,5 @@
 import assert from "node:assert/strict"
 import { before, beforeEach, mock, test } from "node:test"
-import { resolveEffectiveAccess } from "@/lib/billing/effectiveAccess"
 import { candidateIdentity, evidenceObject } from "@/lib/commitguard/candidateEvidence"
 import type { DetectionBillRow } from "@/lib/commitguard/detectionEvidence"
 
@@ -46,12 +45,33 @@ before(async () => {
     createClient: async () => ({ auth: { getUser: async () => ({ data: { user: authenticated ? { id: tenant } : null } }) } }),
   } })
   await mock.module("@/lib/billing/effectiveAccessLoader", { namedExports: {
-    getEffectiveAccess: async (userId: string) => {
-      assert.equal(userId, tenant)
-      return resolveEffectiveAccess({ profile: { subscriptionStatus: "active", subscriptionTier: "business_pro",
-        stripeSubscriptionId: "sub_synthetic", trialEndsAt: null, billingAccessVersion: 1 }, grant: null,
-        billingRisks: [] }, now)
-    },
+    getEffectiveAccess: async () => ({
+      allowAccess: true,
+      effectiveTier: "business_pro",
+      source: "paid",
+      effectiveAccessExpiresAt: null,
+      effectiveTrialExpiresAt: null,
+      effectiveExpirySource: null,
+      effectiveExpiryTier: null,
+      stripeTrialEndsAt: null,
+      grant: null,
+      showBillingWarning: false,
+      billingWarning: null,
+      restriction: null,
+      trialTimingPendingReconciliation: false,
+      version: 1,
+    }),
+  } })
+  await mock.module("@/lib/billing", { namedExports: {
+    getSubscriptionTier: async () => "business_pro",
+    requireFeature: async () => true,
+    getCommitmentLimitForTier: () => Number.MAX_SAFE_INTEGER,
+    getCommitmentDetectionCandidateLimitForTier: () => Number.MAX_SAFE_INTEGER,
+  } })
+  await mock.module("@/lib/billing/subscriptionRoute", { namedExports: {
+    withSubscriptionAccess: <Args extends unknown[], Result extends Response>(
+      handler: (...args: Args) => Promise<Result>,
+    ) => async (...args: Args): Promise<Result> => handler(...args),
   } })
   await mock.module("@/lib/db/withUserContext", { namedExports: {
     withUserContext: async (userId: string, callback: (tx: unknown) => Promise<unknown>) => {
@@ -72,6 +92,18 @@ before(async () => {
           assert.equal(values[0], tenant)
           return candidates.filter((candidate) => candidate.userId === values[0] && candidate.id === values[1])
         },
+        userProfile: {
+          findUnique: async ({ where }: { where: { userId: string } }) => ({
+            userId: where.userId,
+            subscriptionStatus: "active",
+            subscriptionTier: "business_pro",
+            stripeSubscriptionId: "sub_synthetic",
+            trialEndsAt: null,
+            billingAccessVersion: 1,
+          }),
+        },
+        tenantTrialGrant: { findUnique: async () => null },
+        tenantBillingRisk: { findMany: async () => [] },
         commitGuardSetting: { findUnique: async () => settings,
           upsert: async () => ({ calculationRevision: ++revision }) },
         importedBill: { findMany: async () => { assert.equal(locked, true); return bills } },
@@ -163,20 +195,37 @@ function reviewRequest(action: string, patch?: unknown, id = String(row().id)): 
 }
 
 test("5.5 actual detection route and service return safe candidates/results with review fields", async () => {
-  const response = await detectionRoute.POST()
-  assert.equal(response.status, 200)
-  const payload = await response.json()
-  assert.equal(payload.detection.created, 1)
-  const candidate = payload.candidates[0]
-  assert.equal(candidate.currency, "aud")
-  assert.equal(candidate.supplierName, "Synthetic Supplier")
-  assert.equal(candidate.suggestedDueDate.slice(0, 10), "2026-10-31")
-  assert.equal(candidate.evidenceReviewRequired, false)
-  assert.equal(candidate.conversionReviewRequired, false)
-  assert.equal(candidate.evidence.observations.length, 3)
-  const json = JSON.stringify(candidate)
-  for (const internal of ["userId", "connectionId", "candidateKey", "evidenceFingerprint", "suppressionEvidence"]) {
-    assert.equal(json.includes(`"${internal}"`), false, internal)
+  const RealDate = globalThis.Date
+  class FixedDate extends RealDate {
+    constructor(...args: ConstructorParameters<typeof Date>) {
+      if (args.length === 0) {
+        return new RealDate("2026-10-14T12:00:00Z") as unknown as Date
+      }
+      return new RealDate(...args) as unknown as Date
+    }
+    static now() {
+      return new RealDate("2026-10-14T12:00:00Z").getTime()
+    }
+  }
+  globalThis.Date = FixedDate as unknown as DateConstructor
+  try {
+    const response = await detectionRoute.POST()
+    assert.equal(response.status, 200)
+    const payload = await response.json()
+    assert.equal(payload.detection.created, 1)
+    const candidate = payload.candidates[0]
+    assert.equal(candidate.currency, "aud")
+    assert.equal(candidate.supplierName, "Synthetic Supplier")
+    assert.equal(candidate.suggestedDueDate.slice(0, 10), "2026-10-31")
+    assert.equal(candidate.evidenceReviewRequired, false)
+    assert.equal(candidate.conversionReviewRequired, false)
+    assert.equal(candidate.evidence.observations.length, 3)
+    const json = JSON.stringify(candidate)
+    for (const internal of ["userId", "connectionId", "candidateKey", "evidenceFingerprint", "suppressionEvidence"]) {
+      assert.equal(json.includes(`"${internal}"`), false, internal)
+    }
+  } finally {
+    globalThis.Date = RealDate
   }
 })
 

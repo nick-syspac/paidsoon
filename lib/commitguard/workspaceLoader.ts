@@ -1,4 +1,5 @@
 import { requireFeature } from "@/lib/billing"
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { requireCommitGuardCoreAccess, getCommitGuardEntitlements } from "@/lib/commitguard/entitlements"
 import { loadCommitGuardSummaryInputInTransaction } from "@/lib/commitguard/service"
@@ -30,9 +31,10 @@ export async function loadCommitGuardWorkspace(userId: string, query: WorkspaceQ
           accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } }) : [],
       listCommitGuardAlertsInTransaction(tx, userId, { page: Number(params.alertPage ?? 1), eventId: params.eventId }, now, advanced, detection),
       params.commitmentId ? loadAlertCommitmentInTransaction(tx, userId, params.commitmentId) : null,
-      tx.userProfile && typeof tx.userProfile.findUnique === "function"
-        ? tx.userProfile.findUnique({ where: { userId }, select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } })
-        : null,
+      (() => {
+        const userProfile = getTxUserProfile(tx)
+        return userProfile ? userProfile.findUnique({ where: { userId }, select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } }) : null
+      })(),
     ])
     const summary = buildCommitGuardSummary(input)
     const eligibleRows = filterCurrentAccountDisplayRows(rows, accountDisplayPolicy)

@@ -1,5 +1,6 @@
 import { requireSubscriptionAccess } from "@/lib/billing/accessGuard"
 import { requireFeature } from "@/lib/billing"
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import { buildLatestOverrideMaps, estimateGstFromInvoiceAmount } from "@/lib/taxBuffer/categoryInputs"
 import {
@@ -88,8 +89,9 @@ export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSum
   return withUserContext(userId, async (tx) => {
     await ensureDefaults(tx, userId)
 
-    const profile = typeof tx.userProfile?.findUnique === "function"
-      ? await tx.userProfile.findUnique({
+    const userProfile = getTxUserProfile(tx)
+    const profile = userProfile
+      ? await userProfile.findUnique({
           where: { userId },
           select: { accountDisplayFromDate: true },
         })

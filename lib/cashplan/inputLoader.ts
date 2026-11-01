@@ -1,5 +1,6 @@
 import { assembleCashPlanInputs, type CashPlanAssemblyInputs } from "@/lib/cashplan/assembler"
 import { loadCommitGuardCashContextInTransaction } from "@/lib/commitguard/cashContextLoader"
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 
 const configurationSelect = {
@@ -40,7 +41,8 @@ export async function loadCashPlanInputsInTransaction(
     where: { userId, planId: null }, orderBy: [...latestFirst],
     select: { id: true, planId: true, ...configurationSelect, alertThresholdCents: true, reviewRole: true },
   })
-  const accountDisplayPolicy = options.accountDisplayPolicy ?? (tx.userProfile ? await tx.userProfile.findUnique({
+  const userProfile = getTxUserProfile(tx)
+  const accountDisplayPolicy = options.accountDisplayPolicy ?? (userProfile ? await userProfile.findUnique({
     where: { userId },
     select: {
       accountDisplayRevision: true,

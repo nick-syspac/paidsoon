@@ -1,3 +1,4 @@
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import {
   toCommitGuardCashContextDto,
@@ -112,7 +113,8 @@ export async function loadCommitGuardCashContextInTransaction(
   now: Date,
   accountDisplayPolicy?: Partial<AccountDisplayPolicy> | null,
 ): Promise<CommitGuardCashContextDto> {
-    const effectivePolicy = normalizePolicy(accountDisplayPolicy ?? (tx.userProfile ? await tx.userProfile.findUnique({
+    const userProfile = getTxUserProfile(tx)
+    const effectivePolicy = normalizePolicy(accountDisplayPolicy ?? (userProfile ? await userProfile.findUnique({
       where: { userId },
       select: {
         accountDisplayFromDate: true,

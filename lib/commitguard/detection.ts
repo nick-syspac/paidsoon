@@ -15,6 +15,7 @@ import { buildDetectionSignals } from "@/lib/commitguard/detectionEvidence"
 import { canReactivate, confirmationDueDate, evidenceObject, inferredCandidateIdentity,
   legacyCandidateIdentity, observedSchedule, suppressionBaseline } from "@/lib/commitguard/candidateEvidence"
 
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import { lockCommitGuardTenant } from "@/lib/commitguard/tenantLock"
 import { requestCommitGuardEvaluation } from "@/lib/commitguard/evaluationRequest"
@@ -142,10 +143,13 @@ export async function detectCommitmentCandidatesInTransaction(
       }),
     ])
 
-    const accountDisplayPolicy = await tx.userProfile.findUnique({
-      where: { userId },
-      select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true },
-    })
+    const userProfile = getTxUserProfile(tx)
+    const accountDisplayPolicy = userProfile
+      ? await userProfile.findUnique({
+        where: { userId },
+        select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true },
+      })
+      : null
     const analysis = inferScopedCommitmentCandidates({
       signals: buildDetectionSignals({ bills, bankTransactions }),
       minOccurrences: policy.detectionMinOccurrences,

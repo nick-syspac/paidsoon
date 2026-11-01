@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { NextResponse } from "next/server"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -15,9 +16,14 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  const cutoffDate = await withUserContext(user.id, async (tx) => {
+    const profile = tx.userProfile && typeof tx.userProfile.findUnique === "function"
+      ? await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
+      : null
+    return profile?.accountDisplayFromDate ?? null
+  })
+
   const arrangement = await withUserContext(user.id, async (tx) => {
-    const profile = await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
-    const cutoffDate = profile?.accountDisplayFromDate ?? null
     // Explicit userId re-check alongside the RLS-scoped query (defense in
     // depth per backend-api.instructions.md): never leak existence of an
     // arrangement belonging to another user.

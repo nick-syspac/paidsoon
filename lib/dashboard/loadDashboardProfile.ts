@@ -1,3 +1,4 @@
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import type { Prisma } from "@/lib/generated/prisma/client"
 import { resolveEffectiveAccess, type EffectiveAccess } from "@/lib/billing/effectiveAccess"
@@ -41,9 +42,12 @@ export async function getDashboardProfileWithTx(
   userId: string,
   options: EffectiveAccessLoadOptions = {},
 ): Promise<DashboardProfile | null> {
-  const profile = await tx.userProfile.findUnique({
-    where: { userId }, select: DASHBOARD_PROFILE_SELECT,
-  })
+  const userProfile = getTxUserProfile(tx)
+  const profile = userProfile
+    ? await userProfile.findUnique({
+      where: { userId }, select: DASHBOARD_PROFILE_SELECT,
+    })
+    : null
   if (!profile) return null
   const accountDisplaySetting = await tx.accountDisplaySetting?.findUnique?.({
     where: { userId },

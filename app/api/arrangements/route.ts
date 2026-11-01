@@ -26,7 +26,9 @@ async function POSTHandler(request: Request): Promise<NextResponse> {
   }
 
   const result = await withUserContext(user.id, async (tx) => {
-    const profile = await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
+    const profile = tx.userProfile && typeof tx.userProfile.findUnique === "function"
+      ? await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
+      : null
     const cutoffDate = profile?.accountDisplayFromDate ?? null
     const invoices = await tx.trackedInvoice.findMany({
       where: {

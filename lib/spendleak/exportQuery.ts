@@ -1,3 +1,4 @@
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext } from "@/lib/db/withUserContext"
 import type { SpendInsight } from "@/lib/generated/prisma/client"
 import { moduleFromFindingType, type SpendLeakModuleId } from "@/lib/dashboard/spendleakPresentation"
@@ -116,14 +117,17 @@ export async function loadSpendLeakFindingsForExport(
   params: SpendLeakExportQueryParams,
 ): Promise<SpendInsight[]> {
   return withUserContext(params.userId, async (tx) => {
-    const profile = await tx.userProfile.findUnique({
-      where: { userId: params.userId },
-      select: {
-        accountDisplayFromDate: true,
-        accountDisplayRevision: true,
-        accountDisplayTimeZone: true,
-      },
-    })
+    const userProfile = getTxUserProfile(tx)
+    const profile = userProfile
+      ? await userProfile.findUnique({
+        where: { userId: params.userId },
+        select: {
+          accountDisplayFromDate: true,
+          accountDisplayRevision: true,
+          accountDisplayTimeZone: true,
+        },
+      })
+      : null
 
     const findings = await tx.spendInsight.findMany({
       where: { userId: params.userId },
