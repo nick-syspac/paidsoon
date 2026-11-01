@@ -46,6 +46,16 @@ export default async function TaxBufferPage() {
   const summary = await loadTaxBufferSummary(user.id)
   const settings = await getTaxBufferSettings(user.id)
 
+  const warnings = summary?.warnings ?? []
+  const qualityState = summary?.quality?.state ?? summary?.healthStatus ?? "unknown"
+  const effectiveRange = summary?.effectiveDateRange ?? { start: null, end: null, status: "insufficient_data" }
+  const recommendation = summary?.recommendation ?? {
+    transferNowCents: 0,
+    weeklyTargetCents: 0,
+    reasons: [],
+  }
+  const categories = summary?.categories ?? []
+
   const obligationsResult = await listTaxBufferObligations({ userId: user.id, horizonDays: 90 })
   const obligations = obligationsResult.obligations
 
@@ -75,16 +85,16 @@ export default async function TaxBufferPage() {
         </section>
       ) : null}
 
-      {summary.warnings.length > 0 ? (
+      {warnings.length > 0 ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-amber-900">Data quality warning</h2>
             <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-              {qualityLabel(summary.quality.state)}
+              {qualityLabel(qualityState)}
             </span>
           </div>
           <ul className="mt-2 space-y-1 text-xs text-amber-800">
-            {summary.warnings.map((warning) => (
+            {warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
           </ul>
@@ -94,11 +104,11 @@ export default async function TaxBufferPage() {
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-slate-900">Data quality</h2>
             <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
-              {qualityLabel(summary.quality.state)}
+              {qualityLabel(qualityState)}
             </span>
           </div>
           <p className="mt-2 text-xs text-slate-700">
-            Effective range: {formatDate(summary.effectiveDateRange.start)} to {formatDate(summary.effectiveDateRange.end)}
+            Effective range: {formatDate(effectiveRange.start)} to {formatDate(effectiveRange.end)}
           </p>
         </section>
       )}
@@ -126,10 +136,10 @@ export default async function TaxBufferPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Quality status</p>
-            <p className="mt-1 text-base font-semibold text-gray-900">{qualityLabel(summary.quality.state)}</p>
+            <p className="mt-1 text-base font-semibold text-gray-900">{qualityLabel(qualityState)}</p>
           </div>
           <div className="text-sm text-gray-600">
-            Effective range: {formatDate(summary.effectiveDateRange.start)} to {formatDate(summary.effectiveDateRange.end)}
+            Effective range: {formatDate(effectiveRange.start)} to {formatDate(effectiveRange.end)}
           </div>
         </div>
       </section>
@@ -147,12 +157,12 @@ export default async function TaxBufferPage() {
 
         <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
           <p className="text-sm font-medium text-gray-900">
-            Recommended action: transfer {formatAudCents(summary.recommendation.transferNowCents)} this week
+            Recommended action: transfer {formatAudCents(recommendation.transferNowCents)} this week
           </p>
-          <p className="mt-1 text-xs text-gray-600">Weekly reserve target: {formatAudCents(summary.recommendation.weeklyTargetCents)}</p>
-          {summary.recommendation.reasons.length > 0 ? (
+          <p className="mt-1 text-xs text-gray-600">Weekly reserve target: {formatAudCents(recommendation.weeklyTargetCents)}</p>
+          {recommendation.reasons.length > 0 ? (
             <ul className="mt-2 space-y-1 text-xs text-gray-700">
-              {summary.recommendation.reasons.map((reason) => (
+              {recommendation.reasons.map((reason) => (
                 <li key={reason}>{reason}</li>
               ))}
             </ul>
@@ -163,7 +173,7 @@ export default async function TaxBufferPage() {
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-base font-semibold text-gray-900">Breakdown by tax type</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {summary.categories.map((category) => (
+          {categories.map((category) => (
             <div key={category.categoryId} className="rounded-lg border border-gray-200 p-3">
               <p className="text-sm font-semibold text-gray-900">{category.name}</p>
               <p className="mt-1 text-xs text-gray-600">Required: {formatAudCents(category.requiredReserveCents)}</p>

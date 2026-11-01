@@ -1,3 +1,4 @@
+import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
@@ -78,7 +79,8 @@ function isUniqueConflict(error: unknown): boolean {
     "originalCode" in cause && cause.originalCode === "23505"
 }
 
-export async function GET(): Promise<Response> {
+export const GET = withSubscriptionAccess(GETHandler)
+async function GETHandler(): Promise<Response> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -92,7 +94,8 @@ export async function GET(): Promise<Response> {
   }
 }
 
-export async function PATCH(request: Request): Promise<Response> {
+export const PATCH = withSubscriptionAccess(PATCHHandler)
+async function PATCHHandler(request: Request): Promise<Response> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

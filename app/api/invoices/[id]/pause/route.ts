@@ -14,8 +14,7 @@ async function POSTHandler(_req: Request, { params }: Params) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const result = await withUserContext(user.id, async (tx) => {
-    const profile = await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
-    const cutoffDate = profile?.accountDisplayFromDate ?? null
+    const cutoffDate = null
     const invoice = await tx.trackedInvoice.findFirst({
       where: { id, userId: user.id, status: "pending" },
       include: { financialInvoice: { select: { issueDate: true, dueDate: true } } },

@@ -88,10 +88,12 @@ export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSum
   return withUserContext(userId, async (tx) => {
     await ensureDefaults(tx, userId)
 
-    const profile = await tx.userProfile.findUnique({
-      where: { userId },
-      select: { accountDisplayFromDate: true },
-    })
+    const profile = typeof tx.userProfile?.findUnique === "function"
+      ? await tx.userProfile.findUnique({
+          where: { userId },
+          select: { accountDisplayFromDate: true },
+        })
+      : null
     const cutoffDate = profile?.accountDisplayFromDate ?? null
 
     const [

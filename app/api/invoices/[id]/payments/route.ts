@@ -29,8 +29,7 @@ async function POSTHandler(req: Request, { params }: Params) {
   }
 
   const result = await withUserContext(user.id, async (tx) => {
-    const profile = await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
-    const cutoffDate = profile?.accountDisplayFromDate ?? null
+    const cutoffDate = null
     const invoice = await tx.trackedInvoice.findFirst({
       where: { id, userId: user.id, status: { notIn: [...TERMINAL_TRACKED_INVOICE_STATUSES] } },
       include: { financialInvoice: { select: { amountDueCents: true, currency: true, issueDate: true, dueDate: true } } },
