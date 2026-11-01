@@ -160,6 +160,87 @@ describe("Tax Buffer engine", () => {
     assert.equal(result.source, "disabled")
   })
 
+  test("fails closed when the source period is incomplete and leaves the liability visible", () => {
+    const summary = buildTaxBufferSummary({
+      accountingBasis: "cash",
+      thresholds: {
+        watchRatio: 0.9,
+        criticalRatio: 0.7,
+      },
+      metrics: {
+        availableCashCents: 1_000_000,
+        committedOutflowsCents: 0,
+        estimatedRevenueCents: 0,
+        estimatedTaxableProfitCents: 0,
+        gstCollectedCents: 0,
+        gstCreditCents: 0,
+        unpaidInvoiceGstCents: 0,
+        sourcePeriodComplete: false,
+      },
+      categories: [
+        {
+          id: "income-tax",
+          type: "income_tax",
+          name: "Income Tax",
+          enabled: true,
+          method: "manual",
+          manualAmountCents: 60_000,
+          recurrence: "quarterly",
+        },
+      ],
+      reservedByCategory: {
+        "income-tax": 0,
+      },
+    })
+
+    assert.equal(summary.totalRequiredReserveCents, 60_000)
+    assert.equal(summary.reserveGapCents, 60_000)
+    assert.equal(summary.safeToSpendCents, null)
+    assert.equal(summary.status, "insufficient_data")
+    assert.equal(summary.quality.state, "insufficient_data")
+    assert.ok(summary.quality.reasons.includes("tax_source_period_incomplete"))
+    assert.ok(summary.warnings.some((warning) => warning.includes("source period")))
+  })
+
+  test("retains future manual obligations as valid obligations even when the source period is incomplete", () => {
+    const summary = buildTaxBufferSummary({
+      accountingBasis: "cash",
+      thresholds: {
+        watchRatio: 0.9,
+        criticalRatio: 0.7,
+      },
+      metrics: {
+        availableCashCents: 500_000,
+        committedOutflowsCents: 0,
+        estimatedRevenueCents: 0,
+        estimatedTaxableProfitCents: 0,
+        gstCollectedCents: 0,
+        gstCreditCents: 0,
+        unpaidInvoiceGstCents: 0,
+        sourcePeriodComplete: false,
+      },
+      categories: [
+        {
+          id: "manual-obligation",
+          type: "custom",
+          name: "Future BAS",
+          enabled: true,
+          method: "manual",
+          manualAmountCents: 75_000,
+          recurrence: "quarterly",
+        },
+      ],
+      reservedByCategory: {
+        "manual-obligation": 25_000,
+      },
+    })
+
+    assert.equal(summary.totalRequiredReserveCents, 75_000)
+    assert.equal(summary.totalReservedCents, 25_000)
+    assert.equal(summary.reserveGapCents, 50_000)
+    assert.equal(summary.safeToSpendCents, null)
+  })
+
   test("evaluates health thresholds deterministically", () => {
     assert.equal(
       evaluateTaxBufferHealth({

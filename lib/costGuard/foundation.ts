@@ -84,6 +84,10 @@ export interface ForecastInput {
   recurringCommitmentsCents: number
   expectedVariableSpendCents: number
   baselineSpendCents?: number
+  cutoffDate?: Date | string | null
+  baselineWindowStart?: Date | string | null
+  minimumSamples?: number
+  eligibleSampleCount?: number
 }
 
 export interface ForecastSummary {
@@ -94,6 +98,8 @@ export interface ForecastSummary {
   varianceAmountCents: number
   variancePercent: number
   confidence: number
+  status?: "on_track" | "watch" | "over_target" | "insufficient_data"
+  message?: string
 }
 
 export interface CostGuardForecastSummary {
@@ -101,8 +107,71 @@ export interface CostGuardForecastSummary {
   varianceAmountCents: number
   variancePercent: number
   confidence: number
-  status: "on_track" | "watch" | "over_target"
+  status: "on_track" | "watch" | "over_target" | "insufficient_data"
   message: string
+}
+
+export interface CostGuardAccountDisplayPolicy {
+  accountDisplayRevision: number
+  accountDisplayFromDate: Date | null
+  accountDisplayTimeZone: string | null
+}
+
+export function filterCurrentCostGuardRecords<T extends { accountDisplayRevision?: number | null; accountDisplayFromDate?: Date | null; accountDisplayTimeZone?: string | null }>(
+  records: T[],
+  policy: CostGuardAccountDisplayPolicy,
+): T[] {
+  const normalizedPolicy = {
+    accountDisplayRevision: policy.accountDisplayRevision ?? 0,
+    accountDisplayFromDate: policy.accountDisplayFromDate ?? null,
+    accountDisplayTimeZone: policy.accountDisplayTimeZone ?? "Australia/Melbourne",
+  }
+
+  return records.filter((record) => {
+    const revision = record.accountDisplayRevision ?? null
+    const recordDate = record.accountDisplayFromDate ?? null
+    const recordTimeZone = record.accountDisplayTimeZone ?? null
+
+    if (revision === null) {
+      return normalizedPolicy.accountDisplayRevision === 0 && normalizedPolicy.accountDisplayFromDate === null
+    }
+
+    if (revision !== normalizedPolicy.accountDisplayRevision) return false
+    if (normalizedPolicy.accountDisplayFromDate === null) {
+      return recordDate === null && recordTimeZone === null
+    }
+
+    const normalizedRecordDate = recordDate ? new Date(recordDate).toISOString() : null
+    const normalizedPolicyDate = normalizedPolicy.accountDisplayFromDate ? new Date(normalizedPolicy.accountDisplayFromDate).toISOString() : null
+
+    if (normalizedRecordDate !== normalizedPolicyDate) return false
+    if (recordTimeZone !== null && normalizedPolicy.accountDisplayTimeZone && recordTimeZone !== normalizedPolicy.accountDisplayTimeZone) {
+      return false
+    }
+
+    return true
+  })
+}
+
+export function hasEligibleCostGuardBaseline(
+  input: {
+    cutoffDate?: Date | string | null
+    baselineWindowStart?: Date | string | null
+    minimumSamples?: number
+    eligibleSampleCount?: number
+  } = {},
+): boolean {
+  const cutoffDate = input.cutoffDate ? new Date(input.cutoffDate) : null
+  const baselineWindowStart = input.baselineWindowStart ? new Date(input.baselineWindowStart) : null
+  const minimumSamples = input.minimumSamples ?? 3
+  const eligibleSampleCount = input.eligibleSampleCount ?? minimumSamples
+
+  if (cutoffDate && baselineWindowStart && !Number.isNaN(cutoffDate.getTime()) && !Number.isNaN(baselineWindowStart.getTime())) {
+    const windowCrossesCutoff = baselineWindowStart.getTime() < cutoffDate.getTime()
+    if (windowCrossesCutoff) return false
+  }
+
+  return eligibleSampleCount >= minimumSamples
 }
 
 export const COST_GUARD_ALERT_EVENT_TYPES = {
@@ -577,9 +646,15 @@ export function buildRecurringSpendBaselineFromSpendInsights(
     estimatedMonthlyCents?: number | null
     estimatedAnnualCents?: number | null
     state?: string | null
+    accountDisplayRevision?: number | null
+    accountDisplayFromDate?: Date | null
+    accountDisplayTimeZone?: string | null
   }>,
+  accountDisplayPolicy?: CostGuardAccountDisplayPolicy,
 ): RecurringSpendBaselineSummary {
-  const recurring = insights.filter((insight) => {
+  const eligibleInsights = accountDisplayPolicy ? filterCurrentCostGuardRecords(insights, accountDisplayPolicy) : insights
+
+  const recurring = eligibleInsights.filter((insight) => {
     const status = (insight.state ?? "open").toLowerCase()
     return (insight.findingType ?? "") === "recurring_spend" && status !== "resolved" && status !== "dismissed" && status !== "snoozed"
   })
@@ -822,15 +897,25 @@ export function calculateForecast({
   recurringCommitmentsCents,
   expectedVariableSpendCents,
   baselineSpendCents = 0,
+  cutoffDate,
+  baselineWindowStart,
+  minimumSamples = 3,
+  eligibleSampleCount,
 }: ForecastInput): ForecastSummary {
+  const hasEligibleBaseline = hasEligibleCostGuardBaseline({
+    cutoffDate,
+    baselineWindowStart,
+    minimumSamples,
+    eligibleSampleCount,
+  })
+
   const projectedMonthEndCents =
     actualSpendCents + recurringCommitmentsCents + expectedVariableSpendCents
-  const varianceAmountCents = projectedMonthEndCents - baselineSpendCents
-  const variancePercent = baselineSpendCents === 0 ? 0 : (varianceAmountCents / baselineSpendCents) * 100
-  const confidence = Math.max(
-    0,
-    Math.min(100, Math.round(100 - Math.min(100, Math.abs(variancePercent) / 2)))
-  )
+  const varianceAmountCents = hasEligibleBaseline ? projectedMonthEndCents - baselineSpendCents : 0
+  const variancePercent = hasEligibleBaseline && baselineSpendCents !== 0 ? (varianceAmountCents / baselineSpendCents) * 100 : 0
+  const confidence = hasEligibleBaseline
+    ? Math.max(0, Math.min(100, Math.round(100 - Math.min(100, Math.abs(variancePercent) / 2))))
+    : 0
 
   return {
     actualSpendCents,
@@ -840,17 +925,23 @@ export function calculateForecast({
     varianceAmountCents,
     variancePercent,
     confidence,
+    status: hasEligibleBaseline ? undefined : "insufficient_data",
+    message: hasEligibleBaseline ? undefined : "Insufficient eligible data for a current forecast; the baseline window is truncated by the account display cutoff.",
   }
 }
 
 export function buildCostGuardForecastSummary(forecast: ForecastSummary): CostGuardForecastSummary {
+  const insufficiency = forecast.status === "insufficient_data" || forecast.confidence === 0
   const absVariance = Math.abs(forecast.varianceAmountCents)
   const absPercent = Math.abs(forecast.variancePercent)
 
-  let status: CostGuardForecastSummary["status"] = "on_track"
-  let message = "Projected spend remains within the expected range."
+  let status: CostGuardForecastSummary["status"] = insufficiency ? "insufficient_data" : "on_track"
+  let message = forecast.message ?? "Projected spend remains within the expected range."
 
-  if (absVariance > 25000 || absPercent > 15) {
+  if (insufficiency) {
+    status = "insufficient_data"
+    message = forecast.message ?? "Insufficient eligible data for a current forecast; the baseline window is truncated by the account display cutoff."
+  } else if (absVariance > 25000 || absPercent > 15) {
     status = "over_target"
     message = `Projected month-end spend is ${absVariance >= 0 ? "above" : "below"} the expected baseline by ${Math.abs(forecast.varianceAmountCents) / 100} AUD, which is ${Math.abs(forecast.variancePercent).toFixed(1)}% away from plan.`
   } else if (absVariance > 10000 || absPercent > 5) {

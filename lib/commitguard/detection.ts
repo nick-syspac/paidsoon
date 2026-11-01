@@ -15,6 +15,7 @@ import { buildDetectionSignals } from "@/lib/commitguard/detectionEvidence"
 import { canReactivate, confirmationDueDate, evidenceObject, inferredCandidateIdentity,
   legacyCandidateIdentity, observedSchedule, suppressionBaseline } from "@/lib/commitguard/candidateEvidence"
 
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import { lockCommitGuardTenant } from "@/lib/commitguard/tenantLock"
 import { requestCommitGuardEvaluation } from "@/lib/commitguard/evaluationRequest"
@@ -142,6 +143,13 @@ export async function detectCommitmentCandidatesInTransaction(
       }),
     ])
 
+    const userProfile = getTxUserProfile(tx)
+    const accountDisplayPolicy = userProfile
+      ? await userProfile.findUnique({
+        where: { userId },
+        select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true },
+      })
+      : null
     const analysis = inferScopedCommitmentCandidates({
       signals: buildDetectionSignals({ bills, bankTransactions }),
       minOccurrences: policy.detectionMinOccurrences,
@@ -229,8 +237,9 @@ export async function detectCommitmentCandidatesInTransaction(
             confidenceScore: score,
             evidence: evidence as never,
             evidenceFingerprint,
-            firstDetectedAt: sorted[0].date,
-            lastDetectedAt: latestSignal.date,
+          accountDisplayRevision: accountDisplayPolicy?.accountDisplayRevision ?? 0,
+          accountDisplayFromDate: accountDisplayPolicy?.accountDisplayFromDate ?? null,
+          accountDisplayTimeZone: accountDisplayPolicy?.accountDisplayTimeZone ?? "Australia/Melbourne",
             status: "pending",
           },
         })
@@ -302,6 +311,9 @@ export async function detectCommitmentCandidatesInTransaction(
           confidenceScore: score,
           evidence: evidence as never,
           evidenceFingerprint,
+          accountDisplayRevision: accountDisplayPolicy?.accountDisplayRevision ?? 0,
+          accountDisplayFromDate: accountDisplayPolicy?.accountDisplayFromDate ?? null,
+          accountDisplayTimeZone: accountDisplayPolicy?.accountDisplayTimeZone ?? "Australia/Melbourne",
           lastDetectedAt: latestSignal.date,
           nextSuggestedAt: suppressed || changed ? now : existing.nextSuggestedAt,
           reviewNote: reviewRequired ? "evidence_changed_since_correction" : existing.reviewNote,

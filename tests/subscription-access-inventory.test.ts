@@ -111,7 +111,7 @@ test("D7 inventory covers every API file: 169 wrapped methods, one action-scoped
     direct++
   }
   assert.deepEqual({ total: paths.length, direct, methodCount, aliases: aliases.size, excluded }, {
-    total: 220, direct: 131, methodCount: 169, aliases: 2, excluded: 87,
+    total: 221, direct: 132, methodCount: 171, aliases: 2, excluded: 87,
   })
 })
 

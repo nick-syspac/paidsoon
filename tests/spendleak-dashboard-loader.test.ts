@@ -13,12 +13,13 @@ let mockDbState = {
   latestBillSyncAt: new Date("2026-09-10T00:00:00.000Z") as Date | null,
   latestTxnSyncAt: new Date("2026-09-11T00:00:00.000Z") as Date | null,
   latestSupplierSyncAt: null as Date | null,
+  accountDisplayFromDate: null as Date | null,
   billRecordCount: 12,
   bankTransactionRecordCount: 37,
   supplierRecordCount: 0,
   linkedCommitments: [] as Array<{ linkedSpendInsightId: string | null }>,
-  importedBills: [] as Array<{ id: string; amountCents: number; currency: string; status: string }>,
-  importedBankTransactions: [] as Array<{ id: string; amountCents: number; currency: string; direction: "outflow" | "inflow" | "unknown" }>,
+  importedBills: [] as Array<{ id: string; amountCents: number; currency: string; status: string; dueDate?: Date | null }>,
+  importedBankTransactions: [] as Array<{ id: string; amountCents: number; currency: string; direction: "outflow" | "inflow" | "unknown"; transactionDate?: Date | null }>,
   classifications: [] as Array<{
     sourceType: string
     sourceRecordId: string
@@ -48,6 +49,9 @@ describe("loadSpendLeakDashboard", () => {
           withUserContextUserId = userId
 
           const tx = {
+            userProfile: {
+              findUnique: async () => ({ accountDisplayFromDate: mockDbState.accountDisplayFromDate }),
+            },
             spendInsight: {
               findMany: async () => mockDbState.findings,
             },
@@ -56,13 +60,29 @@ describe("loadSpendLeakDashboard", () => {
             },
             importedBill: {
               findFirst: async () => ({ syncedAt: mockDbState.latestBillSyncAt }),
-              count: async () => mockDbState.billRecordCount,
-              findMany: async () => mockDbState.importedBills,
+              count: async ({ where }: { where?: { dueDate?: { gte: Date } } } = {}) => {
+                const cutoffDate = where?.dueDate?.gte ?? null
+                if (!cutoffDate) return mockDbState.billRecordCount
+                return mockDbState.importedBills.filter((bill) => (bill.dueDate ?? new Date(0)) >= cutoffDate).length
+              },
+              findMany: async ({ where }: { where?: { dueDate?: { gte: Date } } } = {}) => {
+                const cutoffDate = where?.dueDate?.gte ?? null
+                if (!cutoffDate) return mockDbState.importedBills
+                return mockDbState.importedBills.filter((bill) => (bill.dueDate ?? new Date(0)) >= cutoffDate)
+              },
             },
             importedBankTransaction: {
               findFirst: async () => ({ syncedAt: mockDbState.latestTxnSyncAt }),
-              count: async () => mockDbState.bankTransactionRecordCount,
-              findMany: async () => mockDbState.importedBankTransactions,
+              count: async ({ where }: { where?: { transactionDate?: { gte: Date } } } = {}) => {
+                const cutoffDate = where?.transactionDate?.gte ?? null
+                if (!cutoffDate) return mockDbState.bankTransactionRecordCount
+                return mockDbState.importedBankTransactions.filter((txn) => (txn.transactionDate ?? new Date(0)) >= cutoffDate).length
+              },
+              findMany: async ({ where }: { where?: { transactionDate?: { gte: Date } } } = {}) => {
+                const cutoffDate = where?.transactionDate?.gte ?? null
+                if (!cutoffDate) return mockDbState.importedBankTransactions
+                return mockDbState.importedBankTransactions.filter((txn) => (txn.transactionDate ?? new Date(0)) >= cutoffDate)
+              },
             },
             spendClassification: {
               findMany: async () => mockDbState.classifications,
@@ -93,6 +113,7 @@ describe("loadSpendLeakDashboard", () => {
       latestBillSyncAt: new Date("2026-09-10T00:00:00.000Z"),
       latestTxnSyncAt: new Date("2026-09-11T00:00:00.000Z"),
       latestSupplierSyncAt: null,
+      accountDisplayFromDate: null,
       billRecordCount: 12,
       bankTransactionRecordCount: 37,
       supplierRecordCount: 0,
@@ -239,6 +260,56 @@ describe("loadSpendLeakDashboard", () => {
     assert.equal(result.expectedSourceCount, 2)
     assert.equal(result.syncedExpectedSourceCount, 1)
     assert.equal(result.status.state, "partial_data")
+  })
+
+  test("filters imported source records older than the account cutoff", async () => {
+    mockDbState.accountDisplayFromDate = new Date("2026-09-10T00:00:00.000Z")
+    mockDbState.importedBills = [
+      { id: "bill-old", amountCents: 10_000, currency: "AUD", status: "open", dueDate: new Date("2026-09-09T00:00:00.000Z") },
+      { id: "bill-new", amountCents: 25_000, currency: "AUD", status: "open", dueDate: new Date("2026-09-11T00:00:00.000Z") },
+    ]
+    mockDbState.importedBankTransactions = [
+      { id: "txn-old", amountCents: 7_000, currency: "AUD", direction: "outflow", transactionDate: new Date("2026-09-09T00:00:00.000Z") },
+      { id: "txn-new", amountCents: 3_500, currency: "AUD", direction: "inflow", transactionDate: new Date("2026-09-12T00:00:00.000Z") },
+    ]
+    mockDbState.classifications = [
+      {
+        sourceType: "imported_bill",
+        sourceRecordId: "bill-new",
+        status: "confirmed",
+        category: { id: "category-saas", name: "Software & Cloud", status: "active" },
+      },
+      {
+        sourceType: "imported_bank_transaction",
+        sourceRecordId: "txn-new",
+        status: "confirmed",
+        category: { id: "category-saas", name: "Software & Cloud", status: "active" },
+      },
+    ]
+
+    const result = await loadSpendLeakDashboard("user-1")
+
+    assert.deepEqual(
+      result.categorySpendSummaries.confirmed.map((item) => ({
+        sourceType: item.sourceType,
+        amountCents: item.amountCents,
+        sourceRecordIds: item.sourceRecordIds,
+      })),
+      [
+        {
+          sourceType: "bank_transactions",
+          amountCents: 3_500,
+          sourceRecordIds: ["txn-new"],
+        },
+        {
+          sourceType: "bills",
+          amountCents: 25_000,
+          sourceRecordIds: ["bill-new"],
+        },
+      ],
+    )
+    assert.equal(result.selectedSourceCoverage[0]?.recordCount, 1)
+    assert.equal(result.selectedSourceCoverage[1]?.recordCount, 1)
   })
 
   test("returns bank-only selected-source coverage when synced with zero findings", async () => {

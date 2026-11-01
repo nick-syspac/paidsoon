@@ -77,7 +77,7 @@ export async function verifyTrialAccessRls(staged = false, tablesOnly = false, b
         await client.query(`INSERT INTO tenant_billing_mutation_steps
           (id,user_id,mutation_id,step_key,sequence,normalized_request,request_hash,
            method,object_target,stripe_idempotency_key,updated_at)
-          VALUES ($1,$2,$3,'session_create',0,'{}','hash','POST','checkout.sessions',$1,now())`, [steps[i], users[i], mutations[i]])
+          VALUES ($1,$2,$3,'session_create',0,'{}','hash','POST','checkout.sessions',$4,now())`, [steps[i], users[i], mutations[i], `checkout-session-${steps[i]}`])
       }
     }
 

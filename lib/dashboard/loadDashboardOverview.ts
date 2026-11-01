@@ -70,14 +70,15 @@ export async function runDashboardOverviewLoaders<Transaction>(
 function createOverviewLoaders(
   profile: DashboardProfile | null,
 ): DashboardOverviewLoaderDependencies<PrismaTx> {
+  const cutoffDate = profile?.accountDisplayFromDate ?? null
   return {
   loadContext: (tx, userId) => loadDashboardContextWithProfileTx(tx, userId, profile),
   loadInvoices: (tx, userId) =>
-    loadDashboardInvoicesWithTx(tx, userId, ACTIVE_INVOICE_STATUSES, { nextEmailAt: "asc" }),
-  loadBrokenPromiseCounts: loadBrokenPromiseCountsByDebtorWithTx,
+    loadDashboardInvoicesWithTx(tx, userId, ACTIVE_INVOICE_STATUSES, { nextEmailAt: "asc" }, cutoffDate),
+  loadBrokenPromiseCounts: (tx, userId) => loadBrokenPromiseCountsByDebtorWithTx(tx, userId, cutoffDate),
   loadEscalationThreshold: loadEscalationThresholdWithTx,
-  loadMetrics: loadDashboardMetricsWithTx,
-  loadDisputedInvoiceCount: loadDisputedInvoiceCountWithTx,
+  loadMetrics: (tx, userId) => loadDashboardMetricsWithTx(tx, userId, new Date(), cutoffDate),
+  loadDisputedInvoiceCount: (tx, userId) => loadDisputedInvoiceCountWithTx(tx, userId, cutoffDate),
   loadNoContactEmailCustomerCount: loadNoContactEmailCustomerCountWithTx,
   }
 }

@@ -184,9 +184,22 @@ export async function withCommitGuardWorkSideEffects<T>(
       await assertCurrentAccess()
       if (evaluationPatch) {
         try {
+          const profile = await tx.userProfile.findUnique({ where: { userId: input.userId },
+            select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } })
           await tx.$executeRaw`SET LOCAL ROLE NONE`
           await tx.commitGuardEvaluationState.upsert({ where: { userId: input.userId },
-            create: { ...evaluationPatch, userId: input.userId }, update: evaluationPatch })
+            create: { ...evaluationPatch, userId: input.userId,
+              accountDisplayRevision: profile?.accountDisplayRevision ?? 0,
+              accountDisplayFromDate: profile?.accountDisplayFromDate ?? null,
+              accountDisplayTimeZone: profile?.accountDisplayTimeZone ?? "Australia/Melbourne",
+            },
+            update: {
+              ...evaluationPatch,
+              accountDisplayRevision: profile?.accountDisplayRevision ?? 0,
+              accountDisplayFromDate: profile?.accountDisplayFromDate ?? null,
+              accountDisplayTimeZone: profile?.accountDisplayTimeZone ?? "Australia/Melbourne",
+            },
+          })
         } finally {
           await tx.$executeRaw`SET LOCAL ROLE authenticated`
         }

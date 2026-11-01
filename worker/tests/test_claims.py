@@ -182,6 +182,50 @@ class SummarySelectorTests(unittest.TestCase):
                 self.assertEqual(selector(), [])
                 self.assertEqual(self.conn.execute.call_count, 1)
 
+    def test_reminder_claim_sql_joins_current_account_policy_before_limit(self):
+        self.conn.execute.reset_mock()
+        self.candidates = [{
+            "id": "claim-1",
+            "user_id": "tenant-a",
+            "account_display_revision": 3,
+            "account_display_from_date": "2026-10-01",
+            "account_display_time_zone": "Australia/Melbourne",
+            "next_email_at": "2026-10-18T09:00:00+00:00",
+        }]
+
+        claims = db.claim_due_reminder_emails(limit=10)
+
+        self.assertEqual(len(claims), 1)
+        select_sql = " ".join(self.conn.execute.call_args_list[0].args[0].split())
+        self.assertIn('JOIN user_profiles up ON up."userId" = ti."userId"', select_sql)
+        self.assertIn('COALESCE(up."account_display_revision", 0)', select_sql)
+        self.assertIn('COALESCE(up."account_display_time_zone", \'Australia/Melbourne\')', select_sql)
+        self.assertIn('COALESCE(fi.issue_date, fi.due_date)', select_sql)
+        self.assertIn('account_display_from_date', select_sql)
+        self.assertIn('FOR UPDATE SKIP LOCKED', select_sql)
+
+    def test_deposit_claim_sql_joins_current_account_policy_before_limit(self):
+        self.conn.execute.reset_mock()
+        self.candidates = [{
+            "id": "claim-2",
+            "user_id": "tenant-b",
+            "account_display_revision": 2,
+            "account_display_from_date": "2026-10-01",
+            "account_display_time_zone": "Australia/Melbourne",
+            "scheduled_for": "2026-10-18T09:00:00+00:00",
+        }]
+
+        claims = db.claim_due_deposit_reminders(limit=10)
+
+        self.assertEqual(len(claims), 1)
+        select_sql = " ".join(self.conn.execute.call_args_list[0].args[0].split())
+        self.assertIn('JOIN user_profiles up ON up."userId" = req."userId"', select_sql)
+        self.assertIn('COALESCE(up."account_display_revision", 0)', select_sql)
+        self.assertIn('COALESCE(up."account_display_time_zone", \'Australia/Melbourne\')', select_sql)
+        self.assertIn('req."dueDate"', select_sql)
+        self.assertIn('account_display_from_date', select_sql)
+        self.assertIn('FOR UPDATE SKIP LOCKED', select_sql)
+
 
 if __name__ == "__main__":
     unittest.main()

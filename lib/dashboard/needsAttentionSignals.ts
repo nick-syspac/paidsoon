@@ -1,10 +1,45 @@
 import type { PrismaTx } from "@/lib/db/withUserContext"
 
+function dateOnlyKey(value: Date | string | null | undefined): string | null {
+  if (!value) return null
+  const asDate = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(asDate.getTime())) return null
+  return asDate.toISOString().slice(0, 10)
+}
+
+function invoiceMatchesAccountCutoff(
+  invoice: { issueDate?: Date | null; dueDate?: Date | null } | null,
+  cutoffDate: Date | null,
+): boolean {
+  if (!cutoffDate) return true
+  const effectiveDate = invoice?.issueDate ?? invoice?.dueDate ?? null
+  if (!effectiveDate) return false
+
+  const cutoffKey = dateOnlyKey(cutoffDate)
+  const invoiceKey = dateOnlyKey(effectiveDate)
+  if (!cutoffKey || !invoiceKey) return false
+
+  return invoiceKey >= cutoffKey
+}
+
 /**
  * Counts invoices flagged `disputed` for this tenant.
  */
-export async function loadDisputedInvoiceCountWithTx(tx: PrismaTx, userId: string): Promise<number> {
-  return tx.trackedInvoice.count({ where: { userId, status: "disputed" } })
+export async function loadDisputedInvoiceCountWithTx(
+  tx: PrismaTx,
+  userId: string,
+  cutoffDate: Date | null = null,
+): Promise<number> {
+  if (!cutoffDate) {
+    return tx.trackedInvoice.count({ where: { userId, status: "disputed" } })
+  }
+
+  const rows = await tx.trackedInvoice.findMany({
+    where: { userId, status: "disputed" },
+    select: { financialInvoice: { select: { issueDate: true, dueDate: true } } },
+  })
+
+  return rows.filter((row) => invoiceMatchesAccountCutoff(row.financialInvoice, cutoffDate)).length
 }
 
 /**

@@ -43,9 +43,12 @@ For example, a 6000-cent included bill covering a 10000-cent commitment leaves
 out-of-window bill cannot reduce that commitment. There is no supplier-name match.
 
 Receivables are missing and payables are only partially covered. Commitment-only
-projections are explicitly preliminary, not a complete account forecast. Calendar,
-explanation, data-quality, periods, export and scenario views are outside this
-bounded consumer update and must not be assumed to have the same source coverage.
+projections are explicitly preliminary, not a complete account forecast. The
+summary also exposes the current effective date range and quality envelope so a
+partial or unavailable source window is visible instead of looking like a healthy
+cash balance. Calendar, explanation, data-quality, periods, export and scenario
+views are outside this bounded consumer update and must not be assumed to have
+the same source coverage.
 
 ## Gross cash, freshness and history
 

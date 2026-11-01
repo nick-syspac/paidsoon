@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { NextResponse } from "next/server"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -14,6 +15,13 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const cutoffDate = await withUserContext(user.id, async (tx) => {
+    const profile = tx.userProfile && typeof tx.userProfile.findUnique === "function"
+      ? await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
+      : null
+    return profile?.accountDisplayFromDate ?? null
+  })
 
   const arrangement = await withUserContext(user.id, async (tx) => {
     // Explicit userId re-check alongside the RLS-scoped query (defense in
@@ -33,6 +41,8 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
                   select: {
                     amountDueCents: true,
                     currency: true,
+                    issueDate: true,
+                    dueDate: true,
                     contact: { select: { name: true, email: true } },
                   },
                 },
@@ -48,6 +58,10 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
+  const visibleCoverages = arrangement.coverages.filter((coverage) =>
+    invoiceMatchesAccountCutoff(coverage.trackedInvoice, cutoffDate),
+  )
+
   return NextResponse.json({
     arrangement: {
       id: arrangement.id,
@@ -62,7 +76,7 @@ async function GETHandler(_request: Request, { params }: Params): Promise<NextRe
       breachedAt: arrangement.breachedAt,
       fulfilledAt: arrangement.fulfilledAt,
       createdAt: arrangement.createdAt,
-      coverages: arrangement.coverages.map((coverage) => ({
+      coverages: visibleCoverages.map((coverage) => ({
         invoiceId: coverage.trackedInvoiceId,
         clientName: coverage.trackedInvoice.financialInvoice.contact?.name ?? "",
         clientEmail: coverage.trackedInvoice.financialInvoice.contact?.email ?? "",

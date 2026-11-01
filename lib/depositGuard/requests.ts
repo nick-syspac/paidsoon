@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { requireDepositGuardRequestAccess } from "@/lib/depositGuard/entitlements"
 import { DepositGuardAccessError } from "@/lib/depositGuard/jobs"
+import { depositRequestMatchesAccountCutoff } from "@/lib/depositGuard/publicRequests"
 import { seedDepositRequestReminders } from "@/lib/depositGuard/reminders"
 import { applyDepositRequestLifecycleAction, syncDepositGuardJobLifecycle } from "@/lib/depositGuard/service"
 
@@ -68,35 +69,44 @@ export async function listDepositRequests(
   await requireDepositGuardRequestAccess(userId)
 
   return withUserContext(userId, async (tx) => {
-    const rows = await tx.depositRequest.findMany({
-      where: {
-        userId,
-        ...(options.jobId ? { jobId: options.jobId } : {}),
-      },
-      orderBy: [{ createdAt: "desc" }],
-      select: {
-        id: true,
-        jobId: true,
-        customerId: true,
-        requestType: true,
-        description: true,
-        amountCents: true,
-        taxAmountCents: true,
-        totalAmountCents: true,
-        currency: true,
-        dueDate: true,
-        status: true,
-        sentAt: true,
-        firstViewedAt: true,
-        lastViewedAt: true,
-        paidAt: true,
-        cancelledAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
+    const [profile, rows] = await Promise.all([
+      tx.userProfile.findUnique({
+        where: { userId },
+        select: { accountDisplayFromDate: true },
+      }),
+      tx.depositRequest.findMany({
+        where: {
+          userId,
+          ...(options.jobId ? { jobId: options.jobId } : {}),
+        },
+        orderBy: [{ createdAt: "desc" }],
+        select: {
+          id: true,
+          jobId: true,
+          customerId: true,
+          requestType: true,
+          description: true,
+          amountCents: true,
+          taxAmountCents: true,
+          totalAmountCents: true,
+          currency: true,
+          dueDate: true,
+          status: true,
+          sentAt: true,
+          firstViewedAt: true,
+          lastViewedAt: true,
+          paidAt: true,
+          cancelledAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+    ])
 
-    return rows.map((row) => toSummary(row))
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
+    return rows
+      .filter((row) => depositRequestMatchesAccountCutoff(row.dueDate, cutoffDate))
+      .map((row) => toSummary(row))
   })
 }
 
@@ -428,9 +438,18 @@ export async function issueDepositRequestPublicLink(
   return withUserContext(userId, async (tx) => {
     const request = await tx.depositRequest.findFirst({
       where: { id: requestId, userId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, dueDate: true, job: { select: { userId: true } } },
     })
     if (!request) return null
+
+    const profile = await tx.userProfile.findUnique({
+      where: { userId: request.job.userId },
+      select: { accountDisplayFromDate: true },
+    })
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
+    if (!depositRequestMatchesAccountCutoff(request.dueDate, cutoffDate)) {
+      return null
+    }
 
     if (request.status === "cancelled" || request.status === "failed") {
       throw new Error("Cannot issue a public link for this request")

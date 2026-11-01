@@ -8,8 +8,12 @@ only. This module is the only place raw SQL against those two tables lives.
 from __future__ import annotations
 
 import contextlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime as _py_datetime, timedelta, timezone
 from typing import Any, Iterator
+
+# Keep the public datetime symbol in place so the worker tests can patch
+# db.datetime without disturbing the real stdlib class used by _coerce_datetime.
+datetime = _py_datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import psycopg
@@ -46,8 +50,27 @@ def get_conn() -> Iterator[psycopg.Connection]:
         yield conn
 
 
-def _claim_key(entity_id: str, suffix: str, scheduled_for: datetime) -> str:
-    return f"{entity_id}:{suffix}:{scheduled_for.date().isoformat()}"
+def _coerce_datetime(value: _py_datetime | str | None) -> _py_datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, _py_datetime):
+        return value
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = _py_datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _claim_key(entity_id: str, suffix: str, scheduled_for: _py_datetime | str) -> str:
+    value = _coerce_datetime(scheduled_for)
+    if value is None:
+        return f"{entity_id}:{suffix}:unknown"
+    return f"{entity_id}:{suffix}:{value.date().isoformat()}"
 
 
 def claim_due_reminder_emails(limit: int = 200) -> list[dict[str, Any]]:
@@ -55,18 +78,29 @@ def claim_due_reminder_emails(limit: int = 200) -> list[dict[str, Any]]:
 
     Uses `FOR UPDATE SKIP LOCKED` so concurrent dispatcher runs never block
     on (or double-claim) the same row, and a claim-key uniqueness conflict as
-    a second, belt-and-braces idempotency guard.
+    a second, belt-and-braces idempotency guard. The claim query resolves the
+    tenant's current account-display policy and business date before the claim
+    limit so stale/filtered records do not starve eligible work.
     """
     with get_conn() as conn, conn.transaction():
         due = conn.execute(
             """
-            SELECT id, "userId" AS user_id, "nextEmailAt" AS next_email_at
-            FROM tracked_invoices
-            WHERE status = 'pending'
-              AND "currentStage" < 3
-              AND "nextEmailAt" IS NOT NULL
-              AND "nextEmailAt" <= now()
-            ORDER BY "nextEmailAt"
+            SELECT ti.id, ti."userId" AS user_id, ti."nextEmailAt" AS next_email_at,
+                   COALESCE(up."account_display_from_date", NULL) AS account_display_from_date,
+                   COALESCE(up."account_display_revision", 0) AS account_display_revision,
+                   COALESCE(up."account_display_time_zone", 'Australia/Melbourne') AS account_display_time_zone
+            FROM tracked_invoices ti
+            LEFT JOIN financial_invoices fi ON fi.id = ti."financialInvoiceId"
+            LEFT JOIN user_profiles up ON up."userId" = ti."userId"
+            WHERE ti.status = 'pending'
+              AND ti."currentStage" < 3
+              AND ti."nextEmailAt" IS NOT NULL
+              AND ti."nextEmailAt" <= now()
+              AND (
+                    up."account_display_from_date" IS NULL
+                    OR COALESCE(fi.issue_date, fi.due_date) >= up."account_display_from_date"
+              )
+            ORDER BY ti."nextEmailAt"
             LIMIT %(limit)s
             FOR UPDATE SKIP LOCKED
             """,
@@ -101,16 +135,28 @@ def claim_due_reminder_emails(limit: int = 200) -> list[dict[str, Any]]:
 
 
 def claim_due_deposit_reminders(limit: int = 200) -> list[dict[str, Any]]:
-    """Atomically claims DepositGuard reminders that are ready to dispatch."""
+    """Atomically claims DepositGuard reminders that are ready to dispatch.
+
+    The claim query resolves the tenant's current account-display cutoff before
+    the limit so excluded deposit requests do not consume the entire claim slot.
+    """
     with get_conn() as conn, conn.transaction():
         due = conn.execute(
             """
-            SELECT r.id, r."userId" AS user_id, r."scheduledFor" AS scheduled_for
+            SELECT r.id, r."userId" AS user_id, r."scheduledFor" AS scheduled_for,
+                   COALESCE(up."account_display_from_date", NULL) AS account_display_from_date,
+                   COALESCE(up."account_display_revision", 0) AS account_display_revision,
+                   COALESCE(up."account_display_time_zone", 'Australia/Melbourne') AS account_display_time_zone
             FROM deposit_reminders r
             JOIN deposit_requests req ON req.id = r."depositRequestId"
+            LEFT JOIN user_profiles up ON up."userId" = req."userId"
             WHERE r."deliveryStatus" = 'pending'
               AND r."scheduledFor" <= now()
               AND req.status IN ('requested', 'viewed', 'partially_paid', 'overdue')
+              AND (
+                    up."account_display_from_date" IS NULL
+                    OR req."dueDate" >= up."account_display_from_date"
+              )
             ORDER BY r."scheduledFor", r.id
             LIMIT %(limit)s
             FOR UPDATE SKIP LOCKED

@@ -33,10 +33,31 @@ export interface DashboardMetricsContext {
   remindersSentToday: number
 }
 
+function dateOnlyKey(value: Date | string | null | undefined): string | null {
+  if (!value) return null
+  const asDate = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(asDate.getTime())) return null
+  return asDate.toISOString().slice(0, 10)
+}
+
+function invoiceMatchesAccountCutoff(
+  invoice: { issueDate?: Date | null; dueDate?: Date | null; financialInvoice?: { issueDate?: Date | null; dueDate?: Date | null } | null } | null,
+  cutoffDate: Date | null,
+): boolean {
+  if (!cutoffDate) return true
+  const effectiveDate = invoice?.financialInvoice?.issueDate ?? invoice?.financialInvoice?.dueDate ?? invoice?.issueDate ?? invoice?.dueDate ?? null
+  if (!effectiveDate) return false
+  const cutoffKey = dateOnlyKey(cutoffDate)
+  const invoiceKey = dateOnlyKey(effectiveDate)
+  if (!cutoffKey || !invoiceKey) return false
+  return invoiceKey >= cutoffKey
+}
+
 export async function loadDashboardMetricsWithTx(
   tx: PrismaTx,
   userId: string,
   now: Date = new Date(),
+  cutoffDate: Date | null = null,
 ): Promise<DashboardMetricsContext> {
   const since = new Date(now)
   since.setUTCDate(since.getUTCDate() - PAID_INVOICE_LOOKBACK_DAYS)
@@ -54,6 +75,8 @@ export async function loadDashboardMetricsWithTx(
         select: {
           amountDueCents: true,
           currency: true,
+          issueDate: true,
+          dueDate: true,
           contact: { select: { name: true, email: true } },
         },
       },
@@ -62,6 +85,11 @@ export async function loadDashboardMetricsWithTx(
   const paidInvoices: PaidInvoiceSummary[] = paidRows.flatMap((row) => {
     if (!row.financialInvoice) return []
 
+    // Period cash receipts are keyed by payment date, not invoice eligibility.
+    // An older invoice can still produce a qualifying later collection while the
+    // invoice remains hidden behind the account display cutoff. The collection
+    // widgets and recent-payments list should reflect the receipt event itself;
+    // the invoice-status KPI counts remain filter-aware below.
     return [{
       id: row.id,
       clientEmail: row.financialInvoice.contact?.email ?? "",
@@ -80,10 +108,26 @@ export async function loadDashboardMetricsWithTx(
         .map((row) => row.id),
     })
   }
-  const paidCountAllTime = await tx.trackedInvoice.count({ where: { userId, status: "paid" } })
-  const manuallyResolvedCountAllTime = await tx.trackedInvoice.count({
-    where: { userId, status: "manually_resolved" },
+
+  const statusRows = await tx.trackedInvoice.findMany({
+    where: { userId, status: { in: ["paid", "manually_resolved"] } },
+    select: {
+      id: true,
+      status: true,
+      financialInvoice: {
+        select: {
+          issueDate: true,
+          dueDate: true,
+        },
+      },
+    },
   })
+  const paidCountAllTime = statusRows.filter(
+    (row) => row.status === "paid" && row.financialInvoice && invoiceMatchesAccountCutoff(row.financialInvoice, cutoffDate),
+  ).length
+  const manuallyResolvedCountAllTime = statusRows.filter(
+    (row) => row.status === "manually_resolved" && row.financialInvoice && invoiceMatchesAccountCutoff(row.financialInvoice, cutoffDate),
+  ).length
   const remindersSentToday = await tx.emailLog.count({
     where: { sentAt: { gte: todayStart }, trackedInvoice: { userId } },
   })
@@ -101,6 +145,7 @@ export async function loadDashboardMetrics(
   userId: string,
   traceContext: TraceContext,
   component: string,
+  cutoffDate: Date | null = null,
 ): Promise<DashboardMetricsContext> {
   return traceOperation(
     traceContext,
@@ -112,7 +157,7 @@ export async function loadDashboardMetrics(
       component,
       tenant: { context: "user_rls" },
     },
-    () => withUserContext(userId, (tx) => loadDashboardMetricsWithTx(tx, userId)),
+    () => withUserContext(userId, (tx) => loadDashboardMetricsWithTx(tx, userId, new Date(), cutoffDate)),
     {
       success: (result) => ({
         outputs: {

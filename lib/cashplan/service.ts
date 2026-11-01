@@ -5,6 +5,7 @@ import { financialJobAccessSkip } from "@/lib/billing/financialJobAccess"
 import { loadCashPlanFacts, loadCashPlanFactsInTransaction } from "@/lib/cashplan/factLoader"
 import { cashPlanSnapshotFactsHash, cashPlanSnapshotFactsMetadata, type CashPlanFactAssembly } from "@/lib/cashplan/factAssembler"
 import { buildCashPlanSummaryResponse, type CashPlanOverviewSummary, type CashPlanSummaryResponse } from "@/lib/cashplan/engine"
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import type { Prisma } from "@/lib/generated/prisma/client"
 
@@ -18,6 +19,12 @@ export type CashPlanCanonicalOverview = Omit<CashPlanOverviewSummary,
   latestClosingCashCents: number | null
   bufferGapCents: number | null
 }
+export interface CashPlanCanonicalRange {
+  start: string | null
+  end: string | null
+  status: "available" | "preliminary" | "unavailable"
+}
+
 export interface CashPlanCanonicalSummary extends Omit<CashPlanSummaryResponse, "overview" | "workspace"> {
   version: 2
   planId: string | null
@@ -28,6 +35,7 @@ export interface CashPlanCanonicalSummary extends Omit<CashPlanSummaryResponse, 
   commitmentRevision: number
   quality: CashPlanFactAssembly["quality"]
   sourceCoverage: CashPlanFactAssembly["sourceCoverage"]
+  effectiveDateRange: CashPlanCanonicalRange
   overview: CashPlanCanonicalOverview
   workspace: { title: string; summary: CashPlanCanonicalOverview; weeks: CashPlanSummaryResponse["workspace"]["weeks"] }
 }
@@ -48,11 +56,21 @@ export function presentCashPlan(assembly: CashPlanFactAssembly): CashPlanCanonic
     recommendedActions: forecast ? ["Review missing receivables and incomplete payable coverage before relying on this preliminary forecast."]
       : ["Save a fresh, compatible owner cash balance and review plan configuration."],
   }
+  const start = inputs.anchor?.date ? `${inputs.anchor.date}T00:00:00.000Z` : null
+  const end = inputs.anchor ? (() => {
+    const next = new Date(`${inputs.anchor.date}T00:00:00.000Z`)
+    next.setUTCDate(next.getUTCDate() + (inputs.configuration?.horizonWeeks ?? 13) * 7)
+    return next.toISOString()
+  })() : null
   return {
     version: 2, planId: inputs.plan?.id ?? null, currency: inputs.configuration?.currency ?? null,
     anchorDate: inputs.anchor?.date ?? null, evaluatedAt: inputs.evaluatedAt,
     startingBalance: inputs.startingBalance, commitmentRevision: assembly.commitmentRevision,
-    quality, sourceCoverage: assembly.sourceCoverage, title, overview,
+    quality, sourceCoverage: assembly.sourceCoverage, effectiveDateRange: {
+      start,
+      end,
+      status: quality.state,
+    }, title, overview,
     workspace: { title, summary: overview, weeks: base?.workspace.weeks ?? [] },
     recommendations: base?.recommendations ?? [], alerts: base?.alerts ?? [],
     digest: forecast ? { summary: "Preliminary cash projection with partial source coverage.", actions: overview.recommendedActions }
@@ -84,6 +102,11 @@ export async function refreshCashPlanInTransaction(
     commitGuardEntitled: financialJobAccessSkip(access, "commitguard_core") === null })
   const summary = presentCashPlan(assembly)
   const { inputs, forecast } = assembly
+  const userProfile = getTxUserProfile(tx)
+  const accountDisplayPolicy = userProfile
+    ? await userProfile.findUnique({ where: { userId },
+      select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } })
+    : null
   if (!forecast || !inputs.plan || !inputs.anchor || !inputs.configuration) return { snapshotId: null, summary }
   // Storage remains Prisma Int; do not wrap/saturate forecast amounts.
   if (![forecast.lowestClosingCashCents, forecast.bufferGapCents].every((value) => Number.isSafeInteger(value) && value >= -2_147_483_648 && value <= 2_147_483_647)) {
@@ -102,6 +125,9 @@ export async function refreshCashPlanInTransaction(
     planId: inputs.plan.id, scenarioId: null, inputVersion: 2,
     anchorDate: new Date(`${inputs.anchor.date}T00:00:00Z`), inputCurrency: inputs.configuration.currency,
     cashInputRevision: inputs.cashContext.revision, commitmentRevision: assembly.commitmentRevision,
+    accountDisplayRevision: accountDisplayPolicy?.accountDisplayRevision ?? 0,
+    accountDisplayFromDate: accountDisplayPolicy?.accountDisplayFromDate ?? null,
+    accountDisplayTimeZone: accountDisplayPolicy?.accountDisplayTimeZone ?? "Australia/Melbourne",
     canonicalFacts, coverage: assembly.coverage, inputQuality,
     inputHash: cashPlanSnapshotFactsHash(metadata), engineVersion: forecast.engineVersion,
     confidence: forecast.confidence, status: "preliminary",

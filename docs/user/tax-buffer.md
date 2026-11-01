@@ -22,6 +22,8 @@ The Tax Buffer dashboard shows available cash, recommended reserve, current rese
 
 Review the setup banner, warnings, source and confidence labels before relying on an estimate. Missing or stale financial inputs, a disabled category, or an outdated manual reserve balance can make the result incomplete. A suggested transfer is an estimate for your review, not an instruction to move money.
 
+The displayed range and quality state are intentionally explicit: if the account-display date filters out older data or the tax source period is incomplete, the result remains unavailable instead of being rewritten as a healthy zero. This is especially important for recurring obligations, where the saved recurrence anchor and occurrence date are used to determine active coverage rather than the original setup date.
+
 ## Related guides
 
 - [Connections and subscription](general-settings.md) — connect data sources and review plan access.

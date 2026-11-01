@@ -98,6 +98,21 @@ test("exact UTC recurrence/date and live status are required, not a nearest occu
   }
 })
 
+test("coverage is only eligible when the occurrence date is live, not when the setup date is older", () => {
+  const source = sources()
+  source.commitments = [{
+    ...commitment("live", 10_000),
+    frequency: "monthly",
+    nextDueDate: new Date("2026-10-15T00:00:00.000Z"),
+    startDate: new Date("2026-10-20T00:00:00.000Z"),
+  }]
+  const stale = { ...coverage("stale", "live", 6000), occurrenceDate: new Date("2026-10-15T00:00:00.000Z") }
+  const live = { ...coverage("live-coverage", "live", 6000), occurrenceDate: new Date("2026-10-20T00:00:00.000Z") }
+  const result = inspectCoverage(source, [stale, live])
+  assert.equal(result.valid.map((row) => row.id).sort().join(","), "live-coverage")
+  assert.ok(result.reviews.some((row) => row.coverageId === "stale" && row.reason === "coverage_occurrence_stale"))
+})
+
 test("bill cap aggregates all dates and commitments, including allocations outside selected horizon", () => {
   const source = sources()
   source.commitments = [commitment(), { ...commitment("later"), nextDueDate: end }]

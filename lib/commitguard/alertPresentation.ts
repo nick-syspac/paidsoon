@@ -18,8 +18,12 @@ export interface CommitGuardAlertPageDTO {
   evaluation: { lastEvaluatedAt: string | null; available: boolean }
   eventFound: boolean
 }
+function isDateLike(value: unknown): value is Date {
+  return typeof value === "object" && value !== null && Object.prototype.toString.call(value) === "[object Date]"
+}
+
 export function alertTimestamp(value: unknown): string | null {
-  if (!(value instanceof Date) && typeof value !== "string") return null
+  if (!isDateLike(value) && typeof value !== "string") return null
   const date = new Date(value)
   return Number.isFinite(date.getTime()) ? date.toISOString() : null
 }

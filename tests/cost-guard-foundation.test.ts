@@ -362,6 +362,72 @@ test("SpendLeak recurring spend findings become the recurring baseline for cost 
   assert.ok(recurringRisk.reason.includes("recurring cost increase"))
 })
 
+test("cutoff-aware cost guard baselines and forecasts stay unavailable when history is partial", () => {
+  const cutoff = new Date("2026-09-01T00:00:00.000Z")
+  const staleBaseline = buildRecurringSpendBaselineFromSpendInsights(
+    [
+      { findingType: "recurring_spend", estimatedMonthlyCents: 100000, state: "open", accountDisplayRevision: 1, accountDisplayFromDate: new Date("2026-08-01T00:00:00.000Z") },
+      { findingType: "recurring_spend", estimatedMonthlyCents: 150000, state: "open", accountDisplayRevision: 1, accountDisplayFromDate: new Date("2026-08-15T00:00:00.000Z") },
+    ],
+    {
+      accountDisplayRevision: 2,
+      accountDisplayFromDate: cutoff,
+      accountDisplayTimeZone: "Australia/Melbourne",
+    },
+  )
+
+  assert.equal(staleBaseline.currentMonthlyCents, 0)
+  assert.equal(staleBaseline.averageMonthlyCents, 0)
+  assert.equal(staleBaseline.recurringFindingCount, 0)
+
+  const forecast = calculateForecast({
+    actualSpendCents: 180000,
+    recurringCommitmentsCents: 50000,
+    expectedVariableSpendCents: 30000,
+    baselineSpendCents: 150000,
+    cutoffDate: cutoff,
+    baselineWindowStart: new Date("2026-08-01T00:00:00.000Z"),
+    minimumSamples: 3,
+    eligibleSampleCount: 2,
+  })
+
+  assert.equal(forecast.status, "insufficient_data")
+  assert.equal(forecast.varianceAmountCents, 0)
+  assert.match(String(forecast.message ?? ""), /insufficient|eligible/i)
+})
+
+test("stale cost guard policy metadata is rejected before a forecast or alert is treated as current", () => {
+  const cutoff = new Date("2026-09-01T00:00:00.000Z")
+  const stale = buildRecurringSpendBaselineFromSpendInsights(
+    [
+      { findingType: "recurring_spend", estimatedMonthlyCents: 200000, state: "open", accountDisplayRevision: 1, accountDisplayFromDate: new Date("2026-08-15T00:00:00.000Z") },
+    ],
+    {
+      accountDisplayRevision: 2,
+      accountDisplayFromDate: cutoff,
+      accountDisplayTimeZone: "Australia/Melbourne",
+    },
+  )
+
+  assert.equal(stale.currentMonthlyCents, 0)
+  assert.equal(stale.recurringFindingCount, 0)
+
+  const summary = buildCostGuardForecastSummary({
+    actualSpendCents: 200000,
+    recurringCommitmentsCents: 75000,
+    expectedVariableSpendCents: 25000,
+    projectedMonthEndCents: 300000,
+    varianceAmountCents: 50000,
+    variancePercent: 20,
+    confidence: 0,
+    status: "insufficient_data",
+    message: "Insufficient eligible data for a current forecast.",
+  })
+
+  assert.equal(summary.status, "insufficient_data")
+  assert.match(String(summary.message ?? ""), /insufficient|eligible/i)
+})
+
 test("critical alerts are sent immediately while warning and watch alerts are grouped into digest buckets", () => {
   const alerts: Array<{
     id: string

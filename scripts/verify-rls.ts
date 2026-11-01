@@ -1013,6 +1013,12 @@ async function cleanup() {
   await prismaAdmin.accountingConnection.deleteMany({
     where: { organisationId: { in: [PROBE_ACCOUNTING_ORG_A, PROBE_ACCOUNTING_ORG_B, PROBE_CSV_IMPORT_ORG_A] } },
   })
+  await prismaAdmin.accountDisplaySettingAudit.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
+  await prismaAdmin.accountDisplaySetting.deleteMany({
+    where: { userId: { in: [USER_A, USER_B] } },
+  })
   await prismaAdmin.trackedInvoice.deleteMany({
     where: { userId: { in: [USER_A, USER_B] } },
   })
@@ -1113,6 +1119,82 @@ async function main() {
     fail("expected exactly A's chasing record joined to A's canonical invoice")
   }
   console.log("  ✓ chasing record joins to canonical invoice correctly")
+
+  console.log("\nCheck 2d: account display settings enforce tenant ownership and revision/audit semantics")
+  const createdAccountDisplay = await withUserContext(USER_A, (tx) =>
+    tx.accountDisplaySetting.create({
+      data: {
+        userId: USER_A,
+        displayFromDate: new Date("2026-11-01T00:00:00.000Z"),
+        timeZone: "Australia/Melbourne",
+      },
+      select: { userId: true, displayFromDate: true, revision: true, timeZone: true },
+    }),
+  )
+  if (createdAccountDisplay.userId !== USER_A || createdAccountDisplay.revision !== 1 || createdAccountDisplay.displayFromDate?.toISOString().slice(0, 10) !== "2026-11-01") {
+    await cleanup()
+    fail("expected account display row to be created by USER_A with revision 1")
+  }
+  const accountDisplayRowsA = await withUserContext(USER_A, (tx) =>
+    tx.accountDisplaySetting.findMany({
+      where: { userId: { in: [USER_A, USER_B] } },
+      orderBy: { userId: "asc" },
+      select: { userId: true },
+    }),
+  )
+  const accountDisplayRowsB = await withUserContext(USER_B, (tx) =>
+    tx.accountDisplaySetting.findMany({
+      where: { userId: { in: [USER_A, USER_B] } },
+      orderBy: { userId: "asc" },
+      select: { userId: true },
+    }),
+  )
+  if (accountDisplayRowsA.length !== 1 || accountDisplayRowsA[0].userId !== USER_A || accountDisplayRowsB.length !== 0) {
+    await cleanup()
+    fail("expected account_display_settings to be tenant-scoped to the authenticated user")
+  }
+  const updatedAccountDisplay = await withUserContext(USER_A, (tx) =>
+    tx.accountDisplaySetting.update({
+      where: { userId: USER_A },
+      data: { displayFromDate: new Date("2026-11-15T00:00:00.000Z") },
+      select: { userId: true, displayFromDate: true, revision: true },
+    }),
+  )
+  if (updatedAccountDisplay.revision !== 2 || updatedAccountDisplay.displayFromDate?.toISOString().slice(0, 10) !== "2026-11-15") {
+    await cleanup()
+    fail("expected account display revision to increment on legitimate update")
+  }
+  const auditRows = await prismaAdmin.$queryRaw<Array<{ user_id: string; old_revision: number; new_revision: number; old_display_from_date: string | null; new_display_from_date: string | null }>>`
+    SELECT user_id, old_display_from_date, new_display_from_date, old_revision, new_revision
+    FROM public.account_display_setting_audits
+    WHERE user_id = ${USER_A}
+    ORDER BY created_at ASC
+  `
+  if (auditRows.length !== 2 || auditRows[0].old_revision !== 0 || auditRows[0].new_revision !== 1 || auditRows[1].old_revision !== 1 || auditRows[1].new_revision !== 2) {
+    await cleanup()
+    fail("expected immutable account display audit rows to record each revision change")
+  }
+  const sameValueUpdate = await withUserContext(USER_A, (tx) =>
+    tx.accountDisplaySetting.update({
+      where: { userId: USER_A },
+      data: { displayFromDate: new Date("2026-11-15T00:00:00.000Z"), timeZone: "Australia/Melbourne" },
+      select: { userId: true, revision: true },
+    }),
+  )
+  if (sameValueUpdate.revision !== 2) {
+    await cleanup()
+    fail("expected same-value update to preserve the prior revision")
+  }
+  const postNoopAuditRows = await prismaAdmin.$queryRaw<Array<{ user_id: string }>>`
+    SELECT user_id
+    FROM public.account_display_setting_audits
+    WHERE user_id = ${USER_A}
+  `
+  if (postNoopAuditRows.length !== 2) {
+    await cleanup()
+    fail("expected no extra audit row for a same-value save")
+  }
+  console.log("  ✓ account display settings are tenant-scoped and revision/audit-safe")
 
   console.log("\nCheck 3: withUserContext(USER_A) can insert own accounting connection")
   const accountingA = await withUserContext(USER_A, (tx) =>

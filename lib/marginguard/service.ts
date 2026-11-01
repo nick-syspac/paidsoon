@@ -32,6 +32,41 @@ function nowUtc(): Date {
   return new Date()
 }
 
+function normalizeDateKey(value: Date | string | number | null | undefined): string | null {
+  if (value === null || value === undefined) return null
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString().slice(0, 10)
+}
+
+export function filterMarginSourceRowsByAccountCutoff<T extends Record<string, unknown>>(
+  rows: T[],
+  cutoffDate: Date | null,
+  dateField: keyof T,
+): T[] {
+  if (!cutoffDate) return rows
+
+  const cutoffKey = normalizeDateKey(cutoffDate)
+  if (!cutoffKey) return []
+
+  return rows.filter((row) => {
+    const value = row[dateField]
+    const rowKey = normalizeDateKey(value as Date | string | number | null | undefined)
+    return rowKey !== null && rowKey >= cutoffKey
+  })
+}
+
+async function loadAccountDisplayCutoff(userId: string): Promise<Date | null> {
+  const profile = await withUserContext(userId, (tx) =>
+    tx.userProfile.findUnique({
+      where: { userId },
+      select: { accountDisplayFromDate: true },
+    }),
+  )
+
+  return profile?.accountDisplayFromDate ?? null
+}
+
 function parsePeriodBounds(period: MarginPeriodPreset, now: Date = nowUtc()): { from: Date; to: Date } {
   const to = now
   const from = new Date(now)
@@ -51,6 +86,11 @@ function parsePeriodBounds(period: MarginPeriodPreset, now: Date = nowUtc()): { 
     from.setUTCHours(0, 0, 0, 0)
   }
   return { from, to }
+}
+
+export function resolveMarginEffectiveFrom(periodStart: Date, cutoffDate: Date | null): Date {
+  if (!cutoffDate) return periodStart
+  return cutoffDate.getTime() >= periodStart.getTime() ? cutoffDate : periodStart
 }
 
 function asPercent(value: number | null): number | null {
@@ -163,8 +203,9 @@ export async function upsertMarginTarget(
   })
 }
 
-async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset) {
+async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset, cutoffDate: Date | null = null) {
   const { from, to } = parsePeriodBounds(period)
+  const effectiveFrom = resolveMarginEffectiveFrom(from, cutoffDate)
 
   return withUserContext(userId, async (tx) => {
     const [
@@ -179,7 +220,7 @@ async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset) {
       tx.financialInvoice.findMany({
         where: {
           userId,
-          dueDate: { gte: from, lte: to },
+          dueDate: { gte: effectiveFrom, lte: to },
         },
         select: {
           id: true,
@@ -193,16 +234,33 @@ async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset) {
       tx.importedBill.findMany({
         where: {
           userId,
-          dueDate: { gte: from, lte: to },
+          dueDate: { gte: effectiveFrom, lte: to },
         },
-        select: { id: true, amountCents: true, supplierName: true, expenseAccountName: true, currency: true, status: true },
+        select: {
+          id: true,
+          amountCents: true,
+          dueDate: true,
+          supplierName: true,
+          expenseAccountName: true,
+          currency: true,
+          status: true,
+        },
       }),
       tx.importedBankTransaction.findMany({
         where: {
           userId,
-          transactionDate: { gte: from, lte: to },
+          transactionDate: { gte: effectiveFrom, lte: to },
         },
-        select: { id: true, amountCents: true, counterpartyName: true, description: true, accountName: true, currency: true, direction: true },
+        select: {
+          id: true,
+          amountCents: true,
+          transactionDate: true,
+          counterpartyName: true,
+          description: true,
+          accountName: true,
+          currency: true,
+          direction: true,
+        },
       }),
       tx.marginCostClassification.findMany({
         where: { userId },
@@ -243,14 +301,33 @@ async function loadBaseMarginFacts(userId: string, period: MarginPeriodPreset) {
       }),
     ])
 
+    const eligibleInvoiceIds = new Set(filterMarginSourceRowsByAccountCutoff(invoices, cutoffDate, "dueDate").map((row) => row.id))
+    const eligibleBillIds = new Set(filterMarginSourceRowsByAccountCutoff(importedBills, cutoffDate, "dueDate").map((row) => row.id))
+    const eligibleTransactionIds = new Set(
+      filterMarginSourceRowsByAccountCutoff(importedBankTransactions, cutoffDate, "transactionDate").map((row) => row.id),
+    )
+
+    const eligibleClassifications = classifications.filter((row) => {
+      if (row.financialInvoiceId && eligibleInvoiceIds.has(row.financialInvoiceId)) return true
+      if (row.importedBillId && eligibleBillIds.has(row.importedBillId)) return true
+      if (row.importedBankTransactionId && eligibleTransactionIds.has(row.importedBankTransactionId)) return true
+      return false
+    })
+
+    const eligibleSpendClassifications = spendClassifications.filter((row) => {
+      if (row.sourceType === "imported_bill") return eligibleBillIds.has(row.sourceRecordId)
+      if (row.sourceType === "imported_bank_transaction") return eligibleTransactionIds.has(row.sourceRecordId)
+      return false
+    })
+
     return {
       from,
       to,
-      invoices,
-      importedBills,
-      importedBankTransactions,
-      classifications,
-      spendClassifications,
+      invoices: filterMarginSourceRowsByAccountCutoff(invoices, cutoffDate, "dueDate"),
+      importedBills: filterMarginSourceRowsByAccountCutoff(importedBills, cutoffDate, "dueDate"),
+      importedBankTransactions: filterMarginSourceRowsByAccountCutoff(importedBankTransactions, cutoffDate, "transactionDate"),
+      classifications: eligibleClassifications,
+      spendClassifications: eligibleSpendClassifications,
       alertsOpen,
       targets,
     }
@@ -312,7 +389,8 @@ export async function getMarginSummary(userId: string, requestedPeriod?: string)
       ? requestedPeriod
       : ((settings.defaultPeriod as MarginPeriodPreset) ?? DEFAULT_PERIOD)
 
-  const facts = await loadBaseMarginFacts(userId, period)
+  const cutoffDate = await loadAccountDisplayCutoff(userId)
+  const facts = await loadBaseMarginFacts(userId, period, cutoffDate)
 
   const revenueCents = sumIntegers(facts.invoices.map((row) => row.amountDueCents))
   const costTotals = classifyCostTotals({
@@ -367,13 +445,14 @@ export async function getMarginSummary(userId: string, requestedPeriod?: string)
   })
 
   const customersBelowTargetCount = await withUserContext(userId, async (tx) => {
+    const effectiveFrom = resolveMarginEffectiveFrom(facts.from, cutoffDate)
     const contacts = await tx.financialContact.findMany({
       where: { userId },
       select: {
         id: true,
         name: true,
         financialInvoices: {
-          where: { dueDate: { gte: facts.from, lte: facts.to } },
+          where: { dueDate: { gte: effectiveFrom, lte: facts.to } },
           select: { amountDueCents: true },
         },
       },
@@ -546,6 +625,8 @@ export async function getMarginCustomers(userId: string, requestedPeriod?: strin
   const summary = await getMarginSummary(userId, requestedPeriod)
   const from = new Date(summary.period.from)
   const to = new Date(summary.period.to)
+  const cutoffDate = await loadAccountDisplayCutoff(userId)
+  const effectiveFrom = resolveMarginEffectiveFrom(from, cutoffDate)
 
   return withUserContext(userId, async (tx) => {
     const contacts = await tx.financialContact.findMany({
@@ -554,7 +635,7 @@ export async function getMarginCustomers(userId: string, requestedPeriod?: strin
         id: true,
         name: true,
         financialInvoices: {
-          where: { dueDate: { gte: from, lte: to } },
+          where: { dueDate: { gte: effectiveFrom, lte: to } },
           select: {
             id: true,
             amountDueCents: true,
@@ -617,11 +698,13 @@ export async function getMarginBreakdowns(
   const summary = await getMarginSummary(userId, requestedPeriod)
   const from = new Date(summary.period.from)
   const to = new Date(summary.period.to)
+  const cutoffDate = await loadAccountDisplayCutoff(userId)
+  const effectiveFrom = resolveMarginEffectiveFrom(from, cutoffDate)
 
   if (dimension === "invoice") {
     const rows = await withUserContext(userId, (tx) =>
       tx.financialInvoice.findMany({
-        where: { userId, dueDate: { gte: from, lte: to } },
+        where: { userId, dueDate: { gte: effectiveFrom, lte: to } },
         orderBy: { dueDate: "desc" },
         select: {
           id: true,
@@ -659,7 +742,7 @@ export async function getMarginBreakdowns(
     const rows = await withUserContext(userId, (tx) =>
       tx.financialInvoice.groupBy({
         by: ["sourceSystem"],
-        where: { userId, dueDate: { gte: from, lte: to } },
+        where: { userId, dueDate: { gte: effectiveFrom, lte: to } },
         _sum: { amountDueCents: true },
       }),
     )

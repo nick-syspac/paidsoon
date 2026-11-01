@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { describe, test } from "node:test"
 
-import { upsertSpendFindings } from "@/lib/spendleak/persist"
+import { filterCurrentSpendFindings, upsertSpendFindings } from "@/lib/spendleak/persist"
 import type { SpendFinding } from "@/lib/spendleak/engine"
 
 type StoredFinding = {
@@ -41,6 +41,25 @@ function fingerprintForTest(finding: SpendFinding): string {
 
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex")
 }
+
+describe("SpendLeak provenance", () => {
+  test("rejects stale and unmarked findings against a changed account cutoff", () => {
+    const results = filterCurrentSpendFindings(
+      [
+        { id: "legacy", accountDisplayRevision: 0, accountDisplayFromDate: null, accountDisplayTimeZone: null },
+        { id: "stale", accountDisplayRevision: 1, accountDisplayFromDate: new Date("2026-09-01T00:00:00.000Z"), accountDisplayTimeZone: "Australia/Melbourne" },
+        { id: "current", accountDisplayRevision: 2, accountDisplayFromDate: new Date("2026-09-10T00:00:00.000Z"), accountDisplayTimeZone: "Australia/Melbourne" },
+      ],
+      {
+        accountDisplayRevision: 2,
+        accountDisplayFromDate: new Date("2026-09-10T00:00:00.000Z"),
+        accountDisplayTimeZone: "Australia/Melbourne",
+      },
+    )
+
+    assert.deepEqual(results.map((finding) => finding.id), ["current"])
+  })
+})
 
 describe("upsertSpendFindings suppression behavior", () => {
   test("preserves keep decision for unchanged evidence", async () => {

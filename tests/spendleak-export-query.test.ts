@@ -24,6 +24,9 @@ function makeFinding(overrides: Partial<SpendInsight> & { id: string; findingTyp
     evidenceFingerprint: overrides.evidenceFingerprint ?? null,
     estimatedMonthlyCents: overrides.estimatedMonthlyCents ?? 1000,
     estimatedAnnualCents: overrides.estimatedAnnualCents ?? 12000,
+    accountDisplayRevision: overrides.accountDisplayRevision ?? 0,
+    accountDisplayFromDate: overrides.accountDisplayFromDate ?? null,
+    accountDisplayTimeZone: overrides.accountDisplayTimeZone ?? null,
     evidence: overrides.evidence ?? { supplier: "Acme" },
     detectedAt: overrides.detectedAt ?? new Date("2026-09-01T00:00:00.000Z"),
     resolvedAt: overrides.resolvedAt ?? null,
@@ -64,5 +67,89 @@ describe("applySpendLeakExportFilters", () => {
 
     const result = applySpendLeakExportFilters(findings, { module: "duplicate_spend" })
     assert.deepEqual(result.map((finding) => finding.id), ["2"])
+  })
+
+  test("excludes findings whose evidence predates the active cutoff", () => {
+    const cutoff = new Date("2026-09-10T00:00:00.000Z")
+    const findings = [
+      makeFinding({
+        id: "1",
+        findingType: "recurring_spend",
+        accountDisplayRevision: 2,
+        accountDisplayFromDate: cutoff,
+        accountDisplayTimeZone: "Australia/Melbourne",
+        evidence: {
+          supplier: "Acme",
+          firstObservedDate: "2026-09-05T00:00:00.000Z",
+          latestObservedDate: "2026-09-06T00:00:00.000Z",
+        },
+      }),
+      makeFinding({
+        id: "2",
+        findingType: "duplicate_spend",
+        accountDisplayRevision: 2,
+        accountDisplayFromDate: cutoff,
+        accountDisplayTimeZone: "Australia/Melbourne",
+        evidence: {
+          supplier: "Acme",
+          recentCharges: [{ observedDate: "2026-09-12T00:00:00.000Z" }],
+        },
+      }),
+      makeFinding({
+        id: "3",
+        findingType: "renewal",
+        accountDisplayRevision: 2,
+        accountDisplayFromDate: cutoff,
+        accountDisplayTimeZone: "Australia/Melbourne",
+        evidence: {
+          supplier: "Acme",
+          recentTransactions: [{ transactionDate: "2026-09-09T00:00:00.000Z" }],
+        },
+      }),
+    ]
+
+    const result = applySpendLeakExportFilters(findings, {
+      module: null,
+      cutoffDate: cutoff,
+      accountDisplayPolicy: {
+        accountDisplayRevision: 2,
+        accountDisplayFromDate: cutoff,
+        accountDisplayTimeZone: "Australia/Melbourne",
+      },
+    })
+    assert.deepEqual(result.map((finding) => finding.id), ["2"])
+  })
+
+  test("rejects stale findings whose provenance no longer matches the active policy", () => {
+    const findings = [
+      makeFinding({
+        id: "legacy",
+        findingType: "recurring_spend",
+        accountDisplayRevision: 1,
+        accountDisplayFromDate: new Date("2026-09-01T00:00:00.000Z"),
+        accountDisplayTimeZone: "Australia/Melbourne",
+        evidence: { supplier: "Acme", firstObservedDate: "2026-09-12T00:00:00.000Z" },
+      }),
+      makeFinding({
+        id: "current",
+        findingType: "duplicate_spend",
+        accountDisplayRevision: 2,
+        accountDisplayFromDate: new Date("2026-09-10T00:00:00.000Z"),
+        accountDisplayTimeZone: "Australia/Melbourne",
+        evidence: { supplier: "Acme", recentCharges: [{ observedDate: "2026-09-12T00:00:00.000Z" }] },
+      }),
+    ]
+
+    const result = applySpendLeakExportFilters(findings, {
+      module: null,
+      cutoffDate: new Date("2026-09-10T00:00:00.000Z"),
+      accountDisplayPolicy: {
+        accountDisplayRevision: 2,
+        accountDisplayFromDate: new Date("2026-09-10T00:00:00.000Z"),
+        accountDisplayTimeZone: "Australia/Melbourne",
+      },
+    })
+
+    assert.deepEqual(result.map((finding) => finding.id), ["current"])
   })
 })

@@ -34,6 +34,7 @@ export interface ExportQueryParams {
   dateField?: ExportDateField
   dateFrom?: Date
   dateTo?: Date
+  cutoffDate?: Date | null
 }
 
 export function resolveStatuses(params: Pick<ExportQueryParams, "statuses" | "statusBucket">): string[] {
@@ -98,7 +99,11 @@ export async function loadInvoicesForExport(params: ExportQueryParams): Promise<
   const statuses = resolveStatuses(params)
 
   return withUserContext(params.userId, async (tx) => {
-    const invoices = await loadDashboardInvoicesWithTx(tx, params.userId, statuses, { updatedAt: "desc" })
+    const profile = params.cutoffDate === undefined
+      ? await tx.userProfile.findUnique({ where: { userId: params.userId }, select: { accountDisplayFromDate: true } })
+      : null
+    const cutoffDate = params.cutoffDate ?? profile?.accountDisplayFromDate ?? null
+    const invoices = await loadDashboardInvoicesWithTx(tx, params.userId, statuses, { updatedAt: "desc" }, cutoffDate)
     if (invoices.length === 0) return []
 
     const { chaseAllowance } = await loadDashboardContextWithTx(tx, params.userId)

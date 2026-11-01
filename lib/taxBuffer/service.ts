@@ -1,5 +1,6 @@
 import { requireSubscriptionAccess } from "@/lib/billing/accessGuard"
 import { requireFeature } from "@/lib/billing"
+import { getTxUserProfile } from "@/lib/db/txUserProfile"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 import { buildLatestOverrideMaps, estimateGstFromInvoiceAmount } from "@/lib/taxBuffer/categoryInputs"
 import {
@@ -88,6 +89,15 @@ export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSum
   return withUserContext(userId, async (tx) => {
     await ensureDefaults(tx, userId)
 
+    const userProfile = getTxUserProfile(tx)
+    const profile = userProfile
+      ? await userProfile.findUnique({
+          where: { userId },
+          select: { accountDisplayFromDate: true },
+        })
+      : null
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
+
     const [
       configuration,
       categories,
@@ -101,13 +111,25 @@ export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSum
     ] = await Promise.all([
       tx.taxBufferConfiguration.findUnique({ where: { userId } }),
       tx.taxReserveCategory.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
-      tx.taxBufferObligation.findMany({ where: { userId, status: { in: ["open", "short", "covered"] } } }),
+      tx.taxBufferObligation.findMany({
+        where: {
+          userId,
+          status: { in: ["open", "short", "covered"] },
+          ...(cutoffDate ? { dueDate: { gte: cutoffDate } } : {}),
+        },
+      }),
       tx.financialInvoice.findMany({
-        where: { userId },
+        where: {
+          userId,
+          ...(cutoffDate ? { dueDate: { gte: cutoffDate } } : {}),
+        },
         select: { amountDueCents: true, currency: true, dueDate: true },
       }),
       tx.importedBill.findMany({
-        where: { userId },
+        where: {
+          userId,
+          ...(cutoffDate ? { dueDate: { gte: cutoffDate } } : {}),
+        },
         select: { amountCents: true, gstCents: true, dueDate: true },
       }),
       tx.cashForecastSnapshot.findFirst({
@@ -155,6 +177,22 @@ export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSum
     const { categoryOverrideById, obligationOverrideById } = buildLatestOverrideMaps(overrides)
 
     const accountingBasis = (configuration?.accountingBasis === "accrual" ? "accrual" : "cash") as TaxBufferAccountingBasis
+    const includesSourcePeriod =
+      cutoffDate === null ||
+      categories.some((category) => category.enabled && category.calculationMethod === "manual") ||
+      financialInvoices.length > 0 ||
+      importedBills.length > 0
+    const sourcePeriodComplete =
+      cutoffDate === null ||
+      categories.every(
+        (category) =>
+          !category.enabled ||
+          category.calculationMethod === "manual" ||
+          category.calculationMethod === "fixed_amount" ||
+          !includesSourcePeriod ||
+          financialInvoices.length > 0 ||
+          importedBills.length > 0,
+      )
 
     const gstCollectedCents = financialInvoices
       .filter((invoice) => invoice.currency.toLowerCase() === "aud")
@@ -245,6 +283,7 @@ export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSum
         gstCollectedCents,
         gstCreditCents,
         unpaidInvoiceGstCents,
+        sourcePeriodComplete,
       },
       categories: categoriesForSummary,
       reservedByCategory,
@@ -283,6 +322,18 @@ export async function loadTaxBufferSummary(userId: string): Promise<TaxBufferSum
       reserveGapCents,
       safeToSpendCents,
       committedOutflowsCents,
+      quality: {
+        ...summary.quality,
+        reasons: [...new Set(summary.quality.reasons)],
+      },
+      // This is the resolved account-display anchor for the request. When the policy is
+      // absent or the source data is incomplete, the range remains partial instead of
+      // inventing a healthy window for recurring obligations or tax estimates.
+      effectiveDateRange: {
+        start: cutoffDate ? cutoffDate.toISOString() : null,
+        end: now.toISOString(),
+        status: summary.quality.state,
+      },
       recommendation: {
         ...summary.recommendation,
         transferNowCents: reserveGapCents,

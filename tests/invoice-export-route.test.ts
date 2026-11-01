@@ -12,6 +12,7 @@ import assert from "node:assert/strict"
 let mockUser: { id: string } | null = { id: "user-123" }
 let mockSubscriptionTier = "small_business"
 let mockSubscriptionStatus = "active"
+let mockProfile: { accountDisplayFromDate: Date | null } | null = null
 let mockInvoices: Record<string, unknown>[] = []
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -82,6 +83,7 @@ describe("GET /api/invoices/export", () => {
           const tx = {
             userProfile: {
               findUnique: async () => ({
+                accountDisplayFromDate: mockProfile?.accountDisplayFromDate ?? null,
                 subscriptionTier: mockSubscriptionTier,
                 subscriptionStatus: mockSubscriptionStatus,
                 stripeSubscriptionId: "sub-test",
@@ -128,6 +130,7 @@ describe("GET /api/invoices/export", () => {
     mockUser = { id: "user-123" }
     mockSubscriptionTier = "small_business"
     mockSubscriptionStatus = "active"
+    mockProfile = null
     mockInvoices = [makeInvoice({ id: "1" }), makeInvoice({ id: "2", provider: "xero" })]
   })
 
@@ -168,6 +171,21 @@ describe("GET /api/invoices/export", () => {
     assert.match(body, /invoice_reference/)
     assert.match(body, /ext-1/)
     assert.match(body, /ext-2/)
+  })
+
+  test("hides invoices older than the account display cutoff from exports", async () => {
+    mockProfile = { accountDisplayFromDate: new Date("2026-04-01T00:00:00Z") }
+    mockInvoices = [
+      makeInvoice({ id: "old", financialInvoice: { ...makeInvoice({ id: "old" }).financialInvoice, issueDate: new Date("2026-03-15"), dueDate: new Date("2026-03-20") } }),
+      makeInvoice({ id: "new", financialInvoice: { ...makeInvoice({ id: "new" }).financialInvoice, issueDate: new Date("2026-04-10"), dueDate: new Date("2026-04-20") } }),
+    ]
+
+    const res = await GET(makeRequest("format=csv"))
+    assert.strictEqual(res.status, 200)
+    const body = await res.text()
+    assert.match(body, /ext-new/)
+    assert.doesNotMatch(body, /ext-old/)
+    assert.strictEqual(res.headers.get("X-PaidSoon-Export-Row-Count"), "1")
   })
 
   test("retained export tier alone cannot authorize a canceled subscription", async () => {

@@ -214,7 +214,13 @@ export function dedupeOwnersDigestSignals(signals: OwnersDigestSignal[]): Owners
   return Array.from(merged.values()).sort(compareSignals)
 }
 
-export function determineOwnersDigestStatus(items: OwnersDigestItem[]): OwnersDigestStatus {
+export function determineOwnersDigestStatus(
+  items: OwnersDigestItem[],
+  completenessStatusValue: OwnersDigestSnapshotRecord["completenessStatus"] = "complete",
+): OwnersDigestStatus {
+  if (completenessStatusValue === "partial" || completenessStatusValue === "stale" || completenessStatusValue === "insufficient_data") {
+    return "watch"
+  }
   if (items.some((item) => item.severity === "critical")) return "critical"
   if (items.some((item) => item.severity === "warning" && item.priorityScore >= 45)) return "action_required"
   if (items.some((item) => item.severity === "warning")) return "watch"
@@ -259,17 +265,23 @@ function buildStatusReason(status: OwnersDigestStatus, items: OwnersDigestItem[]
   return firstAttention.title
 }
 
-export function buildOwnersDigestSummary(status: OwnersDigestStatus, items: OwnersDigestItem[]): string {
+export function buildOwnersDigestSummary(
+  status: OwnersDigestStatus,
+  items: OwnersDigestItem[],
+  completenessStatusValue: OwnersDigestSnapshotRecord["completenessStatus"] = "complete",
+): string {
   const attentionCount = items.filter((item) => item.section === "needs_attention").length
   const opportunityCount = items.filter((item) => item.section === "opportunities").length
   const positiveCount = items.filter((item) => item.section === "positive_changes").length
-  const label = status === "healthy"
-    ? "Everything looks on track."
-    : status === "watch"
-      ? "Your business remains stable, but a few issues need review."
-      : status === "action_required"
-        ? "Several issues need near-term attention."
-        : "Immediate financial attention is required."
+  const label = completenessStatusValue !== "complete"
+    ? "This digest is only partial because some data is unavailable or stale."
+    : status === "healthy"
+      ? "Everything looks on track."
+      : status === "watch"
+        ? "Your business remains stable, but a few issues need review."
+        : status === "action_required"
+          ? "Several issues need near-term attention."
+          : "Immediate financial attention is required."
 
   return [
     label,
@@ -731,9 +743,15 @@ export async function loadRunwayGuardProvider(userId: string, now: Date): Promis
     })
   }
 
+  const providerStatus: OwnersDigestProviderResult["status"] = snapshot
+    ? snapshot.status === "critical" || snapshot.status === "warning" || snapshot.status === "watch"
+      ? "complete"
+      : "partial"
+    : "not_configured"
+
   return {
     source: "runwayguard",
-    status: snapshot ? "complete" : "not_configured",
+    status: providerStatus,
     signals,
     metrics: snapshot
       ? [{
@@ -750,7 +768,7 @@ export async function loadRunwayGuardProvider(userId: string, now: Date): Promis
     stale: isStaleDate(snapshot?.snapshotAt ?? null, now),
     entitled: true,
     configured: Boolean(snapshot),
-    available: true,
+    available: providerStatus !== "not_configured" && providerStatus !== "partial",
   }
 }
 
@@ -1138,21 +1156,22 @@ export async function generateOwnersDigest(
     .flatMap((provider) => provider.metrics)
     .filter((metric, index, all) => all.findIndex((candidate) => candidate.key === metric.key) === index)
     .sort((left, right) => left.sortOrder - right.sortOrder)
-  const status = determineOwnersDigestStatus(items)
+  const completeness = completenessStatus(providerResults)
+  const status = determineOwnersDigestStatus(items, completeness)
   const snapshot = await persistSnapshot(userId, {
     frequency,
     periodLabel,
     periodStart,
     periodEnd,
     status,
-    summary: buildOwnersDigestSummary(status, items),
+    summary: buildOwnersDigestSummary(status, items, completeness),
     summaryMode: "deterministic",
     dataAsOf: latestDataAsOf(providerResults),
     generatedAt: now,
     lastRegeneratedAt: now,
     generationSource: options?.source ?? "page_load",
     generationState: "complete",
-    completenessStatus: completenessStatus(providerResults),
+    completenessStatus: completeness,
     completenessSummary: buildCompletenessSummary(providerResults),
     statusReason: buildStatusReason(status, items),
     items,

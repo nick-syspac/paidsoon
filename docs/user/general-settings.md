@@ -7,6 +7,7 @@ Open **Settings** from the signed-in dashboard. The **General** group contains A
 Open `/settings/account` to review your profile and account status.
 
 - **Display name:** Enter your name or business name and select **Save**. This name can appear in automated invoice reminder emails. A blank name cannot be saved.
+- **Display from:** Set a date to hide older account data from the account view and invoice reminders. Leaving it blank keeps the current behaviour. Save applies the date immediately; Clear removes the cutoff and Reset restores the last successfully saved value.
 - **Email:** The account email is displayed but is read-only on this page. It cannot be changed from Account settings.
 - **Account details:** Review the plan, subscription status, and member-since date. To manage the subscription, open **Subscription**.
 

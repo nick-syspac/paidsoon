@@ -13,8 +13,12 @@ export const CandidatePatchSchema = z.object({
   source: z.enum(["manual", "accounting_integration", "bank_transaction_pattern", "spendleak", "costguard", "import", "system_inferred"]).optional(),
 }).strict().refine((patch) => Object.keys(patch).length > 0, { message: "Choose at least one correction" })
 
+function isDateLike(value: unknown): value is Date {
+  return typeof value === "object" && value !== null && Object.prototype.toString.call(value) === "[object Date]"
+}
+
 export function safeCandidateDate(value: unknown): string | null {
-  if (!(value instanceof Date) && typeof value !== "string") return null
+  if (!isDateLike(value) && typeof value !== "string") return null
   const date = new Date(value)
   return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : null
 }

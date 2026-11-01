@@ -129,6 +129,15 @@ describe("CommitGuard engine", () => {
     }, "2026-10-19Z", "2026-11-02Z"), ["2026-10-26"])
   })
 
+  test("uses exact occurrence dates for recurring starts and future windows instead of setup dates", () => {
+    assert.deepEqual(dates({
+      frequency: "monthly", nextDueDate: new Date("2026-10-31Z"), startDate: new Date("2026-11-15Z"),
+    }, "2026-10-01Z", "2026-12-01Z"), ["2026-11-30"])
+    assert.deepEqual(dates({
+      frequency: "weekly", nextDueDate: new Date("2026-10-19Z"), startDate: new Date("2026-10-01Z"),
+    }, "2026-10-20Z", "2026-10-27Z"), ["2026-10-26"])
+  })
+
   test("includes commitment start/end dates only inside the half-open horizon", () => {
     const commitment = { frequency: "weekly" as const, nextDueDate: new Date("2026-10-19Z"),
       startDate: new Date("2026-10-26Z"), endDate: new Date("2026-11-02Z") }

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { NextResponse } from "next/server"
 import { CreateArrangementSchema } from "@/lib/arrangements"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 
 import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
 export const POST = withSubscriptionAccess(POSTHandler)
@@ -25,6 +26,10 @@ async function POSTHandler(request: Request): Promise<NextResponse> {
   }
 
   const result = await withUserContext(user.id, async (tx) => {
+    const profile = tx.userProfile && typeof tx.userProfile.findUnique === "function"
+      ? await tx.userProfile.findUnique({ where: { userId: user.id }, select: { accountDisplayFromDate: true } })
+      : null
+    const cutoffDate = profile?.accountDisplayFromDate ?? null
     const invoices = await tx.trackedInvoice.findMany({
       where: {
         id: { in: parsed.data.invoiceIds },
@@ -37,17 +42,20 @@ async function POSTHandler(request: Request): Promise<NextResponse> {
         financialInvoice: {
           select: {
             currency: true,
+            issueDate: true,
+            dueDate: true,
             contact: { select: { name: true, email: true, emailLower: true } },
           },
         },
       },
     })
 
-    if (invoices.length !== parsed.data.invoiceIds.length) {
+    const visibleInvoices = invoices.filter((invoice) => invoiceMatchesAccountCutoff(invoice, cutoffDate))
+    if (visibleInvoices.length !== parsed.data.invoiceIds.length) {
       return { ok: false as const, status: 404, error: "One or more invoices were not found" }
     }
 
-    const invoiceFacts = invoices.map((invoice) => ({
+    const invoiceFacts = visibleInvoices.map((invoice) => ({
       id: invoice.id,
       clientEmail: invoice.financialInvoice.contact?.email ?? "",
       clientEmailLower: invoice.financialInvoice.contact?.emailLower ?? "",

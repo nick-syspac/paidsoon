@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 type Params = { params: Promise<{ id: string }> }
 
 import { withSubscriptionAccess } from "@/lib/billing/subscriptionRoute"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 export const POST = withSubscriptionAccess(POSTHandler)
 async function POSTHandler(_req: Request, { params }: Params) {
   const { id } = await params
@@ -16,10 +17,13 @@ async function POSTHandler(_req: Request, { params }: Params) {
   snoozedUntil.setDate(snoozedUntil.getDate() + 7)
 
   const result = await withUserContext(user.id, async (tx) => {
+    const cutoffDate = null
     const invoice = await tx.trackedInvoice.findFirst({
       where: { id, userId: user.id, status: "pending" },
+      include: { financialInvoice: { select: { issueDate: true, dueDate: true } } },
     })
     if (!invoice) return { ok: false as const }
+    if (!invoiceMatchesAccountCutoff(invoice, cutoffDate)) return { ok: false as const }
 
     await tx.trackedInvoice.update({
       where: { id },

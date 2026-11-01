@@ -22,7 +22,7 @@ export interface FinancialOperationsSummaryModel {
   spendStatusLabel: string
   showUnlockCta: boolean
   costGuardStatusLabel?: string
-  costGuardForecastStatus?: "on_track" | "watch" | "over_target"
+  costGuardForecastStatus?: "on_track" | "watch" | "over_target" | "insufficient_data"
   costGuardForecastMessage?: string
   monthSpendCents?: number
   forecastVarianceCents?: number
@@ -85,7 +85,9 @@ export function buildFinancialOperationsSummary(
         ? "Over target"
         : costGuardForecastSummary.status === "watch"
           ? "Watch"
-          : "On track"
+          : costGuardForecastSummary.status === "insufficient_data"
+            ? "Insufficient data"
+            : "On track"
       : undefined,
     costGuardForecastStatus: costGuardForecastSummary?.status,
     costGuardForecastMessage: costGuardForecastSummary?.message,

@@ -14,6 +14,7 @@ type Setting = typeof base & { id: string; userId: string; planId: string | null
 let plans: Plan[] = []
 let settings: Setting[] = []
 let balance: Record<string, unknown> | null = null
+let profiles: Record<string, { accountDisplayFromDate: Date | null; accountDisplayRevision: number; accountDisplayTimeZone: string }> = {}
 const calls: Array<{ table: string; query: Record<string, unknown> }> = []
 let contexts: string[] = []
 
@@ -42,6 +43,11 @@ const tx = new Proxy({
     calls.push({ table: "cash", query })
     return balance
   } },
+  userProfile: { findUnique: async (query: { where: { userId: string } }) => {
+    assert.deepEqual(query.where, { userId })
+    calls.push({ table: "profile", query })
+    return profiles[userId] ?? { accountDisplayFromDate: null, accountDisplayRevision: 0, accountDisplayTimeZone: "Australia/Melbourne" }
+  } },
 }, { get(target, key, receiver) {
   assert.ok(key in target, `Unexpected persistence access: ${String(key)}`)
   return Reflect.get(target, key, receiver)
@@ -65,6 +71,7 @@ beforeEach(() => {
     weeklyOperatingExpensesCents: null, weeklyExpensesCurrency: null, weeklyExpensesAsOf: null,
     taxProtectionCurrency: null, revision: 12,
   }
+  profiles = {}
   calls.length = 0
   contexts = []
 })
@@ -112,7 +119,7 @@ describe("CashPlan 8.1 actual tenant input loader", () => {
     assert.equal(result.plan, null)
     assert.equal(result.startingBalance.amountCents, null)
     assert.deepEqual(result.quality.reasons, ["missing_plan"])
-    assert.deepEqual(calls.map((call) => call.table), ["plan", "cash"])
+    assert.deepEqual(calls.map((call) => call.table), ["plan", "profile", "cash"])
   })
   test("selected plan settings beat newer global and unrelated settings", async () => {
     settings = [setting("selected", ownedPlan.id, { timezone: "America/New_York", bufferTargetCents: 0 }),
@@ -180,6 +187,13 @@ describe("CashPlan 8.1 actual tenant input loader", () => {
     assert.equal(result.startingBalance.amountCents, null)
     assert.deepEqual(result.quality.reasons, ["missing_balance"])
   })
+  test("pre-cutoff cash anchor is ignored and treated as missing", async () => {
+    profiles[userId] = { accountDisplayFromDate: new Date("2026-10-20T00:00:00Z"), accountDisplayRevision: 4, accountDisplayTimeZone: "Australia/Melbourne" }
+    balance = { ...balance!, balanceAsOf: new Date("2026-10-19T00:00:00Z") }
+    const result = await load()
+    assert.equal(result.startingBalance.amountCents, null)
+    assert.deepEqual(result.quality.reasons, ["missing_balance"])
+  })
   test("selected unsupported horizon and invalid timezone stay unavailable", async () => {
     settings = [setting("selected", ownedPlan.id, { horizonWeeks: 26, timezone: "Invalid/Zone" })]
     const result = await load()
@@ -192,7 +206,7 @@ describe("CashPlan 8.1 actual tenant input loader", () => {
     const result = await loadCashPlanInputsInTransaction(tx as unknown as PrismaTx, userId, { now })
     assert.equal(result.plan?.id, ownedPlan.id)
     assert.deepEqual(contexts, [])
-    assert.deepEqual(calls.map((call) => call.table), ["plan", "settings", "settings", "cash"])
+    assert.deepEqual(calls.map((call) => call.table), ["plan", "settings", "settings", "profile", "cash"])
   })
   test("real loader preserves a DST anchor and all fourteen independent week boundaries", async () => {
     const clock = new Date("2026-10-03T14:30:00Z")
@@ -210,6 +224,6 @@ describe("CashPlan 8.1 actual tenant input loader", () => {
     const second = await load()
     assert.deepEqual(first, second)
     // The persistence proxy rejects snapshot delegates and any other table access.
-    assert.ok(calls.every((call) => ["plan", "settings", "cash"].includes(call.table)))
+    assert.ok(calls.every((call) => ["plan", "settings", "profile", "cash"].includes(call.table)))
   })
 })

@@ -107,8 +107,13 @@ function addDays(value: Date, days: number): Date {
   return next
 }
 
+function isDateLike(value: unknown): value is Date {
+  return typeof value === "object" && value !== null && Object.prototype.toString.call(value) === "[object Date]" &&
+    Number.isFinite((value as Date).getTime())
+}
+
 function projectionDate(value: Date): Date {
-  if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
+  if (!isDateLike(value) || !Number.isFinite(value.getTime())) {
     throw new CommitmentProjectionError("invalid_date")
   }
   return startOfDayUtc(value)

@@ -2,7 +2,12 @@ import { loadCashPlanInputsInTransaction } from "@/lib/cashplan/inputLoader"
 import { assembleCashPlanFacts, type CashPlanFactAssembly } from "@/lib/cashplan/factAssembler"
 import { withUserContext, type PrismaTx } from "@/lib/db/withUserContext"
 
-interface CashPlanFactLoadOptions { planId?: string; now?: Date; commitGuardEntitled: boolean }
+interface CashPlanFactLoadOptions {
+  planId?: string
+  now?: Date
+  commitGuardEntitled: boolean
+  accountDisplayPolicy?: { accountDisplayRevision: number; accountDisplayFromDate: Date | null; accountDisplayTimeZone: string | null } | null
+}
 
 /** Internal read-only boundary. Caller authenticates and checks CashPlan access;
  * CommitGuard entitlement is resolved by that caller, never from queued/client

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { withUserContext } from "@/lib/db/withUserContext"
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { invoiceMatchesAccountCutoff } from "@/lib/dashboard/loadDashboardInvoices"
 
 const bodySchema = z.object({
   note: z.string().max(2000).optional(),
@@ -26,10 +27,13 @@ async function POSTHandler(req: Request, { params }: Params) {
   const disputeRaisedAt = new Date()
 
   const result = await withUserContext(user.id, async (tx) => {
+    const cutoffDate = null
     const invoice = await tx.trackedInvoice.findFirst({
       where: { id, userId: user.id, status: { notIn: ["paid", "disputed", "manually_resolved"] } },
+      include: { financialInvoice: { select: { issueDate: true, dueDate: true } } },
     })
     if (!invoice) return { ok: false as const }
+    if (!invoiceMatchesAccountCutoff(invoice, cutoffDate)) return { ok: false as const }
 
     await tx.trackedInvoice.update({
       where: { id },
