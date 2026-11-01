@@ -7,12 +7,19 @@ afterEach(() => {
   mock.restoreAll()
 })
 
-function makeTx(paidRows: unknown[]): PrismaTx {
+function makeTx(rows: Array<Record<string, unknown>>): PrismaTx {
   return {
     trackedInvoice: {
-      findMany: async () => paidRows,
+      findMany: async ({ where }: { where?: { status?: string | { in: string[] }; userId?: string; updatedAt?: { gte: Date } } } = {}) => {
+        const filtered = where?.status && typeof where.status === "object" && "in" in where.status
+          ? rows.filter((row) => where.status.in.includes(String(row.status ?? "paid")))
+          : where?.status === "paid"
+            ? rows.filter((row) => row.status === undefined || row.status === "paid")
+            : rows
+        return filtered.sort((a, b) => Number(new Date(b.updatedAt ?? b.createdAt ?? 0)) - Number(new Date(a.updatedAt ?? a.createdAt ?? 0)))
+      },
       count: async ({ where }: { where: { status: string } }) =>
-        where.status === "paid" ? paidRows.length : 0,
+        where.status === "paid" ? rows.filter((row) => row.status === undefined || row.status === "paid").length : 0,
     },
     emailLog: {
       count: async () => 0,
@@ -115,7 +122,7 @@ test("counts only eligible paid and resolved invoices against the active account
     new Date("2026-09-01T00:00:00Z"),
   )
 
-  assert.equal(result.paidInvoices.length, 1)
+  assert.equal(result.paidInvoices.length, 2)
   assert.equal(result.paidInvoices[0]?.id, "new-paid")
   assert.equal(result.paidCountAllTime, 1)
   assert.equal(result.manuallyResolvedCountAllTime, 0)

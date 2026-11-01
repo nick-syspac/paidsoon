@@ -41,11 +41,11 @@ function dateOnlyKey(value: Date | string | null | undefined): string | null {
 }
 
 function invoiceMatchesAccountCutoff(
-  invoice: { issueDate?: Date | null; dueDate?: Date | null } | null,
+  invoice: { issueDate?: Date | null; dueDate?: Date | null; financialInvoice?: { issueDate?: Date | null; dueDate?: Date | null } | null } | null,
   cutoffDate: Date | null,
 ): boolean {
   if (!cutoffDate) return true
-  const effectiveDate = invoice?.issueDate ?? invoice?.dueDate ?? null
+  const effectiveDate = invoice?.financialInvoice?.issueDate ?? invoice?.financialInvoice?.dueDate ?? invoice?.issueDate ?? invoice?.dueDate ?? null
   if (!effectiveDate) return false
   const cutoffKey = dateOnlyKey(cutoffDate)
   const invoiceKey = dateOnlyKey(effectiveDate)

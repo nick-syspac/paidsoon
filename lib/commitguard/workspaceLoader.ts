@@ -30,7 +30,9 @@ export async function loadCommitGuardWorkspace(userId: string, query: WorkspaceQ
           accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } }) : [],
       listCommitGuardAlertsInTransaction(tx, userId, { page: Number(params.alertPage ?? 1), eventId: params.eventId }, now, advanced, detection),
       params.commitmentId ? loadAlertCommitmentInTransaction(tx, userId, params.commitmentId) : null,
-      tx.userProfile.findUnique({ where: { userId }, select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } }),
+      tx.userProfile && typeof tx.userProfile.findUnique === "function"
+        ? tx.userProfile.findUnique({ where: { userId }, select: { accountDisplayRevision: true, accountDisplayFromDate: true, accountDisplayTimeZone: true } })
+        : null,
     ])
     const summary = buildCommitGuardSummary(input)
     const eligibleRows = filterCurrentAccountDisplayRows(rows, accountDisplayPolicy)
